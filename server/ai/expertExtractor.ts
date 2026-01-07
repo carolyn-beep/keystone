@@ -81,11 +81,15 @@ function extractExpertsFromDocument(content: string): Array<{name: string, twitt
     for (let i = 1; i < expertBlocks.length; i++) {
       const block = expertBlocks[i];
       
-      const whoMatch = /-\s*(?:Who|Expert #\d+):\s*([^;\n]+)/i.exec(block);
+      const whoMatch = /-\s*(?:Who|Expert #?\d+):\s*([^;\n]+)/i.exec(block);
       if (!whoMatch) continue;
       
-      const name = whoMatch[1].trim().replace(/[;.]$/, '').trim();
-      if (!name || name.match(/^(Why follow|Focus|Key views|Where|Expertise Topic|Expert #\d+)/i)) continue;
+      const rawName = whoMatch[1].trim().replace(/[;.]$/, '').trim();
+      if (!rawName || rawName.match(/^(Why follow|Focus|Key views|Where|Expertise Topic|Expert #?\d+|Who follow)/i)) continue;
+
+      // Ensure name isn't just a long paragraph that accidentally matched
+      const name = rawName.split('\n')[0].split(/[;:]/)[0].trim();
+      if (name.split(' ').length > 6) continue;
       
       let twitterHandle: string | null = null;
       // Search for Twitter handles in Where, find her, or the whole block
@@ -395,7 +399,9 @@ export async function extractAndRankExperts(input: ExtractionInput): Promise<Ins
            !n.includes('key views') && 
            !n.includes('where') &&
            !n.includes('expertise topic') &&
-           !n.startsWith('expert #');
+           !n.includes('who follow') &&
+           !n.match(/^expert #?\d+/) &&
+           n.split(' ').length <= 5; // Expert names shouldn't be long paragraphs
   });
   
   // If NO experts found so far, use AI to find them from the text
