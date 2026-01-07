@@ -357,13 +357,23 @@ async function fetchWorkflowyContent(nodeIdOrUrl: string): Promise<string> {
       // no = notes (additional text under a bullet)
       // ch = children (nested bullets)
       function nodeToText(node: any, indent: number = 0): string {
-        const prefix = '  '.repeat(indent);
         const name = stripHtml(node.nm || node.name || '');
-        let text = prefix + '- ' + name;
-        
         const note = stripHtml(node.no || node.note || '');
+        
+        // Use markdown headers for top-level nodes, bullets for others
+        let text = '';
+        if (indent === 0) {
+          text = `# ${name}`;
+        } else if (indent === 1) {
+          text = `## ${name}`;
+        } else {
+          const prefix = '  '.repeat(indent - 2);
+          text = prefix + '- ' + name;
+        }
+
         if (note) {
-          text += '\n' + prefix + '  Note: ' + note;
+          const notePrefix = '  '.repeat(Math.max(0, indent - 1));
+          text += '\n' + notePrefix + '> ' + note;
         }
         
         const children = node.ch || node.children || [];
