@@ -55,7 +55,7 @@ async function seedDatabase() {
             return existingFact && existingFact.score === f.score;
           });
           
-          if (expectedSource === currentSource && scoresMatch) {
+          if (expectedSource === currentSource && scoresMatch && existing.summary?.meanScore !== "0") {
             console.log(`${item.slug} already up-to-date, skipping`);
             continue;
           }
@@ -64,12 +64,27 @@ async function seedDatabase() {
           await storage.deleteBrainlift(existing.id);
         }
         
+        // Calculate dynamic summary for seeding
+        const totalFacts = data.facts.length;
+        const gradeableFacts = data.facts.filter((f: any) => f.score > 0);
+        const sumScores = gradeableFacts.reduce((sum: number, f: any) => sum + f.score, 0);
+        const meanScore = gradeableFacts.length > 0 ? (sumScores / gradeableFacts.length).toFixed(2) : "0";
+        const score5Count = data.facts.filter((f: any) => f.score === 5).length;
+        const contradictionCount = data.contradictionClusters?.length || 0;
+
+        const dynamicSummary = {
+          totalFacts,
+          meanScore,
+          score5Count,
+          contradictionCount
+        };
+
         await storage.createBrainlift(
           {
             slug: item.slug,
             title: data.title,
             description: data.description,
-            summary: data.summary,
+            summary: dynamicSummary,
             author: data.author || null,
             classification: data.classification || 'brainlift',
             rejectionReason: data.rejectionReason || null,
