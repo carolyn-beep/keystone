@@ -16,6 +16,7 @@ import { verifyFactWithAllModels, calculateConsensus } from "./ai/factVerifier";
 import { fetchEvidenceForFact } from "./ai/evidenceFetcher";
 import { brainliftsData } from "./seedData";
 import { LLM_MODELS, LLM_MODEL_NAMES } from "@shared/schema";
+import pLimit from "p-limit";
 
 const upload = multer({
   storage: multer.memoryStorage(),
@@ -486,14 +487,6 @@ async function generateUniqueSlug(title: string): Promise<string> {
   }
 }
 
-import { extractBrainlift } from './ai/brainliftExtractor';
-import { summarizeFact } from './ai/factSummarizer';
-import { fetchEvidenceForFact } from './ai/evidenceFetcher';
-import { verifyFactWithAllModels } from './ai/factVerifier';
-import pLimit from 'p-limit';
-
-// ... existing code ...
-
 async function saveBrainliftFromAI(data: BrainliftOutput, originalContent?: string, sourceType?: string, userId?: string) {
   const slug = await generateUniqueSlug(data.title);
   
@@ -526,9 +519,23 @@ async function saveBrainliftFromAI(data: BrainliftOutput, originalContent?: stri
       const verification = await verifyFactWithAllModels(fact.fact, fact.source || "", evidenceContent);
       finalScore = verification.consensus.consensusScore;
       
-      // Add grading rationale to notes
-      const gradingNote = `Grading: ${finalScore}/5. ${verification.consensus.verificationNotes}`;
-      finalNote = `${finalNote}\n\n${gradingNote}`;
+      // Get the rationale directly from consensus notes
+      const rationale = verification.consensus.verificationNotes;
+      
+      // Format note: Rationale first, then hyperlinked source at the end
+      let sourceHyperlink = "";
+      if (fact.aiNotes && fact.aiNotes.includes("Source: ")) {
+        const sourceUrl = fact.aiNotes.split("Source: ")[1]?.trim();
+        if (sourceUrl) {
+          sourceHyperlink = `Source: [${sourceUrl}](${sourceUrl})`;
+        }
+      } else if (fact.source && fact.source.startsWith("http")) {
+        sourceHyperlink = `Source: [${fact.source}](${fact.source})`;
+      } else {
+        sourceHyperlink = "No sources have been linked to this fact";
+      }
+
+      finalNote = `${rationale}\n\n${sourceHyperlink}`;
     } catch (err) {
       console.error(`Verification failed for fact: ${fact.id}`, err);
     }
