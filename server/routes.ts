@@ -597,15 +597,7 @@ async function saveBrainliftFromAI(data: BrainliftOutput, originalContent?: stri
   const sumScores = gradeableFacts.reduce((sum, f) => sum + f.score, 0);
   const meanScore = gradeableFacts.length > 0 ? (sumScores / gradeableFacts.length).toFixed(2) : "0";
   const score5Count = factsWithSummaries.filter(f => f.score === 5).length;
-  const contradictionCount = data.contradictionClusters.length;
 
-  const dynamicSummary = {
-    totalFacts,
-    meanScore,
-    score5Count,
-    contradictionCount: factsWithSummaries.filter(f => f.contradicts).length || clusters.length
-  };
-  
   const clusters = data.contradictionClusters.map((c) => ({
     name: c.name,
     tension: c.tension,
@@ -613,6 +605,13 @@ async function saveBrainliftFromAI(data: BrainliftOutput, originalContent?: stri
     factIds: c.factIds,
     claims: c.claims,
   }));
+
+  const dynamicSummary = {
+    totalFacts,
+    meanScore,
+    score5Count,
+    contradictionCount: factsWithSummaries.filter(f => f.contradicts).length || clusters.length
+  };
   
   const readingList = data.readingList.map((r) => ({
     type: r.type,
