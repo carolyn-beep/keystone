@@ -12,7 +12,16 @@ import { summarizeFact } from "./ai/factSummarizer";
 import { searchForResources, deepResearch } from "./ai/resourceResearcher";
 import { searchRelevantTweets } from "./ai/twitterService";
 import { extractAndRankExperts } from "./ai/expertExtractor";
-import { verifyFactWithAllModels, calculateConsensus } from "./ai/factVerifier";
+import { detectContradictions } from "./ai/contradictionDetector";
+
+// ... existing code ...
+
+    // Verify with LLMs
+    try {
+      const verification = await verifyFactWithAllModels(fact.fact, fact.source || "", evidenceContent, linkFailed);
+      finalScore = verification.consensus.consensusScore;
+// ... (this is a conceptual placeholder, I will provide the real edit below)
+
 import { fetchEvidenceForFact } from "./ai/evidenceFetcher";
 import { brainliftsData } from "./seedData";
 import { LLM_MODELS, LLM_MODEL_NAMES } from "@shared/schema";
