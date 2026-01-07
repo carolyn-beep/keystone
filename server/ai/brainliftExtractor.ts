@@ -23,7 +23,7 @@ const brainliftOutputSchema = z.object({
     category: z.string(),
     source: z.string().nullable(),
     fact: z.string(),
-    score: z.number().min(1).max(5),
+    score: z.number().min(0).max(5),
     aiNotes: z.string(),
     contradicts: z.string().nullable(),
     flags: z.array(z.string()).optional(),
@@ -64,12 +64,14 @@ Facts marked with "(DOK1)" at the end of a line ANYWHERE in the document. Exampl
 **CRITICAL EXTRACTION RULES:**
 1. SCAN THE ENTIRE DOCUMENT for anything marked "(DOK1)" - these are facts to extract
 2. Also extract from dedicated DOK1 sections if they exist
-3. Each fact should be extracted EXACTLY as written, with its source
-4. MUST include the source/citation for each fact (author, study name, publication, year)
-5. If a fact says "67% of parents report X (Private School Review 2024)" - extract the FULL statement with the source
-6. Count EVERY DOK1 fact - if there are 47 facts marked (DOK1), output 47 facts
-7. Do NOT summarize or combine facts
-8. Facts may be embedded in DOK2, DOK3, DOK4, or SPOV sections with "(DOK1)" notation - EXTRACT THEM
+3. INCLUDE prescriptive statements, uncited claims, or general assertions that look like DOK1 facts but lack sources or verifiable structure.
+4. Assign Score 0 to these non-gradeable claims.
+5. Each fact should be extracted EXACTLY as written, with its source if available.
+6. MUST include the source/citation for each fact if it exists (author, study name, publication, year)
+7. If a fact says "67% of parents report X (Private School Review 2024)" - extract the FULL statement with the source
+8. Count EVERY fact found - gradeable or not.
+9. Do NOT summarize or combine facts
+10. Facts may be embedded in DOK2, DOK3, DOK4, or SPOV sections with "(DOK1)" notation - EXTRACT THEM
 
 **WHAT TO IGNORE (NOT DOK1):**
 - "Core Insight", "Contrarian Claim", "Resistance-Inducing Strength" sections (unless marked DOK1)
@@ -96,17 +98,19 @@ For EACH fact, you MUST externally verify the claim:
 4. Check if numbers/statistics are accurate
 5. Check if the claim is current or outdated
 
-**ACCURACY SCORING (1-5):**
+**ACCURACY SCORING (0-5):**
 - 5 = Verified: Claim is TRUE AND source supports it
 - 4 = Mostly Verified: Claim is largely accurate, minor imprecision
 - 3 = Partially Verified: Claim has some truth but overreaches, misattributes, or lacks key context
 - 2 = Weakly Supported: Claim is questionable, stats don't match, or source doesn't support it
 - 1 = Not Verified: Claim is false, source doesn't exist, or directly contradicted by evidence
+- 0 = Non-Gradeable: Prescriptive statements, uncited claims, or content that cannot be verified as a DOK1 fact.
 
 **AI NOTES (REQUIRED - must explain verification):**
 For EVERY fact, aiNotes MUST include:
 - What you verified
 - Whether the source actually supports the claim
+- For Score 0: Explicitly explain WHY it is non-gradeable (e.g., "This is a prescription", "No source provided")
 - Any discrepancies found
 - If stats/numbers were confirmed or not
 
@@ -475,10 +479,12 @@ Output facts in this JSON format:
   const mergedFacts = [...(baseOutput.facts || []), ...extendedFacts];
   
   // Re-calculate summary
+  const gradeableFacts = mergedFacts.filter(f => f.score > 0);
   const totalFacts = mergedFacts.length;
+  const gradeableCount = gradeableFacts.length;
   const score5Count = mergedFacts.filter(f => f.score === 5).length;
-  const meanScore = totalFacts > 0 
-    ? (mergedFacts.reduce((acc, f) => acc + f.score, 0) / totalFacts).toFixed(1)
+  const meanScore = gradeableCount > 0 
+    ? (gradeableFacts.reduce((acc, f) => acc + f.score, 0) / gradeableCount).toFixed(1)
     : "0";
 
   const finalResult = {

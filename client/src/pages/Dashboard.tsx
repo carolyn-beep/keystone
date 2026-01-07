@@ -1093,52 +1093,52 @@ export default function Dashboard({ slug, isSharedView = false }: DashboardProps
 
         {/* Row 5: Status Rail - Classification badge with checkmark */}
         <div style={{ marginTop: '12px' }}>
-          {data.classification === 'brainlift' ? (
-            <span style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: '6px',
-              padding: '4px 10px',
-              backgroundColor: tokens.successSoft,
-              color: tokens.success,
-              borderRadius: '4px',
-              fontSize: '12px',
-              fontWeight: 600,
-            }}>
-              <Check size={14} />
-              Brainlift · DOK1 Graded
-            </span>
-          ) : data.classification === 'partial' ? (
-            <span style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: '6px',
-              padding: '4px 10px',
-              backgroundColor: tokens.warningSoft,
-              color: tokens.warning,
-              borderRadius: '4px',
-              fontSize: '12px',
-              fontWeight: 600,
-            }}>
-              <AlertTriangle size={14} />
-              Partial Brainlift
-            </span>
-          ) : (
-            <span style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: '6px',
-              padding: '4px 10px',
-              backgroundColor: tokens.warningSoft,
-              color: tokens.warning,
-              borderRadius: '4px',
-              fontSize: '12px',
-              fontWeight: 600,
-            }}>
-              <AlertTriangle size={14} />
-              Not a Brainlift
-            </span>
-          )}
+              {data.classification === 'brainlift' ? (
+                <span style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  padding: '4px 10px',
+                  backgroundColor: tokens.successSoft,
+                  color: tokens.success,
+                  borderRadius: '4px',
+                  fontSize: '12px',
+                  fontWeight: 600,
+                }}>
+                  <Check size={14} />
+                  Brainlift · DOK1 Graded
+                </span>
+              ) : data.classification === 'partial' ? (
+                <span style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  padding: '4px 10px',
+                  backgroundColor: tokens.warningSoft,
+                  color: tokens.warning,
+                  borderRadius: '4px',
+                  fontSize: '12px',
+                  fontWeight: 600,
+                }}>
+                  <AlertTriangle size={14} />
+                  Partial Brainlift
+                </span>
+              ) : (
+                <span style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  padding: '4px 10px',
+                  backgroundColor: tokens.warningSoft,
+                  color: tokens.warning,
+                  borderRadius: '4px',
+                  fontSize: '12px',
+                  fontWeight: 600,
+                }}>
+                  <AlertTriangle size={14} />
+                  Not a Brainlift
+                </span>
+              )}
         </div>
 
         {/* Row 6: Navigation Tabs (left) + Actions (right) */}
@@ -1351,8 +1351,7 @@ export default function Dashboard({ slug, isSharedView = false }: DashboardProps
             <div>
               <div style={{ fontWeight: 600, color: tokens.warning }}>Partial Brainlift</div>
               <div style={{ fontSize: '14px', color: tokens.textSecondary }}>
-                Only {facts.length} claims in this document are gradeable. 
-                Non-gradeable content (prescriptive statements, uncited claims) has been excluded.
+                This document contains {facts.filter(f => !f.isGradeable).length} non-gradeable claims (prescriptive statements or uncited claims) alongside verifiable DOK1 facts.
               </div>
             </div>
           </div>

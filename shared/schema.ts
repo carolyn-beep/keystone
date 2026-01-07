@@ -49,6 +49,7 @@ export const facts = pgTable("facts", {
   contradicts: text("contradicts"), // Cluster name or null
   note: text("note"), // Explanation for the score
   flags: text("flags").array(), // New column for flags like "Incomplete/Unverifiable"
+  isGradeable: boolean("is_gradeable").default(true).notNull(),
 });
 
 export const contradictionClusters = pgTable("contradiction_clusters", {
