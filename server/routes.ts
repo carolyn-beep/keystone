@@ -8,6 +8,7 @@ import path from "path";
 import multer from "multer";
 import * as mammoth from "mammoth";
 import { extractBrainlift, BrainliftOutput } from "./ai/brainliftExtractor";
+import { summarizeFact } from "./ai/factSummarizer";
 import { searchForResources, deepResearch } from "./ai/resourceResearcher";
 import { searchRelevantTweets } from "./ai/twitterService";
 import { extractAndRankExperts } from "./ai/expertExtractor";
@@ -488,17 +489,19 @@ async function generateUniqueSlug(title: string): Promise<string> {
 async function saveBrainliftFromAI(data: BrainliftOutput, originalContent?: string, sourceType?: string, userId?: string) {
   const slug = await generateUniqueSlug(data.title);
   
-  const facts = data.facts.map((f: any) => ({
+  // Generate summaries for each fact
+  const factsWithSummaries = await Promise.all(data.facts.map(async (f: any) => ({
     originalId: f.id,
     category: f.category,
     source: f.source || null,
-    fact: f.fact,
+    fact: f.fact, // Full text stored in 'fact'
+    summary: await summarizeFact(f.fact), // AI summary
     score: f.score,
     contradicts: f.contradicts,
     note: f.aiNotes || null,
     flags: f.flags || [],
-    isGradeable: true, // Mark all extracted facts as gradeable for display
-  }));
+    isGradeable: true,
+  })));
   
   const clusters = data.contradictionClusters.map((c) => ({
     name: c.name,

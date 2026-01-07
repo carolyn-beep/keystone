@@ -355,7 +355,7 @@ export default function Dashboard({ slug, isSharedView = false }: DashboardProps
   const [tweetFeedbackState, setTweetFeedbackState] = useState<Record<string, 'accepted' | 'rejected'>>({});
   const [expertsExpanded, setExpertsExpanded] = useState(true);
   const [showAllExperts, setShowAllExperts] = useState(false);
-  const [debugExpanded, setDebugExpanded] = useState(false);
+  const [selectedFactForModal, setSelectedFactForModal] = useState<Fact | null>(null);
 
   const handleCopyLink = () => {
     const shareUrl = `${window.location.origin}/view/${slug}`;

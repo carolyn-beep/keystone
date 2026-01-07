@@ -45,6 +45,7 @@ export const facts = pgTable("facts", {
   category: text("category").notNull(),
   source: text("source"), // Citation or source reference
   fact: text("fact").notNull(),
+  summary: text("summary"), // 3-line max AI summary
   score: integer("score").notNull(),
   contradicts: text("contradicts"), // Cluster name or null
   note: text("note"), // Explanation for the score
