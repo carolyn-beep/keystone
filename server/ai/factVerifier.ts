@@ -118,9 +118,12 @@ Grade this claim. If link failed and not universally known, mark as non-gradeabl
 
     const parsed = JSON.parse(jsonMatch[0]);
     
+    // Explicitly log for debugging
+    console.log(`Model result for fact: score=${parsed.score}, isNonGradeable=${parsed.isNonGradeable}`);
+
     return {
-      score: parsed.score,
-      rationale: parsed.rationale,
+      score: typeof parsed.score === 'number' ? parsed.score : 0,
+      rationale: parsed.rationale || 'No rationale provided',
       isNonGradeable: parsed.isNonGradeable === true || parsed.isNonGradeable === 'true'
     };
   };
@@ -184,10 +187,11 @@ export function calculateConsensus(
     };
   }
 
-  const isNonGradeable = validResults.some(r => r.isNonGradeable);
-  const validScores = validResults.map(r => r.score as number).filter(s => s !== null);
+  const isNonGradeable = validResults.some(r => r.isNonGradeable === true);
+  const gradeableResults = validResults.filter(r => r.isNonGradeable !== true);
+  const validScores = gradeableResults.map(r => r.score as number).filter(s => s !== null);
 
-  const weights = validResults.map(r => modelWeights?.[r.model] ?? 1.0);
+  const weights = gradeableResults.map(r => modelWeights?.[r.model] ?? 1.0);
   const consensusScore = calculateWeightedMedian(validScores, weights);
   const minScore = validScores.length > 0 ? Math.min(...validScores) : 0;
   const maxScore = validScores.length > 0 ? Math.max(...validScores) : 0;
@@ -202,7 +206,7 @@ export function calculateConsensus(
     consensusScore: isNonGradeable ? 0 : consensusScore,
     confidenceLevel,
     needsReview,
-    verificationNotes: validResults[0]?.rationale || 'No specific rationale provided.',
+    verificationNotes: isNonGradeable ? (validResults[0]?.rationale || 'Source link was inaccessible.') : (validResults[0]?.rationale || 'No specific rationale provided.'),
     isNonGradeable: Boolean(isNonGradeable)
   };
 }

@@ -7,7 +7,7 @@ import fs from "fs";
 import path from "path";
 import multer from "multer";
 import * as mammoth from "mammoth";
-import { extractBrainlift, BrainliftOutput } from "./ai/brainliftExtractor";
+import { extractBrainlift, type BrainliftOutput } from "./ai/brainliftExtractor";
 import { summarizeFact } from "./ai/factSummarizer";
 import { searchForResources, deepResearch } from "./ai/resourceResearcher";
 import { searchRelevantTweets } from "./ai/twitterService";
@@ -523,11 +523,12 @@ async function saveBrainliftFromAI(data: BrainliftOutput, originalContent?: stri
       finalScore = verification.consensus.consensusScore;
       
       // Get the rationale directly from consensus notes
-      let rationale = verification.consensus.verificationNotes;
+      const rationale = verification.consensus.verificationNotes || 'No specific rationale provided.';
       let isGradeable = true;
+      let noteContent = rationale;
 
       if (verification.consensus.isNonGradeable) {
-        rationale = `As the source link is not accessible, this DOK1 could not be graded - ${rationale}`;
+        noteContent = `As the source link is not accessible, this DOK1 could not be graded - ${rationale}`;
         isGradeable = false;
         finalScore = 0;
       }
@@ -545,7 +546,7 @@ async function saveBrainliftFromAI(data: BrainliftOutput, originalContent?: stri
         sourceHyperlink = "No sources have been linked to this fact";
       }
 
-      finalNote = `${rationale}\n\n${sourceHyperlink}`;
+      finalNote = `${noteContent}\n\n${sourceHyperlink}`;
 
       return {
         originalId: fact.id,
@@ -578,9 +579,10 @@ async function saveBrainliftFromAI(data: BrainliftOutput, originalContent?: stri
 
   // Calculate dynamic summary stats
   const totalFacts = factsWithSummaries.length;
-  const gradeableFacts = factsWithSummaries.filter(f => f.isGradeable);
-  const sumScores = gradeableFacts.reduce((sum, f) => sum + f.score, 0);
-  const meanScore = gradeableFacts.length > 0 ? (sumScores / gradeableFacts.length).toFixed(2) : "0";
+  // Use a looser check for isGradeable in case it's not strictly true (e.g. undefined defaults to true)
+  const gradeableFacts = factsWithSummaries.filter(f => f.isGradeable !== false);
+  const sumScores = gradeableFacts.reduce((sum, f) => sum + (f.score || 0), 0);
+  const meanScore = gradeableFacts.length > 0 ? (sumScores / gradeableFacts.length).toFixed(2) : "0.00";
   const score5Count = factsWithSummaries.filter(f => f.score === 5).length;
   const contradictionCount = data.contradictionClusters.length;
 
