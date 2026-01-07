@@ -208,9 +208,47 @@ export async function extractBrainlift(markdownContent: string, sourceType: stri
       contradictionCount: 0
     },
     facts,
-    contradictionClusters: [],
+    contradictionClusters: findContradictions(facts),
     readingList: []
   };
 
   return brainliftOutputSchema.parse(finalResult);
+}
+
+function findContradictions(facts: any[]): any[] {
+  const clusters: any[] = [];
+  const processedIndices = new Set<number>();
+
+  for (let i = 0; i < facts.length; i++) {
+    if (processedIndices.has(i)) continue;
+
+    for (let j = i + 1; j < facts.length; j++) {
+      if (processedIndices.has(j)) continue;
+
+      const factA = facts[i].fact.toLowerCase();
+      const factB = facts[j].fact.toLowerCase();
+
+      // Simple heuristic for contradictions: keywords suggesting tension or opposite claims
+      const tensionKeywords = ['however', 'but', 'contradict', 'disagree', 'instead', 'whereas', 'opposite'];
+      const hasConflict = tensionKeywords.some(word => 
+        (factA.includes(word) && factB.includes(word)) ||
+        (factA.includes('increase') && factB.includes('decrease')) ||
+        (factA.includes('high') && factB.includes('low'))
+      );
+
+      if (hasConflict) {
+        clusters.push({
+          name: `Contradiction Cluster ${clusters.length + 1}`,
+          factIds: [facts[i].id, facts[j].id],
+          claims: [facts[i].fact, facts[j].fact],
+          tension: "Directly conflicting claims identified in the source text.",
+          status: "Flagged"
+        });
+        processedIndices.add(i);
+        processedIndices.add(j);
+        break;
+      }
+    }
+  }
+  return clusters;
 }

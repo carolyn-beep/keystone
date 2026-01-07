@@ -603,7 +603,7 @@ async function saveBrainliftFromAI(data: BrainliftOutput, originalContent?: stri
     totalFacts,
     meanScore,
     score5Count,
-    contradictionCount
+    contradictionCount: factsWithSummaries.filter(f => f.contradicts).length || clusters.length
   };
   
   const clusters = data.contradictionClusters.map((c) => ({
