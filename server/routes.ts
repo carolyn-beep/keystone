@@ -519,14 +519,14 @@ async function saveBrainliftFromAI(data: BrainliftOutput, originalContent?: stri
 
     // Verify with LLMs
     try {
-      const verification = await verifyFactWithAllModels(fact.fact, fact.source || "", evidenceContent, linkFailed);
-      finalScore = verification.consensus.consensusScore;
+      const verificationResult = await verifyFactWithAllModels(fact.fact, fact.source || "", evidenceContent, linkFailed);
+      finalScore = verificationResult.consensus.consensusScore;
       
       // Get the rationale directly from consensus notes
-      let rationale = verification.consensus.verificationNotes;
+      let rationale = verificationResult.consensus.verificationNotes;
       let isGradeable = true;
 
-      if (verification.consensus.isNonGradeable) {
+      if (verificationResult.consensus.isNonGradeable) {
         rationale = `As the source link is not accessible, this DOK1 could not be graded - ${rationale}`;
         isGradeable = false;
         finalScore = 0;

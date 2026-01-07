@@ -1,7 +1,7 @@
 import { useState, useMemo } from 'react';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { Link } from 'wouter';
-import { BrainliftData, ReadingListGrade, BrainliftVersion, CLASSIFICATION, type Classification, type Expert } from '@shared/schema';
+import { Fact, BrainliftData, ReadingListGrade, BrainliftVersion, CLASSIFICATION, type Classification, type Expert } from '@shared/schema';
 import { Share2, Check, ChevronDown, ChevronUp, ExternalLink, Download, RefreshCw, History, X, Upload, Search, Plus, Loader2, FileX, AlertTriangle, Zap, CheckCircle, Lightbulb, FileText, Clock, ThumbsUp, ThumbsDown, Users, User, Trash2 } from 'lucide-react';
 import { SiX } from 'react-icons/si';
 import { queryClient, apiRequest } from '@/lib/queryClient';
@@ -325,6 +325,7 @@ interface DashboardProps {
 export default function Dashboard({ slug, isSharedView = false }: DashboardProps) {
   const [activeTab, setActiveTab] = useState('brainlift');
   const [selectedCluster, setSelectedCluster] = useState<number | null>(null);
+  const [debugExpanded, setDebugExpanded] = useState(false);
   const [readingFilter, setReadingFilter] = useState<'all' | 'graded' | 'ungraded'>('all');
   
   const [copied, setCopied] = useState(false);
@@ -381,8 +382,9 @@ export default function Dashboard({ slug, isSharedView = false }: DashboardProps
   const isNotBrainlift = data?.classification === 'not_brainlift';
   const isPartialBrainlift = data?.classification === 'partial';
 
+  const { title, description, contradictionClusters, readingList } = data;
   const factsList = data?.facts || [];
-  const brainliftSummary = data?.summary || { totalFacts: 0, meanScore: '0', score5Count: 0, contradictionCount: 0 };
+  const brainliftSummary = data?.summary || { totalFacts: 0, meanScore: '0', score5Count: 0, contradictionCount: 0, summary: "" };
 
   const { data: grades = [] } = useQuery<ReadingListGrade[]>({
     queryKey: ['grades', slug],
@@ -980,7 +982,10 @@ export default function Dashboard({ slug, isSharedView = false }: DashboardProps
     </div>
   );
 
-  const { title, description, facts: factsList, contradictionClusters, readingList, summary: brainliftSummary } = data;
+  const { title, description, contradictionClusters, readingList } = data;
+  const { title, description, contradictionClusters, readingList } = data;
+  const factsList = data?.facts || [];
+  const brainliftSummary = data?.summary || { totalFacts: 0, meanScore: '0', score5Count: 0, contradictionCount: 0, summary: "" };
 
   // Reading List categorization
   const readingCategories = [
@@ -1354,7 +1359,7 @@ export default function Dashboard({ slug, isSharedView = false }: DashboardProps
             <div>
               <div style={{ fontWeight: 600, color: tokens.warning }}>Partial Brainlift</div>
               <div style={{ fontSize: '14px', color: tokens.textSecondary }}>
-                This document contains {facts.filter(f => !f.isGradeable).length} non-gradeable claims (prescriptive statements or uncited claims) alongside verifiable DOK1 facts.
+                This document contains {factsList.filter(f => !f.isGradeable).length} non-gradeable claims (prescriptive statements or uncited claims) alongside verifiable DOK1 facts.
               </div>
             </div>
           </div>
