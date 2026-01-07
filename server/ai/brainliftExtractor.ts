@@ -183,17 +183,22 @@ export async function extractBrainlift(markdownContent: string, sourceType: stri
 
     // 5. Handle Content inside DOK1 Section
     if (inDOK1Section) {
-      const isExitSection = /Link/i.test(cleaned) || /Source\s*\d+/i.test(cleaned) || /^Category\s*\d+/i.test(cleaned) || /DOK\s*2/i.test(cleaned);
-      const isHigherLevel = indent <= sectionIndentLevel && trimmed.length > 0;
+      const isExitSection = /Link/i.test(cleaned) || /Source\s*\d+/i.test(cleaned) || /^Category\s*\d+/i.test(cleaned) || /^##\s*\d+/i.test(line) || /DOK\s*2/i.test(cleaned);
+      const isHigherLevel = indent <= sectionIndentLevel && trimmed.length > 0 && !trimmed.startsWith('-') && !trimmed.startsWith('*');
 
       if (isExitSection || isHigherLevel) {
         flushSection();
         inDOK1Section = false;
         
-        if (isExitSection || /^Category|^Source/i.test(cleaned)) {
+        if (isExitSection || /^Category|^Source|^##\s*\d+/i.test(cleaned)) {
           i--; // Re-process this line
         }
         continue;
+      }
+
+      // If line is a bullet point, start a new fact if we already have content
+      if ((trimmed.startsWith('-') || trimmed.startsWith('*') || trimmed.startsWith('•')) && sectionBuffer.length > 0) {
+        flushSection();
       }
 
       sectionBuffer.push(line);
