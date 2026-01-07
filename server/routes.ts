@@ -986,7 +986,7 @@ export async function registerRoutes(
           brainliftId: updatedBrainlift.id,
           title: brainliftData.title,
           description: brainliftData.description,
-          author: null,
+          author: (brainliftData as any).author || null,
           facts: facts as any[],
           originalContent: content,
           readingList: readingList,
