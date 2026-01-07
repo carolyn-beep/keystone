@@ -214,14 +214,14 @@ export async function extractBrainlift(markdownContent: string, sourceType: stri
       contradictionCount: 0
     },
     facts,
-    contradictionClusters: await findContradictions(facts),
+    contradictionClusters: [], // Will be filled later in parallel
     readingList: []
   };
 
   return brainliftOutputSchema.parse(finalResult);
 }
 
-async function findContradictions(facts: any[]): Promise<any[]> {
+export async function findContradictions(facts: any[]): Promise<any[]> {
   if (facts.length < 2) return [];
 
   try {
