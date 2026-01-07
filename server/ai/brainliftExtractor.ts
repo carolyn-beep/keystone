@@ -221,7 +221,7 @@ export async function extractBrainlift(markdownContent: string, sourceType: stri
   return brainliftOutputSchema.parse(finalResult);
 }
 
-async function findContradictions(facts: any[]): any[] {
+async function findContradictions(facts: any[]): Promise<any[]> {
   const clusters: any[] = [];
   const processedIndices = new Set<number>();
 
