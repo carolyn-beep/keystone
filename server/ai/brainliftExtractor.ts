@@ -1,5 +1,11 @@
 import { z } from 'zod';
 import { CLASSIFICATION } from '@shared/schema';
+import OpenAI from 'openai';
+
+const openai = new OpenAI({
+  apiKey: process.env.OPENROUTER_API_KEY,
+  baseURL: 'https://openrouter.ai/api/v1',
+});
 
 const brainliftOutputSchema = z.object({
   classification: z.enum(['brainlift', 'partial', 'not_brainlift']),
@@ -208,14 +214,14 @@ export async function extractBrainlift(markdownContent: string, sourceType: stri
       contradictionCount: 0
     },
     facts,
-    contradictionClusters: findContradictions(facts),
+    contradictionClusters: await findContradictions(facts),
     readingList: []
   };
 
   return brainliftOutputSchema.parse(finalResult);
 }
 
-function findContradictions(facts: any[]): any[] {
+async function findContradictions(facts: any[]): any[] {
   const clusters: any[] = [];
   const processedIndices = new Set<number>();
 
@@ -225,28 +231,52 @@ function findContradictions(facts: any[]): any[] {
     for (let j = i + 1; j < facts.length; j++) {
       if (processedIndices.has(j)) continue;
 
-      const factA = facts[i].fact.toLowerCase();
-      const factB = facts[j].fact.toLowerCase();
+      const factA = facts[i].fact;
+      const factB = facts[j].fact;
 
-      // Simple heuristic for contradictions: keywords suggesting tension or opposite claims
-      const tensionKeywords = ['however', 'but', 'contradict', 'disagree', 'instead', 'whereas', 'opposite'];
-      const hasConflict = tensionKeywords.some(word => 
-        (factA.includes(word) && factB.includes(word)) ||
-        (factA.includes('increase') && factB.includes('decrease')) ||
-        (factA.includes('high') && factB.includes('low'))
+      // Simple heuristic for candidates
+      const factALower = factA.toLowerCase();
+      const factBLower = factB.toLowerCase();
+      const tensionKeywords = ['however', 'but', 'contradict', 'disagree', 'instead', 'whereas', 'opposite', 'increase', 'decrease', 'high', 'low'];
+      
+      const potentialConflict = tensionKeywords.some(word => 
+        factALower.includes(word) || factBLower.includes(word)
       );
 
-      if (hasConflict) {
-        clusters.push({
-          name: `Contradiction Cluster ${clusters.length + 1}`,
-          factIds: [facts[i].id, facts[j].id],
-          claims: [facts[i].fact, facts[j].fact],
-          tension: "Directly conflicting claims identified in the source text.",
-          status: "Flagged"
-        });
-        processedIndices.add(i);
-        processedIndices.add(j);
-        break;
+      if (potentialConflict) {
+        try {
+          const response = await openai.chat.completions.create({
+            model: "qwen/qwen-turbo", // Using a faster model for contradiction analysis
+            messages: [
+              {
+                role: "system",
+                content: "You are an expert at identifying educational DOK1 fact contradictions. Analyze two facts and determine if they represent a meaningful contradiction or tension. If they do, provide a descriptive title (e.g., 'Writing Load vs Learning Gain') and a detailed 'tension' description that calls out the specific conflict between the two claims. If no contradiction exists, return 'NONE'."
+              },
+              {
+                role: "user",
+                content: `Fact 1: ${factA}\nFact 2: ${factB}\n\nReturn JSON: { "isContradiction": boolean, "title": string, "tension": string }`
+              }
+            ],
+            response_format: { type: "json_object" }
+          });
+
+          const result = JSON.parse(response.choices[0].message.content || "{}");
+
+          if (result.isContradiction) {
+            clusters.push({
+              name: result.title,
+              factIds: [facts[i].id, facts[j].id],
+              claims: [factA, factB],
+              tension: result.tension,
+              status: "Flagged"
+            });
+            processedIndices.add(i);
+            processedIndices.add(j);
+            break;
+          }
+        } catch (err) {
+          console.error("Contradiction AI analysis failed:", err);
+        }
       }
     }
   }
