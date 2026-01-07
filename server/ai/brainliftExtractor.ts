@@ -240,6 +240,7 @@ function extractDOK2TreeSegments(content: string): {
       continue;
     }
     
+    // Stop patterns for DOK2 Knowledge Tree
     if (inDOK2Tree && isStopPattern(line)) {
       inDOK2Tree = false;
     }
@@ -251,7 +252,7 @@ function extractDOK2TreeSegments(content: string): {
     }
   }
   
-  // Split treeLines into segments based on EVERY sub-section header
+  // Split treeLines into segments based on headers OR groups of bullet points
   const segments: string[] = [];
   let currentSegment: string[] = [];
   
@@ -259,12 +260,14 @@ function extractDOK2TreeSegments(content: string): {
     const trimmed = line.trim();
     if (!trimmed) continue;
     
-    // Every header marks the start of a potential DOK1
-    if (subHeaderPattern.test(trimmed)) {
-      if (currentSegment.length > 0) {
+    // Start new segment on sub-headers or major bullet points
+    if (subHeaderPattern.test(trimmed) || (trimmed.startsWith('-') && trimmed.length > 30)) {
+      if (currentSegment.length > 10) { // Keep segments substantial
         segments.push(currentSegment.join('\n'));
+        currentSegment = [line];
+      } else {
+        currentSegment.push(line);
       }
-      currentSegment = [line];
     } else {
       currentSegment.push(line);
     }
@@ -272,6 +275,11 @@ function extractDOK2TreeSegments(content: string): {
   
   if (currentSegment.length > 0) {
     segments.push(currentSegment.join('\n'));
+  }
+  
+  // If no segments found but we have tree lines, treat the whole tree as one segment
+  if (segments.length === 0 && treeLines.length > 0) {
+    segments.push(treeLines.join('\n'));
   }
   
   return {
@@ -443,15 +451,16 @@ Output ONLY valid JSON.`;
   
   for (const segment of treeSegments) {
     // Only process if segment has meaningful length
-    if (segment.length < 50) continue;
+    if (segment.length < 30) continue;
     
-    const segmentPrompt = `Analyze this specific segment from a "DOK2 Knowledge Tree" section. 
-Extract potential DOK1 facts from it.
+    const segmentPrompt = `Analyze this segment from a "DOK2 Knowledge Tree" section and extract ALL DOK1 facts.
 
-Rules:
-1. Each sub-section header is likely a DOK1 fact.
-2. Does it have a link/URL immediately under it? If NOT, flag it as "Incomplete/Unverifiable" in the "flags" field.
-3. Does it lack a DOK2 summary accompanying it? If so, flag it as "Bad Structure" in the "flags" field.
+IMPORTANT: DOK2 Knowledge Trees often embed DOK1 facts within nested lists or descriptions.
+1. Extract EVERY specific claim, statistic, or named feature as a separate DOK1 fact.
+2. If a sub-section describes a platform (e.g., "MoneySkill"), extract its specific features, results, and shortcomings as individual facts.
+3. Every descriptive bullet point is a potential DOK1 fact.
+4. If a fact lacks a direct source/citation in this segment, assign Score 0 (Non-Gradeable) and explain in aiNotes.
+5. DO NOT skip content. If it looks like a fact, extract it.
 
 SEGMENT:
 ---
@@ -461,7 +470,7 @@ ${segment}
 Output facts in this JSON format:
 {
   "facts": [
-    { "id": "segment-x", "category": "Research", "source": "Source if found", "fact": "The fact text", "score": 3, "aiNotes": "Verification notes", "flags": [] }
+    { "id": "tree-x", "category": "Research" | "External Benchmarks" | "Internal" | "Regulatory", "source": "Source if found or null", "fact": "The specific claim", "score": 0-5, "aiNotes": "Why this score? Mention missing citations for Score 0.", "flags": [] }
   ]
 }`;
 
