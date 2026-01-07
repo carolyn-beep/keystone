@@ -7,7 +7,6 @@ const MODEL = 'anthropic/claude-4.5-opus';
 const brainliftOutputSchema = z.object({
   classification: z.enum(['brainlift', 'partial', 'not_brainlift']),
   improperlyFormatted: z.boolean().optional(),
-  debugInfo: z.any().optional(),
   rejectionReason: z.string().nullable().optional(),
   rejectionSubtype: z.string().nullable().optional(),
   rejectionRecommendation: z.string().nullable().optional(),
@@ -42,7 +41,7 @@ const brainliftOutputSchema = z.object({
     topic: z.string(),
     time: z.string(),
     facts: z.string(),
-    url: z.string().nullable(),
+    url: z.string(),
   })),
 });
 
@@ -241,7 +240,6 @@ function extractDOK2TreeSegments(content: string): {
       continue;
     }
     
-    // Stop patterns for DOK2 Knowledge Tree
     if (inDOK2Tree && isStopPattern(line)) {
       inDOK2Tree = false;
     }
@@ -253,7 +251,7 @@ function extractDOK2TreeSegments(content: string): {
     }
   }
   
-  // Split treeLines into segments based on headers OR groups of bullet points
+  // Split treeLines into segments based on EVERY sub-section header
   const segments: string[] = [];
   let currentSegment: string[] = [];
   
@@ -261,15 +259,12 @@ function extractDOK2TreeSegments(content: string): {
     const trimmed = line.trim();
     if (!trimmed) continue;
     
-    // Start new segment on sub-headers or major bullet points
-    // We lowered the length threshold even further to capture platform entries
-    if (subHeaderPattern.test(trimmed) || (trimmed.startsWith('-') && trimmed.length > 10)) {
-      if (currentSegment.length > 2) { // Extremely small segments for maximum AI focus
+    // Every header marks the start of a potential DOK1
+    if (subHeaderPattern.test(trimmed)) {
+      if (currentSegment.length > 0) {
         segments.push(currentSegment.join('\n'));
-        currentSegment = [line];
-      } else {
-        currentSegment.push(line);
       }
+      currentSegment = [line];
     } else {
       currentSegment.push(line);
     }
@@ -277,11 +272,6 @@ function extractDOK2TreeSegments(content: string): {
   
   if (currentSegment.length > 0) {
     segments.push(currentSegment.join('\n'));
-  }
-  
-  // If no segments found but we have tree lines, treat the whole tree as one segment
-  if (segments.length === 0 && treeLines.length > 0) {
-    segments.push(treeLines.join('\n'));
   }
   
   return {
@@ -453,16 +443,15 @@ Output ONLY valid JSON.`;
   
   for (const segment of treeSegments) {
     // Only process if segment has meaningful length
-    if (segment.length < 30) continue;
+    if (segment.length < 50) continue;
     
-    const segmentPrompt = `Analyze this segment from a "DOK2 Knowledge Tree" and extract EVERY specific claim as a DOK1 fact.
+    const segmentPrompt = `Analyze this specific segment from a "DOK2 Knowledge Tree" section. 
+Extract potential DOK1 facts from it.
 
-IMPORTANT: DOK2 Knowledge Trees often embed DOK1 facts within nested lists or descriptions.
-1. Extract EVERY platform, feature, statistic, result, benefit, and shortcoming as a separate DOK1 fact.
-2. For platforms like "MoneySkill", "HandsOnBanking", "Zogo", "The Sims", etc., extract each descriptive bullet point as an individual fact.
-3. Every claim about a target audience, access method, novelty, or business model is a DOK1 fact.
-4. If a fact lacks a direct source/citation in this segment, assign Score 0 (Non-Gradeable) and explain in aiNotes.
-5. BE EXTREMELY AGGRESSIVE: If it's a specific observation, extract it. Do not group them. Aim for 5-10 facts per segment if the content is dense.
+Rules:
+1. Each sub-section header is likely a DOK1 fact.
+2. Does it have a link/URL immediately under it? If NOT, flag it as "Incomplete/Unverifiable" in the "flags" field.
+3. Does it lack a DOK2 summary accompanying it? If so, flag it as "Bad Structure" in the "flags" field.
 
 SEGMENT:
 ---
@@ -472,7 +461,7 @@ ${segment}
 Output facts in this JSON format:
 {
   "facts": [
-    { "id": "tree-x", "category": "Research" | "External Benchmarks" | "Internal" | "Regulatory", "source": "Source if found or null", "fact": "The specific claim", "score": 0-5, "aiNotes": "Why this score? Mention missing citations for Score 0.", "flags": [] }
+    { "id": "segment-x", "category": "Research", "source": "Source if found", "fact": "The fact text", "score": 3, "aiNotes": "Verification notes", "flags": [] }
   ]
 }`;
 
@@ -489,17 +478,6 @@ Output facts in this JSON format:
   // 5. Merge results
   const mergedFacts = [...(baseOutput.facts || []), ...extendedFacts];
   
-  // Debug info for the user
-  const debugInfo = {
-    totalSegmentsFound: treeSegments.length,
-    segments: treeSegments.map((s, i) => ({
-      id: i,
-      length: s.length,
-      preview: s.substring(0, 200) + (s.length > 200 ? '...' : ''),
-      processed: s.length >= 30
-    }))
-  };
-  
   // Re-calculate summary
   const gradeableFacts = mergedFacts.filter(f => f.score > 0);
   const totalFacts = mergedFacts.length;
@@ -512,7 +490,6 @@ Output facts in this JSON format:
   const finalResult = {
     ...baseOutput,
     improperlyFormatted: isImproperlyFormatted,
-    debugInfo,
     facts: mergedFacts,
     summary: {
       ...baseOutput.summary,

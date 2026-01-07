@@ -323,7 +323,7 @@ interface DashboardProps {
 }
 
 export default function Dashboard({ slug, isSharedView = false }: DashboardProps) {
-  const [activeTab, setActiveTab] = useState<'grading' | 'contradictions' | 'reading' | 'experts' | 'debug'>('grading');
+  const [activeTab, setActiveTab] = useState('brainlift');
   const [selectedCluster, setSelectedCluster] = useState<number | null>(null);
   const [readingFilter, setReadingFilter] = useState<'all' | 'graded' | 'ungraded'>('all');
   
@@ -1151,10 +1151,10 @@ export default function Dashboard({ slug, isSharedView = false }: DashboardProps
         >
           {/* Navigation Tabs - Left aligned, flat underline style */}
           <div style={{ display: 'flex', gap: '4px', overflowX: 'auto' }}>
-            {!isNotBrainlift && ['grading', 'contradictions', 'reading', 'experts', 'debug'].map(tab => (
+            {!isNotBrainlift && ['brainlift', 'grading', 'contradictions', 'reading'].map(tab => (
               <button
                 key={tab}
-                onClick={() => setActiveTab(tab as any)}
+                onClick={() => setActiveTab(tab)}
                 data-testid={`tab-${tab}`}
                 style={{
                   padding: '12px 20px',
@@ -1185,10 +1185,38 @@ export default function Dashboard({ slug, isSharedView = false }: DashboardProps
                 {tab === 'analytics' && 'Analytics'}
                 {tab === 'contradictions' && 'Contradictions'}
                 {tab === 'reading' && 'Reading List'}
-                {tab === 'experts' && 'Experts'}
-                {tab === 'debug' && 'Debug'}
               </button>
             ))}
+            {!isNotBrainlift && (
+              <button
+                onClick={() => setActiveTab('debug')}
+                data-testid="tab-debug"
+                style={{
+                  padding: '12px 20px',
+                  backgroundColor: 'transparent',
+                  border: 'none',
+                  borderBottom: activeTab === 'debug' ? `2px solid ${tokens.primary}` : '2px solid transparent',
+                  color: activeTab === 'debug' ? tokens.primary : tokens.textSecondary,
+                  cursor: 'pointer',
+                  fontSize: '14px',
+                  fontWeight: 500,
+                  transition: 'color 0.15s ease',
+                  marginBottom: '-1px',
+                }}
+                onMouseEnter={(e) => {
+                  if (activeTab !== 'debug') {
+                    e.currentTarget.style.color = tokens.primary;
+                  }
+                }}
+                onMouseLeave={(e) => {
+                  if (activeTab !== 'debug') {
+                    e.currentTarget.style.color = tokens.textSecondary;
+                  }
+                }}
+              >
+                DEBUG
+              </button>
+            )}
           </div>
 
           {/* Action Cluster - Right aligned */}
@@ -1665,7 +1693,7 @@ export default function Dashboard({ slug, isSharedView = false }: DashboardProps
                             padding: '6px 10px',
                             borderRadius: '16px',
                             backgroundColor: isGradeable ? scoreChip.bg : tokens.surfaceAlt,
-                            color: isGradeable ? scoreChip.text : tokens.textMuted,
+                            color: isGradeable ? scoreChip.text : tokens.textTertiary,
                             border: isGradeable ? `1px solid ${scoreChip.text}` : `1px dashed ${tokens.border}`,
                             fontSize: '12px',
                             fontWeight: 600,
@@ -2856,44 +2884,16 @@ export default function Dashboard({ slug, isSharedView = false }: DashboardProps
                             )}
                           </div>
 
-                          {/* Source Topic Link */}
-                          {item.url ? (
-                            <a
-                              href={item.url}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              data-testid={`link-reading-topic-${item.id}`}
-                              style={{
-                                display: 'flex',
-                                alignItems: 'center',
-                                gap: '6px',
-                                textDecoration: 'none',
-                                color: 'inherit',
-                              }}
-                              onMouseEnter={(e) => e.currentTarget.style.color = '#0D9488'}
-                              onMouseLeave={(e) => e.currentTarget.style.color = 'inherit'}
-                            >
-                              <h4 style={{
-                                fontSize: '16px',
-                                fontWeight: 600,
-                                margin: 0,
-                                lineHeight: 1.4,
-                              }}>
-                                {item.topic}
-                              </h4>
-                              <ExternalLink size={14} style={{ opacity: 0.5 }} />
-                            </a>
-                          ) : (
-                            <h4 style={{
-                              fontSize: '16px',
-                              fontWeight: 600,
-                              color: '#111827',
-                              margin: '0 0 8px 0',
-                              lineHeight: 1.4,
-                            }}>
-                              {item.topic}
-                            </h4>
-                          )}
+                          {/* Source Title */}
+                          <h4 style={{
+                            fontSize: '16px',
+                            fontWeight: 600,
+                            color: '#111827',
+                            margin: '0 0 8px 0',
+                            lineHeight: 1.4,
+                          }}>
+                            {item.topic}
+                          </h4>
 
                           {/* Source Description */}
                           <p style={{
@@ -2923,8 +2923,7 @@ export default function Dashboard({ slug, isSharedView = false }: DashboardProps
                                   onClick={() => {
                                     setActiveTab('grading');
                                     setTimeout(() => {
-                                      const factIdStr = factId.toString();
-                                      const el = document.getElementById(`fact-${factIdStr}`);
+                                      const el = document.getElementById(`fact-${factId}`);
                                       el?.scrollIntoView({ behavior: 'smooth', block: 'center' });
                                     }, 100);
                                   }}
@@ -3220,78 +3219,6 @@ export default function Dashboard({ slug, isSharedView = false }: DashboardProps
                 </div>
               )}
             </div>
-          </div>
-        )}
-        {/* Debug Tab Content */}
-        {!isNotBrainlift && activeTab === 'debug' && data.debugInfo && (
-          <div style={{
-            backgroundColor: tokens.surface,
-            borderRadius: '12px',
-            border: `1px solid ${tokens.border}`,
-            padding: '24px',
-          }}>
-            <h3 style={{ margin: '0 0 16px 0', fontSize: '18px', fontWeight: 600 }}>Extraction Debug Info</h3>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: '16px', marginBottom: '24px' }}>
-              <div style={{ padding: '16px', borderRadius: '8px', backgroundColor: tokens.surfaceAlt, border: `1px solid ${tokens.border}` }}>
-                <div style={{ fontSize: '12px', color: tokens.textSecondary, marginBottom: '4px' }}>Total Segments Found</div>
-                <div style={{ fontSize: '24px', fontWeight: 700, color: tokens.primary }}>{(data.debugInfo as any).totalSegmentsFound || 0}</div>
-              </div>
-              <div style={{ padding: '16px', borderRadius: '8px', backgroundColor: tokens.surfaceAlt, border: `1px solid ${tokens.border}` }}>
-                <div style={{ fontSize: '12px', color: tokens.textSecondary, marginBottom: '4px' }}>Source Type</div>
-                <div style={{ fontSize: '24px', fontWeight: 700, color: tokens.primary }}>{data.sourceType?.toUpperCase()}</div>
-              </div>
-            </div>
-
-            <h4 style={{ margin: '0 0 12px 0', fontSize: '14px', fontWeight: 600, color: tokens.textSecondary }}>Segment Timeline</h4>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-              {((data.debugInfo as any).segments || []).map((segment: any, idx: number) => (
-                <div key={idx} style={{ 
-                  padding: '16px', 
-                  borderRadius: '8px', 
-                  backgroundColor: segment.processed ? tokens.successSoft : tokens.surfaceAlt,
-                  border: `1px solid ${segment.processed ? tokens.success : tokens.border}`,
-                }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
-                    <span style={{ fontSize: '12px', fontWeight: 600 }}>Segment {idx + 1} ({segment.length} chars)</span>
-                    <span style={{ 
-                      fontSize: '11px', 
-                      padding: '2px 6px', 
-                      borderRadius: '4px', 
-                      backgroundColor: segment.processed ? tokens.success : tokens.textMuted,
-                      color: tokens.surface
-                    }}>
-                      {segment.processed ? 'PROCESSED' : 'SKIPPED'}
-                    </span>
-                  </div>
-                  <div style={{ 
-                    fontSize: '13px', 
-                    color: tokens.textPrimary, 
-                    fontFamily: 'monospace',
-                    backgroundColor: 'rgba(0,0,0,0.05)',
-                    padding: '8px',
-                    borderRadius: '4px',
-                    whiteSpace: 'pre-wrap'
-                  }}>
-                    {segment.preview}...
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-                    {/* Verification Tab Content */}
-                    {activeTab as string === 'verification' && (
-                      <div className="p-4">AI Verification view pending...</div>
-                    )}
-
-                    {/* Analytics Tab Content */}
-                    {activeTab as string === 'analytics' && (
-                      <div className="p-4">Analytics view pending...</div>
-                    )}
-                  </div>
-                )}
-              </CardContent>
-            </Card>
           </div>
         )}
       </main>
