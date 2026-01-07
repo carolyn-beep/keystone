@@ -262,7 +262,7 @@ DO NOT identify "complementary" facts as contradictions. For example, if Fact A 
 
 If a true contradiction exists:
 - title: A short, catchy title representing the tension (e.g., 'Writing Load vs Learning Gain').
-- tension: A detailed explanation of the 'Interpretive Tension'. Explicitly call out Fact A's claim versus Fact B's claim and explain why they cannot both be true or why they represent a fundamental conflict in the field.
+- tension: A short "vs" sentence that references the facts that contradict each other (e.g., 'Increasing writing load vs decreasing learning gain' or 'Fact A claims X vs Fact B claims Y'). It should be very concise.
 
 If no logical contradiction exists, return 'NONE'.`
               },
