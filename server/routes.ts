@@ -469,7 +469,7 @@ async function generateUniqueSlug(title: string): Promise<string> {
 async function saveBrainliftFromAI(data: BrainliftOutput, originalContent?: string, sourceType?: string, userId?: string) {
   const slug = await generateUniqueSlug(data.title);
   
-  const facts = data.facts.map((f) => ({
+  const facts = data.facts.map((f: any) => ({
     originalId: f.id,
     category: f.category,
     source: f.source || null,
@@ -478,7 +478,7 @@ async function saveBrainliftFromAI(data: BrainliftOutput, originalContent?: stri
     contradicts: f.contradicts,
     note: f.aiNotes || null,
     flags: f.flags || [],
-    isGradeable: f.score > 0,
+    isGradeable: true, // Mark all extracted facts as gradeable for display
   }));
   
   const clusters = data.contradictionClusters.map((c) => ({
