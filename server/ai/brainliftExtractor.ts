@@ -244,7 +244,7 @@ function extractDOK2TreeSegments(content: string): {
     }
   }
   
-  // Split treeLines into segments based on headers
+  // Split treeLines into segments based on EVERY sub-section header
   const segments: string[] = [];
   let currentSegment: string[] = [];
   
@@ -255,11 +255,15 @@ function extractDOK2TreeSegments(content: string): {
     const trimmed = line.trim();
     if (!trimmed) continue;
     
-    if (subHeaderPattern.test(trimmed) && currentSegment.length > 0) {
-      segments.push(currentSegment.join('\n'));
-      currentSegment = [];
+    // Every header marks the start of a potential DOK1
+    if (subHeaderPattern.test(trimmed)) {
+      if (currentSegment.length > 0) {
+        segments.push(currentSegment.join('\n'));
+      }
+      currentSegment = [line];
+    } else {
+      currentSegment.push(line);
     }
-    currentSegment.push(line);
   }
   
   if (currentSegment.length > 0) {
@@ -269,6 +273,74 @@ function extractDOK2TreeSegments(content: string): {
   return {
     segments,
     remainingContent: otherLines.join('\n')
+  };
+}
+
+// Re-implementing extractDOK1Content to fix the "is not defined" error
+function extractDOK1Content(content: string): { 
+  filteredContent: string; 
+  dok1Count: number;
+  inlineCount: number;
+  sectionCount: number;
+  remainingContent: string;
+} {
+  const lines = content.split('\n');
+  const dok1Facts: string[] = [];
+  const usedIndices = new Set<number>();
+  let inDOK1Section = false;
+  let inlineCount = 0;
+  let sectionCount = 0;
+  
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    const trimmed = line.trim();
+    
+    if (line.includes('(DOK1)')) {
+      usedIndices.add(i);
+      const contextStart = Math.max(0, i - 1);
+      const contextEnd = Math.min(lines.length - 1, i + 1);
+      for (let j = contextStart; j <= contextEnd; j++) {
+        const contextLine = lines[j].trim();
+        if (contextLine && !dok1Facts.includes(contextLine)) {
+          dok1Facts.push(contextLine);
+        }
+      }
+      dok1Facts.push('---');
+      inlineCount++;
+      continue;
+    }
+    
+    if (isDOK1Header(line)) {
+      inDOK1Section = true;
+      usedIndices.add(i);
+      dok1Facts.push(`[DOK1 SECTION: ${trimmed}]`);
+      continue;
+    }
+
+    if (isStopPattern(line) && !isDOK2TreeHeader(line)) {
+      if (inDOK1Section) dok1Facts.push('---[END DOK1 SECTION]---');
+      inDOK1Section = false;
+      continue;
+    }
+    
+    if (inDOK1Section && trimmed) {
+      usedIndices.add(i);
+      if (isBulletOrFact(line) || trimmed.length > 20) {
+        dok1Facts.push(trimmed);
+        sectionCount++;
+      }
+    }
+  }
+  
+  const totalCount = inlineCount + sectionCount;
+  const remainingLines = lines.filter((_, index) => !usedIndices.has(index));
+  
+  return {
+    filteredContent: dok1Facts.join('\n'),
+    dok1Count: totalCount,
+    inlineCount,
+    sectionCount,
+    remainingContent: remainingLines.join('\n')
   };
 }
 
