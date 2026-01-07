@@ -41,7 +41,7 @@ const brainliftOutputSchema = z.object({
     topic: z.string(),
     time: z.string(),
     facts: z.string(),
-    url: z.string(),
+    url: z.string().nullable(),
   })),
 });
 

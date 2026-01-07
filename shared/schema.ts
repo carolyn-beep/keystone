@@ -70,7 +70,7 @@ export const readingListItems = pgTable("reading_list_items", {
   topic: text("topic").notNull(),
   time: text("time").notNull(),
   facts: text("facts").notNull(), // "What it covers"
-  url: text("url").notNull(),
+  url: text("url"),
 });
 
 export const readingListGrades = pgTable("reading_list_grades", {
@@ -107,7 +107,7 @@ export const brainliftVersions = pgTable("brainlift_versions", {
     summary: { totalFacts: number; meanScore: string; score5Count: number; contradictionCount: number };
     facts: Array<{ originalId: string; category: string; source: string | null; fact: string; score: number; contradicts: string | null; note: string | null }>;
     contradictionClusters: Array<{ name: string; tension: string; status: string; factIds: string[]; claims: string[] }>;
-    readingList: Array<{ type: string; author: string; topic: string; time: string; facts: string; url: string }>;
+    readingList: Array<{ type: string; author: string; topic: string; time: string; facts: string; url: string | null }>;
     grades: Array<{ readingListTopic: string; aligns: string | null; contradicts: string | null; newInfo: string | null; quality: number | null }>;
   }>().notNull(),
 });

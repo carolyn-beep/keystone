@@ -2884,16 +2884,44 @@ export default function Dashboard({ slug, isSharedView = false }: DashboardProps
                             )}
                           </div>
 
-                          {/* Source Title */}
-                          <h4 style={{
-                            fontSize: '16px',
-                            fontWeight: 600,
-                            color: '#111827',
-                            margin: '0 0 8px 0',
-                            lineHeight: 1.4,
-                          }}>
-                            {item.topic}
-                          </h4>
+                          {/* Source Topic Link */}
+                          {item.url ? (
+                            <a
+                              href={item.url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              data-testid={`link-reading-topic-${item.id}`}
+                              style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '6px',
+                                textDecoration: 'none',
+                                color: 'inherit',
+                              }}
+                              onMouseEnter={(e) => e.currentTarget.style.color = '#0D9488'}
+                              onMouseLeave={(e) => e.currentTarget.style.color = 'inherit'}
+                            >
+                              <h4 style={{
+                                fontSize: '16px',
+                                fontWeight: 600,
+                                margin: 0,
+                                lineHeight: 1.4,
+                              }}>
+                                {item.topic}
+                              </h4>
+                              <ExternalLink size={14} style={{ opacity: 0.5 }} />
+                            </a>
+                          ) : (
+                            <h4 style={{
+                              fontSize: '16px',
+                              fontWeight: 600,
+                              color: '#111827',
+                              margin: '0 0 8px 0',
+                              lineHeight: 1.4,
+                            }}>
+                              {item.topic}
+                            </h4>
+                          )}
 
                           {/* Source Description */}
                           <p style={{
