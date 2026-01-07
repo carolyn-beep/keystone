@@ -507,8 +507,8 @@ async function saveBrainliftFromAI(data: BrainliftOutput, originalContent?: stri
   
   const limit = pLimit(5); // Process 5 facts concurrently
 
-  // Run fact processing, contradiction detection, reading list extraction, and expert extraction in parallel
-  const [factsWithSummaries, contradictionClusters, extractedReadingList, extractedExperts] = await Promise.all([
+  // Run fact processing, contradiction detection, and reading list extraction in parallel
+  const [factsWithSummaries, contradictionClusters, extractedReadingList] = await Promise.all([
     Promise.all(data.facts.map(fact => limit(async () => {
       const summary = await summarizeFact(fact.fact);
       
@@ -591,7 +591,7 @@ async function saveBrainliftFromAI(data: BrainliftOutput, originalContent?: stri
         };
       }
     }))),
-    // Contradiction detection
+    // Move findContradictions call here to run in parallel with fact processing
     (async () => {
       const { findContradictions } = await import("./ai/brainliftExtractor");
       return findContradictions(data.facts);
@@ -600,26 +600,6 @@ async function saveBrainliftFromAI(data: BrainliftOutput, originalContent?: stri
     (async () => {
       const { extractReadingList } = await import("./ai/brainliftExtractor");
       return extractReadingList(data.title, data.description, data.facts);
-    })(),
-    // Parallel expert extraction
-    (async () => {
-      const { extractAndRankExperts } = await import("./ai/expertExtractor");
-      try {
-        const experts = await extractAndRankExperts({
-          brainliftId: 0, 
-          title: data.title,
-          description: data.description,
-          author: (data as any).author || null,
-          facts: data.facts as any,
-          originalContent: originalContent,
-          readingList: data.readingList
-        });
-        console.log(`Expert extraction completed: ${experts.length} found`);
-        return experts;
-      } catch (err) {
-        console.error("Expert extraction error:", err);
-        return [];
-      }
     })()
   ]);
 
@@ -673,8 +653,7 @@ async function saveBrainliftFromAI(data: BrainliftOutput, originalContent?: stri
     factsWithSummaries,
     clusters,
     finalReadingList,
-    userId,
-    extractedExperts
+    userId
   );
 }
 
@@ -951,8 +930,7 @@ export async function registerRoutes(
         claims: c.claims,
       }));
       
-      // Use either the extracted reading list or the one from input data (if any)
-      const finalReadingList = (brainliftData.readingList || []).map((r) => ({
+      const readingList = brainliftData.readingList.map((r) => ({
         type: r.type,
         author: r.author,
         topic: r.topic,
@@ -960,25 +938,6 @@ export async function registerRoutes(
         facts: r.facts,
         url: r.url,
       }));
-
-      // Extra ranking for experts during update
-      const { extractAndRankExperts } = await import("./ai/expertExtractor");
-      const currentBrainlift = await storage.getBrainliftBySlug(slug);
-      let extractedExperts: any[] = [];
-      try {
-        extractedExperts = await extractAndRankExperts({
-          brainliftId: currentBrainlift?.id || 0,
-          title: brainliftData.title,
-          description: brainliftData.description,
-          author: (data as any).author || null,
-          facts: brainliftData.facts as any,
-          originalContent: content,
-          readingList: brainliftData.readingList
-        });
-        console.log(`Expert extraction (update) completed: ${extractedExperts.length} found`);
-      } catch (err) {
-        console.error("Expert extraction (update) error:", err);
-      }
 
       const updatedBrainlift = await storage.updateBrainlift(
         slug,
@@ -997,8 +956,7 @@ export async function registerRoutes(
         },
         facts,
         clusters,
-        finalReadingList,
-        extractedExperts
+        readingList
       );
 
       res.json(updatedBrainlift);

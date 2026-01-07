@@ -21,16 +21,14 @@ export interface IStorage {
     factsData: any[],
     clustersData: any[],
     readingData: any[],
-    userId?: string,
-    expertsData?: any[]
+    userId?: string
   ): Promise<BrainliftData>;
   updateBrainlift(
     slug: string,
     data: InsertBrainlift,
     factsData: any[],
     clustersData: any[],
-    readingData: any[],
-    expertsData?: any[]
+    readingData: any[]
   ): Promise<BrainliftData>;
   deleteBrainlift(id: number): Promise<void>;
   getGradesByBrainliftId(brainliftId: number): Promise<ReadingListGrade[]>;
@@ -116,28 +114,26 @@ export class DatabaseStorage implements IStorage {
     factsData: any[],
     clustersData: any[],
     readingData: any[],
-    userId?: string,
-    expertsData?: any[]
+    userId?: string
   ): Promise<BrainliftData> {
     // Transaction-like insertion
     const dataWithUser = userId ? { ...brainliftData, createdByUserId: userId } : brainliftData;
-    const [brainlift] = await db.insert(brainlifts).values(dataWithUser as any).returning();
+    const [brainlift] = await db.insert(brainlifts).values(dataWithUser).returning();
 
     if (factsData.length > 0) {
-      const factsToInsert = factsData.map(f => ({ 
+      await db.insert(facts).values(factsData.map(f => ({ 
         brainliftId: brainlift.id,
-        originalId: String(f.originalId),
-        category: String(f.category),
-        source: f.source ? String(f.source) : null,
-        fact: String(f.fact),
-        summary: f.summary ? String(f.summary) : null,
-        score: Number(f.score),
-        contradicts: f.contradicts ? String(f.contradicts) : null,
-        note: f.note ? String(f.note) : null,
-        flags: Array.isArray(f.flags) ? f.flags : [],
-        isGradeable: Boolean(f.isGradeable ?? (f.score > 0))
-      }));
-      await db.insert(facts).values(factsToInsert);
+        originalId: f.originalId,
+        category: f.category,
+        source: f.source,
+        fact: f.fact,
+        summary: f.summary,
+        score: f.score,
+        contradicts: f.contradicts,
+        note: f.note,
+        flags: f.flags || [],
+        isGradeable: f.score > 0
+      })));
     }
 
     if (clustersData.length > 0) {
@@ -146,16 +142,6 @@ export class DatabaseStorage implements IStorage {
 
     if (readingData.length > 0) {
       await db.insert(readingListItems).values(readingData.map(r => ({ ...r, brainliftId: brainlift.id })));
-    }
-
-    if (expertsData && expertsData.length > 0) {
-      try {
-        const expertsToInsert = expertsData.map(e => ({ ...e, brainliftId: brainlift.id }));
-        await db.insert(experts).values(expertsToInsert);
-        console.log(`Successfully saved ${expertsToInsert.length} experts`);
-      } catch (err) {
-        console.error("Error saving experts to database:", err);
-      }
     }
 
     return this.getBrainliftBySlug(brainlift.slug) as Promise<BrainliftData>;
@@ -205,8 +191,7 @@ export class DatabaseStorage implements IStorage {
     brainliftData: InsertBrainlift,
     factsData: any[],
     clustersData: any[],
-    readingData: any[],
-    expertsData?: any[]
+    readingData: any[]
   ): Promise<BrainliftData> {
     const existing = await this.getBrainliftBySlug(slug);
     if (!existing) {
@@ -323,17 +308,6 @@ export class DatabaseStorage implements IStorage {
         console.log('Reading items inserted successfully');
       } catch (err) {
         console.error('Error inserting reading items:', err);
-        throw err;
-      }
-    }
-
-    if (expertsData && expertsData.length > 0) {
-      try {
-        await db.delete(experts).where(eq(experts.brainliftId, existing.id));
-        await db.insert(experts).values(expertsData.map(e => ({ ...e, brainliftId: existing.id })));
-        console.log('Experts inserted successfully');
-      } catch (err) {
-        console.error('Error inserting experts:', err);
         throw err;
       }
     }
@@ -669,14 +643,8 @@ export class DatabaseStorage implements IStorage {
     
     await db.delete(factRedundancyGroups).where(eq(factRedundancyGroups.brainliftId, brainliftId));
     
-    const groupsToInsert = groups.map(g => ({
-      ...g,
-      brainliftId,
-      status: g.status as RedundancyStatus
-    }));
-
     const inserted = await db.insert(factRedundancyGroups)
-      .values(groupsToInsert)
+      .values(groups.map(g => ({ ...g, brainliftId })))
       .returning();
     
     return inserted;
