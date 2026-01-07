@@ -1476,11 +1476,11 @@ export default function Dashboard({ slug, isSharedView = false }: DashboardProps
                 tableLayout: 'fixed',
               }}>
                 <colgroup>
-                  <col style={{ width: '60px' }} />
-                  <col style={{ width: '25%' }} />
+                  <col style={{ width: '44px' }} />
+                  <col style={{ width: '28%' }} />
                   <col style={{ width: '90px' }} />
-                  <col style={{ width: '100px' }} />
-                  <col style={{ width: '100px' }} />
+                  <col style={{ width: '90px' }} />
+                  <col style={{ width: '80px' }} />
                   <col />
                 </colgroup>
                 <thead>
@@ -1511,13 +1511,14 @@ export default function Dashboard({ slug, isSharedView = false }: DashboardProps
                         onMouseLeave={(e) => e.currentTarget.style.backgroundColor = zebraColor}
                       >
                         <td style={{ 
-                          padding: '14px 16px', 
+                          padding: '18px 8px', 
                           borderBottom: `1px solid ${tokens.border}`, 
                           fontWeight: 600,
                           color: tokens.primary,
                           verticalAlign: 'middle',
                           textAlign: 'center',
                           fontFamily: 'monospace',
+                          fontSize: '12px',
                         }}>
                           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px' }}>
                             {fact.originalId}
@@ -1541,7 +1542,7 @@ export default function Dashboard({ slug, isSharedView = false }: DashboardProps
                           </div>
                         </td>
                         <td style={{ 
-                          padding: '14px 16px', 
+                          padding: '18px 16px', 
                           borderBottom: `1px solid ${tokens.border}`,
                           fontSize: '14px',
                           lineHeight: 1.5,
@@ -1552,15 +1553,16 @@ export default function Dashboard({ slug, isSharedView = false }: DashboardProps
                           {fact.source && (
                             <div style={{ 
                               marginTop: '6px', 
-                              fontSize: '12px', 
-                              color: '#9CA3AF',
+                              fontSize: '11px', 
+                              color: '#B0B8C4',
+                              fontWeight: 400,
                             }}>
-                              Source: {fact.source}
+                              {fact.source}
                             </div>
                           )}
                         </td>
                         <td style={{ 
-                          padding: '14px 16px', 
+                          padding: '18px 12px', 
                           borderBottom: `1px solid ${tokens.border}`, 
                           textAlign: 'center',
                           verticalAlign: 'middle',
@@ -1583,7 +1585,7 @@ export default function Dashboard({ slug, isSharedView = false }: DashboardProps
                           </div>
                         </td>
                         <td style={{ 
-                          padding: '14px 16px', 
+                          padding: '18px 12px', 
                           borderBottom: `1px solid ${tokens.border}`, 
                           textAlign: 'center',
                           verticalAlign: 'middle',
@@ -1690,14 +1692,16 @@ export default function Dashboard({ slug, isSharedView = false }: DashboardProps
                             <button
                               onClick={() => setGradingFactId(fact.id)}
                               style={{
-                                padding: '6px 12px',
+                                padding: '5px 10px',
                                 borderRadius: '6px',
-                                border: `1px dashed ${tokens.border}`,
-                                backgroundColor: 'transparent',
-                                fontSize: '12px',
+                                border: 'none',
+                                backgroundColor: tokens.surfaceAlt,
+                                fontSize: '11px',
                                 color: tokens.textSecondary,
                                 cursor: 'pointer',
+                                fontWeight: 500,
                               }}
+                              className="hover-elevate"
                               data-testid={`button-add-grade-${fact.originalId}`}
                             >
                               + Grade
@@ -1705,7 +1709,7 @@ export default function Dashboard({ slug, isSharedView = false }: DashboardProps
                           )}
                         </td>
                         <td style={{ 
-                          padding: '14px 16px', 
+                          padding: '18px 12px', 
                           borderBottom: `1px solid ${tokens.border}`, 
                           textAlign: 'center',
                           verticalAlign: 'middle',
@@ -1739,27 +1743,26 @@ export default function Dashboard({ slug, isSharedView = false }: DashboardProps
                               )}
                             </div>
                           ) : (
-                            <span style={{ color: tokens.textMuted, fontSize: '11px' }}>-</span>
+                            <span style={{ color: '#D1D5DB', fontSize: '11px' }}>-</span>
                           )}
                         </td>
                         <td style={{ 
-                          padding: '14px 16px', 
+                          padding: '18px 16px', 
                           borderBottom: `1px solid ${tokens.border}`,
                           fontSize: '13px',
-                          lineHeight: 1.5,
+                          lineHeight: 1.6,
                           color: '#4B5563',
                           verticalAlign: 'top',
                         }}>
                           {humanGrades[fact.id]?.notes ? (
-                            <div style={{ marginBottom: '6px' }}>
+                            <div style={{ marginBottom: '8px' }}>
                               <span style={{ 
                                 display: 'inline-flex', 
                                 alignItems: 'center', 
                                 gap: '4px',
-                                fontWeight: 600, 
+                                fontWeight: 500, 
                                 color: tokens.primary,
                                 fontSize: '11px',
-                                textTransform: 'uppercase',
                               }}>
                                 <User size={10} />
                                 Your Notes:
@@ -1770,16 +1773,11 @@ export default function Dashboard({ slug, isSharedView = false }: DashboardProps
                             </div>
                           ) : null}
                           {fact.note ? (
-                            <div>
-                              <div style={{ marginBottom: '4px' }}>
-                                <span style={{ fontWeight: 600, color: '#111827', fontSize: '11px', textTransform: 'uppercase' }}>AI Notes:</span>
-                              </div>
-                              <div style={{ color: '#6B7280' }}>
-                                {fact.note}
-                              </div>
+                            <div style={{ color: '#6B7280' }}>
+                              {fact.note}
                             </div>
                           ) : (
-                            !humanGrades[fact.id]?.notes && <span style={{ color: tokens.textMuted, fontStyle: 'italic' }}>No notes</span>
+                            !humanGrades[fact.id]?.notes && <span style={{ color: '#D1D5DB', fontStyle: 'italic' }}>No notes</span>
                           )}
                           {hasContradiction && (
                             <div style={{ 
