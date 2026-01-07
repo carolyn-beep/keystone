@@ -29,33 +29,37 @@ export interface VerificationResult {
   consensus: ConsensusResult;
 }
 
-const GRADING_SYSTEM_PROMPT = `You are an expert fact-checker verifying educational claims against source evidence.
+const GRADING_SYSTEM_PROMPT = `You are an expert fact-checker verifying educational claims.
 
 GRADING SCALE (1-5):
-5 = VERIFIED: Source fully supports the claim with clear, direct evidence
-4 = MOSTLY VERIFIED: Source largely supports the claim, minor discrepancies or extrapolation
-3 = PLAUSIBLE: Plausible but unverified or vague. Max score if no link provided.
-2 = QUESTIONABLE: Potentially misleading or thin evidence.
-1 = LIKELY FALSE: No supporting evidence or directly contradicted.
+5 = VERIFIED: Source fully supports the claim
+4 = MOSTLY VERIFIED: Source largely supports the claim
+3 = PLAUSIBLE: Plausible but unverified. Max score if no link provided or link failed.
+2 = QUESTIONABLE: Potentially misleading
+1 = LIKELY FALSE: No supporting evidence
 
 INSTRUCTIONS:
-1. Compare the CLAIM against the SOURCE EVIDENCE.
-2. If evidence is missing/empty and it's not universally known (like "sky is blue"), score aggressively (max 3).
-3. If evidence is present, ensure the fact is an accurate representation of that specific content.
-4. Output ONLY valid JSON.
+1. Compare CLAIM against SOURCE EVIDENCE.
+2. If SOURCE_LINK_FAILED is true:
+   - Check if the fact is UNIVERSALLY KNOWN (e.g., "sky is blue", "water is H2O").
+   - If UNIVERSALLY KNOWN, grade normally (max 5).
+   - If NOT universally known, set "isNonGradeable": true and explain why a source is needed.
+3. Output ONLY valid JSON.
 
 Output Format:
 {
   "score": <1-5>,
-  "rationale": "<Brief 1-2 sentence explanation>"
+  "rationale": "<Brief explanation>",
+  "isNonGradeable": <boolean>
 }`;
 
 async function callModel(
   model: LLMModel,
   fact: string,
   source: string,
-  evidence: string
-): Promise<ModelGradeResult> {
+  evidence: string,
+  linkFailed: boolean = false
+): Promise<ModelGradeResult & { isNonGradeable?: boolean }> {
   if (!OPENROUTER_API_KEY) {
     return {
       model,
@@ -75,7 +79,9 @@ ${source || 'No source citation provided'}
 SOURCE EVIDENCE:
 ${evidence || 'No evidence content available'}
 
-Grade this claim based on how well the evidence supports it.`;
+SOURCE_LINK_FAILED: ${linkFailed}
+
+Grade this claim. If link failed and not universally known, mark as non-gradeable.`;
 
   const run = async () => {
     const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
@@ -111,11 +117,11 @@ Grade this claim based on how well the evidence supports it.`;
     if (!jsonMatch) throw new Error('Could not find JSON in response');
 
     const parsed = JSON.parse(jsonMatch[0]);
-    const validated = modelGradeSchema.parse(parsed);
-
+    
     return {
-      score: validated.score,
-      rationale: validated.rationale,
+      score: parsed.score,
+      rationale: parsed.rationale,
+      isNonGradeable: parsed.isNonGradeable === true || parsed.isNonGradeable === 'true'
     };
   };
 
@@ -129,8 +135,9 @@ Grade this claim based on how well the evidence supports it.`;
 
     return {
       model,
-      score: result.score,
+      score: result.isNonGradeable ? 0 : result.score,
       rationale: result.rationale,
+      isNonGradeable: result.isNonGradeable,
       status: 'completed',
       error: null,
     };
@@ -163,38 +170,40 @@ function calculateWeightedMedian(scores: number[], weights: number[]): number {
 }
 
 export function calculateConsensus(
-  modelResults: ModelGradeResult[],
+  modelResults: (ModelGradeResult & { isNonGradeable?: boolean })[],
   modelWeights?: ModelWeights
-): ConsensusResult {
-  const validResults = modelResults.filter(r => r.status === 'completed' && r.score !== null);
-  const validScores = validResults.map(r => r.score as number);
-
-  if (validScores.length === 0) {
+): ConsensusResult & { isNonGradeable?: boolean } {
+  const validResults = modelResults.filter(r => r.status === 'completed');
+  
+  if (validResults.length === 0) {
     return {
-      consensusScore: 3, // Default to 3 if grading fails but source might exist
+      consensusScore: 3,
       confidenceLevel: 'low',
       needsReview: true,
       verificationNotes: 'Model failed to provide a specific rationale. Defaulting to plausible (3/5).',
     };
   }
 
+  const isNonGradeable = validResults.some(r => r.isNonGradeable);
+  const validScores = validResults.map(r => r.score as number).filter(s => s !== null);
+
   const weights = validResults.map(r => modelWeights?.[r.model] ?? 1.0);
   const consensusScore = calculateWeightedMedian(validScores, weights);
-  const minScore = Math.min(...validScores);
-  const maxScore = Math.max(...validScores);
+  const minScore = validScores.length > 0 ? Math.min(...validScores) : 0;
+  const maxScore = validScores.length > 0 ? Math.max(...validScores) : 0;
   const spread = maxScore - minScore;
 
   let confidenceLevel: 'high' | 'medium' | 'low' = 'low';
-  let needsReview = spread >= 3 || validScores.length < 2;
+  let needsReview = spread >= 3 || validScores.length < 1;
 
-  if (validScores.length >= 3 && spread <= 1) confidenceLevel = 'high';
-  else if (validScores.length >= 2 && spread <= 2) confidenceLevel = 'medium';
+  if (validScores.length >= 1 && spread <= 1) confidenceLevel = 'high';
 
   return {
-    consensusScore,
+    consensusScore: isNonGradeable ? 0 : consensusScore,
     confidenceLevel,
     needsReview,
     verificationNotes: validResults[0]?.rationale || 'No specific rationale provided.',
+    isNonGradeable
   };
 }
 
@@ -202,11 +211,12 @@ export async function verifyFactWithAllModels(
   fact: string,
   source: string,
   evidence: string,
+  linkFailed: boolean = false,
   modelWeights?: ModelWeights
-): Promise<VerificationResult> {
+): Promise<VerificationResult & { consensus: ConsensusResult & { isNonGradeable?: boolean } }> {
   // Use just Qwen as requested
   const model = LLM_MODELS.QWEN_32B;
-  const result = await callModel(model, fact, source, evidence);
+  const result = await callModel(model, fact, source, evidence, linkFailed);
   
   const modelResults = [result];
   const consensus = calculateConsensus(modelResults, modelWeights);

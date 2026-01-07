@@ -502,25 +502,35 @@ async function saveBrainliftFromAI(data: BrainliftOutput, originalContent?: stri
     let finalNote = fact.aiNotes || "";
 
     // If source exists, fetch evidence
+    let linkFailed = false;
     if (fact.aiNotes && fact.aiNotes.includes("Source: ")) {
       const sourceUrl = fact.aiNotes.split("Source: ")[1]?.trim();
       if (sourceUrl) {
         try {
           const evidence = await fetchEvidenceForFact(fact.fact, sourceUrl);
           evidenceContent = evidence.content || "";
+          if (!evidenceContent) linkFailed = true;
         } catch (err) {
           console.error(`Failed to fetch evidence for fact: ${fact.id}`, err);
+          linkFailed = true;
         }
       }
     }
 
     // Verify with LLMs
     try {
-      const verification = await verifyFactWithAllModels(fact.fact, fact.source || "", evidenceContent);
+      const verification = await verifyFactWithAllModels(fact.fact, fact.source || "", evidenceContent, linkFailed);
       finalScore = verification.consensus.consensusScore;
       
       // Get the rationale directly from consensus notes
-      const rationale = verification.consensus.verificationNotes;
+      let rationale = verification.consensus.verificationNotes;
+      let isGradeable = true;
+
+      if (verification.consensus.isNonGradeable) {
+        rationale = `As the source link is not accessible, this DOK1 could not be graded - ${rationale}`;
+        isGradeable = false;
+        finalScore = 0;
+      }
       
       // Format note: Rationale first, then hyperlinked source at the end
       let sourceHyperlink = "";
@@ -536,22 +546,34 @@ async function saveBrainliftFromAI(data: BrainliftOutput, originalContent?: stri
       }
 
       finalNote = `${rationale}\n\n${sourceHyperlink}`;
+
+      return {
+        originalId: fact.id,
+        category: fact.category,
+        source: fact.source || null,
+        fact: fact.fact,
+        summary,
+        score: finalScore,
+        contradicts: fact.contradicts,
+        note: finalNote,
+        flags: fact.flags || [],
+        isGradeable,
+      };
     } catch (err) {
       console.error(`Verification failed for fact: ${fact.id}`, err);
+      return {
+        originalId: fact.id,
+        category: fact.category,
+        source: fact.source || null,
+        fact: fact.fact,
+        summary,
+        score: 0,
+        contradicts: fact.contradicts,
+        note: `Verification failed due to a system error.\n\n${fact.aiNotes || "No sources have been linked to this fact"}`,
+        flags: fact.flags || [],
+        isGradeable: false,
+      };
     }
-
-    return {
-      originalId: fact.id,
-      category: fact.category,
-      source: fact.source || null,
-      fact: fact.fact,
-      summary,
-      score: finalScore,
-      contradicts: fact.contradicts,
-      note: finalNote,
-      flags: fact.flags || [],
-      isGradeable: true,
-    };
   })));
   
   const clusters = data.contradictionClusters.map((c) => ({
