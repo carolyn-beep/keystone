@@ -246,11 +246,11 @@ async function findContradictions(facts: any[]): Promise<any[]> {
       if (potentialConflict) {
         try {
           const response = await openai.chat.completions.create({
-            model: "qwen/qwen-turbo", // Using a faster model for contradiction analysis
+            model: "qwen/qwen-turbo",
             messages: [
               {
                 role: "system",
-                content: "You are an expert at identifying educational DOK1 fact contradictions. Analyze two facts and determine if they represent a meaningful contradiction or tension. If they do, provide a descriptive title (e.g., 'Writing Load vs Learning Gain') and a detailed 'tension' description that calls out the specific conflict between the two claims. If no contradiction exists, return 'NONE'."
+                content: "You are an expert at identifying educational DOK1 fact contradictions. Analyze two facts and determine if they represent a meaningful contradiction or tension. If they do, provide a descriptive title (e.g., 'Writing Load vs Learning Gain') and a detailed 'tension' description that calls out the specific conflict between the two claims. Focus on the interpretive tension: explain what the facts are on one side vs the other. If no contradiction exists, return 'NONE'."
               },
               {
                 role: "user",
