@@ -44,13 +44,14 @@ const brainliftOutputSchema = z.object({
 
 export type BrainliftOutput = z.infer<typeof brainliftOutputSchema>;
 
-// Detection patterns for DOK sections
-const KNOWLEDGE_TREE_MARKER = "DOK 2 - Knowledge Tree";
-const DOK1_PATTERNS = [/DOK1/i, /Category/i];
-
 function isBulletPoint(line: string): boolean {
   const trimmed = line.trim();
   return trimmed.startsWith('-') || trimmed.startsWith('•') || trimmed.startsWith('*') || /^\d+[\.\)]/.test(trimmed);
+}
+
+function getIndentLevel(line: string): number {
+  const match = line.match(/^(\s*)/);
+  return match ? match[1].length : 0;
 }
 
 function cleanLine(line: string): string {
@@ -60,11 +61,15 @@ function cleanLine(line: string): string {
 export async function extractBrainlift(markdownContent: string, sourceType: string): Promise<BrainliftOutput> {
   const lines = markdownContent.split('\n');
   const facts: any[] = [];
-  let currentCategory = 'General';
-  let inKnowledgeTree = false;
   let factIdCounter = 1;
+  
+  let inKnowledgeTree = false;
+  let inDOK1Facts = false;
+  let dok1IndentLevel = -1;
+  let currentCategory = 'General';
+  let currentSource = 'Unknown';
 
-  // Title extraction: use first H1 if available, otherwise first non-empty line
+  // Title extraction
   let title = "Extracted Brainlift";
   const h1Match = lines.find(l => l.startsWith('# '));
   if (h1Match) {
@@ -79,47 +84,65 @@ export async function extractBrainlift(markdownContent: string, sourceType: stri
     const trimmed = line.trim();
     if (!trimmed) continue;
 
-    // Detect Knowledge Tree Section Header
-    // We expect this to be a main header (H1 or H2)
+    const indent = getIndentLevel(line);
+    const cleaned = cleanLine(line);
+
+    // 1. Detect Knowledge Tree Entry
     if (!inKnowledgeTree) {
-      if (trimmed.includes(KNOWLEDGE_TREE_MARKER) || /^#+\s*Knowledge\s*Tree/i.test(trimmed)) {
+      if (/DOK\s*2\s*-\s*Knowledge\s*Tree/i.test(cleaned) || /^#+\s*Knowledge\s*Tree/i.test(line)) {
         inKnowledgeTree = true;
       }
       continue;
     }
 
-    // Check for Section Exit (if we hit another DOK section header at the same level)
-    // For now, we process until the end of file or a higher-level header if we used H2
-    if (trimmed.startsWith('# ') && inKnowledgeTree && !trimmed.includes(KNOWLEDGE_TREE_MARKER)) {
-        // If we hit a new top-level header, we might have left the tree
-        // But the user says DOK1s are subsections of the tree
-    }
-
-    // Subsection Header detection (Potential DOK1s)
-    // Markdown headers like ## Subsection or ### Subsection
-    if (trimmed.startsWith('#')) {
-      const headerText = trimmed.replace(/^#+\s*/, '').trim();
-      
-      // If header contains DOK1, it's definitely a DOK1
-      // If it's a subsection of the tree, it's a potential DOK1
-      currentCategory = headerText;
+    // 2. Identify Categories and Sources (Context)
+    // Categories usually look like "Category X: Name"
+    if (/^Category\s*\d+/i.test(cleaned)) {
+      currentCategory = cleaned;
+      inDOK1Facts = false; // Reset if we hit a new category
       continue;
     }
 
-    // Fact extraction (Bullet points under headers)
-    if (isBulletPoint(line)) {
-      const factText = cleanLine(line);
-      if (factText.length > 5) {
-        facts.push({
-          id: `${factIdCounter++}`,
-          category: currentCategory,
-          source: null,
-          fact: factText,
-          score: 0,
-          aiNotes: "Extracted from Markdown Knowledge Tree subsection.",
-          contradicts: null,
-          flags: []
-        });
+    // Sources usually look like "Source X: Name"
+    if (/^Source\s*\d+/i.test(cleaned)) {
+      currentSource = cleaned;
+      inDOK1Facts = false; // Reset if we hit a new source
+      continue;
+    }
+
+    // 3. Detect DOK 1 - Facts start
+    if (/DOK\s*1\s*-\s*Facts/i.test(cleaned)) {
+      inDOK1Facts = true;
+      dok1IndentLevel = indent;
+      continue;
+    }
+
+    // 4. Exit DOK 1 - Facts
+    // We exit if we find a header at the same or higher level than the "DOK 1 - Facts" marker
+    // Or if we hit another DOK marker (like DOK 2 - Summary)
+    if (inDOK1Facts) {
+      const isNewSection = /DOK\s*2\s*-\s*Summary/i.test(cleaned) || /Link/i.test(cleaned);
+      const isHigherHeader = indent <= dok1IndentLevel && !isBulletPoint(line);
+      
+      if (isNewSection || (indent > 0 && isHigherHeader)) {
+        inDOK1Facts = false;
+        continue;
+      }
+
+      // 5. Extract Facts
+      if (isBulletPoint(line) && indent > dok1IndentLevel) {
+        if (cleaned.length > 5) {
+          facts.push({
+            id: `${factIdCounter++}`,
+            category: currentCategory,
+            source: currentSource,
+            fact: cleaned,
+            score: 0,
+            aiNotes: `Source: ${currentSource} | Category: ${currentCategory}`,
+            contradicts: null,
+            flags: []
+          });
+        }
       }
     }
   }
@@ -127,7 +150,7 @@ export async function extractBrainlift(markdownContent: string, sourceType: stri
   const finalResult = {
     classification: 'brainlift' as const,
     title,
-    description: `Markdown-based DOK1 extraction from ${sourceType}`,
+    description: `Targeted DOK1 extraction from ${sourceType}`,
     summary: {
       totalFacts: facts.length,
       meanScore: "0",
