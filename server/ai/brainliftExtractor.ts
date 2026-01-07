@@ -119,34 +119,128 @@ Output ONLY valid JSON:
 
 REMEMBER: Extract ONLY DOK1 facts. Include the source for each fact. Count every DOK1 bullet.`;
 
-// Pre-filter content to extract ONLY lines containing (DOK1) marker
-function extractDOK1Lines(content: string): { filteredContent: string; dok1Count: number } {
+// DOK1 section header patterns (case insensitive)
+const DOK1_HEADER_PATTERNS = [
+  /^#+\s*DOK\s*1\b/i,
+  /^#+\s*DOK-1\b/i,
+  /^DOK\s*1\s*[-:]/i,
+  /^DOK-1\s*[-:]/i,
+  /^DOK1\s*Facts/i,
+  /^DOK\s*1\s*Facts/i,
+  /^Level\s*1\s*Facts/i,
+  /^Level\s*1\b/i,
+  /^\*\*DOK\s*1\b/i,
+  /^\*\*DOK-1\b/i,
+  /^Facts\s*$/i,
+  /^Facts\s*[-:]/i,
+];
+
+// Stop patterns - when to stop extracting DOK1 content
+const STOP_PATTERNS = [
+  /^#+\s*DOK\s*[234]\b/i,
+  /^#+\s*DOK-[234]\b/i,
+  /^DOK\s*[234]\s*[-:]/i,
+  /^DOK-[234]\s*[-:]/i,
+  /^\*\*DOK\s*[234]\b/i,
+  /^Insights\b/i,
+  /^Key\s*Insights\b/i,
+  /^Summaries\b/i,
+  /^SPOV/i,
+  /^Experts\b/i,
+  /^Expert\s*Section/i,
+  /^Level\s*[234]\b/i,
+];
+
+// Check if line is a DOK1 section header
+function isDOK1Header(line: string): boolean {
+  const trimmed = line.trim();
+  return DOK1_HEADER_PATTERNS.some(pattern => pattern.test(trimmed));
+}
+
+// Check if line is a stop pattern
+function isStopPattern(line: string): boolean {
+  const trimmed = line.trim();
+  return STOP_PATTERNS.some(pattern => pattern.test(trimmed));
+}
+
+// Check if line is a bullet point or fact
+function isBulletOrFact(line: string): boolean {
+  const trimmed = line.trim();
+  return (
+    trimmed.startsWith('-') ||
+    trimmed.startsWith('•') ||
+    trimmed.startsWith('*') ||
+    trimmed.startsWith('·') ||
+    /^\d+[\.\)]/.test(trimmed)
+  );
+}
+
+// Extract DOK1 content from document
+function extractDOK1Content(content: string): { 
+  filteredContent: string; 
+  dok1Count: number;
+  inlineCount: number;
+  sectionCount: number;
+} {
   const lines = content.split('\n');
-  const dok1Lines: string[] = [];
+  const dok1Facts: string[] = [];
+  let inDOK1Section = false;
+  let inlineCount = 0;
+  let sectionCount = 0;
   
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
-    // Check if line contains (DOK1) marker
+    const trimmed = line.trim();
+    
+    // Check for inline (DOK1) markers anywhere in document
     if (line.includes('(DOK1)')) {
-      // Include some context: previous line if exists, the DOK1 line, and next line if exists
+      // Include context: previous line, the DOK1 line, next line
       const contextStart = Math.max(0, i - 1);
       const contextEnd = Math.min(lines.length - 1, i + 1);
       
       for (let j = contextStart; j <= contextEnd; j++) {
-        if (!dok1Lines.includes(lines[j])) {
-          dok1Lines.push(lines[j]);
+        const contextLine = lines[j].trim();
+        if (contextLine && !dok1Facts.includes(contextLine)) {
+          dok1Facts.push(contextLine);
         }
       }
-      dok1Lines.push('---'); // Separator between facts
+      dok1Facts.push('---');
+      inlineCount++;
+      continue;
+    }
+    
+    // Check for DOK1 section header
+    if (isDOK1Header(line)) {
+      inDOK1Section = true;
+      dok1Facts.push(`[DOK1 SECTION: ${trimmed}]`);
+      continue;
+    }
+    
+    // Check for stop pattern (end of DOK1 section)
+    if (isStopPattern(line)) {
+      if (inDOK1Section) {
+        dok1Facts.push('---[END DOK1 SECTION]---');
+      }
+      inDOK1Section = false;
+      continue;
+    }
+    
+    // If we're in a DOK1 section, extract bullets/facts
+    if (inDOK1Section && trimmed) {
+      if (isBulletOrFact(line) || trimmed.length > 20) {
+        dok1Facts.push(trimmed);
+        sectionCount++;
+      }
     }
   }
   
-  // Count actual DOK1 markers
-  const dok1Count = (content.match(/\(DOK1\)/gi) || []).length;
+  const totalCount = inlineCount + sectionCount;
   
   return {
-    filteredContent: dok1Lines.join('\n'),
-    dok1Count
+    filteredContent: dok1Facts.join('\n'),
+    dok1Count: totalCount,
+    inlineCount,
+    sectionCount
   };
 }
 
@@ -155,18 +249,18 @@ export async function extractBrainlift(content: string, sourceType: string): Pro
     throw new Error('OpenRouter API key not configured');
   }
 
-  // Pre-filter to only include DOK1 marked content
-  const { filteredContent, dok1Count } = extractDOK1Lines(content);
+  // Pre-filter to only include DOK1 content (inline markers OR DOK1 sections)
+  const { filteredContent, dok1Count, inlineCount, sectionCount } = extractDOK1Content(content);
   
-  console.log(`DOK1 extraction: Found ${dok1Count} (DOK1) markers in document`);
+  console.log(`DOK1 extraction: Found ${dok1Count} DOK1 items (${inlineCount} inline markers, ${sectionCount} section items)`);
   
-  // If no DOK1 markers found, return not_brainlift
+  // If no DOK1 content found, return not_brainlift
   if (dok1Count === 0) {
     return {
       classification: 'not_brainlift',
-      rejectionReason: 'No (DOK1) markers found in the document. This document does not contain DOK1-tagged facts.',
-      rejectionSubtype: 'Missing DOK1 notation',
-      rejectionRecommendation: 'Add (DOK1) markers to facts you want extracted, e.g., "92% of users prefer X (Source, 2024)" (DOK1)',
+      rejectionReason: 'NO_DOK1_SECTION_FOUND - No DOK1 sections or (DOK1) markers found in the document.',
+      rejectionSubtype: 'Missing DOK1 content',
+      rejectionRecommendation: 'Add DOK1 section headers (e.g., "DOK1:", "DOK1 Facts", "Level 1") or inline (DOK1) markers after facts.',
       title: 'Unknown',
       description: 'No DOK1 facts found',
       summary: {
@@ -183,7 +277,12 @@ export async function extractBrainlift(content: string, sourceType: string): Pro
 
   const userPrompt = `Analyze the following ${sourceType} content and create a DOK1 grading brainlift.
 
-IMPORTANT: This document has been pre-filtered to show ONLY lines containing (DOK1) markers. There are exactly ${dok1Count} facts marked with (DOK1). Extract ALL ${dok1Count} of them.
+IMPORTANT: This document has been pre-filtered to show ONLY DOK1 content:
+- Inline (DOK1) marked facts: ${inlineCount}
+- Facts from DOK1 sections: ${sectionCount}
+- Total expected facts: approximately ${dok1Count}
+
+Extract ALL DOK1 facts with their sources.
 
 ---
 ${filteredContent}
