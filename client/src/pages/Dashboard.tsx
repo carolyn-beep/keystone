@@ -355,34 +355,7 @@ export default function Dashboard({ slug, isSharedView = false }: DashboardProps
   const [tweetFeedbackState, setTweetFeedbackState] = useState<Record<string, 'accepted' | 'rejected'>>({});
   const [expertsExpanded, setExpertsExpanded] = useState(true);
   const [showAllExperts, setShowAllExperts] = useState(false);
-  const [selectedFactForModal, setSelectedFactForModal] = useState<any | null>(null);
-  const [debugExpanded, setDebugExpanded] = useState(false);
-
-  const { data, isLoading, error } = useQuery<BrainliftData>({
-    queryKey: ['brainlift', slug],
-    queryFn: async () => {
-      const res = await fetch(`/api/brainlifts/${slug}`);
-      if (!res.ok) throw new Error('Failed to fetch brainlift');
-      return res.json();
-    },
-    enabled: !!slug
-  });
-
-  const sortedFacts = useMemo(() => {
-    if (!data?.facts) return [];
-    return [...data.facts].sort((a, b) => {
-      const getNum = (id: string) => {
-        const match = id.match(/\d+$/);
-        return match ? parseInt(match[0], 10) : 0;
-      };
-      return getNum(a.originalId) - getNum(b.originalId);
-    });
-  }, [data?.facts]);
-
-  const clusters = useMemo(() => {
-    if (!data?.contradictionClusters) return [];
-    return data.contradictionClusters;
-  }, [data?.contradictionClusters]);
+  const [selectedFactForModal, setSelectedFactForModal] = useState<Fact | null>(null);
 
   const handleCopyLink = () => {
     const shareUrl = `${window.location.origin}/view/${slug}`;
@@ -394,6 +367,16 @@ export default function Dashboard({ slug, isSharedView = false }: DashboardProps
   const toggleExpand = (itemId: number) => {
     setExpandedItems(prev => ({ ...prev, [itemId]: !prev[itemId] }));
   };
+
+  const { data, isLoading, error } = useQuery<BrainliftData>({
+    queryKey: ['brainlift', slug],
+    queryFn: async () => {
+      const res = await fetch(`/api/brainlifts/${slug}`);
+      if (!res.ok) throw new Error('Failed to fetch brainlift');
+      return res.json();
+    },
+    enabled: !!slug
+  });
 
   const isNotBrainlift = data?.classification === 'not_brainlift';
   const isPartialBrainlift = data?.classification === 'partial';
@@ -845,14 +828,8 @@ export default function Dashboard({ slug, isSharedView = false }: DashboardProps
     doc.text('Facts', marginLeft, y);
     y += 4;
 
-    const sortedFacts = [...data.facts].sort((a, b) => {
-      const getNum = (id: string) => {
-        const match = id.match(/\d+$/);
-        return match ? parseInt(match[0], 10) : 0;
-      };
-      return getNum(a.originalId) - getNum(b.originalId);
-    });
-
+    const sortedFacts = [...data.facts].sort((a, b) => b.score - a.score || a.originalId.localeCompare(b.originalId));
+    
     autoTable(doc, {
       startY: y,
       head: [['Fact ID', 'Fact (as written)', 'Correctness (1-5)', 'Verification Notes']],
