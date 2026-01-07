@@ -44,18 +44,13 @@ const brainliftOutputSchema = z.object({
 
 export type BrainliftOutput = z.infer<typeof brainliftOutputSchema>;
 
-function isBulletPoint(line: string): boolean {
-  const trimmed = line.trim();
-  return trimmed.startsWith('-') || trimmed.startsWith('•') || trimmed.startsWith('*') || /^\d+[\.\)]/.test(trimmed);
-}
-
 function getIndentLevel(line: string): number {
   const match = line.match(/^(\s*)/);
   return match ? match[1].length : 0;
 }
 
-function cleanLine(line: string): string {
-  return line.trim().replace(/^[-•*]\s*/, '').replace(/^\d+[\.\)]\s*/, '');
+function cleanHeader(line: string): string {
+  return line.trim().replace(/^[-•*]\s*/, '').replace(/^#+\s*/, '').replace(/\*\*+/g, '').replace(/[:]$/, '').trim();
 }
 
 export async function extractBrainlift(markdownContent: string, sourceType: string): Promise<BrainliftOutput> {
@@ -64,35 +59,37 @@ export async function extractBrainlift(markdownContent: string, sourceType: stri
   let factIdCounter = 1;
   
   let inKnowledgeTree = false;
-  let inDOK1Facts = false;
-  let dok1IndentLevel = -1;
-  let rootFactIndentLevel = -1;
+  let inDOK1Section = false;
+  let sectionIndentLevel = -1;
   let currentCategory = 'General';
   let currentSource = 'Unknown';
-  let currentFactBuffer: string[] = [];
+  let sectionBuffer: string[] = [];
 
-  const flushFact = () => {
-    if (currentFactBuffer.length > 0) {
-      facts.push({
-        id: `${factIdCounter++}`,
-        category: currentCategory,
-        source: currentSource,
-        fact: currentFactBuffer.join('\n'),
-        score: 0,
-        aiNotes: `Source: ${currentSource} | Category: ${currentCategory}`,
-        contradicts: null,
-        flags: []
-      });
-      currentFactBuffer = [];
-      rootFactIndentLevel = -1;
+  const flushSection = () => {
+    if (sectionBuffer.length > 0) {
+      // Join buffer and clean up leading bullets/whitespace from the whole block
+      const factText = sectionBuffer.join('\n').trim();
+      if (factText.length > 10) {
+        facts.push({
+          id: `${factIdCounter++}`,
+          category: currentCategory,
+          source: currentSource,
+          fact: factText,
+          score: 0,
+          aiNotes: `Source: ${currentSource} | Category: ${currentCategory}`,
+          contradicts: null,
+          flags: []
+        });
+      }
+      sectionBuffer = [];
     }
   };
 
   // Title extraction
   let title = "Extracted Brainlift";
-  const h1Match = lines.find(l => l.startsWith('# '));
+  const h1Match = lines.find(l => l.trim().startsWith('# '));
   if (h1Match) {
-    title = h1Match.replace('# ', '').trim();
+    title = cleanHeader(h1Match);
   } else {
     const firstLine = lines.find(l => l.trim());
     if (firstLine) title = firstLine.trim().substring(0, 100);
@@ -101,10 +98,10 @@ export async function extractBrainlift(markdownContent: string, sourceType: stri
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
     const trimmed = line.trim();
-    if (!trimmed) continue;
+    if (!trimmed && !inDOK1Section) continue;
 
     const indent = getIndentLevel(line);
-    const cleaned = cleanLine(line);
+    const cleaned = cleanHeader(line);
 
     // 1. Detect Knowledge Tree Entry
     if (!inKnowledgeTree) {
@@ -114,71 +111,62 @@ export async function extractBrainlift(markdownContent: string, sourceType: stri
       continue;
     }
 
-    // 2. Identify Categories and Sources (Context)
+    // 2. Identify Context (Categories and Sources)
     if (/^Category\s*\d+/i.test(cleaned)) {
-      flushFact();
+      if (inDOK1Section) flushSection();
       currentCategory = cleaned;
-      inDOK1Facts = false;
+      inDOK1Section = false;
       continue;
     }
 
     if (/^Source\s*\d+/i.test(cleaned)) {
-      flushFact();
+      if (inDOK1Section) flushSection();
       currentSource = cleaned;
-      inDOK1Facts = false;
+      inDOK1Section = false;
       continue;
     }
 
-    // 3. Detect DOK 1 - Facts start
-    if (/DOK\s*1\s*-\s*Facts/i.test(cleaned)) {
-      flushFact();
-      inDOK1Facts = true;
-      dok1IndentLevel = indent;
+    // 3. Detect DOK 1 Entry Point
+    // A DOK1 can be a section named "DOK 1 - Facts" or a subsection explicitly labeled "DOK1"
+    if (/DOK\s*1\s*-\s*Facts/i.test(cleaned) || /DOK1/i.test(cleaned)) {
+      if (inDOK1Section) flushSection();
+      inDOK1Section = true;
+      sectionIndentLevel = indent;
       continue;
     }
 
-    // 4. Exit DOK 1 - Facts
-    if (inDOK1Facts) {
-      const isNewSection = /DOK\s*2\s*-\s*Summary/i.test(cleaned) || /Link/i.test(cleaned);
-      const isHigherHeader = indent <= dok1IndentLevel && !isBulletPoint(line);
-      
-      if (isNewSection || (indent > 0 && isHigherHeader)) {
-        flushFact();
-        inDOK1Facts = false;
+    // 4. Handle Content inside DOK1 Section
+    if (inDOK1Section) {
+      // Exit criteria: 
+      // - Next DOK section (DOK 2 - Summary)
+      // - Link section
+      // - A header/node at the same or higher level than the DOK1 header
+      const isNewDOK = /DOK\s*2\s*-\s*Summary/i.test(cleaned) || /DOK\s*2/i.test(cleaned);
+      const isExitSection = /Link/i.test(cleaned) || /Source\s*\d+/i.test(cleaned) || /^Category\s*\d+/i.test(cleaned);
+      const isHigherLevel = indent <= sectionIndentLevel && trimmed.length > 0;
+
+      if (isNewDOK || isExitSection || isHigherLevel) {
+        flushSection();
+        inDOK1Section = false;
+        
+        // If it was a category or source, let the next iteration handle context update
+        if (isExitSection || /^Category|^Source/i.test(cleaned)) {
+          i--; // Re-process this line to catch context
+        }
         continue;
       }
 
-      // 5. Extract Facts (Grouped)
-      if (isBulletPoint(line) && indent > dok1IndentLevel) {
-        // If this is the first bullet in the DOK1 section, it defines the root fact level
-        if (rootFactIndentLevel === -1) {
-          rootFactIndentLevel = indent;
-        }
-
-        // New fact starts when we hit a bullet at the root fact level
-        if (indent === rootFactIndentLevel) {
-          flushFact();
-          currentFactBuffer.push(cleaned);
-        } else if (indent > rootFactIndentLevel) {
-          // Nested content: treat as part of the current fact
-          // Preserve relative indentation for visual hierarchy within the fact
-          const relativeIndent = '  '.repeat(Math.max(0, Math.floor((indent - rootFactIndentLevel) / 2)));
-          currentFactBuffer.push(`${relativeIndent}- ${cleaned}`);
-        }
-      } else if (!isBulletPoint(line) && indent > dok1IndentLevel && currentFactBuffer.length > 0) {
-        // Non-bulleted line but indented under DOK1: likely a continuation of the previous bullet
-        const relativeIndent = '  '.repeat(Math.max(0, Math.floor((indent - rootFactIndentLevel) / 2)));
-        currentFactBuffer.push(`${relativeIndent}${trimmed}`);
-      }
+      // Add line to buffer, preserving relative indentation
+      sectionBuffer.push(line);
     }
   }
 
-  flushFact(); // Final flush
+  flushSection();
 
   const finalResult = {
     classification: 'brainlift' as const,
     title,
-    description: `Grouped DOK1 extraction from ${sourceType}`,
+    description: `Section-based DOK1 extraction from ${sourceType}`,
     summary: {
       totalFacts: facts.length,
       meanScore: "0",
