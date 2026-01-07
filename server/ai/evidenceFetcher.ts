@@ -99,7 +99,7 @@ Provide a concise summary of the evidence you find (max 500 words). Focus on spe
         'HTTP-Referer': 'https://replit.com',
       },
       body: JSON.stringify({
-        model: 'perplexity/sonar-pro',
+        model: 'qwen/qwen3-vl-32b-instruct',
         messages: [{ role: 'user', content: prompt }],
         temperature: 0.1,
         max_tokens: 1000,

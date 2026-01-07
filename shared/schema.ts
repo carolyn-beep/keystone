@@ -124,21 +124,13 @@ export const experts = pgTable("experts", {
   isFollowing: boolean("is_following").notNull().default(true), // Auto-follow if rank > 5
 });
 
-// Multi-LLM Fact Verification System - 5 Models via OpenRouter
+// Single LLM Fact Verification - Using Qwen 2.5 32B via OpenRouter
 export const LLM_MODELS = {
-  CLAUDE_OPUS: 'anthropic/claude-opus-4.5',
-  GEMINI_PRO: 'google/gemini-2.5-pro',
-  GPT: 'openai/gpt-5.2',
-  QWEN: 'qwen/qwen3-max',
-  DEEPSEEK: 'deepseek/deepseek-v3.2',
+  QWEN_32B: 'qwen/qwen3-vl-32b-instruct',
 } as const;
 
 export const LLM_MODEL_NAMES: Record<LLMModel, string> = {
-  'anthropic/claude-opus-4.5': 'Claude Opus 4.5',
-  'google/gemini-2.5-pro': 'Gemini 2.5 Pro',
-  'openai/gpt-5.2': 'ChatGPT 5.2',
-  'qwen/qwen3-max': 'Qwen3-Max',
-  'deepseek/deepseek-v3.2': 'DeepSeek V3.2',
+  'qwen/qwen3-vl-32b-instruct': 'Qwen 3 VL 32B',
 };
 
 export type LLMModel = typeof LLM_MODELS[keyof typeof LLM_MODELS];

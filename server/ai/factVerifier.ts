@@ -204,10 +204,11 @@ export async function verifyFactWithAllModels(
   evidence: string,
   modelWeights?: ModelWeights
 ): Promise<VerificationResult> {
-  // Use a fast/small model for primary grading as requested
-  // We keep the multi-model structure but prioritize fast models in LLM_MODELS if possible
-  const models = Object.values(LLM_MODELS);
-  const modelResults = await Promise.all(models.map(model => callModel(model, fact, source, evidence)));
+  // Use just Qwen as requested
+  const model = LLM_MODELS.QWEN_32B;
+  const result = await callModel(model, fact, source, evidence);
+  
+  const modelResults = [result];
   const consensus = calculateConsensus(modelResults, modelWeights);
 
   return { modelResults, consensus };
