@@ -1612,7 +1612,8 @@ export default function Dashboard({ slug, isSharedView = false }: DashboardProps
                   {[...facts].sort((a, b) => b.score - a.score || a.originalId.localeCompare(b.originalId)).map((fact, index) => {
                     const hasContradiction = fact.contradicts !== null && fact.contradicts !== '';
                     const scoreChip = getScoreChipColors(fact.score);
-                    const scoreLabel = fact.score === 5 ? 'Verified' : fact.score === 4 ? 'Strong' : fact.score === 3 ? 'Partial' : fact.score === 2 ? 'Weak' : 'Failed';
+                    const isGradeable = fact.score > 0;
+                    const scoreLabel = !isGradeable ? 'Non-Gradeable' : fact.score === 5 ? 'Verified' : fact.score === 4 ? 'Strong' : fact.score === 3 ? 'Partial' : fact.score === 2 ? 'Weak' : 'Failed';
                     
                     const zebraColor = index % 2 === 0 ? tokens.surface : tokens.surfaceAlt;
                     
@@ -1621,7 +1622,10 @@ export default function Dashboard({ slug, isSharedView = false }: DashboardProps
                         key={fact.id}
                         id={`fact-${fact.originalId}`}
                         data-testid={`row-fact-${fact.originalId}`}
-                        style={{ backgroundColor: zebraColor }}
+                        style={{ 
+                          backgroundColor: zebraColor,
+                          opacity: isGradeable ? 1 : 0.75,
+                        }}
                         onMouseEnter={(e) => e.currentTarget.style.backgroundColor = tokens.successSoft}
                         onMouseLeave={(e) => e.currentTarget.style.backgroundColor = zebraColor}
                       >
@@ -1688,13 +1692,13 @@ export default function Dashboard({ slug, isSharedView = false }: DashboardProps
                             gap: '4px',
                             padding: '6px 10px',
                             borderRadius: '16px',
-                            backgroundColor: scoreChip.bg,
-                            color: scoreChip.text,
-                            border: `1px solid ${scoreChip.text}`,
+                            backgroundColor: isGradeable ? scoreChip.bg : tokens.surfaceAlt,
+                            color: isGradeable ? scoreChip.text : tokens.textTertiary,
+                            border: isGradeable ? `1px solid ${scoreChip.text}` : `1px dashed ${tokens.border}`,
                             fontSize: '12px',
                             fontWeight: 600,
                           }}>
-                            <span style={{ fontWeight: 700 }}>{fact.score}</span>
+                            <span style={{ fontWeight: 700 }}>{isGradeable ? fact.score : '—'}</span>
                             <span style={{ fontWeight: 500 }}>{scoreLabel}</span>
                           </div>
                         </td>
