@@ -247,19 +247,27 @@ What counts as a contradiction (must map to one of these):
 3) increasing vs decreasing (same metric, same population, same period)
 4) mutually exclusive policy/structure claims (e.g., “schools cannot pay athletes” vs “schools can pay athletes now” in the same ruleset/time)
 
-Output rules (IMPORTANT)
-- Return ONLY valid JSON. No markdown, no extra text.
-- If you find at least one contradiction, return an array of objects:
-[
-  {
-    "title": "...",
-    "tension": "Fact <id1> vs Fact <id2>[, Fact <id3>...]",
-    "explanation": "One sentence explaining why these facts cannot both be true (or why the concept is mutually exclusive)."
-  }
-]
-- The "tension" field MUST start with "Fact " and MUST reference fact IDs exactly as provided.
-- Prefer the MINIMAL set of facts that creates the contradiction (usually 2).
-- If there is no contradiction, return: NONE`
+OUTPUT (STRICT):
+- Return ONLY valid JSON.
+- If a tension exists, return EXACTLY:
+{
+  "title": "Concept vs Concept",
+  "tension": "<Concept statement> (Fact <id>) vs <Concept statement> (Facts <id>, <id>, <id>)"
+}
+Rules:
+1) Title MUST be exactly "Concept vs Concept" (two short concepts, no extra punctuation, no sentence).
+   Examples: "Interest vs Content", "Access vs Equity", "Engagement vs Rigor".
+2) The tension field MUST read like the following format:
+   - left side: a short, human sentence summarizing one side
+   - then parenthesis with fact refs: (Fact 1.1) or (Facts 2.1, 4.2)
+   - then " vs "
+   - then the opposing short sentence + its fact refs
+3) Use "Fact" when one id; "Facts" when multiple.
+4) Include ONLY the minimum facts necessary (usually 1 vs 1–3). No extra commentary.
+5) No other keys. No explanation. No bullets. No markdown.
+
+If NO tension exists, return EXACTLY:
+{ "result": "NONE" }`
         },
         {
           role: "user",
@@ -269,21 +277,19 @@ Output rules (IMPORTANT)
     });
 
     const content = response.choices[0].message.content?.trim() || "";
-    if (content === "NONE") return [];
+    const result = JSON.parse(content);
+    
+    if (result.result === "NONE") return [];
 
-    const results = JSON.parse(content);
-    if (!Array.isArray(results)) return [];
-
-    return results.map(res => {
-      const ids = res.tension.match(/Fact\s+([^\s,.]+)/g)?.map(m => m.replace('Fact ', '')) || [];
-      return {
-        name: res.title,
-        factIds: ids,
-        claims: ids.map(id => facts.find(f => f.id === id)?.fact).filter(Boolean),
-        tension: res.tension + ". " + res.explanation,
-        status: "Flagged"
-      };
-    });
+    const ids = result.tension.match(/Fact\s+([^\s,.]+)|Facts\s+([^\s,.]+)/g)?.map(m => m.replace(/Facts?\s+/, '')) || [];
+    
+    return [{
+      name: result.title,
+      factIds: ids,
+      claims: ids.map(id => facts.find(f => f.id === id)?.fact).filter(Boolean),
+      tension: result.tension,
+      status: "Flagged"
+    }];
   } catch (err) {
     console.error("Contradiction AI analysis failed:", err);
     return [];
