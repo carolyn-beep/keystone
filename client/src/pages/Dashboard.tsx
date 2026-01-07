@@ -368,7 +368,7 @@ export default function Dashboard({ slug, isSharedView = false }: DashboardProps
     setExpandedItems(prev => ({ ...prev, [itemId]: !prev[itemId] }));
   };
 
-  const { data: brainliftData, isLoading, error } = useQuery<BrainliftData>({
+  const { data, isLoading, error } = useQuery<BrainliftData>({
     queryKey: ['brainlift', slug],
     queryFn: async () => {
       const res = await fetch(`/api/brainlifts/${slug}`);
@@ -378,8 +378,8 @@ export default function Dashboard({ slug, isSharedView = false }: DashboardProps
     enabled: !!slug
   });
 
-  const isNotBrainlift = brainliftData?.classification === 'not_brainlift';
-  const isPartialBrainlift = brainliftData?.classification === 'partial';
+  const isNotBrainlift = data?.classification === 'not_brainlift';
+  const isPartialBrainlift = data?.classification === 'partial';
 
   const { data: grades = [] } = useQuery<ReadingListGrade[]>({
     queryKey: ['grades', slug],
@@ -546,7 +546,7 @@ export default function Dashboard({ slug, isSharedView = false }: DashboardProps
     return lookup;
   }, [redundancyData]);
 
-  const expertsList = brainliftData?.experts || [];
+  const expertsList = data?.experts || [];
 
   const refreshExpertsMutation = useMutation({
     mutationFn: async () => {
@@ -1333,7 +1333,7 @@ export default function Dashboard({ slug, isSharedView = false }: DashboardProps
         
         {/* Not a Brainlift View */}
         {isNotBrainlift && (
-          <NotBrainliftView data={brainliftData} isSharedView={isSharedView} toast={toast} />
+          <NotBrainliftView data={data} isSharedView={isSharedView} toast={toast} />
         )}
 
         {/* Partial Brainlift Warning */}

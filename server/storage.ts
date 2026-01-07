@@ -132,7 +132,7 @@ export class DatabaseStorage implements IStorage {
         contradicts: f.contradicts,
         note: f.note,
         flags: f.flags || [],
-        isGradeable: f.isGradeable !== false
+        isGradeable: f.score > 0
       })));
     }
 
