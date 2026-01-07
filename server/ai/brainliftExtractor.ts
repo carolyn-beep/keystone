@@ -217,6 +217,9 @@ function isBulletOrFact(line: string): boolean {
   );
 }
 
+// Pattern for sub-headers: starts with #, or **Text**, or 1. Text
+const subHeaderPattern = /^(#+|\*\*|\d+[\.\)])/;
+
 // Extract potential DOK1 segments from DOK2 Knowledge Tree
 function extractDOK2TreeSegments(content: string): { 
   segments: string[];
@@ -248,9 +251,6 @@ function extractDOK2TreeSegments(content: string): {
   const segments: string[] = [];
   let currentSegment: string[] = [];
   
-  // Pattern for sub-headers: starts with #, or **Text**, or 1. Text
-  const subHeaderPattern = /^(#+|\*\*|\d+[\.\)])/;
-  
   for (const line of treeLines) {
     const trimmed = line.trim();
     if (!trimmed) continue;
@@ -276,7 +276,7 @@ function extractDOK2TreeSegments(content: string): {
   };
 }
 
-// Re-implementing extractDOK1Content to fix the "is not defined" error
+// Extract DOK1 content from document
 function extractDOK1Content(content: string): { 
   filteredContent: string; 
   dok1Count: number;
