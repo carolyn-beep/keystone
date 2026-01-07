@@ -86,20 +86,34 @@ Facts marked with "(DOK1)" at the end of a line ANYWHERE in the document. Exampl
 - "Internal" - Organization-specific metrics or claims
 - "Regulatory" - Laws, policies, requirements
 
-**ACCURACY SCORING (1-5) - Grade each fact for accuracy:**
-- 5 = Verified: Claim fully supported by cited source
-- 4 = Mostly Verified: Largely accurate, minor issues
-- 3 = Partially Verified: Some support but overreaches or misattributes
-- 2 = Weakly Supported: Thin evidence, stats unverified
-- 1 = Not Verified: Fabricated, contradicted, or source doesn't exist
+**VERIFICATION PROCESS (MANDATORY):**
+For EACH fact, you MUST externally verify the claim:
+1. Read the fact and its cited source
+2. Verify the claim is actually TRUE (not just that it appears in the source)
+3. Check if the source actually says what the fact claims
+4. Check if numbers/statistics are accurate
+5. Check if the claim is current or outdated
 
-**AI NOTES (REQUIRED - never leave blank):**
-For EVERY fact, you MUST provide aiNotes explaining the score. Examples:
-- Score 5: "Verified. The TWR method explicitly begins with sentence-level instruction before moving to paragraphs. Hochman and Wexler argue writing must be taught 'beginning at the sentence level'."
-- Score 4: "Mostly verified. The study does show 67% preference, though the sample size was limited to urban areas."
-- Score 3: "Partially verified. The source discusses this topic but the specific statistic is not mentioned."
-- Score 2: "Weakly supported. Cannot locate the cited study to verify this claim."
-- Score 1: "Not verified. The source cited does not exist or contradicts this claim."
+**ACCURACY SCORING (1-5):**
+- 5 = Verified: Claim is TRUE AND source supports it
+- 4 = Mostly Verified: Claim is largely accurate, minor imprecision
+- 3 = Partially Verified: Claim has some truth but overreaches, misattributes, or lacks key context
+- 2 = Weakly Supported: Claim is questionable, stats don't match, or source doesn't support it
+- 1 = Not Verified: Claim is false, source doesn't exist, or directly contradicted by evidence
+
+**AI NOTES (REQUIRED - must explain verification):**
+For EVERY fact, aiNotes MUST include:
+- What you verified
+- Whether the source actually supports the claim
+- Any discrepancies found
+- If stats/numbers were confirmed or not
+
+Examples:
+- Score 5: "Verified. Cross-referenced with Hochman & Wexler's 2017 article. They explicitly state 'writing is the hardest thing we ask students to do' and advocate for sentence-level instruction before paragraph writing. Claim accurately represents source."
+- Score 4: "Mostly verified. The study confirms the general finding but uses 65% rather than the cited 67%. Directionally accurate."
+- Score 3: "Partially verified. The 78% statistic is cited to Niche K-12 survey 2024, but the actual survey reports 72% for this metric. Directionally correct but overstated."
+- Score 2: "Weakly supported. Cannot locate the cited 'Stanford 2023 study'. The claim may be fabricated or misattributed."
+- Score 1: "Not verified. The source cited (Jones 2022) actually contradicts this claim, stating the opposite finding."
 
 Output ONLY valid JSON:
 {
