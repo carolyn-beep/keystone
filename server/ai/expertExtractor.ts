@@ -450,20 +450,46 @@ Assign differentiated scores (1-10) based on the citation counts above. Experts 
 
     content = content.replace(/```json\s*/g, '').replace(/```\s*/g, '').trim();
     
-    const parsed = JSON.parse(content);
-    const validated = expertExtractionSchema.parse(parsed);
+    // Clean up response if it contains conversational text
+    let cleanResponse = content;
+    if (content.includes('{')) {
+      cleanResponse = content.substring(content.indexOf('{'), content.lastIndexOf('}') + 1);
+    }
     
-    console.log('AI returned experts with scores:', validated.experts.map(e => `${e.name}: ${e.rankScore}`));
-    
-    return validated.experts.map(expert => ({
-      brainliftId: input.brainliftId,
-      name: expert.name,
-      rankScore: expert.rankScore,
-      rationale: expert.rationale,
-      source: expert.source,
-      twitterHandle: expert.twitterHandle,
-      isFollowing: expert.rankScore > 5,
-    }));
+    try {
+      const parsed = JSON.parse(cleanResponse);
+      const validated = expertExtractionSchema.parse(parsed);
+      
+      console.log('AI returned experts with scores:', validated.experts.map(e => `${e.name}: ${e.rankScore}`));
+      
+      return validated.experts.map(expert => ({
+        brainliftId: input.brainliftId,
+        name: expert.name,
+        rankScore: expert.rankScore,
+        rationale: expert.rationale,
+        source: expert.source,
+        twitterHandle: expert.twitterHandle,
+        isFollowing: expert.rankScore > 5,
+      }));
+    } catch (parseError) {
+      console.error("Failed to parse expert extraction JSON. Attempting manual regex extraction.", parseError);
+      
+      // Manual regex fallback for common non-JSON responses
+      const expertMatches = content.matchAll(/"name":\s*"([^"]+)"/g);
+      const manualExperts: InsertExpert[] = [];
+      for (const match of expertMatches) {
+        manualExperts.push({
+          brainliftId: input.brainliftId,
+          name: match[1],
+          rankScore: 5,
+          rationale: "Identified from document context.",
+          source: 'cited',
+          twitterHandle: null,
+          isFollowing: false
+        });
+      }
+      return manualExperts;
+    }
   } catch (error) {
     console.error('Expert extraction failed:', error);
     return [];

@@ -1351,8 +1351,12 @@ export async function registerRoutes(
         readingList: brainlift.readingList || [],
       });
 
-      const saved = await storage.saveExperts(brainlift.id, expertsData);
-      res.json(saved);
+      const savedExperts = await storage.saveExperts(brainlift.id, expertsData);
+      
+      return res.json({
+        ...brainlift,
+        experts: savedExperts
+      });
     } catch (err: any) {
       console.error('Refresh experts error:', err);
       res.status(500).json({ message: err.message || 'Failed to refresh experts' });
