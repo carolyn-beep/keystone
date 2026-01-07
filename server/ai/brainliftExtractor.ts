@@ -274,16 +274,16 @@ Output rules (IMPORTANT)
     const results = JSON.parse(content);
     if (!Array.isArray(results)) return [];
 
-    return results.map(res => ({
-      name: res.title,
-      factIds: res.tension.match(/Fact\s+([^\s,]+)/g)?.map(m => m.replace('Fact ', '')) || [],
-      claims: (res.tension.match(/Fact\s+([^\s,]+)/g)?.map(m => {
-        const id = m.replace('Fact ', '');
-        return facts.find(f => f.id === id)?.fact;
-      }).filter(Boolean)) || [],
-      tension: res.tension + ". " + res.explanation,
-      status: "Flagged"
-    }));
+    return results.map(res => {
+      const ids = res.tension.match(/Fact\s+([^\s,.]+)/g)?.map(m => m.replace('Fact ', '')) || [];
+      return {
+        name: res.title,
+        factIds: ids,
+        claims: ids.map(id => facts.find(f => f.id === id)?.fact).filter(Boolean),
+        tension: res.tension + ". " + res.explanation,
+        status: "Flagged"
+      };
+    });
   } catch (err) {
     console.error("Contradiction AI analysis failed:", err);
     return [];
