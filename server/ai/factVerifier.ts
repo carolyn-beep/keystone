@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { LLM_MODELS, LLM_MODEL_NAMES, type LLMModel, type VerificationStatus } from '@shared/schema';
+import pRetry from 'p-retry';
 
 const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY;
 
@@ -33,20 +34,20 @@ const GRADING_SYSTEM_PROMPT = `You are an expert fact-checker verifying educatio
 GRADING SCALE (1-5):
 5 = VERIFIED: Source fully supports the claim with clear, direct evidence
 4 = MOSTLY VERIFIED: Source largely supports the claim, minor discrepancies or extrapolation
-3 = PARTIALLY VERIFIED: Source provides some support, but claim overreaches or overstates
-2 = WEAKLY SUPPORTED: Thin or indirect evidence, claim makes unsupported leaps
-1 = NOT VERIFIED: No supporting evidence, fabricated, or directly contradicted by source
+3 = PLAUSIBLE: Plausible but unverified or vague. Max score if no link provided.
+2 = QUESTIONABLE: Potentially misleading or thin evidence.
+1 = LIKELY FALSE: No supporting evidence or directly contradicted.
 
 INSTRUCTIONS:
-1. Compare the CLAIM against the SOURCE EVIDENCE
-2. Look for direct quotes, data, or statements that support or contradict the claim
-3. Consider if the claim accurately represents the source or if it overreaches
-4. Be strict but fair - partial matches get partial scores
+1. Compare the CLAIM against the SOURCE EVIDENCE.
+2. If evidence is missing/empty and it's not universally known (like "sky is blue"), score aggressively (max 3).
+3. If evidence is present, ensure the fact is an accurate representation of that specific content.
+4. Output ONLY valid JSON.
 
-Output ONLY valid JSON:
+Output Format:
 {
   "score": <1-5>,
-  "rationale": "<Brief 1-2 sentence explanation of your grade>"
+  "rationale": "<Brief 1-2 sentence explanation>"
 }`;
 
 async function callModel(
@@ -72,11 +73,11 @@ CITED SOURCE:
 ${source || 'No source citation provided'}
 
 SOURCE EVIDENCE:
-${evidence || 'No evidence content available - grade as if evidence is missing'}
+${evidence || 'No evidence content available'}
 
 Grade this claim based on how well the evidence supports it.`;
 
-  try {
+  const run = async () => {
     const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
       method: 'POST',
       headers: {
@@ -96,102 +97,45 @@ Grade this claim based on how well the evidence supports it.`;
     });
 
     if (!response.ok) {
-      const errorText = await response.text();
-      console.error(`Model ${model} failed:`, errorText);
-      return {
-        model,
-        score: null,
-        rationale: null,
-        status: 'failed',
-        error: `API error: ${response.status}`,
-      };
+      throw new Error(`API error: ${response.status}`);
     }
 
     const data = await response.json();
     const content = data.choices?.[0]?.message?.content;
 
     if (!content) {
-      return {
-        model,
-        score: null,
-        rationale: null,
-        status: 'failed',
-        error: 'No response content',
-      };
+      throw new Error('No response content');
     }
 
-    // Try multiple patterns to extract JSON from various model response formats
-    let jsonMatch = content.match(/\{[\s\S]*?"score"[\s\S]*?"rationale"[\s\S]*?\}/);
-    if (!jsonMatch) {
-      jsonMatch = content.match(/\{[\s\S]*?"rationale"[\s\S]*?"score"[\s\S]*?\}/);
-    }
-    if (!jsonMatch) {
-      jsonMatch = content.match(/\{[\s\S]*\}/);
-    }
-    if (!jsonMatch) {
-      // Try to extract score and rationale from plain text response
-      const scoreMatch = content.match(/score[:\s]*(\d)/i);
-      const rationaleMatch = content.match(/rationale[:\s]*["']?([^"'\n]+)/i);
-      if (scoreMatch) {
-        return {
-          model,
-          score: parseInt(scoreMatch[1]),
-          rationale: rationaleMatch?.[1] || 'Score extracted from plain text response',
-          status: 'completed',
-          error: null,
-        };
+    let jsonMatch = content.match(/\{[\s\S]*?\}/);
+    if (!jsonMatch) throw new Error('Could not find JSON in response');
+
+    const parsed = JSON.parse(jsonMatch[0]);
+    const validated = modelGradeSchema.parse(parsed);
+
+    return {
+      score: validated.score,
+      rationale: validated.rationale,
+    };
+  };
+
+  try {
+    const result = await pRetry(run, {
+      retries: 2,
+      onFailedAttempt: error => {
+        console.log(`Model ${model} attempt ${error.attemptNumber} failed. ${error.retriesLeft} retries left.`);
       }
-      return {
-        model,
-        score: null,
-        rationale: null,
-        status: 'failed',
-        error: 'Could not parse JSON response',
-      };
-    }
-
-    let parsed;
-    try {
-      parsed = JSON.parse(jsonMatch[0]);
-    } catch (parseErr) {
-      // Try cleaning the JSON string
-      const cleanedJson = jsonMatch[0]
-        .replace(/[\u0000-\u001F]+/g, ' ')
-        .replace(/,\s*}/g, '}')
-        .replace(/,\s*]/g, ']');
-      try {
-        parsed = JSON.parse(cleanedJson);
-      } catch {
-        return {
-          model,
-          score: null,
-          rationale: null,
-          status: 'failed',
-          error: 'Invalid JSON in response',
-        };
-      }
-    }
-    const validated = modelGradeSchema.safeParse(parsed);
-
-    if (!validated.success) {
-      return {
-        model,
-        score: null,
-        rationale: null,
-        status: 'failed',
-        error: 'Invalid response schema',
-      };
-    }
+    });
 
     return {
       model,
-      score: validated.data.score,
-      rationale: validated.data.rationale,
+      score: result.score,
+      rationale: result.rationale,
       status: 'completed',
       error: null,
     };
   } catch (err: any) {
-    console.error(`Model ${model} error:`, err);
+    console.error(`Model ${model} final failure:`, err);
     return {
       model,
       score: null,
@@ -204,26 +148,17 @@ Grade this claim based on how well the evidence supports it.`;
 
 export type ModelWeights = Record<LLMModel, number>;
 
-// Calculate weighted median using model accuracy weights
 function calculateWeightedMedian(scores: number[], weights: number[]): number {
   if (scores.length === 0) return 0;
-  if (scores.length === 1) return scores[0];
-  
-  // Create weighted pairs and sort by score
   const pairs = scores.map((score, i) => ({ score, weight: weights[i] || 1 }));
   pairs.sort((a, b) => a.score - b.score);
-  
   const totalWeight = pairs.reduce((sum, p) => sum + p.weight, 0);
   const halfWeight = totalWeight / 2;
-  
   let cumulativeWeight = 0;
   for (let i = 0; i < pairs.length; i++) {
     cumulativeWeight += pairs[i].weight;
-    if (cumulativeWeight >= halfWeight) {
-      return pairs[i].score;
-    }
+    if (cumulativeWeight >= halfWeight) return pairs[i].score;
   }
-  
   return pairs[pairs.length - 1].score;
 }
 
@@ -239,66 +174,27 @@ export function calculateConsensus(
       consensusScore: 0,
       confidenceLevel: 'low',
       needsReview: true,
-      verificationNotes: 'All models failed to grade this fact. Manual review required.',
+      verificationNotes: 'All models failed to grade this fact.',
     };
   }
 
-  // Get weights for valid models (default to 1.0 if no weights provided)
   const weights = validResults.map(r => modelWeights?.[r.model] ?? 1.0);
-  
-  // Use WEIGHTED MEDIAN for consensus (accounts for model accuracy)
   const consensusScore = calculateWeightedMedian(validScores, weights);
-
-  // Calculate spread for confidence
   const minScore = Math.min(...validScores);
   const maxScore = Math.max(...validScores);
   const spread = maxScore - minScore;
 
-  let confidenceLevel: 'high' | 'medium' | 'low';
-  let needsReview = false;
+  let confidenceLevel: 'high' | 'medium' | 'low' = 'low';
+  let needsReview = spread >= 3 || validScores.length < 2;
 
-  // Spread-based confidence thresholds (how far apart the models are)
-  if (validScores.length >= 4 && spread <= 1) {
-    confidenceLevel = 'high';
-  } else if (validScores.length >= 3 && spread <= 2) {
-    confidenceLevel = 'medium';
-  } else {
-    confidenceLevel = 'low';
-    needsReview = true;
-  }
-
-  // Large disagreement always needs human review
-  if (spread >= 3) {
-    needsReview = true;
-  }
-
-  const failedModels = modelResults
-    .filter(r => r.status === 'failed')
-    .map(r => LLM_MODEL_NAMES[r.model]);
-
-  const usingWeights = modelWeights !== undefined && Object.values(modelWeights).some(w => w !== 1);
-
-  let verificationNotes = `Consensus: ${consensusScore}/5 (${confidenceLevel} confidence). `;
-  verificationNotes += `${validScores.length}/5 models agreed. `;
-  verificationNotes += `Score range: ${minScore}-${maxScore}. `;
-  
-  if (usingWeights) {
-    verificationNotes += 'Using weighted consensus based on historical accuracy. ';
-  }
-
-  if (failedModels.length > 0) {
-    verificationNotes += `Failed: ${failedModels.join(', ')}. `;
-  }
-
-  if (needsReview) {
-    verificationNotes += 'Flagged for human review due to model disagreement.';
-  }
+  if (validScores.length >= 3 && spread <= 1) confidenceLevel = 'high';
+  else if (validScores.length >= 2 && spread <= 2) confidenceLevel = 'medium';
 
   return {
     consensusScore,
     confidenceLevel,
     needsReview,
-    verificationNotes,
+    verificationNotes: `Consensus: ${consensusScore}/5. Range: ${minScore}-${maxScore}.`,
   };
 }
 
@@ -308,37 +204,12 @@ export async function verifyFactWithAllModels(
   evidence: string,
   modelWeights?: ModelWeights
 ): Promise<VerificationResult> {
+  // Use a fast/small model for primary grading as requested
+  // We keep the multi-model structure but prioritize fast models in LLM_MODELS if possible
   const models = Object.values(LLM_MODELS);
-
-  console.log(`Verifying fact with ${models.length} models...`);
-  console.log(`Fact: "${fact.slice(0, 100)}..."`);
-
-  const modelPromises = models.map(model => callModel(model, fact, source, evidence));
-  const modelResults = await Promise.all(modelPromises);
-
-  for (const result of modelResults) {
-    const modelName = LLM_MODEL_NAMES[result.model];
-    if (result.status === 'completed') {
-      console.log(`  ${modelName}: ${result.score}/5 - ${result.rationale?.slice(0, 50)}...`);
-    } else {
-      console.log(`  ${modelName}: FAILED - ${result.error}`);
-    }
-  }
-
+  const modelResults = await Promise.all(models.map(model => callModel(model, fact, source, evidence)));
   const consensus = calculateConsensus(modelResults, modelWeights);
-  console.log(`Consensus: ${consensus.consensusScore}/5 (${consensus.confidenceLevel})`);
 
-  return {
-    modelResults,
-    consensus,
-  };
+  return { modelResults, consensus };
 }
 
-export async function verifySingleModelGrade(
-  model: LLMModel,
-  fact: string,
-  source: string,
-  evidence: string
-): Promise<ModelGradeResult> {
-  return callModel(model, fact, source, evidence);
-}

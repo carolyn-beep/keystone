@@ -486,21 +486,65 @@ async function generateUniqueSlug(title: string): Promise<string> {
   }
 }
 
+import { extractBrainlift } from './ai/brainliftExtractor';
+import { summarizeFact } from './ai/factSummarizer';
+import { fetchEvidenceForFact } from './ai/evidenceFetcher';
+import { verifyFactWithAllModels } from './ai/factVerifier';
+import pLimit from 'p-limit';
+
+// ... existing code ...
+
 async function saveBrainliftFromAI(data: BrainliftOutput, originalContent?: string, sourceType?: string, userId?: string) {
   const slug = await generateUniqueSlug(data.title);
   
-  // Generate summaries for each fact
-  const factsWithSummaries = await Promise.all(data.facts.map(async (f: any) => ({
-    originalId: f.id,
-    category: f.category,
-    source: f.source || null,
-    fact: f.fact, // Full text stored in 'fact'
-    summary: await summarizeFact(f.fact), // AI summary
-    score: f.score,
-    contradicts: f.contradicts,
-    note: f.aiNotes || null,
-    flags: f.flags || [],
-    isGradeable: true,
+  const limit = pLimit(5); // Process 5 facts concurrently
+
+  // Generate summaries and grades for each fact
+  const factsWithSummaries = await Promise.all(data.facts.map(fact => limit(async () => {
+    const summary = await summarizeFact(fact.fact);
+    
+    // Auto-grading logic
+    let evidenceContent = "";
+    let finalScore = 0;
+    let finalNote = fact.aiNotes || "";
+
+    // If source exists, fetch evidence
+    if (fact.aiNotes && fact.aiNotes.includes("Source: ")) {
+      const sourceUrl = fact.aiNotes.split("Source: ")[1]?.trim();
+      if (sourceUrl) {
+        try {
+          const evidence = await fetchEvidenceForFact(fact.fact, sourceUrl);
+          evidenceContent = evidence.content || "";
+        } catch (err) {
+          console.error(`Failed to fetch evidence for fact: ${fact.id}`, err);
+        }
+      }
+    }
+
+    // Verify with LLMs
+    try {
+      const verification = await verifyFactWithAllModels(fact.fact, fact.source || "", evidenceContent);
+      finalScore = verification.consensus.consensusScore;
+      
+      // Add grading rationale to notes
+      const gradingNote = `Grading: ${finalScore}/5. ${verification.consensus.verificationNotes}`;
+      finalNote = `${finalNote}\n\n${gradingNote}`;
+    } catch (err) {
+      console.error(`Verification failed for fact: ${fact.id}`, err);
+    }
+
+    return {
+      originalId: fact.id,
+      category: fact.category,
+      source: fact.source || null,
+      fact: fact.fact,
+      summary,
+      score: finalScore,
+      contradicts: fact.contradicts,
+      note: finalNote,
+      flags: fact.flags || [],
+      isGradeable: true,
+    };
   })));
   
   const clusters = data.contradictionClusters.map((c) => ({
