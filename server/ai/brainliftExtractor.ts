@@ -161,7 +161,7 @@ export async function extractBrainlift(markdownContent: string, sourceType: stri
     }
 
     // 3. Detect DOK Entry Points
-    if (/DOK\s*1\s*-\s*Facts/i.test(cleaned) || /DOK1\s*Facts/i.test(cleaned) || /DOK1/i.test(cleaned)) {
+    if (/DOK\s*1\s*-?\s*Facts/i.test(cleaned) || /DOK1/i.test(cleaned)) {
       if (inDOK1Section) flushSection();
       inDOK1Section = true;
       inDOK2Section = false;
@@ -169,7 +169,7 @@ export async function extractBrainlift(markdownContent: string, sourceType: stri
       continue;
     }
 
-    if (/DOK\s*2\s*-\s*Summary/i.test(cleaned) || /DOK2\s*Summary/i.test(cleaned) || /DOK2/i.test(cleaned)) {
+    if (/DOK\s*2\s*-?\s*Summary/i.test(cleaned) || /DOK2/i.test(cleaned)) {
       if (inDOK1Section) flushSection();
       inDOK1Section = false;
       inDOK2Section = true;
@@ -281,12 +281,12 @@ If NO tension exists, return EXACTLY:
     
     if (result.result === "NONE") return [];
 
-    const ids = result.tension.match(/Fact\s+([^\s,.]+)|Facts\s+([^\s,.]+)/g)?.map(m => m.replace(/Facts?\s+/, '')) || [];
+    const ids = result.tension.match(/Fact\s+([^\s,.]+)|Facts\s+([^\s,.]+)/g)?.map((m: string) => m.replace(/Facts?\s+/, '')) || [];
     
     return [{
       name: result.title,
       factIds: ids,
-      claims: ids.map(id => facts.find(f => f.id === id)?.fact).filter(Boolean),
+      claims: ids.map((id: string) => facts.find(f => f.id === id)?.fact).filter(Boolean),
       tension: result.tension,
       status: "Flagged"
     }];
