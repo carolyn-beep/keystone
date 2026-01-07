@@ -51,6 +51,8 @@ function extractExpertsFromDocument(content: string): Array<{name: string, twitt
   // Try multiple patterns to find experts section
   const expertsPatterns = [
     /DOK1:\s*Experts/i,
+    /##\s*Experts/i,
+    /Experts\s*(?:\n|=+|-+)/i,
     /^#+\s*Experts\s*$/im,
     /^\s*-?\s*Experts\s*$/im,
     /Experts\s*:?\s*\n/i,
@@ -376,6 +378,11 @@ export async function extractAndRankExperts(input: ExtractionInput): Promise<Ins
     }
   }
   
+  // If NO experts found so far, use AI to find them from the text
+  if (allExperts.length === 0 && input.originalContent) {
+    console.log('No experts found via regex/sources. Falling back to AI-only extraction from content.');
+  }
+
   console.log('Total merged experts:', allExperts.map(e => e.name));
   
   const profiles = buildExpertProfiles(
@@ -408,12 +415,13 @@ export async function extractAndRankExperts(input: ExtractionInput): Promise<Ins
 **Brainlift:** ${input.title}
 **Description:** ${input.description}
 
-**EXPERT IMPACT METRICS (use these numbers for ranking):**
+${allExperts.length > 0 ? `**EXPERT IMPACT METRICS (use these numbers for ranking):**
 ${profilesContext}
 
-**Maximum citations by any expert:** ${maxCitations}
+**Maximum citations by any expert:** ${maxCitations}` : `**BRAINLIFT CONTENT:**
+${input.originalContent?.slice(0, 10000)}`}
 
-Assign differentiated scores (1-10) based on the citation counts above. Experts with more citations = higher scores. No two experts with different citation counts should have the same score.`;
+Assign differentiated scores (1-10) based on the citation counts or relevance in the text. ${allExperts.length > 0 ? 'No two experts with different citation counts should have the same score.' : 'Identify the top 5-10 experts mentioned in the text if none were explicitly listed.'}`;
 
   try {
     const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
@@ -450,11 +458,15 @@ Assign differentiated scores (1-10) based on the citation counts above. Experts 
 
     content = content.replace(/```json\s*/g, '').replace(/```\s*/g, '').trim();
     
-    // Clean up response if it contains conversational text
-    let cleanResponse = content;
-    if (content.includes('{')) {
-      cleanResponse = content.substring(content.indexOf('{'), content.lastIndexOf('}') + 1);
+  // Clean up response if it contains conversational text
+  let cleanResponse = content;
+  if (content.includes('{')) {
+    const firstOpen = content.indexOf('{');
+    const lastClose = content.lastIndexOf('}');
+    if (firstOpen !== -1 && lastClose !== -1 && lastClose > firstOpen) {
+      cleanResponse = content.substring(firstOpen, lastClose + 1);
     }
+  }
     
     try {
       const parsed = JSON.parse(cleanResponse);
