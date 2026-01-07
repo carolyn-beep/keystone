@@ -36,6 +36,7 @@ export const brainlifts = pgTable("brainlifts", {
     score5Count: number;
     contradictionCount: number;
   }>().notNull(),
+  meanScore: text("mean_score").default("0"),
 });
 
 export const facts = pgTable("facts", {

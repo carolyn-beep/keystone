@@ -597,9 +597,16 @@ async function saveBrainliftFromAI(data: BrainliftOutput, originalContent?: stri
     .filter(f => f.score > 0)
     .map(f => f.score);
   
-  const meanScore = validScores.length > 0 
-    ? Number((validScores.reduce((a, b) => a + b, 0) / validScores.length).toFixed(1))
-    : 0;
+  const meanScoreValue = validScores.length > 0 
+    ? (validScores.reduce((a, b) => a + b, 0) / validScores.length).toFixed(1)
+    : "0";
+
+  const updatedSummary = {
+    ...data.summary,
+    meanScore: meanScoreValue,
+    totalFacts: factsWithSummaries.length,
+    score5Count: factsWithSummaries.filter(f => f.score === 5).length,
+  };
 
   return storage.createBrainlift(
     {
@@ -607,7 +614,7 @@ async function saveBrainliftFromAI(data: BrainliftOutput, originalContent?: stri
       title: data.title,
       description: data.description,
       author: null,
-      summary: data.summary,
+      summary: updatedSummary,
       classification: data.classification,
       improperlyFormatted: data.improperlyFormatted ?? false,
       rejectionReason: data.rejectionReason || null,
@@ -615,7 +622,7 @@ async function saveBrainliftFromAI(data: BrainliftOutput, originalContent?: stri
       rejectionRecommendation: data.rejectionRecommendation || null,
       originalContent: originalContent || null,
       sourceType: sourceType || null,
-      meanScore,
+      meanScore: meanScoreValue,
     },
     factsWithSummaries,
     clusters,

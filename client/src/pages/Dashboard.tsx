@@ -381,6 +381,9 @@ export default function Dashboard({ slug, isSharedView = false }: DashboardProps
   const isNotBrainlift = data?.classification === 'not_brainlift';
   const isPartialBrainlift = data?.classification === 'partial';
 
+  const factsList = data?.facts || [];
+  const brainliftSummary = data?.summary || { totalFacts: 0, meanScore: '0', score5Count: 0, contradictionCount: 0 };
+
   const { data: grades = [] } = useQuery<ReadingListGrade[]>({
     queryKey: ['grades', slug],
     queryFn: async () => {
@@ -977,17 +980,17 @@ export default function Dashboard({ slug, isSharedView = false }: DashboardProps
     </div>
   );
 
-  const { title, description, facts, contradictionClusters, readingList, summary } = data;
+  const { title, description, facts: factsList, contradictionClusters, readingList, summary: brainliftSummary } = data;
 
   // Reading List categorization
   const readingCategories = [
-    { id: 1, name: 'Student Motivation', facts: '1.1, 2.1', keywords: ['motivat', 'interest', 'choice', 'engagement', 'Writing Gap', 'What Motivates'] },
-    { id: 2, name: 'Explicit Instruction', facts: '1.2, 2.2, 2.3, 2.4', keywords: ['Writing Revolution', 'Six Principles', 'Hochman', 'TWR', 'sentence', 'explicit'] },
-    { id: 3, name: 'Cognitive Load', facts: '3.1-3.5', keywords: ['cognitive', 'working memory', 'CLT', 'load', 'Hendrick', 'Ashman', 'Wiliam'] },
-    { id: 4, name: 'Knowledge-Building', facts: '4.1-4.3', keywords: ['knowledge', 'writing to learn', 'Graham', 'elaboration', 'Shanahan'] },
-    { id: 5, name: 'Mathemagenic', facts: '5.1-5.2', keywords: ['mathemagenic', 'transfer', 'Rothkopf', 'Kirschner', 'Stockard', 'Direct Instruction'] },
-    { id: 6, name: 'Wise Feedback', facts: '6.1-6.2', keywords: ['wise feedback', 'Yeager', 'mentor', 'identity', 'Huberman'] },
-    { id: 7, name: 'PCK', facts: '7.1-7.3', keywords: ['PCK', 'Shulman', 'pedagogical content', 'WWC', 'Practice Guide', 'Evidence Based'] },
+    { id: 1, name: 'Student Motivation', factsList: '1.1, 2.1', keywords: ['motivat', 'interest', 'choice', 'engagement', 'Writing Gap', 'What Motivates'] },
+    { id: 2, name: 'Explicit Instruction', factsList: '1.2, 2.2, 2.3, 2.4', keywords: ['Writing Revolution', 'Six Principles', 'Hochman', 'TWR', 'sentence', 'explicit'] },
+    { id: 3, name: 'Cognitive Load', factsList: '3.1-3.5', keywords: ['cognitive', 'working memory', 'CLT', 'load', 'Hendrick', 'Ashman', 'Wiliam'] },
+    { id: 4, name: 'Knowledge-Building', factsList: '4.1-4.3', keywords: ['knowledge', 'writing to learn', 'Graham', 'elaboration', 'Shanahan'] },
+    { id: 5, name: 'Mathemagenic', factsList: '5.1-5.2', keywords: ['mathemagenic', 'transfer', 'Rothkopf', 'Kirschner', 'Stockard', 'Direct Instruction'] },
+    { id: 6, name: 'Wise Feedback', factsList: '6.1-6.2', keywords: ['wise feedback', 'Yeager', 'mentor', 'identity', 'Huberman'] },
+    { id: 7, name: 'PCK', factsList: '7.1-7.3', keywords: ['PCK', 'Shulman', 'pedagogical content', 'WWC', 'Practice Guide', 'Evidence Based'] },
   ];
 
   const categorizeSource = (item: typeof readingList[0]) => {
@@ -997,7 +1000,7 @@ export default function Dashboard({ slug, isSharedView = false }: DashboardProps
         return cat;
       }
     }
-    return { id: 8, name: 'Other', facts: 'various', keywords: [] as string[] };
+    return { id: 8, name: 'Other', factsList: 'various', keywords: [] as string[] };
   };
 
   // Build category groups
@@ -1010,7 +1013,7 @@ export default function Dashboard({ slug, isSharedView = false }: DashboardProps
   const uncategorizedItems = readingList.filter(item => categorizeSource(item).id === 8);
   if (uncategorizedItems.length > 0) {
     categoryGroups.push({ 
-      id: 8, name: 'Other', facts: 'various', keywords: [] as string[], 
+      id: 8, name: 'Other', factsList: 'various', keywords: [] as string[], 
       items: uncategorizedItems,
       gradedCount: uncategorizedItems.filter(item => isItemGraded(item.id)).length,
     });
@@ -1020,7 +1023,7 @@ export default function Dashboard({ slug, isSharedView = false }: DashboardProps
   const allSourcesCluster = {
     id: 0,
     name: 'All Sources',
-    facts: 'all',
+    factsList: 'all',
     keywords: [] as string[],
     items: readingList,
     gradedCount: readingList.filter(item => isItemGraded(item.id)).length,
@@ -1480,10 +1483,10 @@ export default function Dashboard({ slug, isSharedView = false }: DashboardProps
             {/* Summary Stats - compute contradiction count from facts */}
             <div className="grid grid-cols-2 sm:grid-cols-5 gap-4 mb-6">
               {[
-                { label: 'Total Facts', value: facts.length, color: tokens.primary },
-                { label: 'Core Facts', value: redundancyData?.stats?.uniqueFactCount || facts.length, color: tokens.success },
-                { label: 'Mean Score', value: summary.meanScore, color: tokens.primary },
-                { label: 'Highly Verified (5/5)', value: facts.filter(f => f.score === 5).length, color: tokens.success },
+                { label: 'Total Facts', value: factsList.length, color: tokens.primary },
+                { label: 'Core Facts', value: redundancyData?.stats?.uniqueFactCount || factsList.length, color: tokens.success },
+                { label: 'Mean Score', value: data?.meanScore || brainliftSummary.meanScore, color: tokens.primary },
+                { label: 'Highly Verified (5/5)', value: factsList.filter(f => f.score === 5).length, color: tokens.success },
                 { label: 'Redundant', value: redundancyData?.stats?.pendingReview || 0, color: redundancyData?.stats?.pendingReview ? tokens.warning : tokens.textMuted },
               ].map((stat, i) => (
                 <div key={i} data-testid={`stat-${stat.label.toLowerCase().replace(/\s+/g, '-')}`} style={{
