@@ -66,8 +66,27 @@ export async function extractBrainlift(markdownContent: string, sourceType: stri
   let inKnowledgeTree = false;
   let inDOK1Facts = false;
   let dok1IndentLevel = -1;
+  let rootFactIndentLevel = -1;
   let currentCategory = 'General';
   let currentSource = 'Unknown';
+  let currentFactBuffer: string[] = [];
+
+  const flushFact = () => {
+    if (currentFactBuffer.length > 0) {
+      facts.push({
+        id: `${factIdCounter++}`,
+        category: currentCategory,
+        source: currentSource,
+        fact: currentFactBuffer.join('\n'),
+        score: 0,
+        aiNotes: `Source: ${currentSource} | Category: ${currentCategory}`,
+        contradicts: null,
+        flags: []
+      });
+      currentFactBuffer = [];
+      rootFactIndentLevel = -1;
+    }
+  };
 
   // Title extraction
   let title = "Extracted Brainlift";
@@ -96,61 +115,70 @@ export async function extractBrainlift(markdownContent: string, sourceType: stri
     }
 
     // 2. Identify Categories and Sources (Context)
-    // Categories usually look like "Category X: Name"
     if (/^Category\s*\d+/i.test(cleaned)) {
+      flushFact();
       currentCategory = cleaned;
-      inDOK1Facts = false; // Reset if we hit a new category
+      inDOK1Facts = false;
       continue;
     }
 
-    // Sources usually look like "Source X: Name"
     if (/^Source\s*\d+/i.test(cleaned)) {
+      flushFact();
       currentSource = cleaned;
-      inDOK1Facts = false; // Reset if we hit a new source
+      inDOK1Facts = false;
       continue;
     }
 
     // 3. Detect DOK 1 - Facts start
     if (/DOK\s*1\s*-\s*Facts/i.test(cleaned)) {
+      flushFact();
       inDOK1Facts = true;
       dok1IndentLevel = indent;
       continue;
     }
 
     // 4. Exit DOK 1 - Facts
-    // We exit if we find a header at the same or higher level than the "DOK 1 - Facts" marker
-    // Or if we hit another DOK marker (like DOK 2 - Summary)
     if (inDOK1Facts) {
       const isNewSection = /DOK\s*2\s*-\s*Summary/i.test(cleaned) || /Link/i.test(cleaned);
       const isHigherHeader = indent <= dok1IndentLevel && !isBulletPoint(line);
       
       if (isNewSection || (indent > 0 && isHigherHeader)) {
+        flushFact();
         inDOK1Facts = false;
         continue;
       }
 
-      // 5. Extract Facts
+      // 5. Extract Facts (Grouped)
       if (isBulletPoint(line) && indent > dok1IndentLevel) {
-        if (cleaned.length > 5) {
-          facts.push({
-            id: `${factIdCounter++}`,
-            category: currentCategory,
-            source: currentSource,
-            fact: cleaned,
-            score: 0,
-            aiNotes: `Source: ${currentSource} | Category: ${currentCategory}`,
-            contradicts: null,
-            flags: []
-          });
+        // If this is the first bullet in the DOK1 section, it defines the root fact level
+        if (rootFactIndentLevel === -1) {
+          rootFactIndentLevel = indent;
         }
+
+        // New fact starts when we hit a bullet at the root fact level
+        if (indent === rootFactIndentLevel) {
+          flushFact();
+          currentFactBuffer.push(cleaned);
+        } else if (indent > rootFactIndentLevel) {
+          // Nested content: treat as part of the current fact
+          // Preserve relative indentation for visual hierarchy within the fact
+          const relativeIndent = '  '.repeat(Math.max(0, Math.floor((indent - rootFactIndentLevel) / 2)));
+          currentFactBuffer.push(`${relativeIndent}- ${cleaned}`);
+        }
+      } else if (!isBulletPoint(line) && indent > dok1IndentLevel && currentFactBuffer.length > 0) {
+        // Non-bulleted line but indented under DOK1: likely a continuation of the previous bullet
+        const relativeIndent = '  '.repeat(Math.max(0, Math.floor((indent - rootFactIndentLevel) / 2)));
+        currentFactBuffer.push(`${relativeIndent}${trimmed}`);
       }
     }
   }
 
+  flushFact(); // Final flush
+
   const finalResult = {
     classification: 'brainlift' as const,
     title,
-    description: `Targeted DOK1 extraction from ${sourceType}`,
+    description: `Grouped DOK1 extraction from ${sourceType}`,
     summary: {
       totalFacts: facts.length,
       meanScore: "0",
