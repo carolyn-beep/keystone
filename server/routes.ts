@@ -15,7 +15,7 @@ import { extractAndRankExperts } from "./ai/expertExtractor";
 import { verifyFactWithAllModels, calculateConsensus } from "./ai/factVerifier";
 import { fetchEvidenceForFact } from "./ai/evidenceFetcher";
 import { brainliftsData } from "./seedData";
-import { LLM_MODELS, LLM_MODEL_NAMES } from "@shared/schema";
+import { LLM_MODELS, LLM_MODEL_NAMES, type BrainliftData } from "@shared/schema";
 import pLimit from "p-limit";
 
 const upload = multer({
