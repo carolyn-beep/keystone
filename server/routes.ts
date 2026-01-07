@@ -535,7 +535,7 @@ async function saveBrainliftFromAI(data: BrainliftOutput, originalContent?: stri
       originalContent: originalContent || null,
       sourceType: sourceType || null,
     },
-    facts,
+    factsWithSummaries,
     clusters,
     readingList,
     userId
