@@ -53,6 +53,11 @@ function cleanHeader(line: string): string {
   return line.trim().replace(/^[-•*]\s*/, '').replace(/^#+\s*/, '').replace(/\*\*+/g, '').replace(/[:]$/, '').trim();
 }
 
+function extractUrl(line: string): string | null {
+  const urlMatch = line.match(/https?:\/\/[^\s\]\)]+/);
+  return urlMatch ? urlMatch[0] : null;
+}
+
 export async function extractBrainlift(markdownContent: string, sourceType: string): Promise<BrainliftOutput> {
   const lines = markdownContent.split('\n');
   const facts: any[] = [];
@@ -60,29 +65,45 @@ export async function extractBrainlift(markdownContent: string, sourceType: stri
   
   let inKnowledgeTree = false;
   let inDOK1Section = false;
+  let inDOK2Section = false;
   let sectionIndentLevel = -1;
   let currentCategory = 'General';
   let currentSource = 'Unknown';
+  let currentSourceLink: string | null = null;
   let sectionBuffer: string[] = [];
+
+  // Facts waiting for a source link to be found in the same context
+  let pendingFacts: any[] = [];
 
   const flushSection = () => {
     if (sectionBuffer.length > 0) {
-      // Join buffer and clean up leading bullets/whitespace from the whole block
       const factText = sectionBuffer.join('\n').trim();
       if (factText.length > 10) {
-        facts.push({
+        pendingFacts.push({
           id: `${factIdCounter++}`,
           category: currentCategory,
           source: currentSource,
           fact: factText,
           score: 0,
-          aiNotes: `Source: ${currentSource} | Category: ${currentCategory}`,
+          aiNotes: "", // Will be filled once context is fully parsed
           contradicts: null,
           flags: []
         });
       }
       sectionBuffer = [];
     }
+  };
+
+  const flushPendingFacts = () => {
+    const sourceNote = currentSourceLink 
+      ? `Source: ${currentSourceLink}` 
+      : "No sources have been linked to this fact";
+    
+    for (const f of pendingFacts) {
+      f.aiNotes = sourceNote;
+      facts.push(f);
+    }
+    pendingFacts = [];
   };
 
   // Title extraction
@@ -102,6 +123,7 @@ export async function extractBrainlift(markdownContent: string, sourceType: stri
 
     const indent = getIndentLevel(line);
     const cleaned = cleanHeader(line);
+    const url = extractUrl(line);
 
     // 1. Detect Knowledge Tree Entry
     if (!inKnowledgeTree) {
@@ -114,54 +136,66 @@ export async function extractBrainlift(markdownContent: string, sourceType: stri
     // 2. Identify Context (Categories and Sources)
     if (/^Category\s*\d+/i.test(cleaned)) {
       if (inDOK1Section) flushSection();
+      flushPendingFacts();
       currentCategory = cleaned;
+      currentSourceLink = null;
       inDOK1Section = false;
+      inDOK2Section = false;
       continue;
     }
 
     if (/^Source\s*\d+/i.test(cleaned)) {
       if (inDOK1Section) flushSection();
+      flushPendingFacts();
       currentSource = cleaned;
+      currentSourceLink = null;
       inDOK1Section = false;
+      inDOK2Section = false;
       continue;
     }
 
-    // 3. Detect DOK 1 Entry Point
-    // A DOK1 can be a section named "DOK 1 - Facts" or a subsection explicitly labeled "DOK1"
+    // 3. Detect DOK Entry Points
     if (/DOK\s*1\s*-\s*Facts/i.test(cleaned) || /DOK1/i.test(cleaned)) {
       if (inDOK1Section) flushSection();
       inDOK1Section = true;
+      inDOK2Section = false;
       sectionIndentLevel = indent;
       continue;
     }
 
-    // 4. Handle Content inside DOK1 Section
+    if (/DOK\s*2\s*-\s*Summary/i.test(cleaned) || /DOK2/i.test(cleaned)) {
+      if (inDOK1Section) flushSection();
+      inDOK1Section = false;
+      inDOK2Section = true;
+      continue;
+    }
+
+    // 4. Look for source links within current source context
+    if (url && (inDOK2Section || /link to source/i.test(trimmed) || /source:/i.test(trimmed) || (indent > 0 && !inDOK1Section))) {
+      currentSourceLink = url;
+    }
+
+    // 5. Handle Content inside DOK1 Section
     if (inDOK1Section) {
-      // Exit criteria: 
-      // - Next DOK section (DOK 2 - Summary)
-      // - Link section
-      // - A header/node at the same or higher level than the DOK1 header
-      const isNewDOK = /DOK\s*2\s*-\s*Summary/i.test(cleaned) || /DOK\s*2/i.test(cleaned);
-      const isExitSection = /Link/i.test(cleaned) || /Source\s*\d+/i.test(cleaned) || /^Category\s*\d+/i.test(cleaned);
+      const isExitSection = /Link/i.test(cleaned) || /Source\s*\d+/i.test(cleaned) || /^Category\s*\d+/i.test(cleaned) || /DOK\s*2/i.test(cleaned);
       const isHigherLevel = indent <= sectionIndentLevel && trimmed.length > 0;
 
-      if (isNewDOK || isExitSection || isHigherLevel) {
+      if (isExitSection || isHigherLevel) {
         flushSection();
         inDOK1Section = false;
         
-        // If it was a category or source, let the next iteration handle context update
         if (isExitSection || /^Category|^Source/i.test(cleaned)) {
-          i--; // Re-process this line to catch context
+          i--; // Re-process this line
         }
         continue;
       }
 
-      // Add line to buffer, preserving relative indentation
       sectionBuffer.push(line);
     }
   }
 
   flushSection();
+  flushPendingFacts();
 
   const finalResult = {
     classification: 'brainlift' as const,
