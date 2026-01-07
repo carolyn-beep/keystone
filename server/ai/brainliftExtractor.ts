@@ -217,136 +217,65 @@ function isBulletOrFact(line: string): boolean {
   );
 }
 
-// Extract DOK1 content from document
-function extractDOK1Content(content: string): { 
-  filteredContent: string; 
-  dok1Count: number;
-  inlineCount: number;
-  sectionCount: number;
+// Extract potential DOK1 segments from DOK2 Knowledge Tree
+function extractDOK2TreeSegments(content: string): { 
+  segments: string[];
   remainingContent: string;
 } {
   const lines = content.split('\n');
-  const dok1Facts: string[] = [];
-  const usedIndices = new Set<number>();
-  let inDOK1Section = false;
   let inDOK2Tree = false;
-  let inlineCount = 0;
-  let sectionCount = 0;
+  const treeLines: string[] = [];
+  const otherLines: string[] = [];
   
-  for (let i = 0; i < lines.length; i++) {
-    const line = lines[i];
-    const trimmed = line.trim();
-    
-    // Check for inline (DOK1) markers anywhere in document
-    if (line.includes('(DOK1)')) {
-      usedIndices.add(i);
-      // Include context: previous line, the DOK1 line, next line
-      const contextStart = Math.max(0, i - 1);
-      const contextEnd = Math.min(lines.length - 1, i + 1);
-      
-      for (let j = contextStart; j <= contextEnd; j++) {
-        const contextLine = lines[j].trim();
-        if (contextLine && !dok1Facts.includes(contextLine)) {
-          dok1Facts.push(contextLine);
-        }
-      }
-      dok1Facts.push('---');
-      inlineCount++;
-      continue;
-    }
-    
-    // Check for DOK1 section header
-    if (isDOK1Header(line)) {
-      inDOK1Section = true;
-      inDOK2Tree = false;
-      usedIndices.add(i);
-      dok1Facts.push(`[DOK1 SECTION: ${trimmed}]`);
-      continue;
-    }
-
-    // Check for DOK2 Knowledge Tree header
+  for (const line of lines) {
     if (isDOK2TreeHeader(line)) {
       inDOK2Tree = true;
-      inDOK1Section = false;
-      // We DON'T add DOK2 tree lines to usedIndices here because we want 
-      // the extension logic in the prompt to still see the structure
-      // but the pre-filter should skip standard extraction from here
       continue;
     }
     
-    // Check for stop pattern (end of sections)
-    if (isStopPattern(line)) {
-      if (inDOK1Section) {
-        dok1Facts.push('---[END DOK1 SECTION]---');
-      }
-      inDOK1Section = false;
+    if (inDOK2Tree && isStopPattern(line)) {
       inDOK2Tree = false;
-      continue;
     }
     
-    // If we're in a DOK1 section, extract bullets/facts
-    if (inDOK1Section && trimmed) {
-      usedIndices.add(i);
-      if (isBulletOrFact(line) || trimmed.length > 20) {
-        dok1Facts.push(trimmed);
-        sectionCount++;
-      }
+    if (inDOK2Tree) {
+      treeLines.push(line);
+    } else {
+      otherLines.push(line);
     }
   }
   
-  const totalCount = inlineCount + sectionCount;
-  const remainingLines = lines.filter((_, index) => !usedIndices.has(index));
+  // Split treeLines into segments based on headers
+  const segments: string[] = [];
+  let currentSegment: string[] = [];
+  
+  // Pattern for sub-headers: starts with #, or **Text**, or 1. Text
+  const subHeaderPattern = /^(#+|\*\*|\d+[\.\)])/;
+  
+  for (const line of treeLines) {
+    const trimmed = line.trim();
+    if (!trimmed) continue;
+    
+    if (subHeaderPattern.test(trimmed) && currentSegment.length > 0) {
+      segments.push(currentSegment.join('\n'));
+      currentSegment = [];
+    }
+    currentSegment.push(line);
+  }
+  
+  if (currentSegment.length > 0) {
+    segments.push(currentSegment.join('\n'));
+  }
   
   return {
-    filteredContent: dok1Facts.join('\n'),
-    dok1Count: totalCount,
-    inlineCount,
-    sectionCount,
-    remainingContent: remainingLines.join('\n')
+    segments,
+    remainingContent: otherLines.join('\n')
   };
 }
 
-export async function extractBrainlift(content: string, sourceType: string): Promise<BrainliftOutput> {
+async function callAI(systemPrompt: string, userPrompt: string): Promise<any> {
   if (!OPENROUTER_API_KEY) {
     throw new Error('OpenRouter API key not configured');
   }
-
-  // Pre-filter to only include DOK1 content (inline markers OR DOK1 sections)
-  const { filteredContent, dok1Count, inlineCount, sectionCount, remainingContent } = extractDOK1Content(content);
-  
-  console.log(`DOK1 extraction: Found ${dok1Count} DOK1 items (${inlineCount} inline markers, ${sectionCount} section items)`);
-  
-  // If no DOK1 content found, we will still proceed but with a warning tag
-  const isImproperlyFormatted = dok1Count === 0;
-
-  const userPrompt = `Analyze the following ${sourceType} content and create a DOK1 grading brainlift.
-
-${isImproperlyFormatted ? 'WARNING: This document is "improperly formatted" (no standard DOK1 markers found). Search for factual claims in other structures like "DOK2 Knowledge Tree".\n' : ''}
-
-**SPECIAL EXTENSION MECHANISM - DOK2 KNOWLEDGE TREE:**
-1. Locate the "DOK2 Knowledge Tree" section header.
-2. Everything under this header is a potential DOK1 fact.
-3. Each sub-section header under "DOK2 Knowledge Tree" is likely a DOK1 fact.
-4. For each potential fact found:
-   - Does it have a link/URL immediately under it? If NOT, flag it as "Incomplete/Unverifiable" in the "flags" field.
-   - Does it lack a DOK2 summary accompanying it? If so, flag it as "Bad Structure" in the "flags" field.
-
-IMPORTANT: Standard DOK1 content has been pre-filtered for you:
-- Inline (DOK1) marked facts: ${inlineCount}
-- Facts from DOK1 sections: ${sectionCount}
-- Total pre-filtered facts: ${dok1Count}
-
-PRE-FILTERED CONTENT:
----
-${filteredContent}
----
-
-ADDITIONAL CONTENT TO ANALYZE (Search for DOK2 Knowledge Tree sections here):
----
-${remainingContent}
----
-
-Remember to output ONLY valid JSON matching the required structure.`;
 
   const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
     method: 'POST',
@@ -358,11 +287,11 @@ Remember to output ONLY valid JSON matching the required structure.`;
     body: JSON.stringify({
       model: MODEL,
       messages: [
-        { role: 'system', content: SYSTEM_PROMPT },
+        { role: 'system', content: systemPrompt },
         { role: 'user', content: userPrompt },
       ],
       temperature: 0,
-      max_tokens: 8000,
+      max_tokens: 4000,
     }),
   });
 
@@ -378,31 +307,124 @@ Remember to output ONLY valid JSON matching the required structure.`;
     throw new Error('No response from AI model');
   }
 
-  let parsed: any;
   try {
     const jsonMatch = messageContent.match(/\{[\s\S]*\}/);
     if (!jsonMatch) {
       throw new Error('No JSON found in response');
     }
-    parsed = JSON.parse(jsonMatch[0]);
+    return JSON.parse(jsonMatch[0]);
   } catch (e: any) {
     throw new Error(`Failed to parse AI response as JSON: ${e.message}`);
   }
+}
 
-  // Handle null values - provide defaults
-  if (parsed.title === null) parsed.title = 'Untitled Brainlift';
-  if (parsed.description === null) parsed.description = 'DOK1 Grading Analysis';
-  if (parsed.author === null) parsed.author = undefined;
+export async function extractBrainlift(content: string, sourceType: string): Promise<BrainliftOutput> {
+  // 1. Pre-filter standard DOK1 content
+  const { filteredContent, dok1Count, inlineCount, sectionCount, remainingContent } = extractDOK1Content(content);
   
-  // Tag as improperly formatted if pre-filter found nothing
-  if (isImproperlyFormatted) {
-    parsed.improperlyFormatted = true;
+  // 2. Extract DOK2 Tree segments
+  const { segments: treeSegments, remainingContent: finalRemaining } = extractDOK2TreeSegments(remainingContent);
+  
+  const isImproperlyFormatted = dok1Count === 0;
+  
+  // 3. Process primary DOK1 content if any
+  let baseOutput: any = null;
+  if (dok1Count > 0 || finalRemaining.length > 100) {
+    const primaryPrompt = `Analyze the following ${sourceType} content and create a DOK1 grading brainlift.
+    
+IMPORTANT: Standard DOK1 content has been pre-filtered:
+- Inline (DOK1) marked facts: ${inlineCount}
+- Facts from DOK1 sections: ${sectionCount}
+
+PRE-FILTERED CONTENT:
+---
+${filteredContent}
+---
+
+${finalRemaining.length > 50 ? `ADDITIONAL CONTEXT:
+---
+${finalRemaining.substring(0, 50000)}
+---` : ''}
+
+Output ONLY valid JSON.`;
+
+    baseOutput = await callAI(SYSTEM_PROMPT, primaryPrompt);
+  } else {
+    // Stub base output if no primary content
+    baseOutput = {
+      classification: 'brainlift',
+      title: 'Brainlift Analysis',
+      description: 'DOK1 Grading Analysis',
+      summary: { totalFacts: 0, meanScore: "0", score5Count: 0, contradictionCount: 0 },
+      facts: [],
+      contradictionClusters: [],
+      readingList: []
+    };
   }
+
+  // 4. Process DOK2 segments SEPARATELY to avoid token overload
+  const extendedFacts: any[] = [];
   
-  const validated = brainliftOutputSchema.safeParse(parsed);
+  for (const segment of treeSegments) {
+    // Only process if segment has meaningful length
+    if (segment.length < 50) continue;
+    
+    const segmentPrompt = `Analyze this specific segment from a "DOK2 Knowledge Tree" section. 
+Extract potential DOK1 facts from it.
+
+Rules:
+1. Each sub-section header is likely a DOK1 fact.
+2. Does it have a link/URL immediately under it? If NOT, flag it as "Incomplete/Unverifiable" in the "flags" field.
+3. Does it lack a DOK2 summary accompanying it? If so, flag it as "Bad Structure" in the "flags" field.
+
+SEGMENT:
+---
+${segment}
+---
+
+Output facts in this JSON format:
+{
+  "facts": [
+    { "id": "segment-x", "category": "Research", "source": "Source if found", "fact": "The fact text", "score": 3, "aiNotes": "Verification notes", "flags": [] }
+  ]
+}`;
+
+    try {
+      const result = await callAI("You are a specialized DOK1 fact extractor focusing on DOK2 segments.", segmentPrompt);
+      if (result && result.facts) {
+        extendedFacts.push(...result.facts);
+      }
+    } catch (e) {
+      console.error("Failed to process segment:", e);
+    }
+  }
+
+  // 5. Merge results
+  const mergedFacts = [...(baseOutput.facts || []), ...extendedFacts];
+  
+  // Re-calculate summary
+  const totalFacts = mergedFacts.length;
+  const score5Count = mergedFacts.filter(f => f.score === 5).length;
+  const meanScore = totalFacts > 0 
+    ? (mergedFacts.reduce((acc, f) => acc + f.score, 0) / totalFacts).toFixed(1)
+    : "0";
+
+  const finalResult = {
+    ...baseOutput,
+    improperlyFormatted: isImproperlyFormatted,
+    facts: mergedFacts,
+    summary: {
+      ...baseOutput.summary,
+      totalFacts,
+      meanScore,
+      score5Count,
+    }
+  };
+
+  const validated = brainliftOutputSchema.safeParse(finalResult);
   if (!validated.success) {
     console.error('Validation errors:', validated.error.errors);
-    throw new Error(`AI response does not match expected schema: ${validated.error.errors.map(e => e.message).join(', ')}`);
+    throw new Error(`Final merged response does not match expected schema`);
   }
 
   return validated.data;
