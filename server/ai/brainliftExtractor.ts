@@ -49,6 +49,12 @@ export type BrainliftOutput = z.infer<typeof brainliftOutputSchema>;
 
 const SYSTEM_PROMPT = `You are an expert DOK1 fact extractor. Your ONLY task is to find and extract DOK1 facts with their sources from documents that use DOK (Depth of Knowledge) structure.
 
+**CRITICAL RULE: NO FILTERING**
+- You MUST extract EVERY factual claim identified. 
+- NEVER exclude a fact because it is "non-gradeable", "prescriptive", "uncited", or "improperly formatted".
+- If a fact is problematic, include it, set a low score (1 or 2), and document the issues in "aiNotes" and "flags".
+- We need to see ALL DOK1s in the grading interface, regardless of their quality.
+
 **WHAT IS DOK1?**
 DOK1 = Level 1 facts. These are specific, verifiable claims with source attribution. They can appear in TWO ways:
 
@@ -70,6 +76,7 @@ Facts marked with "(DOK1)" at the end of a line ANYWHERE in the document. Exampl
 6. Count EVERY DOK1 fact - if there are 47 facts marked (DOK1), output 47 facts
 7. Do NOT summarize or combine facts
 8. Facts may be embedded in DOK2, DOK3, DOK4, or SPOV sections with "(DOK1)" notation - EXTRACT THEM
+9. DO NOT SKIP FACTUAL CLAIMS. If you find a section that describes a finding, extract it.
 
 **WHAT TO IGNORE (NOT DOK1):**
 - "Core Insight", "Contrarian Claim", "Resistance-Inducing Strength" sections (unless marked DOK1)
@@ -404,9 +411,10 @@ export async function extractBrainlift(content: string, sourceType: string): Pro
   if (dok1Count > 0 || finalRemaining.length > 100) {
     const primaryPrompt = `Analyze the following ${sourceType} content and create a DOK1 grading brainlift.
     
-IMPORTANT: Standard DOK1 content has been pre-filtered:
-- Inline (DOK1) marked facts: ${inlineCount}
-- Facts from DOK1 sections: ${sectionCount}
+IMPORTANT: 
+1. EXTRACT ALL DOK1 facts found in the pre-filtered content.
+2. DO NOT filter out facts. If they are prescriptive or uncited, include them but score them accordingly (e.g., 1 or 2) and add notes.
+3. Every bullet point or fact marker in the pre-filtered content should result in an extracted fact.
 
 PRE-FILTERED CONTENT:
 ---
@@ -445,9 +453,11 @@ Output ONLY valid JSON.`;
 Extract potential DOK1 facts from it.
 
 Rules:
-1. Each sub-section header is likely a DOK1 fact.
-2. Does it have a link/URL immediately under it? If NOT, flag it as "Incomplete/Unverifiable" in the "flags" field.
-3. Does it lack a DOK2 summary accompanying it? If so, flag it as "Bad Structure" in the "flags" field.
+1. Every sub-section header or distinct claim in this segment MUST be extracted as a fact.
+2. DO NOT filter out facts for being "non-gradeable", "prescriptive", or "uncited". EXTRACT EVERYTHING.
+3. If a fact lacks a link/URL, flag it as "Incomplete/Unverifiable" in the "flags" field.
+4. If a fact lacks a DOK2 summary, flag it as "Bad Structure" in the "flags" field.
+5. If it's non-gradeable or uncited, set the score to 1 and add a note in "aiNotes" explaining why, but DO NOT EXCLUDE IT.
 
 SEGMENT:
 ---
@@ -457,7 +467,7 @@ ${segment}
 Output facts in this JSON format:
 {
   "facts": [
-    { "id": "segment-x", "category": "Research", "source": "Source if found", "fact": "The fact text", "score": 3, "aiNotes": "Verification notes", "flags": [] }
+    { "id": "segment-x", "category": "Research", "source": "Source if found", "fact": "The fact text", "score": 1, "aiNotes": "Note about why it might be non-gradeable", "flags": [] }
   ]
 }`;
 
