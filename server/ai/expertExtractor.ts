@@ -75,30 +75,39 @@ function extractExpertsFromDocument(content: string): Array<{name: string, twitt
   
   if (!expertSection) return experts;
   
-  // Try structured format first: "- Expert 1", "- Who:", etc.
+    // Try structured format first: "- Expert 1", "- Who:", etc.
   const expertBlocks = expertSection.split(/- Expert \d+/i);
   if (expertBlocks.length > 1) {
     for (let i = 1; i < expertBlocks.length; i++) {
       const block = expertBlocks[i];
       
-      const whoMatch = /- Who:\s*([^;]+)/i.exec(block);
+      const whoMatch = /-\s*(?:Who|Expert #\d+):\s*([^;\n]+)/i.exec(block);
       if (!whoMatch) continue;
       
       const name = whoMatch[1].trim().replace(/[;.]$/, '').trim();
-      if (!name) continue;
+      if (!name || name.match(/^(Why follow|Focus|Key views|Where|Expertise Topic|Expert #\d+)/i)) continue;
       
       let twitterHandle: string | null = null;
-      const whereMatch = /- Where:\s*(.+)/i.exec(block);
-      if (whereMatch) {
-        const whereText = whereMatch[1];
-        const handleMatches = whereText.match(/@([A-Za-z0-9_]+)/g);
-        if (handleMatches && handleMatches.length > 0) {
-          twitterHandle = handleMatches[0];
+      // Search for Twitter handles in Where, find her, or the whole block
+      const handlePatterns = [
+        /- Where:\s*.*(@[A-Za-z0-9_]+)/i,
+        /- (?:Find her|Where|Find him):\s*.*twitter\.com\/([A-Za-z0-9_]+)/i,
+        /- (?:Find her|Where|Find him):\s*.*x\.com\/([A-Za-z0-9_]+)/i,
+        /twitter\.com\/([A-Za-z0-9_]+)/i,
+        /x\.com\/([A-Za-z0-9_]+)/i,
+        /@([A-Za-z0-9_]+)/,
+      ];
+
+      for (const pattern of handlePatterns) {
+        const match = pattern.exec(block);
+        if (match) {
+          twitterHandle = match[1].startsWith('@') ? match[1] : '@' + match[1];
+          break;
         }
       }
       
       let description = '';
-      const focusMatch = /- Focus:\s*(.+)/i.exec(block);
+      const focusMatch = /- Focus:\s*([^\n]+)/i.exec(block);
       if (focusMatch) {
         description = focusMatch[1].trim();
       }
@@ -115,8 +124,8 @@ function extractExpertsFromDocument(content: string): Array<{name: string, twitt
       const bulletMatch = line.match(/^\s*[-•*]\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)+)/);
       if (bulletMatch) {
         const name = bulletMatch[1].trim();
-        // Skip common non-name patterns
-        if (!name.match(/^(The|An?|This|That|These|Some|Many|All|Most|Each)/)) {
+        // Skip common non-name patterns and section headers
+        if (!name.match(/^(The|An?|This|That|These|Some|Many|All|Most|Each|Why follow|Focus|Key views|Where|Expertise Topic|Expert #\d+)/i)) {
           let twitterHandle: string | null = null;
           const handleMatch = line.match(/@([A-Za-z0-9_]+)/);
           if (handleMatch) {
@@ -153,8 +162,8 @@ function extractExpertsFromFactSources(facts: Array<{fact: string, source?: stri
         const name = match[1].trim();
         const description = match[2]?.trim() || '';
         
-        // Skip organization-like names
-        if (name.match(/^(The|University|Institute|College|School|Center|Department)/i)) continue;
+        // Skip organization-like names and common non-names
+        if (name.match(/^(The|University|Institute|College|School|Center|Department|Why follow|Focus|Key views|Where|Expertise Topic|Expert #\d+)/i)) continue;
         // Skip if too short or too long
         if (name.split(/\s+/).length < 2 || name.split(/\s+/).length > 5) continue;
         
@@ -377,16 +386,27 @@ export async function extractAndRankExperts(input: ExtractionInput): Promise<Ins
       allExperts.push(expert);
     }
   }
+
+  // Filter out any leaked section headers from all experts
+  const filteredExperts = allExperts.filter(e => {
+    const n = e.name.toLowerCase();
+    return !n.includes('why follow') && 
+           !n.includes('focus') && 
+           !n.includes('key views') && 
+           !n.includes('where') &&
+           !n.includes('expertise topic') &&
+           !n.startsWith('expert #');
+  });
   
   // If NO experts found so far, use AI to find them from the text
-  if (allExperts.length === 0 && input.originalContent) {
+  if (filteredExperts.length === 0 && input.originalContent) {
     console.log('No experts found via regex/sources. Falling back to AI-only extraction from content.');
   }
 
-  console.log('Total merged experts:', allExperts.map(e => e.name));
+  console.log('Total merged experts:', filteredExperts.map(e => e.name));
   
   const profiles = buildExpertProfiles(
-    allExperts,
+    filteredExperts,
     input.facts,
     input.originalContent || '',
     input.author,
