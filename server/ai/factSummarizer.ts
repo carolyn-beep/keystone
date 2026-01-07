@@ -26,11 +26,11 @@ export async function summarizeFact(fullText: string): Promise<string> {
         messages: [
           {
             role: "system",
-            content: "You are a concise fact summarizer. Summarize the provided text into a maximum of 3 lines. Be direct and clear. Do not use fluff."
+            content: "You are a concise fact summarizer. Summarize the provided text into a maximum of 3 lines. Be direct and clear. Do not use any markdown (no bold, no italics, no bullet points), no formatting, and NO emojis. Provide only the plain text summary."
           },
           {
             role: "user",
-            content: `Summarize this fact for a dashboard:\n\n${fullText}`
+            content: `Summarize this fact:\n\n${fullText}`
           }
         ],
         max_tokens: 150,

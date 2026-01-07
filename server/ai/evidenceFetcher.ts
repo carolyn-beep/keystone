@@ -88,7 +88,7 @@ Search your knowledge for:
 2. Related research or data that supports or contradicts this claim
 3. Key facts or statistics that could verify this claim
 
-Provide a concise summary of the evidence you find (max 500 words). Focus on specific data, quotes, or findings that directly relate to the claim.`;
+Provide a concise summary of the evidence you find (max 500 words). Focus on specific data, quotes, or findings that directly relate to the claim. Do not use any markdown (no bold, no italics, no bullet points), no formatting, and NO emojis. Provide only the plain text summary.`;
 
   try {
     const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
