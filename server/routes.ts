@@ -507,8 +507,8 @@ async function saveBrainliftFromAI(data: BrainliftOutput, originalContent?: stri
   
   const limit = pLimit(5); // Process 5 facts concurrently
 
-  // Run fact processing and contradiction detection in parallel
-  const [factsWithSummaries, contradictionClusters] = await Promise.all([
+  // Run fact processing, contradiction detection, and reading list extraction in parallel
+  const [factsWithSummaries, contradictionClusters, extractedReadingList] = await Promise.all([
     Promise.all(data.facts.map(fact => limit(async () => {
       const summary = await summarizeFact(fact.fact);
       
@@ -595,6 +595,11 @@ async function saveBrainliftFromAI(data: BrainliftOutput, originalContent?: stri
     (async () => {
       const { findContradictions } = await import("./ai/brainliftExtractor");
       return findContradictions(data.facts);
+    })(),
+    // Parallel reading list extraction
+    (async () => {
+      const { extractReadingList } = await import("./ai/brainliftExtractor");
+      return extractReadingList(data.title, data.description, data.facts);
     })()
   ]);
 
@@ -620,7 +625,8 @@ async function saveBrainliftFromAI(data: BrainliftOutput, originalContent?: stri
     contradictionCount: factsWithSummaries.filter(f => f.contradicts).length || clusters.length
   };
   
-  const readingList = data.readingList.map((r) => ({
+  // Use either the extracted reading list or the one from input data (if any)
+  const finalReadingList = extractedReadingList.length > 0 ? extractedReadingList : (data.readingList || []).map((r) => ({
     type: r.type,
     author: r.author,
     topic: r.topic,
@@ -646,7 +652,7 @@ async function saveBrainliftFromAI(data: BrainliftOutput, originalContent?: stri
     },
     factsWithSummaries,
     clusters,
-    readingList,
+    finalReadingList,
     userId
   );
 }

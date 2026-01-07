@@ -50,6 +50,41 @@ const brainliftOutputSchema = z.object({
 
 export type BrainliftOutput = z.infer<typeof brainliftOutputSchema>;
 
+export async function extractReadingList(title: string, description: string, facts: any[]): Promise<any[]> {
+  try {
+    const response = await openai.chat.completions.create({
+      model: "anthropic/claude-3.5-sonnet",
+      messages: [
+        {
+          role: "system",
+          content: `You are a research assistant. Based on the provided educational brainlift title, description, and facts, suggest 3-5 relevant sources for further research.
+          
+          Include:
+          - type: (Twitter, Blog, Research, Substack, Podcast, etc.)
+          - author: Author Name
+          - topic: Topic description
+          - time: Estimated reading time (e.g., "5 min")
+          - facts: Brief summary of what it covers
+          - url: A real or representative URL if known
+
+          Output ONLY a valid JSON array of objects with keys: type, author, topic, time, facts, url.`
+        },
+        {
+          role: "user",
+          content: `Title: ${title}\nDescription: ${description}\nKey Facts:\n${facts.slice(0, 10).map(f => f.fact).join('\n')}`
+        }
+      ]
+    });
+
+    const content = response.choices[0].message.content?.trim() || "[]";
+    const jsonMatch = content.match(/\[[\s\S]*\]/);
+    return jsonMatch ? JSON.parse(jsonMatch[0]) : [];
+  } catch (err) {
+    console.error("Reading list extraction failed:", err);
+    return [];
+  }
+}
+
 function getIndentLevel(line: string): number {
   const match = line.match(/^(\s*)/);
   return match ? match[1].length : 0;
