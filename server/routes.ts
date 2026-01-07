@@ -519,14 +519,14 @@ async function saveBrainliftFromAI(data: BrainliftOutput, originalContent?: stri
 
     // Verify with LLMs
     try {
-      const verificationResult = await verifyFactWithAllModels(fact.fact, fact.source || "", evidenceContent, linkFailed);
-      finalScore = verificationResult.consensus.consensusScore;
+      const verification = await verifyFactWithAllModels(fact.fact, fact.source || "", evidenceContent, linkFailed);
+      finalScore = verification.consensus.consensusScore;
       
       // Get the rationale directly from consensus notes
-      let rationale = verificationResult.consensus.verificationNotes;
+      let rationale = verification.consensus.verificationNotes;
       let isGradeable = true;
 
-      if (verificationResult.consensus.isNonGradeable) {
+      if (verification.consensus.isNonGradeable) {
         rationale = `As the source link is not accessible, this DOK1 could not be graded - ${rationale}`;
         isGradeable = false;
         finalScore = 0;
@@ -593,28 +593,13 @@ async function saveBrainliftFromAI(data: BrainliftOutput, originalContent?: stri
     url: r.url,
   }));
 
-  const validScores = factsWithSummaries
-    .filter(f => f.score > 0)
-    .map(f => f.score);
-  
-  const meanScoreValue = validScores.length > 0 
-    ? (validScores.reduce((a, b) => a + b, 0) / validScores.length).toFixed(1)
-    : "0";
-
-  const updatedSummary = {
-    ...data.summary,
-    meanScore: meanScoreValue,
-    totalFacts: factsWithSummaries.length,
-    score5Count: factsWithSummaries.filter(f => f.score === 5).length,
-  };
-
   return storage.createBrainlift(
     {
       slug,
       title: data.title,
       description: data.description,
       author: null,
-      summary: updatedSummary,
+      summary: data.summary,
       classification: data.classification,
       improperlyFormatted: data.improperlyFormatted ?? false,
       rejectionReason: data.rejectionReason || null,
@@ -622,7 +607,6 @@ async function saveBrainliftFromAI(data: BrainliftOutput, originalContent?: stri
       rejectionRecommendation: data.rejectionRecommendation || null,
       originalContent: originalContent || null,
       sourceType: sourceType || null,
-      meanScore: meanScoreValue,
     },
     factsWithSummaries,
     clusters,

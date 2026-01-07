@@ -1,7 +1,7 @@
 import { useState, useMemo } from 'react';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { Link } from 'wouter';
-import { Fact, BrainliftData, ReadingListGrade, BrainliftVersion, CLASSIFICATION, type Classification, type Expert } from '@shared/schema';
+import { BrainliftData, ReadingListGrade, BrainliftVersion, CLASSIFICATION, type Classification, type Expert } from '@shared/schema';
 import { Share2, Check, ChevronDown, ChevronUp, ExternalLink, Download, RefreshCw, History, X, Upload, Search, Plus, Loader2, FileX, AlertTriangle, Zap, CheckCircle, Lightbulb, FileText, Clock, ThumbsUp, ThumbsDown, Users, User, Trash2 } from 'lucide-react';
 import { SiX } from 'react-icons/si';
 import { queryClient, apiRequest } from '@/lib/queryClient';
@@ -325,7 +325,6 @@ interface DashboardProps {
 export default function Dashboard({ slug, isSharedView = false }: DashboardProps) {
   const [activeTab, setActiveTab] = useState('brainlift');
   const [selectedCluster, setSelectedCluster] = useState<number | null>(null);
-  const [debugExpanded, setDebugExpanded] = useState(false);
   const [readingFilter, setReadingFilter] = useState<'all' | 'graded' | 'ungraded'>('all');
   
   const [copied, setCopied] = useState(false);
@@ -381,10 +380,6 @@ export default function Dashboard({ slug, isSharedView = false }: DashboardProps
 
   const isNotBrainlift = data?.classification === 'not_brainlift';
   const isPartialBrainlift = data?.classification === 'partial';
-
-  const { title, description, contradictionClusters, readingList } = data;
-  const factsList = data?.facts || [];
-  const brainliftSummary = data?.summary || { totalFacts: 0, meanScore: '0', score5Count: 0, contradictionCount: 0, summary: "" };
 
   const { data: grades = [] } = useQuery<ReadingListGrade[]>({
     queryKey: ['grades', slug],
@@ -982,20 +977,17 @@ export default function Dashboard({ slug, isSharedView = false }: DashboardProps
     </div>
   );
 
-  const { title, description, contradictionClusters, readingList } = data;
-  const { title, description, contradictionClusters, readingList } = data;
-  const factsList = data?.facts || [];
-  const brainliftSummary = data?.summary || { totalFacts: 0, meanScore: '0', score5Count: 0, contradictionCount: 0, summary: "" };
+  const { title, description, facts, contradictionClusters, readingList, summary } = data;
 
   // Reading List categorization
   const readingCategories = [
-    { id: 1, name: 'Student Motivation', factsList: '1.1, 2.1', keywords: ['motivat', 'interest', 'choice', 'engagement', 'Writing Gap', 'What Motivates'] },
-    { id: 2, name: 'Explicit Instruction', factsList: '1.2, 2.2, 2.3, 2.4', keywords: ['Writing Revolution', 'Six Principles', 'Hochman', 'TWR', 'sentence', 'explicit'] },
-    { id: 3, name: 'Cognitive Load', factsList: '3.1-3.5', keywords: ['cognitive', 'working memory', 'CLT', 'load', 'Hendrick', 'Ashman', 'Wiliam'] },
-    { id: 4, name: 'Knowledge-Building', factsList: '4.1-4.3', keywords: ['knowledge', 'writing to learn', 'Graham', 'elaboration', 'Shanahan'] },
-    { id: 5, name: 'Mathemagenic', factsList: '5.1-5.2', keywords: ['mathemagenic', 'transfer', 'Rothkopf', 'Kirschner', 'Stockard', 'Direct Instruction'] },
-    { id: 6, name: 'Wise Feedback', factsList: '6.1-6.2', keywords: ['wise feedback', 'Yeager', 'mentor', 'identity', 'Huberman'] },
-    { id: 7, name: 'PCK', factsList: '7.1-7.3', keywords: ['PCK', 'Shulman', 'pedagogical content', 'WWC', 'Practice Guide', 'Evidence Based'] },
+    { id: 1, name: 'Student Motivation', facts: '1.1, 2.1', keywords: ['motivat', 'interest', 'choice', 'engagement', 'Writing Gap', 'What Motivates'] },
+    { id: 2, name: 'Explicit Instruction', facts: '1.2, 2.2, 2.3, 2.4', keywords: ['Writing Revolution', 'Six Principles', 'Hochman', 'TWR', 'sentence', 'explicit'] },
+    { id: 3, name: 'Cognitive Load', facts: '3.1-3.5', keywords: ['cognitive', 'working memory', 'CLT', 'load', 'Hendrick', 'Ashman', 'Wiliam'] },
+    { id: 4, name: 'Knowledge-Building', facts: '4.1-4.3', keywords: ['knowledge', 'writing to learn', 'Graham', 'elaboration', 'Shanahan'] },
+    { id: 5, name: 'Mathemagenic', facts: '5.1-5.2', keywords: ['mathemagenic', 'transfer', 'Rothkopf', 'Kirschner', 'Stockard', 'Direct Instruction'] },
+    { id: 6, name: 'Wise Feedback', facts: '6.1-6.2', keywords: ['wise feedback', 'Yeager', 'mentor', 'identity', 'Huberman'] },
+    { id: 7, name: 'PCK', facts: '7.1-7.3', keywords: ['PCK', 'Shulman', 'pedagogical content', 'WWC', 'Practice Guide', 'Evidence Based'] },
   ];
 
   const categorizeSource = (item: typeof readingList[0]) => {
@@ -1005,7 +997,7 @@ export default function Dashboard({ slug, isSharedView = false }: DashboardProps
         return cat;
       }
     }
-    return { id: 8, name: 'Other', factsList: 'various', keywords: [] as string[] };
+    return { id: 8, name: 'Other', facts: 'various', keywords: [] as string[] };
   };
 
   // Build category groups
@@ -1018,7 +1010,7 @@ export default function Dashboard({ slug, isSharedView = false }: DashboardProps
   const uncategorizedItems = readingList.filter(item => categorizeSource(item).id === 8);
   if (uncategorizedItems.length > 0) {
     categoryGroups.push({ 
-      id: 8, name: 'Other', factsList: 'various', keywords: [] as string[], 
+      id: 8, name: 'Other', facts: 'various', keywords: [] as string[], 
       items: uncategorizedItems,
       gradedCount: uncategorizedItems.filter(item => isItemGraded(item.id)).length,
     });
@@ -1028,7 +1020,7 @@ export default function Dashboard({ slug, isSharedView = false }: DashboardProps
   const allSourcesCluster = {
     id: 0,
     name: 'All Sources',
-    factsList: 'all',
+    facts: 'all',
     keywords: [] as string[],
     items: readingList,
     gradedCount: readingList.filter(item => isItemGraded(item.id)).length,
@@ -1359,7 +1351,7 @@ export default function Dashboard({ slug, isSharedView = false }: DashboardProps
             <div>
               <div style={{ fontWeight: 600, color: tokens.warning }}>Partial Brainlift</div>
               <div style={{ fontSize: '14px', color: tokens.textSecondary }}>
-                This document contains {factsList.filter(f => !f.isGradeable).length} non-gradeable claims (prescriptive statements or uncited claims) alongside verifiable DOK1 facts.
+                This document contains {facts.filter(f => !f.isGradeable).length} non-gradeable claims (prescriptive statements or uncited claims) alongside verifiable DOK1 facts.
               </div>
             </div>
           </div>
@@ -1488,10 +1480,10 @@ export default function Dashboard({ slug, isSharedView = false }: DashboardProps
             {/* Summary Stats - compute contradiction count from facts */}
             <div className="grid grid-cols-2 sm:grid-cols-5 gap-4 mb-6">
               {[
-                { label: 'Total Facts', value: factsList.length, color: tokens.primary },
-                { label: 'Core Facts', value: redundancyData?.stats?.uniqueFactCount || factsList.length, color: tokens.success },
-                { label: 'Mean Score', value: data?.meanScore || brainliftSummary.meanScore, color: tokens.primary },
-                { label: 'Highly Verified (5/5)', value: factsList.filter(f => f.score === 5).length, color: tokens.success },
+                { label: 'Total Facts', value: facts.length, color: tokens.primary },
+                { label: 'Core Facts', value: redundancyData?.stats?.uniqueFactCount || facts.length, color: tokens.success },
+                { label: 'Mean Score', value: summary.meanScore, color: tokens.primary },
+                { label: 'Highly Verified (5/5)', value: facts.filter(f => f.score === 5).length, color: tokens.success },
                 { label: 'Redundant', value: redundancyData?.stats?.pendingReview || 0, color: redundancyData?.stats?.pendingReview ? tokens.warning : tokens.textMuted },
               ].map((stat, i) => (
                 <div key={i} data-testid={`stat-${stat.label.toLowerCase().replace(/\s+/g, '-')}`} style={{
