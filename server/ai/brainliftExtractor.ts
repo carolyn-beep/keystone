@@ -250,7 +250,21 @@ async function findContradictions(facts: any[]): Promise<any[]> {
             messages: [
               {
                 role: "system",
-                content: "You are an expert at identifying educational DOK1 fact contradictions. Analyze two facts and determine if they represent a meaningful contradiction or tension. If they do, provide a descriptive title (e.g., 'Writing Load vs Learning Gain') and a detailed 'tension' description that calls out the specific conflict between the two claims. Focus on the interpretive tension: explain what the facts are on one side vs the other. If no contradiction exists, return 'NONE'."
+                content: `You are an expert at identifying logical contradictions and interpretive tensions in educational research. 
+
+A CONTRADICTION exists ONLY if:
+1. Fact A claims X, but Fact B claims NOT X.
+2. Fact A claims X is beneficial, but Fact B claims X is harmful.
+3. Fact A claims X is increasing, but Fact B claims X is decreasing.
+4. There is a deep, unresolved conceptual conflict between the two claims.
+
+DO NOT identify "complementary" facts as contradictions. For example, if Fact A says there is a pay gap and Fact B says there is a lack of financial training, these are NOT contradictions—they are related problems that support the same conclusion.
+
+If a true contradiction exists:
+- title: A short, catchy title representing the tension (e.g., 'Writing Load vs Learning Gain').
+- tension: A detailed explanation of the 'Interpretive Tension'. Explicitly call out Fact A's claim versus Fact B's claim and explain why they cannot both be true or why they represent a fundamental conflict in the field.
+
+If no logical contradiction exists, return 'NONE'.`
               },
               {
                 role: "user",
