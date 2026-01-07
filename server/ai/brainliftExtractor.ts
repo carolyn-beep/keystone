@@ -69,48 +69,10 @@ export async function extractBrainlift(markdownContent: string, sourceType: stri
   const facts: any[] = [];
   let factIdCounter = 1;
   
-  let inKnowledgeTree = false;
-  let inDOK1Section = false;
-  let inDOK2Section = false;
-  let sectionIndentLevel = -1;
   let currentCategory = 'General';
   let currentSource = 'Unknown';
   let currentSourceLink: string | null = null;
   let sectionBuffer: string[] = [];
-
-  // Facts waiting for a source link to be found in the same context
-  let pendingFacts: any[] = [];
-
-  const flushSection = () => {
-    if (sectionBuffer.length > 0) {
-      const factText = sectionBuffer.join('\n').trim();
-      if (factText.length > 10) {
-        pendingFacts.push({
-          id: `${factIdCounter++}`,
-          category: currentCategory,
-          source: currentSource,
-          fact: factText,
-          score: 0,
-          aiNotes: "", // Will be filled once context is fully parsed
-          contradicts: null,
-          flags: []
-        });
-      }
-      sectionBuffer = [];
-    }
-  };
-
-  const flushPendingFacts = () => {
-    const sourceNote = currentSourceLink 
-      ? `Source: ${currentSourceLink}` 
-      : "No sources have been linked to this fact";
-    
-    for (const f of pendingFacts) {
-      f.aiNotes = sourceNote;
-      facts.push(f);
-    }
-    pendingFacts = [];
-  };
 
   // Title extraction
   let title = "Extracted Brainlift";
@@ -122,96 +84,78 @@ export async function extractBrainlift(markdownContent: string, sourceType: stri
     if (firstLine) title = firstLine.trim().substring(0, 100);
   }
 
+  const flushFact = () => {
+    if (sectionBuffer.length > 0) {
+      const factText = sectionBuffer.join('\n').trim();
+      if (factText.length > 10) {
+        facts.push({
+          id: `${factIdCounter++}`,
+          category: currentCategory,
+          source: currentSource,
+          fact: factText,
+          score: 0,
+          aiNotes: currentSourceLink ? `Source: ${currentSourceLink}` : "No sources have been linked to this fact",
+          contradicts: null,
+          flags: []
+        });
+      }
+      sectionBuffer = [];
+    }
+  };
+
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
     const trimmed = line.trim();
-    if (!trimmed && !inDOK1Section) continue;
+    if (!trimmed) continue;
 
-    const indent = getIndentLevel(line);
     const cleaned = cleanHeader(line);
     const url = extractUrl(line);
 
-    // 1. Detect Knowledge Tree Entry
-    if (!inKnowledgeTree) {
-      if (/DOK\s*2\s*-\s*Knowledge\s*Tree/i.test(cleaned) || /^#+\s*Knowledge\s*Tree/i.test(line)) {
-        inKnowledgeTree = true;
-      }
-      continue;
-    }
+    // Update global context
+    if (url) currentSourceLink = url;
 
-    // 2. Identify Context (Categories and Sources)
-    if (/^Category\s*\d+/i.test(cleaned) || /^##\s*\d+\.\s*/i.test(line)) {
-      if (inDOK1Section) flushSection();
-      flushPendingFacts();
+    // Detect Category (Headers)
+    if (line.startsWith('#')) {
+      flushFact();
       currentCategory = cleaned;
-      currentSourceLink = null;
-      inDOK1Section = false;
-      inDOK2Section = false;
       continue;
     }
 
-    if (/^Source\s*\d+/i.test(cleaned)) {
-      if (inDOK1Section) flushSection();
-      flushPendingFacts();
+    // Detect potential source labels
+    if (/^source\s*[:\d]/i.test(cleaned) || /^\[\d+\]/i.test(cleaned)) {
       currentSource = cleaned;
-      currentSourceLink = null;
-      inDOK1Section = false;
-      inDOK2Section = false;
       continue;
     }
 
-    // 3. Detect DOK Entry Points
-    if (/DOK\s*1\s*-?\s*Facts/i.test(cleaned) || /DOK1/i.test(cleaned)) {
-      if (inDOK1Section) flushSection();
-      inDOK1Section = true;
-      inDOK2Section = false;
-      sectionIndentLevel = indent;
+    // Bullet points or list items are facts
+    if (/^[\s]*([-•*]|\[\s*\]|\[x\])/.test(line)) {
+      flushFact();
+      sectionBuffer.push(line);
       continue;
     }
 
-    if (/DOK\s*2\s*-?\s*Summary/i.test(cleaned) || /DOK2/i.test(cleaned)) {
-      if (inDOK1Section) flushSection();
-      inDOK1Section = false;
-      inDOK2Section = true;
+    // Bold labels often precede facts or summaries
+    if (trimmed.startsWith('**') && trimmed.endsWith('**')) {
+      flushFact();
+      sectionBuffer.push(line);
       continue;
     }
 
-    // 4. Look for source links within current source context
-    if (url && (inDOK2Section || /link to source/i.test(trimmed) || /source:/i.test(trimmed) || (indent > 0 && !inDOK1Section))) {
-      currentSourceLink = url;
-    }
-
-    // 5. Handle Content inside DOK1 Section
-    if (inDOK1Section) {
-      const isExitSection = /Link/i.test(cleaned) || /Source\s*\d+/i.test(cleaned) || /^Category\s*\d+/i.test(cleaned) || /^##\s*\d+/i.test(line) || /DOK\s*2/i.test(cleaned);
-      const isHigherLevel = indent <= sectionIndentLevel && trimmed.length > 0 && !trimmed.startsWith('-') && !trimmed.startsWith('*');
-
-      if (isExitSection || isHigherLevel) {
-        flushSection();
-        inDOK1Section = false;
-        
-        if (isExitSection || /^Category|^Source|^##\s*\d+/i.test(cleaned)) {
-          i--; // Re-process this line
-        }
-        continue;
-      }
-
-      // If line is a bullet point, start a new fact if we already have content
-      if ((trimmed.startsWith('-') || trimmed.startsWith('*') || trimmed.startsWith('•')) && sectionBuffer.length > 0) {
-        flushSection();
-      }
-
+    // Fallback: If it's a non-empty line and we're not in a fact yet, it's a fact
+    if (sectionBuffer.length === 0) {
+      sectionBuffer.push(line);
+    } else {
+      // Continuation of current fact
       sectionBuffer.push(line);
     }
   }
 
-  flushSection();
-  flushPendingFacts();
+  flushFact();
 
   const finalResult = {
     classification: 'brainlift' as const,
     title,
-    description: `Section-based DOK1 extraction from ${sourceType}`,
+    description: `Universal extraction from ${sourceType}`,
     summary: {
       totalFacts: facts.length,
       meanScore: "0",
@@ -219,7 +163,7 @@ export async function extractBrainlift(markdownContent: string, sourceType: stri
       contradictionCount: 0
     },
     facts,
-    contradictionClusters: [], // Will be filled later in parallel
+    contradictionClusters: [],
     readingList: []
   };
 
