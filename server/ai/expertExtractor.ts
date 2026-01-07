@@ -48,38 +48,122 @@ function extractExpertsFromDocument(content: string): Array<{name: string, twitt
   
   if (!content) return experts;
   
-  const dok1Index = content.indexOf('DOK1: Experts');
-  if (dok1Index === -1) return experts;
+  // Try multiple patterns to find experts section
+  const expertsPatterns = [
+    /DOK1:\s*Experts/i,
+    /^#+\s*Experts\s*$/im,
+    /^\s*-?\s*Experts\s*$/im,
+    /Experts\s*:?\s*\n/i,
+  ];
   
-  const expertSection = content.slice(dok1Index, dok1Index + 5000);
+  let expertSection = '';
+  for (const pattern of expertsPatterns) {
+    const match = pattern.exec(content);
+    if (match) {
+      const startIdx = match.index;
+      // Extract up to 5000 chars or until next major section
+      const stopPatterns = /\n(?:DOK[234]|Insights|Sources|Reading|References|Summary|Bibliography)/i;
+      const remainingContent = content.slice(startIdx);
+      const stopMatch = stopPatterns.exec(remainingContent);
+      const endIdx = stopMatch ? stopMatch.index : Math.min(5000, remainingContent.length);
+      expertSection = remainingContent.slice(0, endIdx);
+      break;
+    }
+  }
+  
+  if (!expertSection) return experts;
+  
+  // Try structured format first: "- Expert 1", "- Who:", etc.
   const expertBlocks = expertSection.split(/- Expert \d+/i);
+  if (expertBlocks.length > 1) {
+    for (let i = 1; i < expertBlocks.length; i++) {
+      const block = expertBlocks[i];
+      
+      const whoMatch = /- Who:\s*([^;]+)/i.exec(block);
+      if (!whoMatch) continue;
+      
+      const name = whoMatch[1].trim().replace(/[;.]$/, '').trim();
+      if (!name) continue;
+      
+      let twitterHandle: string | null = null;
+      const whereMatch = /- Where:\s*(.+)/i.exec(block);
+      if (whereMatch) {
+        const whereText = whereMatch[1];
+        const handleMatches = whereText.match(/@([A-Za-z0-9_]+)/g);
+        if (handleMatches && handleMatches.length > 0) {
+          twitterHandle = handleMatches[0];
+        }
+      }
+      
+      let description = '';
+      const focusMatch = /- Focus:\s*(.+)/i.exec(block);
+      if (focusMatch) {
+        description = focusMatch[1].trim();
+      }
+      
+      experts.push({ name, twitterHandle, description });
+    }
+  }
   
-  for (let i = 1; i < expertBlocks.length; i++) {
-    const block = expertBlocks[i];
-    
-    const whoMatch = /- Who:\s*([^;]+)/i.exec(block);
-    if (!whoMatch) continue;
-    
-    const name = whoMatch[1].trim().replace(/[;.]$/, '').trim();
-    if (!name) continue;
-    
-    let twitterHandle: string | null = null;
-    const whereMatch = /- Where:\s*(.+)/i.exec(block);
-    if (whereMatch) {
-      const whereText = whereMatch[1];
-      const handleMatches = whereText.match(/@([A-Za-z0-9_]+)/g);
-      if (handleMatches && handleMatches.length > 0) {
-        twitterHandle = handleMatches[0];
+  // Also try simple bullet list format: "- John Smith" or "• Paul Nation"
+  if (experts.length === 0) {
+    const lines = expertSection.split('\n');
+    for (const line of lines) {
+      // Match bullet points with names (2+ words, starts with capital)
+      const bulletMatch = line.match(/^\s*[-•*]\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)+)/);
+      if (bulletMatch) {
+        const name = bulletMatch[1].trim();
+        // Skip common non-name patterns
+        if (!name.match(/^(The|An?|This|That|These|Some|Many|All|Most|Each)/)) {
+          let twitterHandle: string | null = null;
+          const handleMatch = line.match(/@([A-Za-z0-9_]+)/);
+          if (handleMatch) {
+            twitterHandle = '@' + handleMatch[1];
+          }
+          experts.push({ name, twitterHandle, description: '' });
+        }
       }
     }
+  }
+  
+  return experts;
+}
+
+// Extract experts from fact sources (person names cited as sources)
+function extractExpertsFromFactSources(facts: Array<{fact: string, source?: string | null, note?: string | null}>): Array<{name: string, twitterHandle: string | null, description: string, factId?: string}> {
+  const experts: Array<{name: string, twitterHandle: string | null, description: string, factId?: string}> = [];
+  const seenNames = new Set<string>();
+  
+  for (const fact of facts) {
+    const source = fact.source || '';
+    if (!source) continue;
     
-    let description = '';
-    const focusMatch = /- Focus:\s*(.+)/i.exec(block);
-    if (focusMatch) {
-      description = focusMatch[1].trim();
+    // Pattern: "Name - Description" or just "Name"
+    // Must be 2+ words starting with capitals (person name pattern)
+    const personPatterns = [
+      /^([A-Z][a-z]+(?:\s+[A-Z]\.?\s*)?(?:\s+[A-Z][a-z]+)+)(?:\s*[-–—]\s*(.+))?$/,
+      /^(?:Source:\s*)?([A-Z][a-z]+(?:\s+[A-Z]\.?\s*)?(?:\s+[A-Z][a-z]+)+)(?:\s*[-–—]\s*(.+))?$/i,
+    ];
+    
+    for (const pattern of personPatterns) {
+      const match = source.match(pattern);
+      if (match) {
+        const name = match[1].trim();
+        const description = match[2]?.trim() || '';
+        
+        // Skip organization-like names
+        if (name.match(/^(The|University|Institute|College|School|Center|Department)/i)) continue;
+        // Skip if too short or too long
+        if (name.split(/\s+/).length < 2 || name.split(/\s+/).length > 5) continue;
+        
+        const normalizedName = name.toLowerCase();
+        if (!seenNames.has(normalizedName)) {
+          seenNames.add(normalizedName);
+          experts.push({ name, twitterHandle: null, description });
+        }
+        break;
+      }
     }
-    
-    experts.push({ name, twitterHandle, description });
   }
   
   return experts;
@@ -272,11 +356,30 @@ export async function extractAndRankExperts(input: ExtractionInput): Promise<Ins
     return [];
   }
 
+  // Extract experts from document "Experts" section
   const documentExperts = extractExpertsFromDocument(input.originalContent || '');
-  console.log('Experts from document DOK1 section:', documentExperts.map(e => e.name));
+  console.log('Experts from document section:', documentExperts.map(e => e.name));
+  
+  // Extract experts from fact sources (person names)
+  const factSourceExperts = extractExpertsFromFactSources(input.facts);
+  console.log('Experts from fact sources:', factSourceExperts.map(e => e.name));
+  
+  // Merge experts, avoiding duplicates
+  const allExperts: Array<{name: string, twitterHandle: string | null, description: string}> = [...documentExperts];
+  const seenNames = new Set(documentExperts.map(e => e.name.toLowerCase()));
+  
+  for (const expert of factSourceExperts) {
+    const normalizedName = expert.name.toLowerCase();
+    if (!seenNames.has(normalizedName)) {
+      seenNames.add(normalizedName);
+      allExperts.push(expert);
+    }
+  }
+  
+  console.log('Total merged experts:', allExperts.map(e => e.name));
   
   const profiles = buildExpertProfiles(
-    documentExperts,
+    allExperts,
     input.facts,
     input.originalContent || '',
     input.author,
