@@ -23,6 +23,7 @@ const brainliftOutputSchema = z.object({
     source: z.string().nullable(),
     fact: z.string(),
     score: z.number().min(1).max(5),
+    aiNotes: z.string(),
     contradicts: z.string().nullable(),
   })),
   contradictionClusters: z.array(z.object({
@@ -85,12 +86,20 @@ Facts marked with "(DOK1)" at the end of a line ANYWHERE in the document. Exampl
 - "Internal" - Organization-specific metrics or claims
 - "Regulatory" - Laws, policies, requirements
 
-**SCORING (1-5):**
-- 5 = Named source with verifiable citation (e.g., "Nielsen 2024", "Stanford Study")
-- 4 = Source mentioned but less specific
-- 3 = Claim without clear source
-- 2 = Vague or questionable claim
-- 1 = Unverifiable or likely false
+**ACCURACY SCORING (1-5) - Grade each fact for accuracy:**
+- 5 = Verified: Claim fully supported by cited source
+- 4 = Mostly Verified: Largely accurate, minor issues
+- 3 = Partially Verified: Some support but overreaches or misattributes
+- 2 = Weakly Supported: Thin evidence, stats unverified
+- 1 = Not Verified: Fabricated, contradicted, or source doesn't exist
+
+**AI NOTES (REQUIRED - never leave blank):**
+For EVERY fact, you MUST provide aiNotes explaining the score. Examples:
+- Score 5: "Verified. The TWR method explicitly begins with sentence-level instruction before moving to paragraphs. Hochman and Wexler argue writing must be taught 'beginning at the sentence level'."
+- Score 4: "Mostly verified. The study does show 67% preference, though the sample size was limited to urban areas."
+- Score 3: "Partially verified. The source discusses this topic but the specific statistic is not mentioned."
+- Score 2: "Weakly supported. Cannot locate the cited study to verify this claim."
+- Score 1: "Not verified. The source cited does not exist or contradicts this claim."
 
 Output ONLY valid JSON:
 {
@@ -107,7 +116,7 @@ Output ONLY valid JSON:
     "contradictionCount": <count>
   },
   "facts": [
-    { "id": "1", "category": "Research", "source": "Nielsen 2024", "fact": "92% of consumers trust peer recommendations over advertising", "score": 5, "contradicts": null }
+    { "id": "1", "category": "Research", "source": "Nielsen 2024", "fact": "92% of consumers trust peer recommendations over advertising", "score": 5, "aiNotes": "Verified. Nielsen's 2024 Consumer Trust Report confirms this exact statistic on page 14.", "contradicts": null }
   ],
   "contradictionClusters": [
     { "name": "Cluster Name", "factIds": ["1", "2"], "claims": ["Claim 1", "Claim 2"], "tension": "Description", "status": "Flagged" }
