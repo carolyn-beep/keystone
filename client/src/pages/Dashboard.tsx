@@ -1693,7 +1693,7 @@ export default function Dashboard({ slug, isSharedView = false }: DashboardProps
                             padding: '6px 10px',
                             borderRadius: '16px',
                             backgroundColor: isGradeable ? scoreChip.bg : tokens.surfaceAlt,
-                            color: isGradeable ? scoreChip.text : tokens.textTertiary,
+                            color: isGradeable ? scoreChip.text : tokens.textMuted,
                             border: isGradeable ? `1px solid ${scoreChip.text}` : `1px dashed ${tokens.border}`,
                             fontSize: '12px',
                             fontWeight: 600,
@@ -2951,7 +2951,8 @@ export default function Dashboard({ slug, isSharedView = false }: DashboardProps
                                   onClick={() => {
                                     setActiveTab('grading');
                                     setTimeout(() => {
-                                      const el = document.getElementById(`fact-${factId}`);
+                                      const factIdStr = factId.toString();
+                                      const el = document.getElementById(`fact-${factIdStr}`);
                                       el?.scrollIntoView({ behavior: 'smooth', block: 'center' });
                                     }, 100);
                                   }}
