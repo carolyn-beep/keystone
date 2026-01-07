@@ -106,11 +106,23 @@ export async function extractBrainlift(markdownContent: string, sourceType: stri
       : "No sources have been linked to this fact";
     
     for (const f of pendingFacts) {
-      f.aiNotes = sourceNote;
+      // Prioritize Source: [link](link) or similar within the fact text itself if it exists
+      const inlineSourceMatch = f.fact.match(/\(Source:\s*\[?([^\]\)]+)\]?\)?/i);
+      if (inlineSourceMatch && inlineSourceMatch[1]) {
+        f.aiNotes = `Source: ${inlineSourceMatch[1]}`;
+        f.source = inlineSourceMatch[1];
+      } else {
+        f.aiNotes = sourceNote;
+      }
       facts.push(f);
     }
     pendingFacts = [];
   };
+
+  // Check if we even need Knowledge Tree anchor
+  if (!markdownContent.toLowerCase().includes('knowledge tree')) {
+    inKnowledgeTree = true;
+  }
 
   // Title extraction
   let title = "Extracted Brainlift";
@@ -133,14 +145,14 @@ export async function extractBrainlift(markdownContent: string, sourceType: stri
 
     // 1. Detect Knowledge Tree Entry
     if (!inKnowledgeTree) {
-      if (/DOK\s*2\s*-\s*Knowledge\s*Tree/i.test(cleaned) || /^#+\s*Knowledge\s*Tree/i.test(line)) {
+      if (/DOK\s*2\s*-\s*Knowledge\s*Tree/i.test(cleaned) || /^#+\s*Knowledge\s*Tree/i.test(line) || /knowledge\s*tree/i.test(cleaned)) {
         inKnowledgeTree = true;
       }
       continue;
     }
 
     // 2. Identify Context (Categories and Sources)
-    const isCategoryHeader = /^Category\s*\d+/i.test(cleaned) || /^[-•*]\s*\d+\.\s+\w+/i.test(trimmed);
+    const isCategoryHeader = /^Category\s*\d+/i.test(cleaned) || /^[-•*]\s*\d+\.\s+\w+/i.test(trimmed) || (/^#+\s*Category/i.test(line)) || (/^[-•*]\s*Category/i.test(trimmed));
     if (isCategoryHeader) {
       if (inDOK1Section) flushSection();
       flushPendingFacts();
@@ -151,7 +163,7 @@ export async function extractBrainlift(markdownContent: string, sourceType: stri
       continue;
     }
 
-    const isSourceHeader = /^Source\s*\d+/i.test(cleaned) || (indent > 0 && /^[-•*]\s*(Source|\[\d+\])/i.test(trimmed));
+    const isSourceHeader = /^Source\s*\d+/i.test(cleaned) || (indent > 0 && /^[-•*]\s*(Source|\[\d+\])/i.test(trimmed)) || (/^#+\s*Source/i.test(line)) || (/^[-•*]\s*Source/i.test(trimmed));
     if (isSourceHeader) {
       if (inDOK1Section) flushSection();
       flushPendingFacts();
@@ -163,7 +175,7 @@ export async function extractBrainlift(markdownContent: string, sourceType: stri
     }
 
     // 3. Detect DOK Entry Points
-    const isDOK1Trigger = /DOK\s*1\s*-\s*Facts/i.test(cleaned) || /DOK1/i.test(cleaned) || /DOK\s*1\s*Facts/i.test(cleaned);
+    const isDOK1Trigger = /DOK\s*1\s*-\s*Facts/i.test(cleaned) || /DOK1/i.test(cleaned) || /DOK\s*1\s*Facts/i.test(cleaned) || /DOK1\s*Facts/i.test(cleaned) || /DOK\s*1\s*-\s*fact/i.test(cleaned) || /DOK\s*1\s*-\s*Facts/i.test(cleaned) || /DOK1\s*Facts:/i.test(cleaned) || /DOK1\s*Facts/i.test(cleaned) || /DOK\s*1\s*-\s*facts/i.test(cleaned) || /DOK\s*1\s*facts/i.test(cleaned);
     if (isDOK1Trigger) {
       if (inDOK1Section) flushSection();
       inDOK1Section = true;
@@ -179,15 +191,23 @@ export async function extractBrainlift(markdownContent: string, sourceType: stri
       continue;
     }
 
-    // 4. Look for source links within current source context
-    if (url && (inDOK2Section || /link to source/i.test(trimmed) || /source:/i.test(trimmed) || (indent > 0 && !inDOK1Section))) {
-      currentSourceLink = url;
+    // Identification of inline sources like (Source: [link](url))
+    if (inDOK1Section) {
+      const inlineSourceMatch = line.match(/\(Source:\s*\[?([^\]\)]+)\]?\)?/i);
+      if (inlineSourceMatch && inlineSourceMatch[1]) {
+        currentSourceLink = extractUrl(inlineSourceMatch[1]) || inlineSourceMatch[1];
+      }
+    }
+    const potentialUrl = extractUrl(line);
+    if (potentialUrl && (inDOK2Section || /link to source/i.test(trimmed) || /source:/i.test(trimmed) || /Source:/i.test(trimmed) || (indent > 0 && !inDOK1Section))) {
+      currentSourceLink = potentialUrl;
     }
 
     // 5. Handle Content inside DOK1 Section
     if (inDOK1Section) {
-      const isExitSection = /Link/i.test(cleaned) || /Source\s*\d+/i.test(cleaned) || /^Category\s*\d+/i.test(cleaned) || /DOK\s*2/i.test(cleaned);
-      const isHigherLevel = indent <= sectionIndentLevel && trimmed.length > 0;
+      const isExitSection = /Link/i.test(cleaned) || /Source\s*\d+/i.test(cleaned) || /^Category\s*\d+/i.test(cleaned) || /DOK\s*2/i.test(cleaned) || isCategoryHeader || isSourceHeader;
+      const isHeaderLike = (trimmed.length > 0 && !trimmed.startsWith('-') && !trimmed.startsWith('•') && !trimmed.startsWith('*') && !trimmed.startsWith('fact') && !trimmed.startsWith('Fact') && !/^\d+\./.test(trimmed));
+      const isHigherLevel = indent <= sectionIndentLevel && isHeaderLike;
 
       if (isExitSection || isHigherLevel) {
         flushSection();
