@@ -575,6 +575,21 @@ async function saveBrainliftFromAI(data: BrainliftOutput, originalContent?: stri
       };
     }
   })));
+
+  // Calculate dynamic summary stats
+  const totalFacts = factsWithSummaries.length;
+  const gradeableFacts = factsWithSummaries.filter(f => f.isGradeable);
+  const sumScores = gradeableFacts.reduce((sum, f) => sum + f.score, 0);
+  const meanScore = gradeableFacts.length > 0 ? (sumScores / gradeableFacts.length).toFixed(2) : "0";
+  const score5Count = factsWithSummaries.filter(f => f.score === 5).length;
+  const contradictionCount = data.contradictionClusters.length;
+
+  const dynamicSummary = {
+    totalFacts,
+    meanScore,
+    score5Count,
+    contradictionCount
+  };
   
   const clusters = data.contradictionClusters.map((c) => ({
     name: c.name,
@@ -599,7 +614,7 @@ async function saveBrainliftFromAI(data: BrainliftOutput, originalContent?: stri
       title: data.title,
       description: data.description,
       author: null,
-      summary: data.summary,
+      summary: dynamicSummary,
       classification: data.classification,
       improperlyFormatted: data.improperlyFormatted ?? false,
       rejectionReason: data.rejectionReason || null,

@@ -203,7 +203,7 @@ export function calculateConsensus(
     confidenceLevel,
     needsReview,
     verificationNotes: validResults[0]?.rationale || 'No specific rationale provided.',
-    isNonGradeable
+    isNonGradeable: Boolean(isNonGradeable)
   };
 }
 
