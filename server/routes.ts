@@ -477,6 +477,7 @@ async function saveBrainliftFromAI(data: BrainliftOutput, originalContent?: stri
     score: f.score,
     contradicts: f.contradicts,
     note: f.aiNotes || null,
+    flags: f.flags || [],
   }));
   
   const clusters = data.contradictionClusters.map((c) => ({
@@ -504,6 +505,7 @@ async function saveBrainliftFromAI(data: BrainliftOutput, originalContent?: stri
       author: null,
       summary: data.summary,
       classification: data.classification,
+      improperlyFormatted: data.improperlyFormatted ?? false,
       rejectionReason: data.rejectionReason || null,
       rejectionSubtype: data.rejectionSubtype || null,
       rejectionRecommendation: data.rejectionRecommendation || null,

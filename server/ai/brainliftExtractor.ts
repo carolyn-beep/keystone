@@ -6,6 +6,7 @@ const MODEL = 'anthropic/claude-4.5-opus';
 
 const brainliftOutputSchema = z.object({
   classification: z.enum(['brainlift', 'partial', 'not_brainlift']),
+  improperlyFormatted: z.boolean().optional(),
   rejectionReason: z.string().nullable().optional(),
   rejectionSubtype: z.string().nullable().optional(),
   rejectionRecommendation: z.string().nullable().optional(),
@@ -25,6 +26,7 @@ const brainliftOutputSchema = z.object({
     score: z.number().min(1).max(5),
     aiNotes: z.string(),
     contradicts: z.string().nullable(),
+    flags: z.array(z.string()).optional(),
   })),
   contradictionClusters: z.array(z.object({
     name: z.string(),
@@ -158,6 +160,15 @@ const DOK1_HEADER_PATTERNS = [
   /^Facts\s*[-:]/i,
 ];
 
+// DOK2 Knowledge Tree patterns
+const DOK2_TREE_PATTERNS = [
+  /^#+\s*DOK2\s*Knowledge\s*Tree/i,
+  /^#+\s*DOK-2\s*Knowledge\s*Tree/i,
+  /^DOK2\s*Knowledge\s*Tree/i,
+  /^DOK-2\s*Knowledge\s*Tree/i,
+  /^\*\*DOK2\s*Knowledge\s*Tree/i,
+];
+
 // Stop patterns - when to stop extracting DOK1 content
 const STOP_PATTERNS = [
   /^#+\s*DOK\s*[234]\b/i,
@@ -180,9 +191,17 @@ function isDOK1Header(line: string): boolean {
   return DOK1_HEADER_PATTERNS.some(pattern => pattern.test(trimmed));
 }
 
+// Check if line is a DOK2 Knowledge Tree header
+function isDOK2TreeHeader(line: string): boolean {
+  const trimmed = line.trim();
+  return DOK2_TREE_PATTERNS.some(pattern => pattern.test(trimmed));
+}
+
 // Check if line is a stop pattern
 function isStopPattern(line: string): boolean {
   const trimmed = line.trim();
+  // Don't stop on DOK2 Knowledge Tree anymore as it's part of the extraction extension
+  if (isDOK2TreeHeader(line)) return false;
   return STOP_PATTERNS.some(pattern => pattern.test(trimmed));
 }
 
@@ -210,6 +229,7 @@ function extractDOK1Content(content: string): {
   const dok1Facts: string[] = [];
   const usedIndices = new Set<number>();
   let inDOK1Section = false;
+  let inDOK2Tree = false;
   let inlineCount = 0;
   let sectionCount = 0;
   
@@ -228,8 +248,6 @@ function extractDOK1Content(content: string): {
         const contextLine = lines[j].trim();
         if (contextLine && !dok1Facts.includes(contextLine)) {
           dok1Facts.push(contextLine);
-          // Only mark the actual line as used for removal, or should we mark context too?
-          // The user said "removal must be precise". Let's just mark the line with (DOK1).
         }
       }
       dok1Facts.push('---');
@@ -240,17 +258,29 @@ function extractDOK1Content(content: string): {
     // Check for DOK1 section header
     if (isDOK1Header(line)) {
       inDOK1Section = true;
+      inDOK2Tree = false;
       usedIndices.add(i);
       dok1Facts.push(`[DOK1 SECTION: ${trimmed}]`);
       continue;
     }
+
+    // Check for DOK2 Knowledge Tree header
+    if (isDOK2TreeHeader(line)) {
+      inDOK2Tree = true;
+      inDOK1Section = false;
+      // We DON'T add DOK2 tree lines to usedIndices here because we want 
+      // the extension logic in the prompt to still see the structure
+      // but the pre-filter should skip standard extraction from here
+      continue;
+    }
     
-    // Check for stop pattern (end of DOK1 section)
+    // Check for stop pattern (end of sections)
     if (isStopPattern(line)) {
       if (inDOK1Section) {
         dok1Facts.push('---[END DOK1 SECTION]---');
       }
       inDOK1Section = false;
+      inDOK2Tree = false;
       continue;
     }
     
@@ -292,6 +322,14 @@ export async function extractBrainlift(content: string, sourceType: string): Pro
   const userPrompt = `Analyze the following ${sourceType} content and create a DOK1 grading brainlift.
 
 ${isImproperlyFormatted ? 'WARNING: This document is "improperly formatted" (no standard DOK1 markers found). Search for factual claims in other structures like "DOK2 Knowledge Tree".\n' : ''}
+
+**SPECIAL EXTENSION MECHANISM - DOK2 KNOWLEDGE TREE:**
+1. Locate the "DOK2 Knowledge Tree" section header.
+2. Everything under this header is a potential DOK1 fact.
+3. Each sub-section header under "DOK2 Knowledge Tree" is likely a DOK1 fact.
+4. For each potential fact found:
+   - Does it have a link/URL immediately under it? If NOT, flag it as "Incomplete/Unverifiable" in the "flags" field.
+   - Does it lack a DOK2 summary accompanying it? If so, flag it as "Bad Structure" in the "flags" field.
 
 IMPORTANT: Standard DOK1 content has been pre-filtered for you:
 - Inline (DOK1) marked facts: ${inlineCount}
@@ -355,6 +393,11 @@ Remember to output ONLY valid JSON matching the required structure.`;
   if (parsed.title === null) parsed.title = 'Untitled Brainlift';
   if (parsed.description === null) parsed.description = 'DOK1 Grading Analysis';
   if (parsed.author === null) parsed.author = undefined;
+  
+  // Tag as improperly formatted if pre-filter found nothing
+  if (isImproperlyFormatted) {
+    parsed.improperlyFormatted = true;
+  }
   
   const validated = brainliftOutputSchema.safeParse(parsed);
   if (!validated.success) {

@@ -101,6 +101,7 @@ export class DatabaseStorage implements IStorage {
 
     return {
       ...brainlift,
+      improperlyFormatted: brainlift.improperlyFormatted ?? false,
       facts: brainliftFacts,
       contradictionClusters: clusters,
       readingList: readingList,
@@ -120,7 +121,17 @@ export class DatabaseStorage implements IStorage {
     const [brainlift] = await db.insert(brainlifts).values(dataWithUser).returning();
 
     if (factsData.length > 0) {
-      await db.insert(facts).values(factsData.map(f => ({ ...f, brainliftId: brainlift.id })));
+      await db.insert(facts).values(factsData.map(f => ({ 
+        brainliftId: brainlift.id,
+        originalId: f.originalId,
+        category: f.category,
+        source: f.source,
+        fact: f.fact,
+        score: f.score,
+        contradicts: f.contradicts,
+        note: f.note,
+        flags: f.flags || []
+      })));
     }
 
     if (clustersData.length > 0) {
