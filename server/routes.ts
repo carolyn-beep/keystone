@@ -635,7 +635,7 @@ async function saveBrainliftFromAI(data: BrainliftOutput, originalContent?: stri
     url: r.url,
   }));
 
-  return storage.createBrainlift(
+  const brainlift = await storage.createBrainlift(
     {
       slug,
       title: data.title,
@@ -655,6 +655,27 @@ async function saveBrainliftFromAI(data: BrainliftOutput, originalContent?: stri
     finalReadingList,
     userId
   );
+
+  // Extract and rank experts after brainlift is created
+  try {
+    const expertData = await extractAndRankExperts({
+      brainliftId: brainlift.id,
+      title: data.title,
+      description: data.description,
+      author: null,
+      facts: factsWithSummaries as any[],
+      originalContent: originalContent,
+      readingList: finalReadingList,
+    });
+    
+    if (expertData.length > 0) {
+      await storage.saveExperts(brainlift.id, expertData);
+    }
+  } catch (err) {
+    console.error("Expert extraction failed during brainlift creation:", err);
+  }
+
+  return storage.getBrainliftBySlug(slug) as Promise<BrainliftData>;
 }
 
 export async function registerRoutes(
@@ -959,7 +980,26 @@ export async function registerRoutes(
         readingList
       );
 
-      res.json(updatedBrainlift);
+      // Extract and rank experts after brainlift is updated
+      try {
+        const expertData = await extractAndRankExperts({
+          brainliftId: updatedBrainlift.id,
+          title: brainliftData.title,
+          description: brainliftData.description,
+          author: null,
+          facts: facts as any[],
+          originalContent: content,
+          readingList: readingList,
+        });
+        
+        if (expertData.length > 0) {
+          await storage.saveExperts(updatedBrainlift.id, expertData);
+        }
+      } catch (err) {
+        console.error("Expert extraction failed during brainlift update:", err);
+      }
+
+      res.json(await storage.getBrainliftBySlug(slug));
     } catch (err: any) {
       console.error('Update error:', err);
       res.status(500).json({ message: err.message || 'Failed to update brainlift' });
