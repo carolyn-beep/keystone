@@ -46,9 +46,53 @@ const brainliftOutputSchema = z.object({
     facts: z.string(),
     url: z.string(),
   })),
+  experts: z.array(z.object({
+    name: z.string(),
+    bio: z.string(),
+    focus: z.string(),
+    why: z.string(),
+    contact: z.string(),
+    citationCount: z.number(),
+  })),
 });
 
 export type BrainliftOutput = z.infer<typeof brainliftOutputSchema>;
+
+export async function extractExperts(title: string, description: string, facts: any[], markdownContent: string): Promise<any[]> {
+  try {
+    const response = await openai.chat.completions.create({
+      model: "anthropic/claude-3.5-sonnet",
+      messages: [
+        {
+          role: "system",
+          content: `You are a research assistant. Extract a list of experts mentioned in the provided brainlift content.
+          For each expert, provide:
+          - name: Full Name
+          - bio: Brief biography (the "Who" section)
+          - focus: Their main area of focus
+          - why: Why they are relevant to this topic
+          - contact: Any contact information found (email, phone, social handles, website)
+          
+          RANK them based on how many times they or their work are cited/mentioned in the facts.
+          Provide a 'citationCount' (simple integer estimate of mentions).
+
+          Output ONLY a valid JSON array of objects with keys: name, bio, focus, why, contact, citationCount.`
+        },
+        {
+          role: "user",
+          content: `Title: ${title}\nDescription: ${description}\nContent:\n${markdownContent}\n\nFacts:\n${facts.map(f => f.fact).join('\n')}`
+        }
+      ]
+    });
+
+    const content = response.choices[0].message.content?.trim() || "[]";
+    const jsonMatch = content.match(/\[[\s\S]*\]/);
+    return jsonMatch ? JSON.parse(jsonMatch[0]) : [];
+  } catch (err) {
+    console.error("Expert extraction failed:", err);
+    return [];
+  }
+}
 
 export async function extractReadingList(title: string, description: string, facts: any[]): Promise<any[]> {
   try {
