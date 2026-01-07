@@ -28,6 +28,7 @@ export const brainlifts = pgTable("brainlifts", {
   rejectionRecommendation: text("rejection_recommendation"),
   flags: text("flags").array(),
   improperlyFormatted: boolean("improperly_formatted").default(false).notNull(),
+  debugInfo: jsonb("debug_info"),
   originalContent: text("original_content"),
   sourceType: text("source_type"),
   summary: jsonb("summary").$type<{

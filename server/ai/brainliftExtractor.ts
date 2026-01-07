@@ -7,6 +7,7 @@ const MODEL = 'anthropic/claude-4.5-opus';
 const brainliftOutputSchema = z.object({
   classification: z.enum(['brainlift', 'partial', 'not_brainlift']),
   improperlyFormatted: z.boolean().optional(),
+  debugInfo: z.any().optional(),
   rejectionReason: z.string().nullable().optional(),
   rejectionSubtype: z.string().nullable().optional(),
   rejectionRecommendation: z.string().nullable().optional(),
@@ -488,6 +489,17 @@ Output facts in this JSON format:
   // 5. Merge results
   const mergedFacts = [...(baseOutput.facts || []), ...extendedFacts];
   
+  // Debug info for the user
+  const debugInfo = {
+    totalSegmentsFound: treeSegments.length,
+    segments: treeSegments.map((s, i) => ({
+      id: i,
+      length: s.length,
+      preview: s.substring(0, 200) + (s.length > 200 ? '...' : ''),
+      processed: s.length >= 30
+    }))
+  };
+  
   // Re-calculate summary
   const gradeableFacts = mergedFacts.filter(f => f.score > 0);
   const totalFacts = mergedFacts.length;
@@ -500,6 +512,7 @@ Output facts in this JSON format:
   const finalResult = {
     ...baseOutput,
     improperlyFormatted: isImproperlyFormatted,
+    debugInfo,
     facts: mergedFacts,
     summary: {
       ...baseOutput.summary,
