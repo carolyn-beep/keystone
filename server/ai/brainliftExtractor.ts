@@ -261,8 +261,9 @@ function extractDOK2TreeSegments(content: string): {
     if (!trimmed) continue;
     
     // Start new segment on sub-headers or major bullet points
-    if (subHeaderPattern.test(trimmed) || (trimmed.startsWith('-') && trimmed.length > 30)) {
-      if (currentSegment.length > 10) { // Keep segments substantial
+    // We lowered the length threshold to be even more aggressive (20 chars)
+    if (subHeaderPattern.test(trimmed) || (trimmed.startsWith('-') && trimmed.length > 20)) {
+      if (currentSegment.length > 5) { // Smaller segments are better for extraction
         segments.push(currentSegment.join('\n'));
         currentSegment = [line];
       } else {
@@ -453,14 +454,14 @@ Output ONLY valid JSON.`;
     // Only process if segment has meaningful length
     if (segment.length < 30) continue;
     
-    const segmentPrompt = `Analyze this segment from a "DOK2 Knowledge Tree" section and extract ALL DOK1 facts.
+    const segmentPrompt = `Analyze this segment from a "DOK2 Knowledge Tree" section and extract EVERY factual claim as a DOK1 fact.
 
 IMPORTANT: DOK2 Knowledge Trees often embed DOK1 facts within nested lists or descriptions.
-1. Extract EVERY specific claim, statistic, or named feature as a separate DOK1 fact.
-2. If a sub-section describes a platform (e.g., "MoneySkill"), extract its specific features, results, and shortcomings as individual facts.
+1. Extract EVERY specific claim, statistic, named feature, benefit, or shortcoming as a separate DOK1 fact.
+2. For platforms (e.g., "MoneySkill", "Zogo", "The Sims"), extract each feature, result, and limitation as individual facts.
 3. Every descriptive bullet point is a potential DOK1 fact.
 4. If a fact lacks a direct source/citation in this segment, assign Score 0 (Non-Gradeable) and explain in aiNotes.
-5. DO NOT skip content. If it looks like a fact, extract it.
+5. BE AGGRESSIVE: If it looks like a fact or a specific observation about a platform, extract it. Do not group them; keep them atomic.
 
 SEGMENT:
 ---
