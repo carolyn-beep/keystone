@@ -140,7 +140,8 @@ export async function extractBrainlift(markdownContent: string, sourceType: stri
     }
 
     // 2. Identify Context (Categories and Sources)
-    if (/^Category\s*\d+/i.test(cleaned)) {
+    const isCategoryHeader = /^Category\s*\d+/i.test(cleaned) || /^[-•*]\s*\d+\.\s+\w+/i.test(trimmed);
+    if (isCategoryHeader) {
       if (inDOK1Section) flushSection();
       flushPendingFacts();
       currentCategory = cleaned;
@@ -150,7 +151,8 @@ export async function extractBrainlift(markdownContent: string, sourceType: stri
       continue;
     }
 
-    if (/^Source\s*\d+/i.test(cleaned)) {
+    const isSourceHeader = /^Source\s*\d+/i.test(cleaned) || (indent > 0 && /^[-•*]\s*(Source|\[\d+\])/i.test(trimmed));
+    if (isSourceHeader) {
       if (inDOK1Section) flushSection();
       flushPendingFacts();
       currentSource = cleaned;
@@ -161,7 +163,8 @@ export async function extractBrainlift(markdownContent: string, sourceType: stri
     }
 
     // 3. Detect DOK Entry Points
-    if (/DOK\s*1\s*-\s*Facts/i.test(cleaned) || /DOK1/i.test(cleaned)) {
+    const isDOK1Trigger = /DOK\s*1\s*-\s*Facts/i.test(cleaned) || /DOK1/i.test(cleaned) || /DOK\s*1\s*Facts/i.test(cleaned);
+    if (isDOK1Trigger) {
       if (inDOK1Section) flushSection();
       inDOK1Section = true;
       inDOK2Section = false;
