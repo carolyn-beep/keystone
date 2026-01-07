@@ -44,17 +44,9 @@ const brainliftOutputSchema = z.object({
 
 export type BrainliftOutput = z.infer<typeof brainliftOutputSchema>;
 
-// Regex patterns for section detection
-const KNOWLEDGE_TREE_PATTERNS = [
-  /DOK\s*2\s*-\s*Knowledge\s*Tree/i,
-  /DOK2/i,
-  /Knowledge\s*Tree/i
-];
-
-const DOK1_PATTERNS = [
-  /Category/i,
-  /DOK1/i
-];
+// Detection patterns for DOK sections
+const KNOWLEDGE_TREE_MARKER = "DOK 2 - Knowledge Tree";
+const DOK1_PATTERNS = [/DOK1/i, /Category/i];
 
 function isBulletPoint(line: string): boolean {
   const trimmed = line.trim();
@@ -65,53 +57,66 @@ function cleanLine(line: string): string {
   return line.trim().replace(/^[-•*]\s*/, '').replace(/^\d+[\.\)]\s*/, '');
 }
 
-export async function extractBrainlift(content: string, sourceType: string): Promise<BrainliftOutput> {
-  const lines = content.split('\n');
+export async function extractBrainlift(markdownContent: string, sourceType: string): Promise<BrainliftOutput> {
+  const lines = markdownContent.split('\n');
   const facts: any[] = [];
   let currentCategory = 'General';
   let inKnowledgeTree = false;
   let factIdCounter = 1;
 
-  // Simple title extraction from first non-empty line
-  const title = lines.find(l => l.trim())?.trim().substring(0, 100) || "Extracted Brainlift";
+  // Title extraction: use first H1 if available, otherwise first non-empty line
+  let title = "Extracted Brainlift";
+  const h1Match = lines.find(l => l.startsWith('# '));
+  if (h1Match) {
+    title = h1Match.replace('# ', '').trim();
+  } else {
+    const firstLine = lines.find(l => l.trim());
+    if (firstLine) title = firstLine.trim().substring(0, 100);
+  }
 
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
     const trimmed = line.trim();
     if (!trimmed) continue;
 
-    // Look for Knowledge Tree Header if not found yet
+    // Detect Knowledge Tree Section Header
+    // We expect this to be a main header (H1 or H2)
     if (!inKnowledgeTree) {
-      if (KNOWLEDGE_TREE_PATTERNS.some(p => p.test(trimmed))) {
+      if (trimmed.includes(KNOWLEDGE_TREE_MARKER) || /^#+\s*Knowledge\s*Tree/i.test(trimmed)) {
         inKnowledgeTree = true;
       }
       continue;
     }
 
-    // Inside Knowledge Tree: check for DOK1/Category headers
-    const isSubsectionHeader = trimmed.startsWith('#') || (trimmed.startsWith('**') && trimmed.endsWith('**'));
-    
-    if (isSubsectionHeader) {
-      if (DOK1_PATTERNS.some(p => p.test(trimmed))) {
-        currentCategory = trimmed.replace(/[#*]/g, '').trim();
-      } else {
-        // If it's a header but not explicitly DOK1, it's still a potential category/DOK1 in the tree
-        currentCategory = trimmed.replace(/[#*]/g, '').trim();
-      }
+    // Check for Section Exit (if we hit another DOK section header at the same level)
+    // For now, we process until the end of file or a higher-level header if we used H2
+    if (trimmed.startsWith('# ') && inKnowledgeTree && !trimmed.includes(KNOWLEDGE_TREE_MARKER)) {
+        // If we hit a new top-level header, we might have left the tree
+        // But the user says DOK1s are subsections of the tree
+    }
+
+    // Subsection Header detection (Potential DOK1s)
+    // Markdown headers like ## Subsection or ### Subsection
+    if (trimmed.startsWith('#')) {
+      const headerText = trimmed.replace(/^#+\s*/, '').trim();
+      
+      // If header contains DOK1, it's definitely a DOK1
+      // If it's a subsection of the tree, it's a potential DOK1
+      currentCategory = headerText;
       continue;
     }
 
-    // Extract facts (bullet points)
+    // Fact extraction (Bullet points under headers)
     if (isBulletPoint(line)) {
       const factText = cleanLine(line);
-      if (factText.length > 10) {
+      if (factText.length > 5) {
         facts.push({
           id: `${factIdCounter++}`,
           category: currentCategory,
-          source: null, // Basic extraction doesn't parse source yet
+          source: null,
           fact: factText,
-          score: 0, // No grading as requested
-          aiNotes: "Extracted via regex pattern matching.",
+          score: 0,
+          aiNotes: "Extracted from Markdown Knowledge Tree subsection.",
           contradicts: null,
           flags: []
         });
@@ -122,7 +127,7 @@ export async function extractBrainlift(content: string, sourceType: string): Pro
   const finalResult = {
     classification: 'brainlift' as const,
     title,
-    description: `DOK1 extraction from ${sourceType}`,
+    description: `Markdown-based DOK1 extraction from ${sourceType}`,
     summary: {
       totalFacts: facts.length,
       meanScore: "0",

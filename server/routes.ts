@@ -112,11 +112,20 @@ async function extractTextFromPDF(buffer: Buffer): Promise<string> {
   const pdfParseModule = await import('pdf-parse');
   const pdfParse = (pdfParseModule as any).default || pdfParseModule;
   const data = await pdfParse(buffer);
-  return data.text;
+  
+  // Convert basic PDF structure to pseudo-markdown (e.g., bullet points)
+  return data.text.split('\n')
+    .map((line: string) => {
+      const trimmed = line.trim();
+      if (trimmed.length > 50 && !trimmed.includes('-')) return `## ${trimmed}`; // Treat long lines without bullets as headers
+      return line;
+    })
+    .join('\n');
 }
 
 async function extractTextFromDocx(buffer: Buffer): Promise<string> {
-  const result = await mammoth.extractRawText({ buffer });
+  // Mammoth already supports markdown output
+  const result = await mammoth.convertToMarkdown({ buffer });
   return result.value;
 }
 
