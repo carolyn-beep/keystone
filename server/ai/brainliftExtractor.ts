@@ -261,9 +261,9 @@ function extractDOK2TreeSegments(content: string): {
     if (!trimmed) continue;
     
     // Start new segment on sub-headers or major bullet points
-    // We lowered the length threshold to be even more aggressive (20 chars)
-    if (subHeaderPattern.test(trimmed) || (trimmed.startsWith('-') && trimmed.length > 20)) {
-      if (currentSegment.length > 5) { // Smaller segments are better for extraction
+    // We lowered the length threshold even further to capture platform entries
+    if (subHeaderPattern.test(trimmed) || (trimmed.startsWith('-') && trimmed.length > 10)) {
+      if (currentSegment.length > 2) { // Extremely small segments for maximum AI focus
         segments.push(currentSegment.join('\n'));
         currentSegment = [line];
       } else {
@@ -454,14 +454,14 @@ Output ONLY valid JSON.`;
     // Only process if segment has meaningful length
     if (segment.length < 30) continue;
     
-    const segmentPrompt = `Analyze this segment from a "DOK2 Knowledge Tree" section and extract EVERY factual claim as a DOK1 fact.
+    const segmentPrompt = `Analyze this segment from a "DOK2 Knowledge Tree" and extract EVERY specific claim as a DOK1 fact.
 
 IMPORTANT: DOK2 Knowledge Trees often embed DOK1 facts within nested lists or descriptions.
-1. Extract EVERY specific claim, statistic, named feature, benefit, or shortcoming as a separate DOK1 fact.
-2. For platforms (e.g., "MoneySkill", "Zogo", "The Sims"), extract each feature, result, and limitation as individual facts.
-3. Every descriptive bullet point is a potential DOK1 fact.
+1. Extract EVERY platform, feature, statistic, result, benefit, and shortcoming as a separate DOK1 fact.
+2. For platforms like "MoneySkill", "HandsOnBanking", "Zogo", "The Sims", etc., extract each descriptive bullet point as an individual fact.
+3. Every claim about a target audience, access method, novelty, or business model is a DOK1 fact.
 4. If a fact lacks a direct source/citation in this segment, assign Score 0 (Non-Gradeable) and explain in aiNotes.
-5. BE AGGRESSIVE: If it looks like a fact or a specific observation about a platform, extract it. Do not group them; keep them atomic.
+5. BE EXTREMELY AGGRESSIVE: If it's a specific observation, extract it. Do not group them. Aim for 5-10 facts per segment if the content is dense.
 
 SEGMENT:
 ---
