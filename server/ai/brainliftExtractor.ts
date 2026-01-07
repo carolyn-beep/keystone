@@ -383,12 +383,12 @@ If NO tension exists, return EXACTLY:
     
     if (result.result === "NONE") return [];
 
-    const ids = result.tension.match(/Fact\s+([^\s,.]+)|Facts\s+([^\s,.]+)/g)?.map(m => m.replace(/Facts?\s+/, '')) || [];
+    const ids = result.tension.match(/Fact\s+([^\s,.]+)|Facts\s+([^\s,.]+)/g)?.map((m: any) => m.replace(/Facts?\s+/, '')) || [];
     
     return [{
       name: result.title,
       factIds: ids,
-      claims: ids.map(id => facts.find(f => f.id === id)?.fact).filter(Boolean),
+      claims: ids.map((id: any) => facts.find(f => f.id === id)?.fact).filter(Boolean),
       tension: result.tension,
       status: "Flagged"
     }];

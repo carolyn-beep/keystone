@@ -631,7 +631,7 @@ async function saveBrainliftFromAI(data: BrainliftOutput, originalContent?: stri
   };
   
   // Use either the extracted reading list or the one from input data (if any)
-  const finalReadingList = extractedReadingList.length > 0 ? extractedReadingList : (data.readingList || []).map((r) => ({
+  const finalReadingList = extractedReadingList.length > 0 ? extractedReadingList : (data.readingList || []).map((r: any) => ({
     type: r.type,
     author: r.author,
     topic: r.topic,
@@ -641,7 +641,7 @@ async function saveBrainliftFromAI(data: BrainliftOutput, originalContent?: stri
   }));
 
   // Map experts
-  const finalExperts = extractedExperts.map((e: any) => ({
+  const finalExperts = (extractedExperts || []).map((e: any) => ({
     name: e.name,
     bio: e.bio,
     focus: e.focus,
