@@ -507,8 +507,8 @@ async function saveBrainliftFromAI(data: BrainliftOutput, originalContent?: stri
   
   const limit = pLimit(5); // Process 5 facts concurrently
 
-  // Run fact processing, contradiction detection, reading list extraction, and expert extraction in parallel
-  const [factsWithSummaries, contradictionClusters, extractedReadingList, extractedExperts] = await Promise.all([
+  // Run fact processing, contradiction detection, and reading list extraction in parallel
+  const [factsWithSummaries, contradictionClusters, extractedReadingList] = await Promise.all([
     Promise.all(data.facts.map(fact => limit(async () => {
       const summary = await summarizeFact(fact.fact);
       
@@ -600,11 +600,6 @@ async function saveBrainliftFromAI(data: BrainliftOutput, originalContent?: stri
     (async () => {
       const { extractReadingList } = await import("./ai/brainliftExtractor");
       return extractReadingList(data.title, data.description, data.facts);
-    })(),
-    // Parallel expert extraction
-    (async () => {
-      const { extractExperts } = await import("./ai/brainliftExtractor");
-      return extractExperts(data.title, data.description, data.facts, originalContent || "");
     })()
   ]);
 
@@ -631,23 +626,13 @@ async function saveBrainliftFromAI(data: BrainliftOutput, originalContent?: stri
   };
   
   // Use either the extracted reading list or the one from input data (if any)
-  const finalReadingList = extractedReadingList.length > 0 ? extractedReadingList : (data.readingList || []).map((r: any) => ({
+  const finalReadingList = extractedReadingList.length > 0 ? extractedReadingList : (data.readingList || []).map((r) => ({
     type: r.type,
     author: r.author,
     topic: r.topic,
     time: r.time,
     facts: r.facts,
     url: r.url,
-  }));
-
-  // Map experts
-  const finalExperts = (extractedExperts || []).map((e: any) => ({
-    name: e.name,
-    bio: e.bio,
-    focus: e.focus,
-    why: e.why,
-    contact: e.contact,
-    rankScore: e.citationCount
   }));
 
   return storage.createBrainlift(
@@ -668,8 +653,7 @@ async function saveBrainliftFromAI(data: BrainliftOutput, originalContent?: stri
     factsWithSummaries,
     clusters,
     finalReadingList,
-    userId,
-    finalExperts
+    userId
   );
 }
 
