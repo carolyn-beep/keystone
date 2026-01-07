@@ -222,77 +222,70 @@ export async function extractBrainlift(markdownContent: string, sourceType: stri
 }
 
 async function findContradictions(facts: any[]): Promise<any[]> {
-  const clusters: any[] = [];
-  const processedIndices = new Set<number>();
+  if (facts.length < 2) return [];
 
-  for (let i = 0; i < facts.length; i++) {
-    if (processedIndices.has(i)) continue;
+  try {
+    const response = await openai.chat.completions.create({
+      model: "anthropic/claude-3.5-sonnet", // Using a powerful large-context model
+      messages: [
+        {
+          role: "system",
+          content: `You detect FACTUAL / LOGICAL contradictions (aka “competing claims”) between facts.
 
-    for (let j = i + 1; j < facts.length; j++) {
-      if (processedIndices.has(j)) continue;
+Definitions
+- A contradiction exists ONLY when two facts cannot both be true at the same time OR they assert opposite directions/valence about the same proposition.
+- “Interpretive tension” is allowed ONLY if it is an explicit, unresolved conceptual conflict about the SAME underlying variable (not just “unfairness” or “bad vibes”).
 
-      const factA = facts[i].fact;
-      const factB = facts[j].fact;
+You MUST be strict:
+DO NOT flag “complementary” or “supporting” facts as contradictions.
+DO NOT flag “X is big” vs “X causes harm” unless the harm claim explicitly says the opposite about the SAME measurable proposition.
+DO NOT create moral/justice tensions (e.g., “they make money but don’t pay athletes”) unless it is framed as a logical incompatibility.
 
-      // Simple heuristic for candidates
-      const factALower = factA.toLowerCase();
-      const factBLower = factB.toLowerCase();
-      const tensionKeywords = ['however', 'but', 'contradict', 'disagree', 'instead', 'whereas', 'opposite', 'increase', 'decrease', 'high', 'low'];
-      
-      const potentialConflict = tensionKeywords.some(word => 
-        factALower.includes(word) || factBLower.includes(word)
-      );
+What counts as a contradiction (must map to one of these):
+1) X vs NOT X (same entity, same scope, same timeframe/conditions)
+2) beneficial vs harmful (same intervention/variable, same outcome dimension)
+3) increasing vs decreasing (same metric, same population, same period)
+4) mutually exclusive policy/structure claims (e.g., “schools cannot pay athletes” vs “schools can pay athletes now” in the same ruleset/time)
 
-      if (potentialConflict) {
-        try {
-          const response = await openai.chat.completions.create({
-            model: "qwen/qwen-turbo",
-            messages: [
-              {
-                role: "system",
-                content: `You are an expert at identifying logical contradictions and interpretive tensions in educational research. 
-
-A CONTRADICTION exists ONLY if:
-1. Fact A claims X, but Fact B claims NOT X.
-2. Fact A claims X is beneficial, but Fact B claims X is harmful.
-3. Fact A claims X is increasing, but Fact B claims X is decreasing.
-4. There is a deep, unresolved conceptual conflict between the two claims.
-
-DO NOT identify "complementary" facts as contradictions. For example, if Fact A says there is a pay gap and Fact B says there is a lack of financial training, these are NOT contradictions—they are related problems that support the same conclusion.
-
-If a true contradiction exists:
-- title: A short, catchy title representing the tension (e.g., 'Writing Load vs Learning Gain').
-- tension: A short "vs" sentence that references the facts that contradict each other (e.g., 'Increasing writing load vs decreasing learning gain' or 'Fact A claims X vs Fact B claims Y'). It should be very concise.
-
-If no logical contradiction exists, return 'NONE'.`
-              },
-              {
-                role: "user",
-                content: `Fact 1: ${factA}\nFact 2: ${factB}\n\nReturn JSON: { "isContradiction": boolean, "title": string, "tension": string }`
-              }
-            ],
-            response_format: { type: "json_object" }
-          });
-
-          const result = JSON.parse(response.choices[0].message.content || "{}");
-
-          if (result.isContradiction) {
-            clusters.push({
-              name: result.title,
-              factIds: [facts[i].id, facts[j].id],
-              claims: [factA, factB],
-              tension: result.tension,
-              status: "Flagged"
-            });
-            processedIndices.add(i);
-            processedIndices.add(j);
-            break;
-          }
-        } catch (err) {
-          console.error("Contradiction AI analysis failed:", err);
-        }
-      }
-    }
+Output rules (IMPORTANT)
+- Return ONLY valid JSON. No markdown, no extra text.
+- If you find at least one contradiction, return an array of objects:
+[
+  {
+    "title": "...",
+    "tension": "Fact <id1> vs Fact <id2>[, Fact <id3>...]",
+    "explanation": "One sentence explaining why these facts cannot both be true (or why the concept is mutually exclusive)."
   }
-  return clusters;
+]
+- The "tension" field MUST start with "Fact " and MUST reference fact IDs exactly as provided.
+- Prefer the MINIMAL set of facts that creates the contradiction (usually 2).
+- If there is no contradiction, return: NONE`
+        },
+        {
+          role: "user",
+          content: `List of Facts:\n${facts.map(f => `ID: ${f.id} - ${f.fact}`).join('\n')}\n\nAnalyze the facts and return JSON as specified.`
+        }
+      ]
+    });
+
+    const content = response.choices[0].message.content?.trim() || "";
+    if (content === "NONE") return [];
+
+    const results = JSON.parse(content);
+    if (!Array.isArray(results)) return [];
+
+    return results.map(res => ({
+      name: res.title,
+      factIds: res.tension.match(/Fact\s+([^\s,]+)/g)?.map(m => m.replace('Fact ', '')) || [],
+      claims: (res.tension.match(/Fact\s+([^\s,]+)/g)?.map(m => {
+        const id = m.replace('Fact ', '');
+        return facts.find(f => f.id === id)?.fact;
+      }).filter(Boolean)) || [],
+      tension: res.tension + ". " + res.explanation,
+      status: "Flagged"
+    }));
+  } catch (err) {
+    console.error("Contradiction AI analysis failed:", err);
+    return [];
+  }
 }
