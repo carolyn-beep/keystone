@@ -604,18 +604,22 @@ async function saveBrainliftFromAI(data: BrainliftOutput, originalContent?: stri
     // Parallel expert extraction
     (async () => {
       const { extractAndRankExperts } = await import("./ai/expertExtractor");
-      // We need a brainliftId but it's not created yet. 
-      // The expertExtractor uses it for the returned object.
-      // We'll pass 0 and update it later or handle it in createBrainlift.
-      return extractAndRankExperts({
-        brainliftId: 0, 
-        title: data.title,
-        description: data.description,
-        author: (data as any).author || null,
-        facts: data.facts as any,
-        originalContent: originalContent,
-        readingList: data.readingList
-      });
+      try {
+        const experts = await extractAndRankExperts({
+          brainliftId: 0, 
+          title: data.title,
+          description: data.description,
+          author: (data as any).author || null,
+          facts: data.facts as any,
+          originalContent: originalContent,
+          readingList: data.readingList
+        });
+        console.log(`Expert extraction completed: ${experts.length} found`);
+        return experts;
+      } catch (err) {
+        console.error("Expert extraction error:", err);
+        return [];
+      }
     })()
   ]);
 
@@ -960,15 +964,21 @@ export async function registerRoutes(
       // Extra ranking for experts during update
       const { extractAndRankExperts } = await import("./ai/expertExtractor");
       const currentBrainlift = await storage.getBrainliftBySlug(slug);
-      const extractedExperts = await extractAndRankExperts({
-        brainliftId: currentBrainlift?.id || 0,
-        title: brainliftData.title,
-        description: brainliftData.description,
-        author: (brainliftData as any).author || null,
-        facts: brainliftData.facts as any,
-        originalContent: content,
-        readingList: brainliftData.readingList
-      });
+      let extractedExperts: any[] = [];
+      try {
+        extractedExperts = await extractAndRankExperts({
+          brainliftId: currentBrainlift?.id || 0,
+          title: brainliftData.title,
+          description: brainliftData.description,
+          author: (data as any).author || null,
+          facts: brainliftData.facts as any,
+          originalContent: content,
+          readingList: brainliftData.readingList
+        });
+        console.log(`Expert extraction (update) completed: ${extractedExperts.length} found`);
+      } catch (err) {
+        console.error("Expert extraction (update) error:", err);
+      }
 
       const updatedBrainlift = await storage.updateBrainlift(
         slug,

@@ -121,21 +121,21 @@ export class DatabaseStorage implements IStorage {
   ): Promise<BrainliftData> {
     // Transaction-like insertion
     const dataWithUser = userId ? { ...brainliftData, createdByUserId: userId } : brainliftData;
-    const [brainlift] = await db.insert(brainlifts).values(dataWithUser).returning();
+    const [brainlift] = await db.insert(brainlifts).values(dataWithUser as any).returning();
 
     if (factsData.length > 0) {
       const factsToInsert = factsData.map(f => ({ 
         brainliftId: brainlift.id,
-        originalId: f.originalId,
-        category: f.category,
-        source: f.source,
-        fact: f.fact,
-        summary: f.summary,
-        score: f.score,
-        contradicts: f.contradicts,
-        note: f.note,
-        flags: f.flags || [],
-        isGradeable: f.score > 0
+        originalId: String(f.originalId),
+        category: String(f.category),
+        source: f.source ? String(f.source) : null,
+        fact: String(f.fact),
+        summary: f.summary ? String(f.summary) : null,
+        score: Number(f.score),
+        contradicts: f.contradicts ? String(f.contradicts) : null,
+        note: f.note ? String(f.note) : null,
+        flags: Array.isArray(f.flags) ? f.flags : [],
+        isGradeable: Boolean(f.isGradeable ?? (f.score > 0))
       }));
       await db.insert(facts).values(factsToInsert);
     }
@@ -149,8 +149,13 @@ export class DatabaseStorage implements IStorage {
     }
 
     if (expertsData && expertsData.length > 0) {
-      const expertsToInsert = expertsData.map(e => ({ ...e, brainliftId: brainlift.id }));
-      await db.insert(experts).values(expertsToInsert);
+      try {
+        const expertsToInsert = expertsData.map(e => ({ ...e, brainliftId: brainlift.id }));
+        await db.insert(experts).values(expertsToInsert);
+        console.log(`Successfully saved ${expertsToInsert.length} experts`);
+      } catch (err) {
+        console.error("Error saving experts to database:", err);
+      }
     }
 
     return this.getBrainliftBySlug(brainlift.slug) as Promise<BrainliftData>;
