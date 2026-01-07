@@ -204,9 +204,11 @@ function extractDOK1Content(content: string): {
   dok1Count: number;
   inlineCount: number;
   sectionCount: number;
+  remainingContent: string;
 } {
   const lines = content.split('\n');
   const dok1Facts: string[] = [];
+  const usedIndices = new Set<number>();
   let inDOK1Section = false;
   let inlineCount = 0;
   let sectionCount = 0;
@@ -217,6 +219,7 @@ function extractDOK1Content(content: string): {
     
     // Check for inline (DOK1) markers anywhere in document
     if (line.includes('(DOK1)')) {
+      usedIndices.add(i);
       // Include context: previous line, the DOK1 line, next line
       const contextStart = Math.max(0, i - 1);
       const contextEnd = Math.min(lines.length - 1, i + 1);
@@ -225,6 +228,8 @@ function extractDOK1Content(content: string): {
         const contextLine = lines[j].trim();
         if (contextLine && !dok1Facts.includes(contextLine)) {
           dok1Facts.push(contextLine);
+          // Only mark the actual line as used for removal, or should we mark context too?
+          // The user said "removal must be precise". Let's just mark the line with (DOK1).
         }
       }
       dok1Facts.push('---');
@@ -235,6 +240,7 @@ function extractDOK1Content(content: string): {
     // Check for DOK1 section header
     if (isDOK1Header(line)) {
       inDOK1Section = true;
+      usedIndices.add(i);
       dok1Facts.push(`[DOK1 SECTION: ${trimmed}]`);
       continue;
     }
@@ -250,6 +256,7 @@ function extractDOK1Content(content: string): {
     
     // If we're in a DOK1 section, extract bullets/facts
     if (inDOK1Section && trimmed) {
+      usedIndices.add(i);
       if (isBulletOrFact(line) || trimmed.length > 20) {
         dok1Facts.push(trimmed);
         sectionCount++;
@@ -258,12 +265,14 @@ function extractDOK1Content(content: string): {
   }
   
   const totalCount = inlineCount + sectionCount;
+  const remainingLines = lines.filter((_, index) => !usedIndices.has(index));
   
   return {
     filteredContent: dok1Facts.join('\n'),
     dok1Count: totalCount,
     inlineCount,
-    sectionCount
+    sectionCount,
+    remainingContent: remainingLines.join('\n')
   };
 }
 
@@ -273,42 +282,30 @@ export async function extractBrainlift(content: string, sourceType: string): Pro
   }
 
   // Pre-filter to only include DOK1 content (inline markers OR DOK1 sections)
-  const { filteredContent, dok1Count, inlineCount, sectionCount } = extractDOK1Content(content);
+  const { filteredContent, dok1Count, inlineCount, sectionCount, remainingContent } = extractDOK1Content(content);
   
   console.log(`DOK1 extraction: Found ${dok1Count} DOK1 items (${inlineCount} inline markers, ${sectionCount} section items)`);
   
-  // If no DOK1 content found, return not_brainlift
-  if (dok1Count === 0) {
-    return {
-      classification: 'not_brainlift',
-      rejectionReason: 'NO_DOK1_SECTION_FOUND - No DOK1 sections or (DOK1) markers found in the document.',
-      rejectionSubtype: 'Missing DOK1 content',
-      rejectionRecommendation: 'Add DOK1 section headers (e.g., "DOK1:", "DOK1 Facts", "Level 1") or inline (DOK1) markers after facts.',
-      title: 'Unknown',
-      description: 'No DOK1 facts found',
-      summary: {
-        totalFacts: 0,
-        meanScore: '0',
-        score5Count: 0,
-        contradictionCount: 0
-      },
-      facts: [],
-      contradictionClusters: [],
-      readingList: []
-    };
-  }
+  // If no DOK1 content found, we will still proceed but with a warning tag
+  const isImproperlyFormatted = dok1Count === 0;
 
   const userPrompt = `Analyze the following ${sourceType} content and create a DOK1 grading brainlift.
 
-IMPORTANT: This document has been pre-filtered to show ONLY DOK1 content:
+${isImproperlyFormatted ? 'WARNING: This document is "improperly formatted" (no standard DOK1 markers found). Search for factual claims in other structures like "DOK2 Knowledge Tree".\n' : ''}
+
+IMPORTANT: Standard DOK1 content has been pre-filtered for you:
 - Inline (DOK1) marked facts: ${inlineCount}
 - Facts from DOK1 sections: ${sectionCount}
-- Total expected facts: approximately ${dok1Count}
+- Total pre-filtered facts: ${dok1Count}
 
-Extract ALL DOK1 facts with their sources.
-
+PRE-FILTERED CONTENT:
 ---
 ${filteredContent}
+---
+
+ADDITIONAL CONTENT TO ANALYZE (Search for DOK2 Knowledge Tree sections here):
+---
+${remainingContent}
 ---
 
 Remember to output ONLY valid JSON matching the required structure.`;
