@@ -594,12 +594,14 @@ async function saveBrainliftFromAI(data: BrainliftOutput, originalContent?: stri
     // Move findContradictions call here to run in parallel with fact processing
     (async () => {
       const { findContradictions } = await import("./ai/brainliftExtractor");
-      return findContradictions(data.facts);
+      const findContradictionsFn = (findContradictions as any).default || findContradictions;
+      return typeof findContradictionsFn === 'function' ? findContradictionsFn(data.facts) : [];
     })(),
     // Parallel reading list extraction
     (async () => {
       const { extractReadingList } = await import("./ai/brainliftExtractor");
-      return extractReadingList(data.title, data.description, data.facts);
+      const extractReadingListFn = (extractReadingList as any).default || extractReadingList;
+      return typeof extractReadingListFn === 'function' ? extractReadingListFn(data.title, data.description, data.facts) : [];
     })()
   ]);
 
@@ -980,24 +982,28 @@ export async function registerRoutes(
         readingList
       );
 
-      // Extract and rank experts after brainlift is updated
-      try {
-        const expertData = await extractAndRankExperts({
-          brainliftId: updatedBrainlift.id,
-          title: brainliftData.title,
-          description: brainliftData.description,
-          author: (brainliftData as any).author || null,
-          facts: facts as any[],
-          originalContent: content,
-          readingList: readingList,
-        });
-        
-        if (expertData.length > 0) {
-          await storage.saveExperts(updatedBrainlift.id, expertData);
-        }
-      } catch (err) {
-        console.error("Expert extraction failed during brainlift update:", err);
+  // Extract and rank experts after brainlift is updated
+  try {
+    const { extractAndRankExperts } = await import("./ai/expertExtractor");
+    const extractAndRankExpertsFn = (extractAndRankExperts as any).default || extractAndRankExperts;
+    if (typeof extractAndRankExpertsFn === 'function') {
+      const expertData = await extractAndRankExpertsFn({
+        brainliftId: updatedBrainlift.id,
+        title: brainliftData.title,
+        description: brainliftData.description,
+        author: (brainliftData as any).author || null,
+        facts: facts as any[],
+        originalContent: content,
+        readingList: readingList,
+      });
+      
+      if (expertData.length > 0) {
+        await storage.saveExperts(updatedBrainlift.id, expertData);
       }
+    }
+  } catch (err) {
+    console.error("Expert extraction failed during brainlift update:", err);
+  }
 
       res.json(await storage.getBrainliftBySlug(slug));
     } catch (err: any) {
@@ -1341,17 +1347,23 @@ export async function registerRoutes(
         return res.status(404).json({ message: 'Brainlift not found' });
       }
 
-      const expertsData = await extractAndRankExperts({
-        brainliftId: brainlift.id,
-        title: brainlift.title,
-        description: brainlift.description,
-        author: brainlift.author,
-        facts: brainlift.facts,
-        originalContent: brainlift.originalContent || '',
-        readingList: brainlift.readingList || [],
-      });
+      const { extractAndRankExperts } = await import("./ai/expertExtractor");
+      const extractAndRankExpertsFn = (extractAndRankExperts as any).default || extractAndRankExperts;
+      
+      let savedExperts = [];
+      if (typeof extractAndRankExpertsFn === 'function') {
+        const expertsData = await extractAndRankExpertsFn({
+          brainliftId: brainlift.id,
+          title: brainlift.title,
+          description: brainlift.description,
+          author: brainlift.author,
+          facts: brainlift.facts,
+          originalContent: brainlift.originalContent || '',
+          readingList: brainlift.readingList || [],
+        });
 
-      const savedExperts = await storage.saveExperts(brainlift.id, expertsData);
+        savedExperts = await storage.saveExperts(brainlift.id, expertsData);
+      }
       
       return res.json({
         ...brainlift,
@@ -1473,6 +1485,7 @@ export async function registerRoutes(
         targetFact.fact,
         targetFact.source || '',
         evidence.content || '',
+        false, // linkFailed is false by default here
         modelWeights as any
       );
 
