@@ -283,9 +283,20 @@ export function FactGradingPanel({
       }}>
         {(() => {
           const gradeableFacts = facts.filter(f => f.isGradeable && f.score > 0);
-          const meanScore = gradeableFacts.length > 0
-            ? (gradeableFacts.reduce((sum, f) => sum + f.score, 0) / gradeableFacts.length).toFixed(1)
-            : '—';
+          const meanScoreNum = gradeableFacts.length > 0
+            ? gradeableFacts.reduce((sum, f) => sum + f.score, 0) / gradeableFacts.length
+            : 0;
+          const meanScore = gradeableFacts.length > 0 ? meanScoreNum.toFixed(1) : '—';
+
+          // Color based on rounded score: 5=green, 4=blue, 3-2=orange, 1=red
+          const getMeanScoreColor = (score: number) => {
+            if (score >= 4.5) return tokens.success;
+            if (score >= 3.5) return tokens.info;
+            if (score >= 1.5) return tokens.warning;
+            if (score > 0) return tokens.danger;
+            return tokens.textMuted;
+          };
+
           const highlyVerified = facts.filter(f => f.score === 5).length;
           const redundantCount = redundancyData?.stats?.redundantFactCount || 0;
           const coreFacts = redundancyData?.stats?.uniqueFactCount || facts.length;
@@ -293,7 +304,7 @@ export function FactGradingPanel({
           return [
             { label: 'Total Facts', value: facts.length, color: tokens.primary },
             { label: 'Core Facts', value: coreFacts, color: tokens.success },
-            { label: 'Mean Score', value: meanScore, color: tokens.info },
+            { label: 'Mean Score', value: meanScore, color: getMeanScoreColor(meanScoreNum) },
             { label: 'Highly Verified (5/5)', value: highlyVerified, color: tokens.success },
             { label: 'Redundant', value: redundantCount, color: redundantCount > 0 ? tokens.warning : tokens.textMuted },
           ];
