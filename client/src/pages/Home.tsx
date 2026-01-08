@@ -60,8 +60,14 @@ export default function Home() {
       });
 
       if (!res.ok) {
-        const data = await res.json();
-        throw new Error(data.message || 'Import failed');
+        let errorMessage = 'Import failed';
+        try {
+          const data = await res.json();
+          errorMessage = data.message || 'Import failed';
+        } catch {
+          errorMessage = `Server error: ${res.status} ${res.statusText}`;
+        }
+        throw new Error(errorMessage);
       }
 
       return res.json();
