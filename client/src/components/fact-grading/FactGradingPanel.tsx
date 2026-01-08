@@ -277,16 +277,27 @@ export function FactGradingPanel({
       {/* Stats Summary */}
       <div style={{
         display: 'grid',
-        gridTemplateColumns: 'repeat(4, 1fr)',
-        gap: '16px',
+        gridTemplateColumns: 'repeat(5, 1fr)',
+        gap: '12px',
         marginBottom: '24px',
       }}>
-        {[
-          { label: 'Total Facts', value: facts.length, color: tokens.primary },
-          { label: 'Core Facts', value: redundancyData?.stats?.uniqueFactCount || facts.length, color: tokens.success },
-          { label: 'Graded', value: Object.keys(humanGrades).length, color: tokens.info },
-          { label: 'Redundant', value: redundancyData?.stats?.pendingReview || 0, color: redundancyData?.stats?.pendingReview ? tokens.warning : tokens.textMuted },
-        ].map((stat, i) => (
+        {(() => {
+          const gradeableFacts = facts.filter(f => f.isGradeable && f.score > 0);
+          const meanScore = gradeableFacts.length > 0
+            ? (gradeableFacts.reduce((sum, f) => sum + f.score, 0) / gradeableFacts.length).toFixed(1)
+            : '—';
+          const highlyVerified = facts.filter(f => f.score === 5).length;
+          const redundantCount = redundancyData?.stats?.redundantFactCount || 0;
+          const coreFacts = redundancyData?.stats?.uniqueFactCount || facts.length;
+
+          return [
+            { label: 'Total Facts', value: facts.length, color: tokens.primary },
+            { label: 'Core Facts', value: coreFacts, color: tokens.success },
+            { label: 'Mean Score', value: meanScore, color: tokens.info },
+            { label: 'Verified (5/5)', value: highlyVerified, color: tokens.success },
+            { label: 'Redundant', value: redundantCount, color: redundantCount > 0 ? tokens.warning : tokens.textMuted },
+          ];
+        })().map((stat, i) => (
           <div
             key={i}
             style={{
