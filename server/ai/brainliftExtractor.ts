@@ -284,7 +284,7 @@ export async function findContradictions(facts: any[]): Promise<any[]> {
 
   try {
     const response = await openai.chat.completions.create({
-      model: "anthropic/claude-3-opus", // Updated to Anthropic Opus as requested
+      model: "anthropic/claude-opus-4.5", // Updated to the exact model string requested: anthropic/claude-opus-4.5
       messages: [
         {
           role: "system",
