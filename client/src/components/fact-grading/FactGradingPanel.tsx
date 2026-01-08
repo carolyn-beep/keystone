@@ -294,7 +294,7 @@ export function FactGradingPanel({
             { label: 'Total Facts', value: facts.length, color: tokens.primary },
             { label: 'Core Facts', value: coreFacts, color: tokens.success },
             { label: 'Mean Score', value: meanScore, color: tokens.info },
-            { label: 'Verified (5/5)', value: highlyVerified, color: tokens.success },
+            { label: 'Highly Verified (5/5)', value: highlyVerified, color: tokens.success },
             { label: 'Redundant', value: redundantCount, color: redundantCount > 0 ? tokens.warning : tokens.textMuted },
           ];
         })().map((stat, i) => (
