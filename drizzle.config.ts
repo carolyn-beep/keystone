@@ -1,3 +1,5 @@
+// Load environment variables from .env file
+import "dotenv/config";
 import { defineConfig } from "drizzle-kit";
 
 if (!process.env.DATABASE_URL) {

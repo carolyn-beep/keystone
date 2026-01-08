@@ -1150,7 +1150,7 @@ export default function Dashboard({ slug, isSharedView = false }: DashboardProps
           }}
         >
           {/* Navigation Tabs - Left aligned, flat underline style */}
-          <div style={{ display: 'flex', gap: '4px', overflowX: 'auto' }}>
+          <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
             {!isNotBrainlift && ['brainlift', 'grading', 'contradictions', 'reading'].map(tab => (
               <button
                 key={tab}
@@ -1187,36 +1187,6 @@ export default function Dashboard({ slug, isSharedView = false }: DashboardProps
                 {tab === 'reading' && 'Reading List'}
               </button>
             ))}
-            {!isNotBrainlift && (
-              <button
-                onClick={() => setActiveTab('debug')}
-                data-testid="tab-debug"
-                style={{
-                  padding: '12px 20px',
-                  backgroundColor: 'transparent',
-                  border: 'none',
-                  borderBottom: activeTab === 'debug' ? `2px solid ${tokens.primary}` : '2px solid transparent',
-                  color: activeTab === 'debug' ? tokens.primary : tokens.textSecondary,
-                  cursor: 'pointer',
-                  fontSize: '14px',
-                  fontWeight: 500,
-                  transition: 'color 0.15s ease',
-                  marginBottom: '-1px',
-                }}
-                onMouseEnter={(e) => {
-                  if (activeTab !== 'debug') {
-                    e.currentTarget.style.color = tokens.primary;
-                  }
-                }}
-                onMouseLeave={(e) => {
-                  if (activeTab !== 'debug') {
-                    e.currentTarget.style.color = tokens.textSecondary;
-                  }
-                }}
-              >
-                DEBUG
-              </button>
-            )}
           </div>
 
           {/* Action Cluster - Right aligned */}
@@ -3149,89 +3119,6 @@ export default function Dashboard({ slug, isSharedView = false }: DashboardProps
           </div>
         )}
 
-        {/* DEBUG Tab */}
-        {!isNotBrainlift && activeTab === 'debug' && (
-          <div data-testid="tab-content-debug" className="space-y-6">
-            <div 
-              className="p-6 rounded-xl border transition-all duration-200"
-              style={{ 
-                backgroundColor: tokens.surface,
-                borderColor: tokens.border
-              }}
-            >
-              <button
-                data-testid="button-toggle-debug-content"
-                onClick={() => setDebugExpanded(!debugExpanded)}
-                className="w-full flex items-center justify-between group"
-                style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
-              >
-                <div className="flex items-center gap-3">
-                  <div 
-                    className="p-2 rounded-lg transition-colors"
-                    style={{ backgroundColor: debugExpanded ? tokens.primarySoft : tokens.surfaceAlt }}
-                  >
-                    <FileText 
-                      size={20} 
-                      style={{ color: debugExpanded ? tokens.primary : tokens.textSecondary }} 
-                    />
-                  </div>
-                  <div className="text-left">
-                    <h3 style={{ fontSize: '16px', fontWeight: 600, color: tokens.textPrimary, margin: 0 }}>
-                      Extracted Raw Content
-                    </h3>
-                    <p style={{ fontSize: '12px', color: tokens.textSecondary, margin: '2px 0 0 0' }}>
-                      {data.sourceType || 'Workflowy'} extraction result • {data.originalContent?.length || 0} characters
-                    </p>
-                  </div>
-                </div>
-                <div 
-                  className="p-2 rounded-full transition-transform duration-200"
-                  style={{ 
-                    backgroundColor: tokens.surfaceAlt,
-                    transform: debugExpanded ? 'rotate(180deg)' : 'rotate(0deg)',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center'
-                  }}
-                >
-                  <ChevronDown size={18} style={{ color: tokens.textSecondary }} />
-                </div>
-              </button>
-
-              {debugExpanded && (
-                <div className="mt-6 pt-6 border-t animate-in fade-in slide-in-from-top-2 duration-200" style={{ borderTop: `1px solid ${tokens.border}` }}>
-                  <div className="flex justify-end mb-4">
-                    <button
-                      onClick={() => {
-                        navigator.clipboard.writeText(data.originalContent || '');
-                        toast({ title: 'Copied to clipboard', description: 'Raw content has been copied.' });
-                      }}
-                      className="flex items-center gap-2 px-3 py-1.5 rounded-md text-xs font-medium hover-elevate"
-                      style={{ backgroundColor: tokens.surfaceAlt, color: tokens.textSecondary, border: 'none', cursor: 'pointer' }}
-                    >
-                      <Share2 size={14} />
-                      Copy Raw Text
-                    </button>
-                  </div>
-                  <div 
-                    className="p-4 rounded-lg overflow-x-auto font-mono text-xs leading-relaxed"
-                    style={{ 
-                      backgroundColor: tokens.surfaceAlt,
-                      color: tokens.textPrimary,
-                      maxHeight: '600px',
-                      overflowY: 'auto',
-                      border: `1px solid ${tokens.border}`
-                    }}
-                  >
-                    <pre style={{ margin: 0, whiteSpace: 'pre-wrap', wordWrap: 'break-word', fontFamily: 'monospace' }}>
-                      {data.originalContent || 'No raw content available for this brainlift.'}
-                    </pre>
-                  </div>
-                </div>
-              )}
-            </div>
-          </div>
-        )}
       </main>
 
       {/* Update Modal */}

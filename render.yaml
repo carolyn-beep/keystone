@@ -1,0 +1,18 @@
+services:
+  - type: web
+    name: dok1grader
+    runtime: node
+    region: oregon
+    plan: free
+    buildCommand: npm install && npm run build
+    startCommand: npm run start
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: DATABASE_URL
+        sync: false  # Set manually in Render dashboard
+      - key: OPENROUTER_API_KEY
+        sync: false  # Set manually in Render dashboard
+      - key: PORT
+        value: 10000
+    healthCheckPath: /api/brainlifts
