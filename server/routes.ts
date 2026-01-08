@@ -504,14 +504,20 @@ async function generateUniqueSlug(title: string): Promise<string> {
 
 async function saveBrainliftFromAI(data: BrainliftOutput, originalContent?: string, sourceType?: string, userId?: string) {
   const slug = await generateUniqueSlug(data.title);
-  
+
+  console.log(`[Auto-Grade] === Starting saveBrainliftFromAI ===`);
+  console.log(`[Auto-Grade] Title: "${data.title}", Facts count: ${data.facts.length}`);
+
   const limit = pLimit(5); // Process 5 facts concurrently
 
   // Run fact processing, contradiction detection, and reading list extraction in parallel
   const [factsWithSummaries, contradictionClusters, extractedReadingList] = await Promise.all([
     Promise.all(data.facts.map(fact => limit(async () => {
+      console.log(`[Auto-Grade] Processing fact ${fact.id}: "${fact.fact.substring(0, 50)}..."`);
+      console.log(`[Auto-Grade] Fact ${fact.id} aiNotes: "${fact.aiNotes?.substring(0, 100) || 'NULL'}..."`);
+
       const summary = await summarizeFact(fact.fact);
-      
+
       // Auto-grading logic
       let evidenceContent = "";
       let finalScore = 0;
@@ -519,12 +525,18 @@ async function saveBrainliftFromAI(data: BrainliftOutput, originalContent?: stri
 
       // If source exists, fetch evidence
       let linkFailed = false;
-      if (fact.aiNotes && fact.aiNotes.includes("Source: ")) {
+      const hasSource = fact.aiNotes && fact.aiNotes.includes("Source: ");
+      console.log(`[Auto-Grade] Fact ${fact.id} hasSource check: ${hasSource}`);
+
+      if (hasSource) {
         const sourceUrl = fact.aiNotes.split("Source: ")[1]?.trim();
+        console.log(`[Auto-Grade] Fact ${fact.id} extracted source: "${sourceUrl?.substring(0, 80)}..."`);
         if (sourceUrl) {
           try {
+            console.log(`[Auto-Grade] Fact ${fact.id} calling fetchEvidenceForFact...`);
             const evidence = await fetchEvidenceForFact(fact.fact, sourceUrl);
             evidenceContent = evidence.content || "";
+            console.log(`[Auto-Grade] Fact ${fact.id} evidence result: ${evidenceContent.length} chars, error: ${evidence.error}`);
             if (!evidenceContent) linkFailed = true;
           } catch (err) {
             console.error(`Failed to fetch evidence for fact: ${fact.id}`, err);

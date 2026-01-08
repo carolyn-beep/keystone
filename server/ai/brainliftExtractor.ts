@@ -273,9 +273,16 @@ export async function extractBrainlift(markdownContent: string, sourceType: stri
 
   const flushPendingFacts = () => {
     console.log(`[DOK1 Extractor] flushPendingFacts called with ${pendingFacts.length} pending facts`);
-    const sourceNote = currentSourceLink
-      ? `Source: ${currentSourceLink}`
-      : "No sources have been linked to this fact";
+
+    // Build source note: prefer URL, fall back to source text
+    let sourceNote: string;
+    if (currentSourceLink) {
+      sourceNote = `Source: ${currentSourceLink}`;
+    } else if (currentSource && currentSource !== 'Unknown') {
+      sourceNote = `Source: ${currentSource}`;
+    } else {
+      sourceNote = "No sources have been linked to this fact";
+    }
 
     for (const f of pendingFacts) {
       // Prioritize Source: [link](link) or similar within the fact text itself if it exists
@@ -285,6 +292,10 @@ export async function extractBrainlift(markdownContent: string, sourceType: stri
         f.source = inlineSourceMatch[1];
       } else {
         f.aiNotes = sourceNote;
+        // Also update f.source if it's still "Unknown" and we have a source
+        if (f.source === 'Unknown' && currentSource && currentSource !== 'Unknown') {
+          f.source = currentSource;
+        }
       }
       facts.push(f);
     }
