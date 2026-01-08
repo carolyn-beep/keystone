@@ -335,7 +335,10 @@ If NO tension exists, return EXACTLY:
     });
 
     const content = response.choices[0].message.content?.trim() || "";
-    const result = JSON.parse(content);
+    const jsonMatch = content.match(/\{[\s\S]*\}/);
+    if (!jsonMatch) return [];
+    
+    const result = JSON.parse(jsonMatch[0]);
     
     if (result.result === "NONE") return [];
 
