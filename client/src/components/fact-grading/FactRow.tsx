@@ -29,6 +29,7 @@ export interface FactRowProps {
   isSavingGrade: boolean;
   onViewFullText?: () => void;
   sourceUrls?: Record<string, string>;
+  isRedundant?: boolean;
 }
 
 // Parse AI analysis text and convert source references to links
@@ -103,6 +104,7 @@ export function FactRow({
   isSavingGrade,
   onViewFullText,
   sourceUrls,
+  isRedundant = false,
 }: FactRowProps) {
   const [showAIAnalysis, setShowAIAnalysis] = useState(false);
   const [showQuickGrade, setShowQuickGrade] = useState(false);
@@ -268,6 +270,25 @@ export function FactRow({
             >
               View full original text
             </button>
+          )}
+          {isRedundant && (
+            <span style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '4px',
+              padding: '3px 8px',
+              backgroundColor: tokens.warningSoft,
+              color: tokens.warning,
+              borderRadius: '4px',
+              fontSize: '10px',
+              fontWeight: 600,
+              textTransform: 'uppercase',
+              letterSpacing: '0.03em',
+              width: 'fit-content',
+            }}>
+              <AlertTriangle size={10} />
+              Redundant
+            </span>
           )}
         </div>
 

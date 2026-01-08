@@ -134,6 +134,21 @@ export function FactGradingPanel({
     return map;
   }, [facts]);
 
+  // Build set of fact IDs in pending redundancy groups
+  const factsInRedundancyGroups = useMemo(() => {
+    const set = new Set<number>();
+    if (redundancyData?.groups) {
+      for (const group of redundancyData.groups) {
+        if (group.status === 'pending') {
+          for (const groupFact of group.facts) {
+            set.add(groupFact.id);
+          }
+        }
+      }
+    }
+    return set;
+  }, [redundancyData]);
+
   // Group facts by redundancy for visual display
   const groupedFacts = useMemo(() => {
     const groups: Map<number, {
@@ -141,45 +156,32 @@ export function FactGradingPanel({
       facts: Fact[];
     }> = new Map();
 
-    // Build set of all fact IDs that are in pending redundancy groups
-    const factsInGroups = new Set<number>();
-
     // Use group.facts directly from redundancy data (same approach as the modal)
     if (redundancyData?.groups) {
       for (const group of redundancyData.groups) {
         if (group.status === 'pending') {
-          // Get full Fact objects from factById map, falling back to group.facts
+          // Get full Fact objects from factById map
           const groupFacts: Fact[] = [];
           for (const groupFact of group.facts) {
             const fullFact = factById.get(groupFact.id);
             if (fullFact) {
               groupFacts.push(fullFact);
-              factsInGroups.add(fullFact.id);
             }
           }
 
           if (groupFacts.length > 0) {
-            // Sort: primary first, then by score
-            groupFacts.sort((a, b) => {
-              const aIsPrimary = a.id === group.primaryFactId;
-              const bIsPrimary = b.id === group.primaryFactId;
-              if (aIsPrimary && !bIsPrimary) return -1;
-              if (!aIsPrimary && bIsPrimary) return 1;
-              return b.score - a.score;
-            });
-
+            // Sort by score (highest first)
+            groupFacts.sort((a, b) => b.score - a.score);
             groups.set(group.id, { group, facts: groupFacts });
           }
         }
       }
     }
 
-    // Standalone facts are those not in any pending group
-    const standalone = facts
-      .filter(f => !factsInGroups.has(f.id))
-      .sort((a, b) => b.score - a.score || a.originalId.localeCompare(b.originalId));
+    // ALL facts sorted by score (stack ranked) - redundant ones will show with badge
+    const allFactsSorted = [...facts].sort((a, b) => b.score - a.score || a.originalId.localeCompare(b.originalId));
 
-    return { groups, standalone };
+    return { groups, allFactsSorted };
   }, [facts, factById, redundancyData]);
 
   const nonGradeableFacts = facts.filter(f => !f.isGradeable);
@@ -386,22 +388,20 @@ export function FactGradingPanel({
         </RedundancyGroupCard>
       ))}
 
-      {/* Standalone Facts Section */}
-      {groupedFacts.standalone.length > 0 && (
+      {/* Individual Facts Section (Stack Ranked) */}
+      {groupedFacts.allFactsSorted.length > 0 && (
         <div>
-          {groupedFacts.groups.size > 0 && (
-            <h3 style={{
-              fontSize: '16px',
-              fontWeight: 600,
-              color: tokens.textPrimary,
-              marginBottom: '16px',
-              paddingTop: '8px',
-            }}>
-              Individual Facts ({groupedFacts.standalone.length})
-            </h3>
-          )}
+          <h3 style={{
+            fontSize: '16px',
+            fontWeight: 600,
+            color: tokens.textPrimary,
+            marginBottom: '16px',
+            paddingTop: '8px',
+          }}>
+            Individual Facts (Stack Ranked)
+          </h3>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '0' }}>
-            {groupedFacts.standalone.map((fact) => (
+            {groupedFacts.allFactsSorted.map((fact) => (
               <FactRow
                 key={fact.id}
                 fact={fact}
@@ -432,6 +432,7 @@ export function FactGradingPanel({
                 }}
                 isSavingGrade={setHumanGradeMutation.isPending}
                 onViewFullText={() => onViewFactFullText(fact)}
+                isRedundant={factsInRedundancyGroups.has(fact.id)}
               />
             ))}
           </div>
