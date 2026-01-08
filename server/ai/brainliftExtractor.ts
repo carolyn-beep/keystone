@@ -275,11 +275,14 @@ export async function extractBrainlift(markdownContent: string, sourceType: stri
     console.log(`[DOK1 Extractor] flushPendingFacts called with ${pendingFacts.length} pending facts`);
 
     // Build source note: prefer URL, fall back to source text
+    // Strip any existing "Source:" prefix to avoid duplication like "Source: Source: ..."
     let sourceNote: string;
     if (currentSourceLink) {
       sourceNote = `Source: ${currentSourceLink}`;
     } else if (currentSource && currentSource !== 'Unknown') {
-      sourceNote = `Source: ${currentSource}`;
+      // Remove existing "Source:" prefix if present (case-insensitive)
+      const cleanedSource = currentSource.replace(/^Source:\s*/i, '').trim();
+      sourceNote = cleanedSource ? `Source: ${cleanedSource}` : "No sources have been linked to this fact";
     } else {
       sourceNote = "No sources have been linked to this fact";
     }
@@ -294,7 +297,8 @@ export async function extractBrainlift(markdownContent: string, sourceType: stri
         f.aiNotes = sourceNote;
         // Also update f.source if it's still "Unknown" and we have a source
         if (f.source === 'Unknown' && currentSource && currentSource !== 'Unknown') {
-          f.source = currentSource;
+          // Clean up the source - remove "Source:" prefix if present
+          f.source = currentSource.replace(/^Source:\s*/i, '').trim() || currentSource;
         }
       }
       facts.push(f);

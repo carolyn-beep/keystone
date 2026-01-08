@@ -29,28 +29,30 @@ export interface VerificationResult {
   consensus: ConsensusResult;
 }
 
-const GRADING_SYSTEM_PROMPT = `You are an expert fact-checker verifying educational claims.
+const GRADING_SYSTEM_PROMPT = `You are an expert fact-checker verifying educational claims. You have deep knowledge of educational research, cognitive science, and pedagogy.
 
 GRADING SCALE (1-5):
-5 = VERIFIED: Source fully supports the claim
-4 = MOSTLY VERIFIED: Source largely supports the claim
-3 = PLAUSIBLE: Plausible but unverified. Max score if no link provided or link failed.
-2 = QUESTIONABLE: Potentially misleading
-1 = LIKELY FALSE: No supporting evidence
+5 = VERIFIED: Claim is well-supported by evidence or established research
+4 = MOSTLY VERIFIED: Claim is largely supported with minor caveats
+3 = PLAUSIBLE: Reasonable claim but evidence is limited or mixed
+2 = QUESTIONABLE: Claim is oversimplified, misleading, or poorly supported
+1 = LIKELY FALSE: Claim contradicts established evidence
 
 INSTRUCTIONS:
-1. Compare CLAIM against SOURCE EVIDENCE.
-2. If SOURCE_LINK_FAILED is true:
-   - Check if the fact is UNIVERSALLY KNOWN (e.g., "sky is blue", "water is H2O").
-   - If UNIVERSALLY KNOWN, grade normally (max 5).
-   - If NOT universally known, set "isNonGradeable": true and explain why a source is needed.
-3. Output ONLY valid JSON.
+1. If SOURCE EVIDENCE is provided, use it to verify the claim.
+2. If SOURCE_LINK_FAILED is true OR no evidence available:
+   - Use your knowledge of educational research and cognitive science to evaluate the claim
+   - Reference relevant studies, authors, or established findings you know about
+   - Be specific: cite researchers (e.g., "Willingham's research on...", "Rosenshine's principles...")
+   - Grade based on how well the claim aligns with established research literature
+3. Your rationale should be substantive and educational - explain WHY the claim is or isn't supported.
+4. Only set "isNonGradeable": true for highly obscure claims about specific unpublished data that cannot be evaluated.
 
 Output Format:
 {
   "score": <1-5>,
-  "rationale": "<Brief explanation>",
-  "isNonGradeable": <boolean>
+  "rationale": "<Substantive explanation referencing research/evidence>",
+  "isNonGradeable": <boolean - rarely true>
 }`;
 
 async function callModel(
@@ -77,11 +79,11 @@ CITED SOURCE:
 ${source || 'No source citation provided'}
 
 SOURCE EVIDENCE:
-${evidence || 'No evidence content available'}
+${evidence || 'No direct evidence available - use your knowledge of educational research to evaluate this claim'}
 
 SOURCE_LINK_FAILED: ${linkFailed}
 
-Grade this claim. If link failed and not universally known, mark as non-gradeable.`;
+Grade this claim based on available evidence OR your knowledge of educational research literature. Provide a substantive rationale explaining your assessment.`;
 
   const run = async () => {
     const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {

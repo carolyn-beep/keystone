@@ -123,23 +123,30 @@ async function searchForEvidence(
   // Build context about why we're using AI search
   let fetchContext = '';
   if (fetchError) {
-    fetchContext = `\n\nNOTE: Direct URL fetch failed (${fetchError}). You must rely on your training knowledge about this source. If you cannot verify the claim from your knowledge, clearly state this limitation in your response.`;
+    fetchContext = `\n\nNOTE: The source URL/document could not be fetched directly (${fetchError}). Use your training knowledge to provide evidence.`;
   }
 
-  const prompt = `Given this educational claim and its cited source, search for and provide the most relevant evidence that could verify or refute it.
+  const prompt = `You are an educational research expert. Evaluate this claim using your knowledge of the cited source and broader educational research.
 
 CLAIM: "${fact}"
 
 CITED SOURCE: ${source || 'Not specified'}${fetchContext}
 
-Search your knowledge for:
-1. The actual content/findings from this source (if you know it)
-2. Related research or data that supports or contradicts this claim
-3. Key facts or statistics that could verify this claim
+Your task:
+1. If you recognize the source (book, paper, author), share what you know about its key findings relevant to this claim
+2. Cite related research that supports or contradicts this claim (e.g., "Willingham (2009) argues...", "Rosenshine's research shows...")
+3. Provide specific evidence: studies, statistics, established principles from cognitive science or educational psychology
 
-IMPORTANT: If the source is a PDF or book that you cannot access, and you don't have knowledge of its contents, clearly state: "Unable to directly verify - source is [PDF/book] that could not be fetched. Verification based on general knowledge of the topic."
+IMPORTANT: Many educational claims cite well-known works like:
+- Willingham's "Why Don't Students Like School?"
+- Rosenshine's Principles of Instruction
+- Sweller's Cognitive Load Theory
+- Hattie's Visible Learning research
+- Knowledge-rich curriculum research (Hirsch, Christodoulou, etc.)
 
-Provide a concise summary of the evidence you find (max 500 words). Focus on specific data, quotes, or findings that directly relate to the claim. Do not use any markdown (no bold, no italics, no bullet points), no formatting, and NO emojis. Provide only the plain text summary.`;
+If the claim references such sources, draw on your knowledge of these works. Do NOT just say "I cannot access the source" - instead, provide what you know about the topic from educational research literature.
+
+Provide a substantive evidence summary (max 500 words) with specific references to research. Plain text only, no markdown or emojis.`;
 
   // Primary: Gemini Flash
   try {
