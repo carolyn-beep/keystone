@@ -507,7 +507,7 @@ Assign differentiated scores (1-10) based on the citation counts or relevance in
         rationale: expert.rationale,
         source: expert.source,
         twitterHandle: expert.twitterHandle,
-        isFollowing: expert.rankScore > 5,
+        isFollowing: true,
       }));
     } catch (parseError) {
       console.error("Failed to parse expert extraction JSON. Attempting manual regex extraction.", parseError);
@@ -523,7 +523,7 @@ Assign differentiated scores (1-10) based on the citation counts or relevance in
           rationale: "Identified from document context.",
           source: 'cited',
           twitterHandle: null,
-          isFollowing: false
+          isFollowing: true
         });
       }
       return manualExperts;

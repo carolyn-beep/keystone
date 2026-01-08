@@ -1,7 +1,7 @@
 import { useState, useMemo } from 'react';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { Link } from 'wouter';
-import { BrainliftData, ReadingListGrade, BrainliftVersion, CLASSIFICATION, type Classification, type Expert } from '@shared/schema';
+import { BrainliftData, ReadingListGrade, BrainliftVersion, CLASSIFICATION, type Classification, type Expert, type Fact } from '@shared/schema';
 import { Share2, Check, ChevronDown, ChevronUp, ExternalLink, Download, RefreshCw, History, X, Upload, Search, Plus, Loader2, FileX, AlertTriangle, Zap, CheckCircle, Lightbulb, FileText, Clock, ThumbsUp, ThumbsDown, Users, User, Trash2 } from 'lucide-react';
 import { SiX } from 'react-icons/si';
 import { queryClient, apiRequest } from '@/lib/queryClient';
@@ -9,6 +9,7 @@ import { tokens, getScoreChipColors, classificationColors } from '@/lib/colors';
 import { useToast } from '@/hooks/use-toast';
 import { VerificationPanel } from '@/components/VerificationPanel';
 import { ModelAccuracyPanel } from '@/components/ModelAccuracyPanel';
+import { FactGradingPanel } from '@/components/fact-grading';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 
@@ -412,31 +413,6 @@ export default function Dashboard({ slug, isSharedView = false }: DashboardProps
     enabled: !!slug
   });
 
-  const [gradingFactId, setGradingFactId] = useState<number | null>(null);
-  const [gradingScore, setGradingScore] = useState<number>(3);
-  const [gradingNotes, setGradingNotes] = useState<string>('');
-
-  const setHumanGradeMutation = useMutation({
-    mutationFn: async ({ factId, score, notes }: { factId: number; score: number; notes: string }) => {
-      const res = await fetch(`/api/facts/${factId}/human-grade`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ score, notes }),
-      });
-      if (!res.ok) {
-        const err = await res.json();
-        throw new Error(err.message || 'Failed to set grade');
-      }
-      return res.json();
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['human-grades', slug] });
-      setGradingFactId(null);
-      setGradingScore(3);
-      setGradingNotes('');
-    }
-  });
-
   // Redundancy detection
   const [showRedundancyModal, setShowRedundancyModal] = useState(false);
   
@@ -449,8 +425,8 @@ export default function Dashboard({ slug, isSharedView = false }: DashboardProps
       similarityScore: string;
       reason: string;
       status: string;
-      facts: Array<{ id: number; originalId: string; fact: string; score: number }>;
-      primaryFact?: { id: number; originalId: string; fact: string; score: number };
+      facts: Array<{ id: number; originalId: string; fact: string; score: number; summary?: string }>;
+      primaryFact?: { id: number; originalId: string; fact: string; score: number; summary?: string };
     }>;
     stats: {
       totalFacts: number;
@@ -525,26 +501,6 @@ export default function Dashboard({ slug, isSharedView = false }: DashboardProps
       });
     }
   });
-
-  // Build redundancy lookup: factId -> group info
-  const redundancyLookup = useMemo(() => {
-    const lookup: Record<number, { groupName: string; isPrimary: boolean; similarTo: string }> = {};
-    if (redundancyData?.groups) {
-      for (const group of redundancyData.groups) {
-        if (group.status !== 'pending') continue;
-        for (const factId of group.factIds) {
-          const isPrimary = factId === group.primaryFactId;
-          const primaryFact = group.facts.find(f => f.id === group.primaryFactId);
-          lookup[factId] = {
-            groupName: group.groupName,
-            isPrimary,
-            similarTo: isPrimary ? '' : `Similar to ${primaryFact?.originalId || 'primary'}`,
-          };
-        }
-      }
-    }
-    return lookup;
-  }, [redundancyData]);
 
   const expertsList = data?.experts || [];
 
@@ -1447,80 +1403,6 @@ export default function Dashboard({ slug, isSharedView = false }: DashboardProps
         {/* Grading Tab */}
         {!isNotBrainlift && activeTab === 'grading' && (
           <div>
-            {/* Summary Stats - compute contradiction count from facts */}
-            <div className="grid grid-cols-2 sm:grid-cols-5 gap-4 mb-6">
-              {[
-                { label: 'Total Facts', value: facts.length, color: tokens.primary },
-                { label: 'Core Facts', value: redundancyData?.stats?.uniqueFactCount || facts.length, color: tokens.success },
-                { label: 'Mean Score', value: summary.meanScore, color: tokens.primary },
-                { label: 'Highly Verified (5/5)', value: facts.filter(f => f.score === 5).length, color: tokens.success },
-                { label: 'Redundant', value: redundancyData?.stats?.pendingReview || 0, color: redundancyData?.stats?.pendingReview ? tokens.warning : tokens.textMuted },
-              ].map((stat, i) => (
-                <div key={i} data-testid={`stat-${stat.label.toLowerCase().replace(/\s+/g, '-')}`} style={{
-                  backgroundColor: tokens.surface,
-                  borderRadius: '8px',
-                  border: `1px solid ${tokens.border}`,
-                }} className="p-3 sm:p-5">
-                  <p style={{ color: tokens.textSecondary, margin: 0, fontWeight: 500 }} className="text-xs sm:text-sm">{stat.label}</p>
-                  <p style={{ fontWeight: 700, color: stat.color }} className="text-2xl sm:text-3xl mt-1 sm:mt-2">{stat.value}</p>
-                </div>
-              ))}
-            </div>
-
-            {/* Redundancy Actions */}
-            <div style={{ display: 'flex', gap: '12px', marginBottom: '16px', flexWrap: 'wrap' }}>
-              <button
-                onClick={() => analyzeRedundancyMutation.mutate()}
-                disabled={analyzeRedundancyMutation.isPending}
-                data-testid="button-analyze-redundancy"
-                className="hover-elevate active-elevate-2"
-                style={{
-                  padding: '10px 16px',
-                  backgroundColor: tokens.surface,
-                  border: `1px solid ${tokens.border}`,
-                  borderRadius: '8px',
-                  cursor: analyzeRedundancyMutation.isPending ? 'not-allowed' : 'pointer',
-                  fontSize: '13px',
-                  fontWeight: 500,
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '8px',
-                  color: tokens.textPrimary,
-                }}
-              >
-                {analyzeRedundancyMutation.isPending ? (
-                  <Loader2 size={14} className="animate-spin" />
-                ) : (
-                  <Search size={14} />
-                )}
-                {analyzeRedundancyMutation.isPending ? 'Analyzing...' : 'Analyze Redundancy'}
-              </button>
-              
-              {redundancyData?.stats?.pendingReview ? (
-                <button
-                  onClick={() => setShowRedundancyModal(true)}
-                  data-testid="button-review-redundancies"
-                  className="hover-elevate active-elevate-2"
-                  style={{
-                    padding: '10px 16px',
-                    backgroundColor: tokens.warningSoft,
-                    border: `1px solid ${tokens.warning}`,
-                    borderRadius: '8px',
-                    cursor: 'pointer',
-                    fontSize: '13px',
-                    fontWeight: 500,
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '8px',
-                    color: tokens.warning,
-                  }}
-                >
-                  <AlertTriangle size={14} />
-                  Review {redundancyData.stats.pendingReview} Redundancies
-                </button>
-              ) : null}
-            </div>
-
             {/* Flags/Warnings - Compact inline callouts */}
             {data?.flags && data.flags.length > 0 && (
               <div style={{ marginBottom: '16px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
@@ -1547,356 +1429,17 @@ export default function Dashboard({ slug, isSharedView = false }: DashboardProps
               </div>
             )}
 
-            {/* Facts Table - PDF Style with Fixed Column Widths */}
-            <div style={{ 
-              overflow: 'auto',
-              border: `1px solid ${tokens.border}`,
-              borderRadius: '12px',
-              backgroundColor: tokens.surface,
-            }}>
-              <table style={{ 
-                width: '100%', 
-                borderCollapse: 'collapse',
-                fontSize: '13px',
-                tableLayout: 'fixed',
-              }}>
-                <colgroup>
-                  <col style={{ width: '60px', maxWidth: '60px' }} />
-                  <col style={{ width: '28%' }} />
-                  <col style={{ width: '90px' }} />
-                  <col style={{ width: '90px' }} />
-                  <col style={{ width: '80px' }} />
-                  <col />
-                </colgroup>
-                <thead>
-                  <tr style={{ backgroundColor: tokens.primary }}>
-                    <th style={{ padding: '14px 16px', textAlign: 'center', color: tokens.onPrimary, fontWeight: 600, fontSize: '13px' }}>Fact ID</th>
-                    <th style={{ padding: '14px 16px', textAlign: 'left', color: tokens.onPrimary, fontWeight: 600, fontSize: '13px' }}>Fact (as written)</th>
-                    <th style={{ padding: '14px 16px', textAlign: 'center', color: tokens.onPrimary, fontWeight: 600, fontSize: '13px' }}>AI Score</th>
-                    <th style={{ padding: '14px 16px', textAlign: 'center', color: tokens.onPrimary, fontWeight: 600, fontSize: '13px' }}>Your Grade</th>
-                    <th style={{ padding: '14px 16px', textAlign: 'center', color: tokens.onPrimary, fontWeight: 600, fontSize: '13px' }}>Redundancy</th>
-                    <th style={{ padding: '14px 16px', textAlign: 'left', color: tokens.onPrimary, fontWeight: 600, fontSize: '13px' }}>Notes</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {[...facts].sort((a, b) => b.score - a.score || a.originalId.localeCompare(b.originalId)).map((fact, index) => {
-                    const hasContradiction = fact.contradicts !== null && fact.contradicts !== '';
-                    const scoreChip = getScoreChipColors(fact.score);
-                    const isGradeable = fact.score > 0;
-                    const scoreLabel = !isGradeable ? 'Non-Gradeable' : fact.score === 5 ? 'Verified' : fact.score === 4 ? 'Strong' : fact.score === 3 ? 'Partial' : fact.score === 2 ? 'Weak' : 'Failed';
-                    
-                    const zebraColor = index % 2 === 0 ? tokens.surface : tokens.surfaceAlt;
-                    
-                    return (
-                      <tr 
-                        key={fact.id}
-                        id={`fact-${fact.originalId}`}
-                        data-testid={`row-fact-${fact.originalId}`}
-                        style={{ 
-                          backgroundColor: zebraColor,
-                          opacity: isGradeable ? 1 : 0.75,
-                        }}
-                        onMouseEnter={(e) => e.currentTarget.style.backgroundColor = tokens.successSoft}
-                        onMouseLeave={(e) => e.currentTarget.style.backgroundColor = zebraColor}
-                      >
-                        <td style={{ 
-                          padding: '16px 12px', 
-                          borderBottom: `1px solid ${tokens.border}`, 
-                          fontWeight: 600,
-                          color: tokens.primary,
-                          verticalAlign: 'middle',
-                          textAlign: 'center',
-                          fontFamily: 'monospace',
-                          fontSize: '12px',
-                        }}>
-                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px' }}>
-                            {fact.originalId}
-                            {hasContradiction && (
-                              <span 
-                                title={`Contradicts: ${fact.contradicts}`}
-                                style={{
-                                  display: 'inline-flex',
-                                  alignItems: 'center',
-                                  justifyContent: 'center',
-                                  width: '16px',
-                                  height: '16px',
-                                  backgroundColor: tokens.warningSoft,
-                                  color: tokens.warning,
-                                  borderRadius: '50%',
-                                  fontSize: '10px',
-                                  fontWeight: 700,
-                                }}
-                              >!</span>
-                            )}
-                          </div>
-                        </td>
-                        <td style={{ 
-                          padding: '16px 12px', 
-                          borderBottom: `1px solid ${tokens.border}`,
-                          fontSize: '14px',
-                          lineHeight: 1.5,
-                          color: tokens.textPrimary,
-                          verticalAlign: 'top',
-                        }}>
-                          <div className="flex flex-col gap-1">
-                            {fact.summary || fact.fact}
-                            {fact.summary && (
-                              <button
-                                onClick={() => setSelectedFactForModal(fact)}
-                                className="text-[11px] text-primary hover:underline w-fit"
-                                style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
-                              >
-                                View Original Full Text
-                              </button>
-                            )}
-                          </div>
-                          {fact.source && (
-                            <div style={{ 
-                              marginTop: '4px', 
-                              fontSize: '0.75rem', 
-                              color: '#9ca3af',
-                            }}>
-                              {fact.source}
-                            </div>
-                          )}
-                        </td>
-                        <td style={{ 
-                          padding: '16px 12px', 
-                          borderBottom: `1px solid ${tokens.border}`, 
-                          textAlign: 'center',
-                          verticalAlign: 'middle',
-                        }}>
-                          <div style={{
-                            display: 'inline-flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            gap: '4px',
-                            padding: '6px 10px',
-                            borderRadius: '16px',
-                            backgroundColor: isGradeable ? scoreChip.bg : tokens.surfaceAlt,
-                            color: isGradeable ? scoreChip.text : tokens.textTertiary,
-                            border: isGradeable ? `1px solid ${scoreChip.text}` : `1px dashed ${tokens.border}`,
-                            fontSize: '12px',
-                            fontWeight: 600,
-                          }}>
-                            <span style={{ fontWeight: 700 }}>{isGradeable ? fact.score : '—'}</span>
-                            <span style={{ fontWeight: 500 }}>{scoreLabel}</span>
-                          </div>
-                        </td>
-                        <td style={{ 
-                          padding: '16px 12px', 
-                          borderBottom: `1px solid ${tokens.border}`, 
-                          textAlign: 'center',
-                          verticalAlign: 'middle',
-                        }}>
-                          {gradingFactId === fact.id ? (
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', alignItems: 'center' }}>
-                              <select
-                                value={gradingScore}
-                                onChange={(e) => setGradingScore(parseInt(e.target.value))}
-                                style={{
-                                  padding: '6px 12px',
-                                  borderRadius: '6px',
-                                  border: `1px solid ${tokens.border}`,
-                                  backgroundColor: tokens.surface,
-                                  fontSize: '13px',
-                                  fontWeight: 600,
-                                  cursor: 'pointer',
-                                  width: '100%',
-                                }}
-                                data-testid={`select-grade-${fact.originalId}`}
-                              >
-                                <option value={1}>1 - Failed</option>
-                                <option value={2}>2 - Weak</option>
-                                <option value={3}>3 - Partial</option>
-                                <option value={4}>4 - Strong</option>
-                                <option value={5}>5 - Verified</option>
-                              </select>
-                              <input
-                                type="text"
-                                placeholder="Notes (optional)"
-                                value={gradingNotes}
-                                onChange={(e) => setGradingNotes(e.target.value)}
-                                style={{
-                                  padding: '6px 10px',
-                                  borderRadius: '6px',
-                                  border: `1px solid ${tokens.border}`,
-                                  fontSize: '12px',
-                                  width: '100%',
-                                }}
-                                data-testid={`input-grade-notes-${fact.originalId}`}
-                              />
-                              <div style={{ display: 'flex', gap: '4px' }}>
-                                <button
-                                  onClick={() => setHumanGradeMutation.mutate({ factId: fact.id, score: gradingScore, notes: gradingNotes })}
-                                  disabled={setHumanGradeMutation.isPending}
-                                  style={{
-                                    padding: '4px 12px',
-                                    borderRadius: '4px',
-                                    border: 'none',
-                                    backgroundColor: tokens.success,
-                                    color: '#fff',
-                                    fontSize: '12px',
-                                    fontWeight: 500,
-                                    cursor: 'pointer',
-                                  }}
-                                  data-testid={`button-save-grade-${fact.originalId}`}
-                                >
-                                  {setHumanGradeMutation.isPending ? 'Saving...' : 'Save'}
-                                </button>
-                                <button
-                                  onClick={() => { setGradingFactId(null); setGradingScore(3); setGradingNotes(''); }}
-                                  style={{
-                                    padding: '4px 12px',
-                                    borderRadius: '4px',
-                                    border: `1px solid ${tokens.border}`,
-                                    backgroundColor: tokens.surface,
-                                    fontSize: '12px',
-                                    cursor: 'pointer',
-                                  }}
-                                  data-testid={`button-cancel-grade-${fact.originalId}`}
-                                >
-                                  Cancel
-                                </button>
-                              </div>
-                            </div>
-                          ) : humanGrades[fact.id] ? (
-                            <button
-                              onClick={() => { 
-                                setGradingFactId(fact.id); 
-                                setGradingScore(humanGrades[fact.id]?.score || 3); 
-                                setGradingNotes(humanGrades[fact.id]?.notes || ''); 
-                              }}
-                              style={{
-                                display: 'inline-flex',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                gap: '4px',
-                                padding: '6px 12px',
-                                borderRadius: '16px',
-                                backgroundColor: getScoreChipColors(humanGrades[fact.id]?.score || 3).bg,
-                                color: getScoreChipColors(humanGrades[fact.id]?.score || 3).text,
-                                border: `1px solid ${getScoreChipColors(humanGrades[fact.id]?.score || 3).text}`,
-                                fontSize: '12px',
-                                fontWeight: 600,
-                                cursor: 'pointer',
-                              }}
-                              data-testid={`button-edit-grade-${fact.originalId}`}
-                              title={humanGrades[fact.id]?.notes || 'Click to edit'}
-                            >
-                              <User size={12} />
-                              {humanGrades[fact.id]?.score}
-                            </button>
-                          ) : (
-                            <button
-                              onClick={() => setGradingFactId(fact.id)}
-                              style={{
-                                padding: '4px 12px',
-                                borderRadius: '4px',
-                                border: '1px solid #e5e7eb',
-                                backgroundColor: 'transparent',
-                                fontSize: '12px',
-                                color: '#6b7280',
-                                cursor: 'pointer',
-                              }}
-                              className="hover-elevate"
-                              data-testid={`button-add-grade-${fact.originalId}`}
-                            >
-                              + Grade
-                            </button>
-                          )}
-                        </td>
-                        <td style={{ 
-                          padding: '16px 12px', 
-                          borderBottom: `1px solid ${tokens.border}`, 
-                          textAlign: 'center',
-                          verticalAlign: 'middle',
-                        }}>
-                          {redundancyLookup[fact.id] ? (
-                            <div 
-                              style={{
-                                display: 'inline-flex',
-                                alignItems: 'center',
-                                gap: '4px',
-                                padding: '4px 10px',
-                                borderRadius: '12px',
-                                backgroundColor: redundancyLookup[fact.id].isPrimary ? tokens.successSoft : tokens.warningSoft,
-                                color: redundancyLookup[fact.id].isPrimary ? tokens.success : tokens.warning,
-                                fontSize: '11px',
-                                fontWeight: 500,
-                              }}
-                              title={redundancyLookup[fact.id].groupName}
-                              data-testid={`badge-redundancy-${fact.originalId}`}
-                            >
-                              {redundancyLookup[fact.id].isPrimary ? (
-                                <>
-                                  <CheckCircle size={10} />
-                                  Keep
-                                </>
-                              ) : (
-                                <>
-                                  <AlertTriangle size={10} />
-                                  {redundancyLookup[fact.id].similarTo}
-                                </>
-                              )}
-                            </div>
-                          ) : (
-                            <span style={{ color: '#e5e7eb', fontSize: '11px' }}>-</span>
-                          )}
-                        </td>
-                        <td style={{ 
-                          padding: '16px 12px', 
-                          borderBottom: `1px solid ${tokens.border}`,
-                          fontSize: '13px',
-                          lineHeight: 1.6,
-                          color: '#4B5563',
-                          verticalAlign: 'top',
-                        }}>
-                          {humanGrades[fact.id]?.notes ? (
-                            <div style={{ marginBottom: '8px' }}>
-                              <span style={{ 
-                                display: 'inline-flex', 
-                                alignItems: 'center', 
-                                gap: '4px',
-                                fontWeight: 500, 
-                                color: tokens.primary,
-                                fontSize: '11px',
-                              }}>
-                                <User size={10} />
-                                Your Notes:
-                              </span>
-                              <div style={{ color: tokens.textPrimary, marginTop: '2px' }}>
-                                {humanGrades[fact.id]?.notes}
-                              </div>
-                            </div>
-                          ) : null}
-                          {fact.note ? (
-                            <div style={{ color: '#6B7280' }}>
-                              {fact.note}
-                            </div>
-                          ) : (
-                            !humanGrades[fact.id]?.notes && <span style={{ color: '#d1d5db', fontStyle: 'italic' }}>Pending...</span>
-                          )}
-                          {hasContradiction && (
-                            <div style={{ 
-                              display: 'inline-flex',
-                              alignItems: 'center',
-                              gap: '4px',
-                              marginTop: '8px',
-                              fontSize: '11px',
-                              color: tokens.warning,
-                            }}>
-                              <AlertTriangle size={12} />
-                              Contradicts: {fact.contradicts}
-                            </div>
-                          )}
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
+            {/* New Fact Grading Panel */}
+            <FactGradingPanel
+              slug={slug}
+              facts={facts}
+              humanGrades={humanGrades}
+              redundancyData={redundancyData}
+              onShowRedundancyModal={() => setShowRedundancyModal(true)}
+              onAnalyzeRedundancy={() => analyzeRedundancyMutation.mutate()}
+              isAnalyzingRedundancy={analyzeRedundancyMutation.isPending}
+              onViewFactFullText={(fact) => setSelectedFactForModal(fact)}
+            />
           </div>
         )}
 

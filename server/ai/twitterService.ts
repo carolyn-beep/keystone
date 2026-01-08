@@ -214,29 +214,39 @@ function extractSearchTermsFromFacts(
   return unique.slice(0, 8);
 }
 
+// Validate Twitter handle: 1-15 chars, alphanumeric + underscore only
+function isValidTwitterHandle(handle: string): boolean {
+  if (!handle || handle.length === 0 || handle.length > 15) return false;
+  return /^[A-Za-z0-9_]+$/.test(handle);
+}
+
 function buildSearchQuery(
-  phrases: string[], 
+  phrases: string[],
   followedHandles: string[] = [],
   expertNames: string[] = []
 ): string {
   const baseFilters = '-is:retweet lang:en';
-  
+
   // STRICT EXPERT-FOCUSED SEARCH: Only search for tweets FROM or ABOUT experts
   // Do NOT include generic topic phrases that could match unrelated content
   const queryParts: string[] = [];
-  
+
   // 1. Tweets FROM experts (highest priority) - use their Twitter handles
   if (followedHandles.length > 0) {
-    const cleanHandles = followedHandles.map(h => h.replace('@', '')).filter(h => h.length > 0);
+    const cleanHandles = followedHandles
+      .map(h => h.replace('@', ''))
+      .filter(h => isValidTwitterHandle(h));
     if (cleanHandles.length > 0) {
       const fromFilters = cleanHandles.slice(0, 10).map(h => `from:${h}`).join(' OR ');
       queryParts.push(`(${fromFilters})`);
     }
   }
-  
+
   // 2. Tweets MENTIONING experts (@mentions)
   if (followedHandles.length > 0) {
-    const cleanHandles = followedHandles.map(h => h.replace('@', '')).filter(h => h.length > 0);
+    const cleanHandles = followedHandles
+      .map(h => h.replace('@', ''))
+      .filter(h => isValidTwitterHandle(h));
     if (cleanHandles.length > 0) {
       const mentionFilters = cleanHandles.slice(0, 10).map(h => `@${h}`).join(' OR ');
       queryParts.push(`(${mentionFilters})`);
