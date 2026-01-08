@@ -284,7 +284,7 @@ export async function findContradictions(facts: any[]): Promise<any[]> {
 
   try {
     const response = await openai.chat.completions.create({
-      model: "google/gemini-2.0-flash-exp:free", // Updated to Opus 4.5/Gemini 2.0 as requested
+      model: "anthropic/claude-3-opus", // Updated to Anthropic Opus as requested
       messages: [
         {
           role: "system",
