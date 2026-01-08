@@ -125,48 +125,62 @@ export function FactGradingPanel({
     return lookup;
   }, [redundancyData]);
 
+  // Build a map of fact.id -> full Fact object for quick lookup
+  const factById = useMemo(() => {
+    const map = new Map<number, Fact>();
+    for (const fact of facts) {
+      map.set(fact.id, fact);
+    }
+    return map;
+  }, [facts]);
+
   // Group facts by redundancy for visual display
   const groupedFacts = useMemo(() => {
     const groups: Map<number, {
       group: RedundancyGroup;
       facts: Fact[];
     }> = new Map();
-    const standalone: Fact[] = [];
 
-    // Sort facts by score descending
-    const sortedFacts = [...facts].sort((a, b) => b.score - a.score || a.originalId.localeCompare(b.originalId));
+    // Build set of all fact IDs that are in pending redundancy groups
+    const factsInGroups = new Set<number>();
 
-    // Populate groups and standalone
-    for (const fact of sortedFacts) {
-      const redundancy = redundancyLookup[fact.id];
-      if (redundancy && redundancy.status === 'pending') {
-        const existing = groups.get(redundancy.groupId);
-        if (existing) {
-          existing.facts.push(fact);
-        } else {
-          const groupData = redundancyData?.groups.find(g => g.id === redundancy.groupId);
-          if (groupData) {
-            groups.set(redundancy.groupId, { group: groupData, facts: [fact] });
+    // Use group.facts directly from redundancy data (same approach as the modal)
+    if (redundancyData?.groups) {
+      for (const group of redundancyData.groups) {
+        if (group.status === 'pending') {
+          // Get full Fact objects from factById map, falling back to group.facts
+          const groupFacts: Fact[] = [];
+          for (const groupFact of group.facts) {
+            const fullFact = factById.get(groupFact.id);
+            if (fullFact) {
+              groupFacts.push(fullFact);
+              factsInGroups.add(fullFact.id);
+            }
+          }
+
+          if (groupFacts.length > 0) {
+            // Sort: primary first, then by score
+            groupFacts.sort((a, b) => {
+              const aIsPrimary = a.id === group.primaryFactId;
+              const bIsPrimary = b.id === group.primaryFactId;
+              if (aIsPrimary && !bIsPrimary) return -1;
+              if (!aIsPrimary && bIsPrimary) return 1;
+              return b.score - a.score;
+            });
+
+            groups.set(group.id, { group, facts: groupFacts });
           }
         }
-      } else {
-        standalone.push(fact);
       }
     }
 
-    // Sort facts within each group: primary first, then by score
-    groups.forEach((value) => {
-      value.facts.sort((a, b) => {
-        const aIsPrimary = a.id === value.group.primaryFactId;
-        const bIsPrimary = b.id === value.group.primaryFactId;
-        if (aIsPrimary && !bIsPrimary) return -1;
-        if (!aIsPrimary && bIsPrimary) return 1;
-        return b.score - a.score;
-      });
-    });
+    // Standalone facts are those not in any pending group
+    const standalone = facts
+      .filter(f => !factsInGroups.has(f.id))
+      .sort((a, b) => b.score - a.score || a.originalId.localeCompare(b.originalId));
 
     return { groups, standalone };
-  }, [facts, redundancyLookup, redundancyData]);
+  }, [facts, factById, redundancyData]);
 
   const nonGradeableFacts = facts.filter(f => !f.isGradeable);
 

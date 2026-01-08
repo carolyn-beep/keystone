@@ -50,6 +50,68 @@ const brainliftOutputSchema = z.object({
 
 export type BrainliftOutput = z.infer<typeof brainliftOutputSchema>;
 
+// LLM fallback for extracting facts when rule-based parser fails
+async function extractFactsWithLLM(content: string, title: string): Promise<any[]> {
+  console.log('[DOK1 Extractor] FALLBACK: Using LLM to extract facts...');
+
+  try {
+    const response = await openai.chat.completions.create({
+      model: "qwen/qwen3-32b",
+      messages: [
+        {
+          role: "system",
+          content: `You extract DOK1 (Depth of Knowledge Level 1) facts from educational documents.
+
+DOK1 facts are atomic, verifiable claims - typically:
+- Research findings with citations (Author, Year)
+- Statistics and data points
+- Definitions or established concepts
+
+Look for sections labeled "DOK 1", "DOK1", "Atomic Evidence", "Facts", or similar.
+Extract ONLY factual claims, not summaries, insights, or recommendations.
+
+Output ONLY valid JSON array:
+[
+  {"fact": "The full fact text including any citation", "source": "Author (Year) if present, else null"},
+  ...
+]
+
+If no DOK1 facts found, return empty array: []`
+        },
+        {
+          role: "user",
+          content: `Extract DOK1 facts from this document titled "${title}":\n\n${content.substring(0, 15000)}`
+        }
+      ],
+      temperature: 0.1,
+    });
+
+    const responseContent = response.choices[0].message.content?.trim() || "[]";
+    const jsonMatch = responseContent.match(/\[[\s\S]*\]/);
+    if (!jsonMatch) {
+      console.log('[DOK1 Extractor] FALLBACK: No JSON array found in LLM response');
+      return [];
+    }
+
+    const parsed = JSON.parse(jsonMatch[0]);
+    console.log(`[DOK1 Extractor] FALLBACK: LLM extracted ${parsed.length} facts`);
+
+    return parsed.map((item: any, idx: number) => ({
+      id: `${idx + 1}`,
+      category: 'General',
+      source: item.source || 'Unknown',
+      fact: item.fact,
+      score: 0,
+      aiNotes: item.source ? `Source: ${item.source}` : "No sources have been linked to this fact",
+      contradicts: null,
+      flags: []
+    }));
+  } catch (err) {
+    console.error('[DOK1 Extractor] FALLBACK: LLM extraction failed:', err);
+    return [];
+  }
+}
+
 export async function extractReadingList(title: string, description: string, facts: any[]): Promise<any[]> {
   try {
     const response = await openai.chat.completions.create({
@@ -100,11 +162,13 @@ function extractUrl(line: string): string | null {
 }
 
 export async function extractBrainlift(markdownContent: string, sourceType: string): Promise<BrainliftOutput> {
+  console.log('[DOK1 Extractor] Starting extraction from', sourceType);
+  console.log('[DOK1 Extractor] Content length:', markdownContent.length, 'chars');
+
   const lines = markdownContent.split('\n');
   const facts: any[] = [];
   let factIdCounter = 1;
-  
-  let inKnowledgeTree = false;
+
   let inDOK1Section = false;
   let inDOK2Section = false;
   let sectionIndentLevel = -1;
@@ -113,15 +177,21 @@ export async function extractBrainlift(markdownContent: string, sourceType: stri
   let currentSourceLink: string | null = null;
   let sectionBuffer: string[] = [];
 
+  // No longer gating on Knowledge Tree - capture DOK1 sections wherever they appear
+  let inKnowledgeTree = true;
+
   // Facts waiting for a source link to be found in the same context
   let pendingFacts: any[] = [];
 
   const flushSection = () => {
     if (sectionBuffer.length > 0) {
       const factText = sectionBuffer.join('\n').trim();
+      console.log(`[DOK1 Extractor] flushSection called with ${sectionBuffer.length} lines, factText length=${factText.length}`);
       if (factText.length > 10) {
+        const factId = `${factIdCounter++}`;
+        console.log(`[DOK1 Extractor] Created fact #${factId}: "${factText.substring(0, 80)}..."`);
         pendingFacts.push({
-          id: `${factIdCounter++}`,
+          id: factId,
           category: currentCategory,
           source: currentSource,
           fact: factText,
@@ -136,10 +206,11 @@ export async function extractBrainlift(markdownContent: string, sourceType: stri
   };
 
   const flushPendingFacts = () => {
-    const sourceNote = currentSourceLink 
-      ? `Source: ${currentSourceLink}` 
+    console.log(`[DOK1 Extractor] flushPendingFacts called with ${pendingFacts.length} pending facts`);
+    const sourceNote = currentSourceLink
+      ? `Source: ${currentSourceLink}`
       : "No sources have been linked to this fact";
-    
+
     for (const f of pendingFacts) {
       // Prioritize Source: [link](link) or similar within the fact text itself if it exists
       const inlineSourceMatch = f.fact.match(/\(Source:\s*\[?([^\]\)]+)\]?\)?/i);
@@ -151,13 +222,12 @@ export async function extractBrainlift(markdownContent: string, sourceType: stri
       }
       facts.push(f);
     }
+    console.log(`[DOK1 Extractor] Total facts now: ${facts.length}`);
     pendingFacts = [];
   };
 
-  // Check if we even need Knowledge Tree anchor
-  if (!markdownContent.toLowerCase().includes('knowledge tree')) {
-    inKnowledgeTree = true;
-  }
+  // Knowledge Tree gate removed - DOK1 sections captured wherever they appear
+  console.log('[DOK1 Extractor] Knowledge Tree gate disabled - scanning all content');
 
   // Title extraction
   let title = "Extracted Brainlift";
@@ -178,16 +248,16 @@ export async function extractBrainlift(markdownContent: string, sourceType: stri
     const cleaned = cleanHeader(line);
     const url = extractUrl(line);
 
-    // 1. Detect Knowledge Tree Entry
-    if (!inKnowledgeTree) {
-      if (/DOK\s*2\s*-\s*Knowledge\s*Tree/i.test(cleaned) || /^#+\s*Knowledge\s*Tree/i.test(line) || /knowledge\s*tree/i.test(cleaned)) {
-        inKnowledgeTree = true;
-      }
-      continue;
-    }
+    // Knowledge Tree detection removed - now scanning all content for DOK1
 
     // 2. Identify Context (Categories and Sources)
-    const isCategoryHeader = /^Category\s*\d+/i.test(cleaned) || /^[-•*]\s*\d+\.\s+\w+/i.test(trimmed) || (/^#+\s*Category/i.test(line)) || (/^[-•*]\s*Category/i.test(trimmed));
+    // Note: Skip numbered list pattern when in DOK1 section to avoid matching "- 1. fact text" as category
+    const isCategoryHeader = !inDOK1Section && (
+      /^Category\s*\d+/i.test(cleaned) ||
+      /^[-•*]\s*\d+\.\s+\w+/i.test(trimmed) ||
+      /^#+\s*Category/i.test(line) ||
+      /^[-•*]\s*Category/i.test(trimmed)
+    );
     if (isCategoryHeader) {
       if (inDOK1Section) flushSection();
       flushPendingFacts();
@@ -200,6 +270,7 @@ export async function extractBrainlift(markdownContent: string, sourceType: stri
 
     const isSourceHeader = /^Source\s*\d+/i.test(cleaned) || (indent > 0 && /^[-•*]\s*(Source|\[\d+\])/i.test(trimmed)) || (/^#+\s*Source/i.test(line)) || (/^[-•*]\s*Source/i.test(trimmed));
     if (isSourceHeader) {
+      console.log(`[DOK1 Extractor] SOURCE HEADER at line ${i + 1}: "${trimmed.substring(0, 50)}..." (inDOK1=${inDOK1Section})`);
       if (inDOK1Section) flushSection();
       flushPendingFacts();
       currentSource = cleaned;
@@ -209,9 +280,10 @@ export async function extractBrainlift(markdownContent: string, sourceType: stri
       continue;
     }
 
-    // 3. Detect DOK Entry Points
-    const isDOK1Trigger = /DOK\s*1\s*-\s*Facts/i.test(cleaned) || /DOK1/i.test(cleaned) || /DOK\s*1\s*Facts/i.test(cleaned) || /DOK1\s*Facts/i.test(cleaned) || /DOK\s*1\s*-\s*fact/i.test(cleaned) || /DOK\s*1\s*-\s*Facts/i.test(cleaned) || /DOK1\s*Facts:/i.test(cleaned) || /DOK1\s*Facts/i.test(cleaned) || /DOK\s*1\s*-\s*facts/i.test(cleaned) || /DOK\s*1\s*facts/i.test(cleaned);
+    // 3. Detect DOK Entry Points - expanded to catch "DOK 1" without "Facts"
+    const isDOK1Trigger = /DOK\s*1\b/i.test(cleaned) && !/DOK\s*1\s*\(/i.test(cleaned);
     if (isDOK1Trigger) {
+      console.log(`[DOK1 Extractor] DOK1 TRIGGER at line ${i + 1}: "${trimmed.substring(0, 60)}..."`);
       if (inDOK1Section) flushSection();
       inDOK1Section = true;
       inDOK2Section = false;
@@ -219,10 +291,14 @@ export async function extractBrainlift(markdownContent: string, sourceType: stri
       continue;
     }
 
-    if (/DOK\s*2\s*-\s*Summary/i.test(cleaned) || /DOK2/i.test(cleaned)) {
-      if (inDOK1Section) flushSection();
+    // DOK2/DOK3/DOK4 exit DOK1 section
+    if (/DOK\s*[234]\b/i.test(cleaned)) {
+      if (inDOK1Section) {
+        console.log(`[DOK1 Extractor] DOK1 EXIT at line ${i + 1} (DOK2/3/4 found): "${trimmed.substring(0, 60)}..."`);
+        flushSection();
+      }
       inDOK1Section = false;
-      inDOK2Section = true;
+      inDOK2Section = /DOK\s*2\b/i.test(cleaned);
       continue;
     }
 
@@ -240,14 +316,19 @@ export async function extractBrainlift(markdownContent: string, sourceType: stri
 
     // 5. Handle Content inside DOK1 Section
     if (inDOK1Section) {
-      const isExitSection = /Link/i.test(cleaned) || /Source\s*\d+/i.test(cleaned) || /^Category\s*\d+/i.test(cleaned) || /DOK\s*2/i.test(cleaned) || isCategoryHeader || isSourceHeader;
+      const isExitSection = /Source\s*\d+/i.test(cleaned) || /^Category\s*\d+/i.test(cleaned) || isCategoryHeader || isSourceHeader;
       const isHeaderLike = (trimmed.length > 0 && !trimmed.startsWith('-') && !trimmed.startsWith('•') && !trimmed.startsWith('*') && !trimmed.startsWith('fact') && !trimmed.startsWith('Fact') && !/^\d+\./.test(trimmed));
       const isHigherLevel = indent <= sectionIndentLevel && isHeaderLike;
 
+      // Debug logging
       if (isExitSection || isHigherLevel) {
+        console.log(`[DOK1 Extractor] EXIT CHECK at line ${i + 1}:`);
+        console.log(`  trimmed: "${trimmed.substring(0, 50)}..."`);
+        console.log(`  indent=${indent}, sectionIndentLevel=${sectionIndentLevel}`);
+        console.log(`  isExitSection=${isExitSection}, isHeaderLike=${isHeaderLike}, isHigherLevel=${isHigherLevel}`);
         flushSection();
         inDOK1Section = false;
-        
+
         if (isExitSection || /^Category|^Source/i.test(cleaned)) {
           i--; // Re-process this line
         }
@@ -261,17 +342,34 @@ export async function extractBrainlift(markdownContent: string, sourceType: stri
   flushSection();
   flushPendingFacts();
 
+  console.log(`[DOK1 Extractor] Rule-based extraction: ${facts.length} facts`);
+
+  // FALLBACK: If rule-based parser found 0 facts, use LLM
+  let finalFacts = facts;
+  if (facts.length === 0) {
+    console.log('[DOK1 Extractor] Rule-based extraction failed, trying LLM fallback...');
+    const llmFacts = await extractFactsWithLLM(markdownContent, title);
+    if (llmFacts.length > 0) {
+      finalFacts = llmFacts;
+      console.log(`[DOK1 Extractor] LLM fallback succeeded: ${llmFacts.length} facts`);
+    } else {
+      console.log('[DOK1 Extractor] WARNING: Both rule-based and LLM extraction failed!');
+    }
+  } else {
+    console.log(`[DOK1 Extractor] First fact: "${facts[0]?.fact?.substring(0, 100)}..."`);
+  }
+
   const finalResult = {
     classification: 'brainlift' as const,
     title,
     description: `Section-based DOK1 extraction from ${sourceType}`,
     summary: {
-      totalFacts: facts.length,
+      totalFacts: finalFacts.length,
       meanScore: "0",
       score5Count: 0,
       contradictionCount: 0
     },
-    facts,
+    facts: finalFacts,
     contradictionClusters: [], // Will be filled later in parallel
     readingList: []
   };
@@ -284,7 +382,7 @@ export async function findContradictions(facts: any[]): Promise<any[]> {
 
   try {
     const response = await openai.chat.completions.create({
-      model: "anthropic/claude-opus-4.5", // Updated to the exact model string requested: anthropic/claude-opus-4.5
+      model: "anthropic/claude-sonnet-4", // Changed from Opus 4.5 - too slow for import pipeline
       messages: [
         {
           role: "system",

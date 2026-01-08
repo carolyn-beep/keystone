@@ -151,14 +151,39 @@ export class DatabaseStorage implements IStorage {
     // Get reading list items to delete their grades first
     const items = await db.select().from(readingListItems).where(eq(readingListItems.brainliftId, id));
     const itemIds = items.map(i => i.id);
-    
+
     if (itemIds.length > 0) {
       await db.delete(readingListGrades).where(inArray(readingListGrades.readingListItemId, itemIds));
     }
-    
-    // Delete related data
+
+    // Get facts to delete their related data
+    const factsList = await db.select().from(facts).where(eq(facts.brainliftId, id));
+    const factIds = factsList.map(f => f.id);
+
+    if (factIds.length > 0) {
+      // Get verifications for these facts
+      const verifications = await db.select().from(factVerifications).where(inArray(factVerifications.factId, factIds));
+      const verificationIds = verifications.map(v => v.id);
+
+      if (verificationIds.length > 0) {
+        // Delete model scores (references verificationId, not factId)
+        await db.delete(factModelScores).where(inArray(factModelScores.verificationId, verificationIds));
+      }
+
+      // Delete llmFeedback (references factId)
+      await db.delete(llmFeedback).where(inArray(llmFeedback.factId, factIds));
+
+      // Delete verifications
+      await db.delete(factVerifications).where(inArray(factVerifications.factId, factIds));
+    }
+
+    // Delete all related data with foreign keys to brainlifts
     await db.delete(readingListItems).where(eq(readingListItems.brainliftId, id));
     await db.delete(contradictionClusters).where(eq(contradictionClusters.brainliftId, id));
+    await db.delete(sourceFeedback).where(eq(sourceFeedback.brainliftId, id));
+    await db.delete(brainliftVersions).where(eq(brainliftVersions.brainliftId, id));
+    await db.delete(experts).where(eq(experts.brainliftId, id));
+    await db.delete(factRedundancyGroups).where(eq(factRedundancyGroups.brainliftId, id));
     await db.delete(facts).where(eq(facts.brainliftId, id));
     await db.delete(brainlifts).where(eq(brainlifts.id, id));
   }
