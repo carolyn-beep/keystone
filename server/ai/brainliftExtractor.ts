@@ -184,25 +184,91 @@ export async function extractBrainlift(markdownContent: string, sourceType: stri
   let pendingFacts: any[] = [];
 
   const flushSection = () => {
-    if (sectionBuffer.length > 0) {
-      const factText = sectionBuffer.join('\n').trim();
-      console.log(`[DOK1 Extractor] flushSection called with ${sectionBuffer.length} lines, factText length=${factText.length}`);
-      if (factText.length > 10) {
-        const factId = `${factIdCounter++}`;
-        console.log(`[DOK1 Extractor] Created fact #${factId}: "${factText.substring(0, 80)}..."`);
+    if (sectionBuffer.length === 0) return;
+
+    console.log(`[DOK1 Extractor] flushSection called with ${sectionBuffer.length} lines`);
+
+    // Split buffer into individual facts based on bullet points
+    // Each line starting with - • * or "fact N" or "N." is a separate fact
+    const bulletPattern = /^[-•*]\s+/;
+    const numberedPattern = /^(?:fact\s*)?\d+[\.\s-]+/i;
+
+    const factLines: string[] = [];
+    let currentFactLines: string[] = [];
+
+    for (const line of sectionBuffer) {
+      const trimmed = line.trim();
+      if (!trimmed) continue;
+
+      // Check if this line starts a new fact
+      const startsNewFact = bulletPattern.test(trimmed) || numberedPattern.test(trimmed);
+
+      if (startsNewFact && currentFactLines.length > 0) {
+        // Save previous fact
+        factLines.push(currentFactLines.join(' ').trim());
+        currentFactLines = [];
+      }
+
+      // Clean the line (remove bullet/number prefix)
+      const cleanedLine = trimmed
+        .replace(bulletPattern, '')
+        .replace(numberedPattern, '')
+        .trim();
+
+      if (cleanedLine.length > 0) {
+        currentFactLines.push(cleanedLine);
+      }
+    }
+
+    // Don't forget the last fact
+    if (currentFactLines.length > 0) {
+      factLines.push(currentFactLines.join(' ').trim());
+    }
+
+    // Filter out empty/short facts
+    const validFacts = factLines.filter(f => f.length > 10);
+
+    if (validFacts.length === 0) {
+      sectionBuffer = [];
+      return;
+    }
+
+    // Use parent ID for sub-facts (e.g., 1.1, 1.2, 1.3)
+    const parentId = factIdCounter++;
+
+    if (validFacts.length === 1) {
+      // Single fact - use simple ID
+      console.log(`[DOK1 Extractor] Created fact #${parentId}: "${validFacts[0].substring(0, 80)}..."`);
+      pendingFacts.push({
+        id: `${parentId}`,
+        category: currentCategory,
+        source: currentSource,
+        fact: validFacts[0],
+        score: 0,
+        aiNotes: "",
+        contradicts: null,
+        flags: []
+      });
+    } else {
+      // Multiple facts - use sub-IDs (1.1, 1.2, 1.3, etc.)
+      console.log(`[DOK1 Extractor] Splitting into ${validFacts.length} sub-facts under parent #${parentId}`);
+      validFacts.forEach((factText, idx) => {
+        const subId = `${parentId}.${idx + 1}`;
+        console.log(`[DOK1 Extractor] Created fact #${subId}: "${factText.substring(0, 80)}..."`);
         pendingFacts.push({
-          id: factId,
+          id: subId,
           category: currentCategory,
           source: currentSource,
           fact: factText,
           score: 0,
-          aiNotes: "", // Will be filled once context is fully parsed
+          aiNotes: "",
           contradicts: null,
           flags: []
         });
-      }
-      sectionBuffer = [];
+      });
     }
+
+    sectionBuffer = [];
   };
 
   const flushPendingFacts = () => {
@@ -386,40 +452,43 @@ export async function findContradictions(facts: any[]): Promise<any[]> {
       messages: [
         {
           role: "system",
-          content: `You detect FACTUAL / LOGICAL contradictions (aka “competing claims”) between facts.
+          content: `You detect FACTUAL / LOGICAL contradictions (aka "competing claims") between facts.
+
+IMPORTANT: A single fact entry may contain MULTIPLE claims. When referencing specific claims, use sub-IDs:
+- If Fact 1 contains two distinct claims, reference them as "Fact 1.1" and "Fact 1.2"
+- Contradictions CAN occur within the same fact ID (e.g., Fact 1.1 vs Fact 1.2)
 
 Definitions
-- A contradiction exists ONLY when two facts cannot both be true at the same time OR they assert opposite directions/valence about the same proposition.
-- “Interpretive tension” is allowed ONLY if it is an explicit, unresolved conceptual conflict about the SAME underlying variable (not just “unfairness” or “bad vibes”).
+- A contradiction exists ONLY when two claims cannot both be true at the same time OR they assert opposite directions/valence about the same proposition.
+- "Interpretive tension" is allowed ONLY if it is an explicit, unresolved conceptual conflict about the SAME underlying variable.
 
 You MUST be strict:
-DO NOT flag “complementary” or “supporting” facts as contradictions.
-DO NOT flag “X is big” vs “X causes harm” unless the harm claim explicitly says the opposite about the SAME measurable proposition.
-DO NOT create moral/justice tensions (e.g., “they make money but don’t pay athletes”) unless it is framed as a logical incompatibility.
+DO NOT flag "complementary" or "supporting" claims as contradictions.
+DO NOT flag "X is big" vs "X causes harm" unless the harm claim explicitly says the opposite about the SAME measurable proposition.
+DO NOT create moral/justice tensions unless it is framed as a logical incompatibility.
 
 What counts as a contradiction (must map to one of these):
 1) X vs NOT X (same entity, same scope, same timeframe/conditions)
 2) beneficial vs harmful (same intervention/variable, same outcome dimension)
 3) increasing vs decreasing (same metric, same population, same period)
-4) mutually exclusive policy/structure claims (e.g., “schools cannot pay athletes” vs “schools can pay athletes now” in the same ruleset/time)
+4) mutually exclusive policy/structure claims
 
 OUTPUT (STRICT):
 - Return ONLY valid JSON.
 - If a tension exists, return EXACTLY:
 {
   "title": "Concept vs Concept",
-  "tension": "<Concept statement> (Fact <id>) vs <Concept statement> (Facts <id>, <id>, <id>)"
+  "tension": "<Concept statement> (Fact <id.sub>) vs <Concept statement> (Fact <id.sub>)"
 }
 Rules:
-1) Title MUST be exactly "Concept vs Concept" (two short concepts, no extra punctuation, no sentence).
-   Examples: "Interest vs Content", "Access vs Equity", "Engagement vs Rigor".
-2) The tension field MUST read like the following format:
-   - left side: a short, human sentence summarizing one side
-   - then parenthesis with fact refs: (Fact 1.1) or (Facts 2.1, 4.2)
+1) Title MUST be exactly "Concept vs Concept" (two short concepts).
+   Examples: "Job Creation vs Job Displacement", "Access vs Equity", "Engagement vs Rigor".
+2) The tension field format:
+   - Summarize one side + (Fact X.Y) where X is fact ID and Y is claim number within that fact
    - then " vs "
-   - then the opposing short sentence + its fact refs
-3) Use "Fact" when one id; "Facts" when multiple.
-4) Include ONLY the minimum facts necessary (usually 1 vs 1–3). No extra commentary.
+   - then the opposing side + its fact ref
+3) Use "Fact" (singular) for each reference. Always include sub-ID even if there's only one claim (e.g., "Fact 1.1").
+4) Include ONLY the minimum facts necessary. No extra commentary.
 5) No other keys. No explanation. No bullets. No markdown.
 
 If NO tension exists, return EXACTLY:
@@ -440,12 +509,16 @@ If NO tension exists, return EXACTLY:
     
     if (result.result === "NONE") return [];
 
-    const ids = result.tension.match(/Fact\s+([^\s,.]+)|Facts\s+([^\s,.]+)/g)?.map(m => m.replace(/Facts?\s+/, '')) || [];
-    
+    // Extract IDs like "1.1", "2.1" from tension string - allows digits and dots
+    const ids = result.tension.match(/Fact\s+(\d+\.\d+)/g)?.map((m: string) => m.replace(/Fact\s+/, '')) || [];
+
+    // Map sub-IDs back to parent fact ID for claims lookup (e.g., "1.1" -> find fact with id "1")
+    const getParentFactId = (subId: string) => subId.split('.')[0];
+
     return [{
       name: result.title,
       factIds: ids,
-      claims: ids.map(id => facts.find(f => f.id === id)?.fact).filter(Boolean),
+      claims: ids.map((id: string) => facts.find(f => f.id === getParentFactId(id))?.fact).filter(Boolean),
       tension: result.tension,
       status: "Flagged"
     }];

@@ -214,10 +214,15 @@ export async function verifyFactWithAllModels(
   linkFailed: boolean = false,
   modelWeights?: ModelWeights
 ): Promise<VerificationResult & { consensus: ConsensusResult & { isNonGradeable?: boolean } }> {
-  // Use just Qwen as requested
-  const model = LLM_MODELS.QWEN_32B;
-  const result = await callModel(model, fact, source, evidence, linkFailed);
-  
+  // Primary: Gemini Flash
+  let result = await callModel(LLM_MODELS.GEMINI_FLASH, fact, source, evidence, linkFailed);
+
+  // Fallback: Qwen if Gemini fails
+  if (result.status === 'failed') {
+    console.log('Gemini verification failed, trying Qwen fallback...');
+    result = await callModel(LLM_MODELS.QWEN_32B, fact, source, evidence, linkFailed);
+  }
+
   const modelResults = [result];
   const consensus = calculateConsensus(modelResults, modelWeights);
 

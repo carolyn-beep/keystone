@@ -124,13 +124,15 @@ export const experts = pgTable("experts", {
   isFollowing: boolean("is_following").notNull().default(true), // Auto-follow if rank > 5
 });
 
-// Single LLM Fact Verification - Using Qwen 2.5 32B via OpenRouter
+// LLM Models for Fact Verification - Gemini primary, Qwen fallback
 export const LLM_MODELS = {
-  QWEN_32B: 'qwen/qwen3-vl-32b-instruct',
+  GEMINI_FLASH: 'google/gemini-2.0-flash-001',
+  QWEN_32B: 'qwen/qwen3-32b',
 } as const;
 
 export const LLM_MODEL_NAMES: Record<LLMModel, string> = {
-  'qwen/qwen3-vl-32b-instruct': 'Qwen 3 VL 32B',
+  'google/gemini-2.0-flash-001': 'Gemini 2.0 Flash',
+  'qwen/qwen3-32b': 'Qwen 3 32B',
 };
 
 export type LLMModel = typeof LLM_MODELS[keyof typeof LLM_MODELS];
