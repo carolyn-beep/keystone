@@ -2106,6 +2106,7 @@ export default function Dashboard({ slug, isSharedView = false }: DashboardProps
                         >
                           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '12px', marginBottom: '12px' }}>
                             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                              {/* DOK badge commented out for now
                               <span style={{
                                 padding: '4px 10px',
                                 borderRadius: '12px',
@@ -2116,6 +2117,7 @@ export default function Dashboard({ slug, isSharedView = false }: DashboardProps
                               }}>
                                 {dok.label}
                               </span>
+                              */}
                               <span style={{ fontSize: '12px', color: tokens.textMuted }}>
                                 {Math.round(tweet.relevanceScore * 100)}% relevant
                               </span>
