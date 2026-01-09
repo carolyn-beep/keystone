@@ -100,7 +100,7 @@ Grade this claim based on available evidence OR your knowledge of educational re
           { role: 'user', content: userPrompt },
         ],
         temperature: 0.1,
-        max_tokens: 500,
+        max_tokens: 800,
       }),
     });
 
@@ -115,10 +115,36 @@ Grade this claim based on available evidence OR your knowledge of educational re
       throw new Error('No response content');
     }
 
-    let jsonMatch = content.match(/\{[\s\S]*?\}/);
+    // Remove markdown code blocks if present
+    let cleanContent = content
+      .replace(/```json\s*/gi, '')
+      .replace(/```\s*/g, '')
+      .trim();
+
+    // Use greedy match to get the full JSON object
+    let jsonMatch = cleanContent.match(/\{[\s\S]*\}/);
     if (!jsonMatch) throw new Error('Could not find JSON in response');
 
-    const parsed = JSON.parse(jsonMatch[0]);
+    // Try to parse, if it fails try to fix common issues
+    let parsed;
+    try {
+      parsed = JSON.parse(jsonMatch[0]);
+    } catch (parseErr) {
+      // Try to extract just the fields we need with a more targeted approach
+      const scoreMatch = cleanContent.match(/"score"\s*:\s*(\d)/);
+      const rationaleMatch = cleanContent.match(/"rationale"\s*:\s*"([^"]+)"/);
+      const nonGradeableMatch = cleanContent.match(/"isNonGradeable"\s*:\s*(true|false)/i);
+
+      if (scoreMatch) {
+        parsed = {
+          score: parseInt(scoreMatch[1]),
+          rationale: rationaleMatch ? rationaleMatch[1] : 'Unable to parse full rationale',
+          isNonGradeable: nonGradeableMatch ? nonGradeableMatch[1].toLowerCase() === 'true' : false
+        };
+      } else {
+        throw new Error('Could not parse JSON response');
+      }
+    }
     
     return {
       score: parsed.score,

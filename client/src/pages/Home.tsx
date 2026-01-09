@@ -105,6 +105,42 @@ export default function Home() {
     },
   });
 
+  // Author editing state
+  const [editingAuthorSlug, setEditingAuthorSlug] = useState<string | null>(null);
+  const [authorInput, setAuthorInput] = useState('');
+
+  const updateAuthorMutation = useMutation({
+    mutationFn: async ({ slug, author }: { slug: string; author: string }) => {
+      const res = await fetch(`/api/brainlifts/${slug}/author`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ author }),
+      });
+      if (!res.ok) throw new Error('Failed to update author');
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/brainlifts'] });
+      setEditingAuthorSlug(null);
+      setAuthorInput('');
+    },
+  });
+
+  const handleAuthorClick = (e: React.MouseEvent, slug: string, currentAuthor: string | null) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setEditingAuthorSlug(slug);
+    setAuthorInput(currentAuthor || '');
+  };
+
+  const handleAuthorSubmit = (slug: string) => {
+    if (authorInput.trim()) {
+      updateAuthorMutation.mutate({ slug, author: authorInput.trim() });
+    } else {
+      setEditingAuthorSlug(null);
+    }
+  };
+
   const handleDelete = (e: React.MouseEvent, brainlift: { id: number; title: string }) => {
     e.preventDefault();
     e.stopPropagation();
@@ -377,7 +413,21 @@ export default function Home() {
                     fontSize: '13px',
                     color: '#6B7280',
                   }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <div
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '6px',
+                        cursor: editingAuthorSlug === data.slug ? 'text' : 'pointer',
+                      }}
+                      onClick={(e) => {
+                        if (editingAuthorSlug !== data.slug) {
+                          handleAuthorClick(e, data.slug, data.author);
+                        }
+                      }}
+                      title={editingAuthorSlug === data.slug ? undefined : "Click to set owner name"}
+                    >
+                      {/* Avatar circle - always visible */}
                       <span style={{
                         width: '24px',
                         height: '24px',
@@ -389,8 +439,48 @@ export default function Home() {
                         fontSize: '11px',
                         fontWeight: 600,
                         color: '#6B7280',
+                        flexShrink: 0,
                       }}>{authorInitials}</span>
-                      <span>{data.author || 'Unknown'}</span>
+
+                      {/* Name or input */}
+                      {editingAuthorSlug === data.slug ? (
+                        <input
+                          type="text"
+                          value={authorInput}
+                          onChange={(e) => setAuthorInput(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') handleAuthorSubmit(data.slug);
+                            if (e.key === 'Escape') setEditingAuthorSlug(null);
+                          }}
+                          onBlur={() => handleAuthorSubmit(data.slug)}
+                          autoFocus
+                          placeholder="Enter owner name..."
+                          style={{
+                            border: 'none',
+                            borderBottom: '1px solid #D1D5DB',
+                            background: 'transparent',
+                            padding: '2px 0',
+                            fontSize: '13px',
+                            width: '130px',
+                            outline: 'none',
+                            color: '#374151',
+                          }}
+                          onClick={(e) => e.stopPropagation()}
+                        />
+                      ) : (
+                        <span
+                          className="owner-name-hover"
+                          style={{
+                            color: data.author ? '#6B7280' : '#9CA3AF',
+                            fontStyle: data.author ? 'normal' : 'italic',
+                            borderBottom: data.author ? 'none' : '1px dashed #D1D5DB',
+                            paddingBottom: data.author ? 0 : '1px',
+                            transition: 'all 0.15s ease',
+                          }}
+                        >
+                          {data.author || 'Set Owner Name...'}
+                        </span>
+                      )}
                     </div>
                   </div>
                   

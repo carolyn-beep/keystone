@@ -357,6 +357,24 @@ export default function Dashboard({ slug, isSharedView = false }: DashboardProps
   const [expertsExpanded, setExpertsExpanded] = useState(true);
   const [showAllExperts, setShowAllExperts] = useState(false);
   const [selectedFactForModal, setSelectedFactForModal] = useState<Fact | null>(null);
+  const [editingAuthor, setEditingAuthor] = useState(false);
+  const [authorInput, setAuthorInput] = useState('');
+
+  const updateAuthorMutation = useMutation({
+    mutationFn: async (author: string) => {
+      const res = await fetch(`/api/brainlifts/${slug}/author`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ author }),
+      });
+      if (!res.ok) throw new Error('Failed to update author');
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['brainlift', slug] });
+      setEditingAuthor(false);
+    },
+  });
 
   const handleCopyLink = () => {
     const shareUrl = `${window.location.origin}/view/${slug}`;
@@ -1045,13 +1063,70 @@ export default function Dashboard({ slug, isSharedView = false }: DashboardProps
         }}>{description}</p>
 
         {/* Row 4: Author */}
-        {data.author && (
-          <p style={{
-            color: tokens.textMuted,
-            fontSize: '13px',
+        <div
+          style={{
             margin: '4px 0 0 0',
-          }}>By {data.author}</p>
-        )}
+            display: 'flex',
+            alignItems: 'center',
+            gap: '4px',
+            cursor: editingAuthor ? 'text' : 'pointer',
+          }}
+          onClick={() => {
+            if (!editingAuthor) {
+              setAuthorInput(data.author || '');
+              setEditingAuthor(true);
+            }
+          }}
+          title={editingAuthor ? undefined : "Click to set owner name"}
+        >
+          <span style={{ color: tokens.textMuted, fontSize: '13px' }}>By</span>
+          {editingAuthor ? (
+            <input
+              type="text"
+              value={authorInput}
+              onChange={(e) => setAuthorInput(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && authorInput.trim()) {
+                  updateAuthorMutation.mutate(authorInput.trim());
+                }
+                if (e.key === 'Escape') setEditingAuthor(false);
+              }}
+              onBlur={() => {
+                if (authorInput.trim()) {
+                  updateAuthorMutation.mutate(authorInput.trim());
+                } else {
+                  setEditingAuthor(false);
+                }
+              }}
+              autoFocus
+              placeholder="Enter name..."
+              style={{
+                border: 'none',
+                borderBottom: '1px solid #D1D5DB',
+                background: 'transparent',
+                padding: '2px 0',
+                fontSize: '13px',
+                width: '150px',
+                outline: 'none',
+                color: tokens.textPrimary,
+              }}
+              onClick={(e) => e.stopPropagation()}
+            />
+          ) : (
+            <span
+              className="owner-name-hover"
+              style={{
+                color: data.author ? tokens.textMuted : '#9CA3AF',
+                fontStyle: data.author ? 'normal' : 'italic',
+                borderBottom: data.author ? 'none' : '1px dashed #D1D5DB',
+                paddingBottom: data.author ? 0 : '1px',
+                transition: 'all 0.15s ease',
+              }}
+            >
+              {data.author || 'Set Owner Name...'}
+            </span>
+          )}
+        </div>
 
         {/* Row 5: Status Rail - Classification badge with checkmark */}
         <div style={{ marginTop: '12px' }}>

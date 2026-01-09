@@ -15,6 +15,7 @@ const brainliftOutputSchema = z.object({
   rejectionRecommendation: z.string().nullable().optional(),
   title: z.string(),
   description: z.string(),
+  owner: z.string().nullable().optional(),
   summary: z.object({
     totalFacts: z.number(),
     meanScore: z.string(),
@@ -320,6 +321,52 @@ export async function extractBrainlift(markdownContent: string, sourceType: stri
     if (firstLine) title = firstLine.trim().substring(0, 100);
   }
 
+  // Owner extraction - look for "Owner" header in any format, followed by the name on next line
+  let owner: string | null = null;
+  console.log(`[NameExtractor] Scanning first 50 lines for owner...`);
+  for (let i = 0; i < Math.min(lines.length, 50); i++) {
+    const line = lines[i];
+    const trimmed = line.trim();
+
+    // Match "Owner" as a standalone header in any format:
+    // - # Owner, ## Owner (markdown headers)
+    // - - Owner, * Owner, • Owner (bullet points)
+    // - **Owner**, Owner: (bold or with colon)
+    // - Just "Owner" on its own line
+    const isOwnerHeader = /^(?:#+\s*|[-•*]\s*|\*\*)?Owner\*?\*?:?\s*$/i.test(trimmed);
+
+    // Log lines that contain "owner" for debugging
+    if (trimmed.toLowerCase().includes('owner')) {
+      console.log(`[NameExtractor] Line ${i}: "${trimmed}"`);
+      console.log(`[NameExtractor] isOwnerHeader: ${isOwnerHeader}`);
+    }
+
+    if (isOwnerHeader) {
+      console.log(`[NameExtractor] Found Owner header at line ${i}`);
+      // Look at next line for the name
+      if (i + 1 < lines.length) {
+        const nextLine = lines[i + 1];
+        const nextTrimmed = nextLine.trim();
+        console.log(`[NameExtractor] Next line: "${nextTrimmed}"`);
+        // Remove bullet points, markdown headers, bold markers
+        const nameLine = nextTrimmed
+          .replace(/^#+\s*/, '')      // Remove # headers
+          .replace(/^[-•*]\s*/, '')   // Remove bullet points
+          .replace(/^\*\*|\*\*$/g, '') // Remove bold markers
+          .trim();
+        console.log(`[NameExtractor] After cleanup: "${nameLine}"`);
+        if (nameLine && nameLine.length > 0 && nameLine.length < 100) {
+          owner = nameLine;
+          console.log(`[NameExtractor] SUCCESS: Found owner "${owner}"`);
+        }
+      }
+      break;
+    }
+  }
+  if (!owner) {
+    console.log(`[NameExtractor] No owner found in first 50 lines`);
+  }
+
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
     const trimmed = line.trim();
@@ -444,6 +491,7 @@ export async function extractBrainlift(markdownContent: string, sourceType: stri
     classification: 'brainlift' as const,
     title,
     description: `Section-based DOK1 extraction from ${sourceType}`,
+    owner,
     summary: {
       totalFacts: finalFacts.length,
       meanScore: "0",

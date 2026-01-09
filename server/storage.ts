@@ -52,7 +52,7 @@ export interface IStorage {
   updateExpertFollowing(expertId: number, isFollowing: boolean): Promise<Expert>;
   getFollowedExperts(brainliftId: number): Promise<Expert[]>;
   deleteExpert(expertId: number): Promise<void>;
-  updateBrainliftFields(id: number, fields: { originalContent?: string | null; sourceType?: string | null }): Promise<void>;
+  updateBrainliftFields(id: number, fields: { originalContent?: string | null; sourceType?: string | null; author?: string | null }): Promise<void>;
   
   getFactVerification(factId: number): Promise<(FactVerification & { modelScores: FactModelScore[] }) | null>;
   getFactsWithVerifications(brainliftId: number): Promise<FactWithVerification[]>;
@@ -77,16 +77,16 @@ import { isNull, or } from "drizzle-orm";
 
 export class DatabaseStorage implements IStorage {
   async getAllBrainlifts(): Promise<Brainlift[]> {
-    return await db.select().from(brainlifts);
+    return await db.select().from(brainlifts).orderBy(brainlifts.id);
   }
 
   async getBrainliftsByUser(userId: string): Promise<Brainlift[]> {
-    return await db.select().from(brainlifts).where(eq(brainlifts.createdByUserId, userId));
+    return await db.select().from(brainlifts).where(eq(brainlifts.createdByUserId, userId)).orderBy(brainlifts.id);
   }
 
   async getPublicBrainlifts(): Promise<Brainlift[]> {
     // Public brainlifts are those with no owner (legacy/seeded data)
-    return await db.select().from(brainlifts).where(isNull(brainlifts.createdByUserId));
+    return await db.select().from(brainlifts).where(isNull(brainlifts.createdByUserId)).orderBy(brainlifts.id);
   }
 
   async getBrainliftBySlug(slug: string): Promise<BrainliftData | undefined> {
@@ -447,7 +447,7 @@ export class DatabaseStorage implements IStorage {
     await db.delete(experts).where(eq(experts.id, expertId));
   }
 
-  async updateBrainliftFields(id: number, fields: { originalContent?: string | null; sourceType?: string | null }): Promise<void> {
+  async updateBrainliftFields(id: number, fields: { originalContent?: string | null; sourceType?: string | null; author?: string | null }): Promise<void> {
     await db.update(brainlifts)
       .set(fields)
       .where(eq(brainlifts.id, id));

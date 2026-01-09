@@ -665,7 +665,7 @@ async function saveBrainliftFromAI(data: BrainliftOutput, originalContent?: stri
         slug,
         title: data.title,
         description: data.description,
-        author: null,
+        author: data.owner || null,
         summary: dynamicSummary,
         classification: data.classification,
         improperlyFormatted: data.improperlyFormatted ?? false,
@@ -698,7 +698,7 @@ async function saveBrainliftFromAI(data: BrainliftOutput, originalContent?: stri
           brainliftId: brainlift.id,
           title: data.title,
           description: data.description,
-          author: null,
+          author: data.owner || null,
           facts: factsWithSummaries as any[],
           originalContent: originalContent,
           readingList: finalReadingList,
@@ -1090,6 +1090,22 @@ export async function registerRoutes(
     } catch (err: any) {
       console.error('Update error:', err);
       res.status(500).json({ message: err.message || 'Failed to update brainlift' });
+    }
+  });
+
+  // Update brainlift author/owner
+  app.patch('/api/brainlifts/:slug/author', async (req, res) => {
+    try {
+      const brainlift = await storage.getBrainliftBySlug(req.params.slug);
+      if (!brainlift) {
+        return res.status(404).json({ message: 'Brainlift not found' });
+      }
+      const { author } = req.body;
+      await storage.updateBrainliftFields(brainlift.id, { author: author || null });
+      res.json({ success: true, author });
+    } catch (err: any) {
+      console.error('Update author error:', err);
+      res.status(500).json({ message: err.message || 'Failed to update author' });
     }
   });
 
