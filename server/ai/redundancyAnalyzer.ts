@@ -30,23 +30,29 @@ For each group of redundant facts, identify which ONE fact should be kept. Choos
 - More specific/comprehensive version
 - Better sourcing
 
+IMPORTANT: Each fact has two IDs:
+- "id": The database ID (use this in factIds and primaryFactId arrays)
+- "originalId": The human-readable ID like "1.5" (use this when mentioning facts in the "reason" text)
+
 Output valid JSON only:
 {
   "redundancyGroups": [
     {
       "groupName": "Brief description of what these facts share",
-      "factIds": [1, 3, 7],
-      "primaryFactId": 3,
+      "factIds": [1821, 1823, 1827],
+      "primaryFactId": 1823,
       "similarityScore": "92%",
-      "reason": "These facts all describe the same funding statistic from the same study"
+      "reason": "These facts all describe the same funding statistic. Fact 1.5 is most comprehensive."
     }
   ],
-  "coreFactIds": [2, 3, 5, 8]
+  "coreFactIds": [1822, 1823, 1825, 1828]
 }
 
 Rules:
 - Only group facts that are genuinely redundant (85%+ semantic overlap)
 - A fact can only appear in ONE redundancy group
+- Use the database "id" field for factIds, primaryFactId, and coreFactIds arrays
+- Use the human-readable "originalId" field (like "1.5", "2.3") when mentioning facts in the reason text
 - coreFactIds should include all primaryFactIds PLUS any facts not in any group
 - If no redundancies exist, return empty redundancyGroups array and all fact IDs in coreFactIds`;
 

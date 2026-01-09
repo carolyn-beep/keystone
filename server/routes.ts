@@ -1,6 +1,9 @@
 import type { Express } from "express";
 import type { Server } from "http";
 import { storage } from "./storage";
+import { db } from "./db";
+import { facts, factVerifications, factModelScores, llmFeedback, factRedundancyGroups } from "@shared/schema";
+import { eq, inArray } from "drizzle-orm";
 import { api } from "@shared/routes";
 import { z } from "zod";
 import fs from "fs";
@@ -487,11 +490,18 @@ function generateSlug(title: string): string {
     .replace(/(^-|-$)/g, '');
 }
 
-async function generateUniqueSlug(title: string): Promise<string> {
+async function generateUniqueSlug(title: string, retryCount = 0): Promise<string> {
   let baseSlug = generateSlug(title);
   let slug = baseSlug;
   let counter = 1;
-  
+
+  // On retry, add a random suffix to avoid race conditions
+  if (retryCount > 0) {
+    const randomSuffix = Math.random().toString(36).substring(2, 6);
+    baseSlug = `${baseSlug}-${randomSuffix}`;
+    slug = baseSlug;
+  }
+
   while (true) {
     const existing = await storage.getBrainliftBySlug(slug);
     if (!existing) {
@@ -502,8 +512,9 @@ async function generateUniqueSlug(title: string): Promise<string> {
   }
 }
 
-async function saveBrainliftFromAI(data: BrainliftOutput, originalContent?: string, sourceType?: string, userId?: string) {
-  const slug = await generateUniqueSlug(data.title);
+async function saveBrainliftFromAI(data: BrainliftOutput, originalContent?: string, sourceType?: string, userId?: string, retryCount = 0): Promise<BrainliftData> {
+  const MAX_RETRIES = 3;
+  const slug = await generateUniqueSlug(data.title, retryCount);
 
   console.log(`[Auto-Grade] === Starting saveBrainliftFromAI ===`);
   console.log(`[Auto-Grade] Title: "${data.title}", Facts count: ${data.facts.length}`);
@@ -647,26 +658,36 @@ async function saveBrainliftFromAI(data: BrainliftOutput, originalContent?: stri
     url: r.url,
   }));
 
-  const brainlift = await storage.createBrainlift(
-    {
-      slug,
-      title: data.title,
-      description: data.description,
-      author: null,
-      summary: dynamicSummary,
-      classification: data.classification,
-      improperlyFormatted: data.improperlyFormatted ?? false,
-      rejectionReason: data.rejectionReason || null,
-      rejectionSubtype: data.rejectionSubtype || null,
-      rejectionRecommendation: data.rejectionRecommendation || null,
-      originalContent: originalContent || null,
-      sourceType: sourceType || null,
-    },
-    factsWithSummaries,
-    clusters,
-    finalReadingList,
-    userId
-  );
+  let brainlift;
+  try {
+    brainlift = await storage.createBrainlift(
+      {
+        slug,
+        title: data.title,
+        description: data.description,
+        author: null,
+        summary: dynamicSummary,
+        classification: data.classification,
+        improperlyFormatted: data.improperlyFormatted ?? false,
+        rejectionReason: data.rejectionReason || null,
+        rejectionSubtype: data.rejectionSubtype || null,
+        rejectionRecommendation: data.rejectionRecommendation || null,
+        originalContent: originalContent || null,
+        sourceType: sourceType || null,
+      },
+      factsWithSummaries,
+      clusters,
+      finalReadingList,
+      userId
+    );
+  } catch (err: any) {
+    // Handle duplicate slug error with retry
+    if (err.code === '23505' && err.constraint === 'brainlifts_slug_unique' && retryCount < MAX_RETRIES) {
+      console.log(`[Auto-Grade] Duplicate slug detected, retrying with retry count: ${retryCount + 1}`);
+      return saveBrainliftFromAI(data, originalContent, sourceType, userId, retryCount + 1);
+    }
+    throw err;
+  }
 
   // Run expert extraction and redundancy analysis in parallel after save
   await Promise.all([
@@ -1806,13 +1827,62 @@ export async function registerRoutes(
   });
 
   // Update redundancy group status (keep, dismiss, merge)
+  // When status='kept' and primaryFactId is provided, deletes other facts in the group
   app.patch('/api/redundancy-groups/:groupId', async (req, res) => {
     try {
       const groupId = parseInt(req.params.groupId);
-      const { status } = req.body;
-      
+      const { status, primaryFactId } = req.body;
+
       if (!['pending', 'kept', 'merged', 'dismissed'].includes(status)) {
         return res.status(400).json({ message: 'Invalid status' });
+      }
+
+      // If keeping with a primary fact, delete the redundant facts
+      if (status === 'kept' && primaryFactId) {
+        // Get the group to find all fact IDs
+        const groups = await db.select().from(factRedundancyGroups).where(eq(factRedundancyGroups.id, groupId));
+        const group = groups[0];
+
+        if (group && group.factIds) {
+          // Delete all facts in the group EXCEPT the primary one
+          const factIdsToDelete = (group.factIds as number[]).filter(id => id !== primaryFactId);
+
+          if (factIdsToDelete.length > 0) {
+            // Delete related data first (foreign key constraints)
+            for (const factId of factIdsToDelete) {
+              // Get verification IDs for this fact
+              const verifications = await db.select({ id: factVerifications.id })
+                .from(factVerifications)
+                .where(eq(factVerifications.factId, factId));
+              const verificationIds = verifications.map(v => v.id);
+
+              // Delete model scores if there are verifications
+              if (verificationIds.length > 0) {
+                await db.delete(factModelScores).where(inArray(factModelScores.verificationId, verificationIds));
+              }
+
+              // Delete verifications
+              await db.delete(factVerifications).where(eq(factVerifications.factId, factId));
+
+              // Delete LLM feedback
+              await db.delete(llmFeedback).where(eq(llmFeedback.factId, factId));
+
+              // Delete the fact itself
+              await db.delete(facts).where(eq(facts.id, factId));
+            }
+
+            console.log(`Deleted ${factIdsToDelete.length} redundant facts, kept fact ${primaryFactId}`);
+          }
+        }
+
+        // Update the group's primaryFactId and factIds to only contain the kept fact
+        await db.update(factRedundancyGroups)
+          .set({
+            status,
+            primaryFactId,
+            factIds: [primaryFactId]
+          })
+          .where(eq(factRedundancyGroups.id, groupId));
       }
 
       const updated = await storage.updateRedundancyGroupStatus(groupId, status);

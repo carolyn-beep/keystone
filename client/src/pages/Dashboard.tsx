@@ -415,7 +415,9 @@ export default function Dashboard({ slug, isSharedView = false }: DashboardProps
 
   // Redundancy detection
   const [showRedundancyModal, setShowRedundancyModal] = useState(false);
-  
+  // Track user-selected primary fact per group (key: groupId, value: factId)
+  const [selectedPrimaryFacts, setSelectedPrimaryFacts] = useState<Record<number, number>>({});
+
   interface RedundancyData {
     groups: Array<{
       id: number;
@@ -474,11 +476,11 @@ export default function Dashboard({ slug, isSharedView = false }: DashboardProps
   });
 
   const updateRedundancyStatusMutation = useMutation({
-    mutationFn: async ({ groupId, status }: { groupId: number; status: string }) => {
+    mutationFn: async ({ groupId, status, primaryFactId }: { groupId: number; status: string; primaryFactId?: number }) => {
       const res = await fetch(`/api/redundancy-groups/${groupId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status }),
+        body: JSON.stringify({ status, primaryFactId }),
       });
       if (!res.ok) {
         const err = await res.json();
@@ -486,11 +488,15 @@ export default function Dashboard({ slug, isSharedView = false }: DashboardProps
       }
       return res.json();
     },
-    onSuccess: () => {
+    onSuccess: (_, variables) => {
       refetchRedundancy();
+      // Also refetch main brainlift data if we deleted facts
+      if (variables.status === 'kept' && variables.primaryFactId) {
+        queryClient.invalidateQueries({ queryKey: ['brainlift', slug] });
+      }
       toast({
-        title: 'Redundancy Updated',
-        description: 'Status updated successfully',
+        title: variables.status === 'kept' ? 'Facts Deduplicated' : 'Redundancy Updated',
+        description: variables.status === 'kept' ? 'Redundant facts removed, primary fact kept.' : 'Status updated successfully',
       });
     },
     onError: (error: Error) => {
@@ -3085,66 +3091,104 @@ export default function Dashboard({ slug, isSharedView = false }: DashboardProps
                       {group.reason}
                     </p>
 
+                    {/* Fact selection - click to choose primary */}
+                    <p style={{ fontSize: '11px', color: tokens.textMuted, marginBottom: '8px' }}>
+                      Click a fact to select it as the one to keep:
+                    </p>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginBottom: '16px' }}>
-                      {group.facts.map((fact) => (
-                        <div
-                          key={fact.id}
-                          style={{
-                            display: 'flex',
-                            alignItems: 'flex-start',
-                            gap: '12px',
-                            padding: '12px',
-                            borderRadius: '8px',
-                            backgroundColor: fact.id === group.primaryFactId ? tokens.successSoft : tokens.surfaceAlt,
-                            border: fact.id === group.primaryFactId ? `1px solid ${tokens.success}` : 'none',
-                          }}
-                        >
-                          <div style={{ flexShrink: 0 }}>
-                            {fact.id === group.primaryFactId ? (
-                              <CheckCircle size={16} style={{ color: tokens.success }} />
-                            ) : (
-                              <AlertTriangle size={16} style={{ color: tokens.warning }} />
-                            )}
-                          </div>
-                          <div style={{ flex: 1 }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
-                              <span style={{ fontWeight: 600, fontSize: '12px', color: tokens.textSecondary }}>
-                                Fact {fact.originalId}
-                              </span>
-                              <span style={{
-                                padding: '2px 6px',
-                                borderRadius: '4px',
-                                backgroundColor: getScoreChipColors(fact.score).bg,
-                                color: getScoreChipColors(fact.score).text,
-                                fontSize: '10px',
-                                fontWeight: 600,
-                              }}>
-                                {fact.score}/5
-                              </span>
-                              {fact.id === group.primaryFactId && (
+                      {group.facts.map((fact) => {
+                        const currentPrimary = selectedPrimaryFacts[group.id] ?? group.primaryFactId;
+                        const isSelected = fact.id === currentPrimary;
+                        const isAutoRecommended = fact.id === group.primaryFactId;
+
+                        return (
+                          <div
+                            key={fact.id}
+                            onClick={() => setSelectedPrimaryFacts(prev => ({ ...prev, [group.id]: fact.id }))}
+                            style={{
+                              display: 'flex',
+                              alignItems: 'flex-start',
+                              gap: '12px',
+                              padding: '12px',
+                              borderRadius: '8px',
+                              backgroundColor: isSelected ? tokens.successSoft : tokens.surfaceAlt,
+                              border: isSelected ? `2px solid ${tokens.success}` : `2px solid transparent`,
+                              cursor: 'pointer',
+                              transition: 'all 0.15s ease',
+                            }}
+                          >
+                            <div style={{ flexShrink: 0 }}>
+                              {isSelected ? (
+                                <CheckCircle size={16} style={{ color: tokens.success }} />
+                              ) : (
+                                <div style={{
+                                  width: 16,
+                                  height: 16,
+                                  borderRadius: '50%',
+                                  border: `2px solid ${tokens.border}`,
+                                  backgroundColor: tokens.surface,
+                                }} />
+                              )}
+                            </div>
+                            <div style={{ flex: 1 }}>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
+                                <span style={{ fontWeight: 600, fontSize: '12px', color: tokens.textSecondary }}>
+                                  Fact {fact.originalId}
+                                </span>
                                 <span style={{
                                   padding: '2px 6px',
                                   borderRadius: '4px',
-                                  backgroundColor: tokens.success,
-                                  color: '#fff',
+                                  backgroundColor: getScoreChipColors(fact.score).bg,
+                                  color: getScoreChipColors(fact.score).text,
                                   fontSize: '10px',
                                   fontWeight: 600,
                                 }}>
-                                  Recommended
+                                  {fact.score}/5
                                 </span>
-                              )}
+                                {isAutoRecommended && (
+                                  <span style={{
+                                    padding: '2px 6px',
+                                    borderRadius: '4px',
+                                    backgroundColor: tokens.infoSoft,
+                                    color: tokens.info,
+                                    fontSize: '10px',
+                                    fontWeight: 600,
+                                  }}>
+                                    AI Pick
+                                  </span>
+                                )}
+                                {isSelected && (
+                                  <span style={{
+                                    padding: '2px 6px',
+                                    borderRadius: '4px',
+                                    backgroundColor: tokens.success,
+                                    color: '#fff',
+                                    fontSize: '10px',
+                                    fontWeight: 600,
+                                  }}>
+                                    Will Keep
+                                  </span>
+                                )}
+                              </div>
+                              <p style={{ margin: 0, fontSize: '13px', color: tokens.textPrimary, lineHeight: 1.5 }}>
+                                {fact.summary || fact.fact}
+                              </p>
                             </div>
-                            <p style={{ margin: 0, fontSize: '13px', color: tokens.textPrimary, lineHeight: 1.5 }}>
-                              {fact.summary || fact.fact}
-                            </p>
                           </div>
-                        </div>
-                      ))}
+                        );
+                      })}
                     </div>
 
                     <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
                       <button
-                        onClick={() => updateRedundancyStatusMutation.mutate({ groupId: group.id, status: 'kept' })}
+                        onClick={() => {
+                          const primaryFactId = selectedPrimaryFacts[group.id] ?? group.primaryFactId;
+                          updateRedundancyStatusMutation.mutate({
+                            groupId: group.id,
+                            status: 'kept',
+                            primaryFactId: primaryFactId ?? undefined
+                          });
+                        }}
                         disabled={updateRedundancyStatusMutation.isPending}
                         data-testid={`button-keep-${group.id}`}
                         className="hover-elevate active-elevate-2"
@@ -3163,7 +3207,7 @@ export default function Dashboard({ slug, isSharedView = false }: DashboardProps
                         }}
                       >
                         <CheckCircle size={12} />
-                        Keep Recommended
+                        Keep Selected & Remove Others
                       </button>
                       <button
                         onClick={() => updateRedundancyStatusMutation.mutate({ groupId: group.id, status: 'dismissed' })}
@@ -3185,7 +3229,7 @@ export default function Dashboard({ slug, isSharedView = false }: DashboardProps
                         }}
                       >
                         <X size={12} />
-                        Not Redundant
+                        Keep All (Not Redundant)
                       </button>
                     </div>
                   </div>

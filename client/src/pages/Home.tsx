@@ -5,6 +5,7 @@ import { Brainlift } from '@shared/schema';
 import { queryClient } from '@/lib/queryClient';
 import { tokens } from '@/lib/colors';
 import { Plus, X, Upload, FileText, Link as LinkIcon, File, Loader2, Check, Clock, AlertTriangle, Trash2 } from 'lucide-react';
+import { ConfirmationModal } from '@/components/ui/confirmation-modal';
 
 type SourceType = 'pdf' | 'docx' | 'html' | 'workflowy' | 'googledocs' | 'text';
 
@@ -26,6 +27,8 @@ export default function Home() {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [error, setError] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [deleteModalOpen, setDeleteModalOpen] = useState(false);
+  const [brainliftToDelete, setBrainliftToDelete] = useState<{ id: number; title: string } | null>(null);
 
   const { data: brainlifts, isLoading } = useQuery<Brainlift[]>({
     queryKey: ['/api/brainlifts'],
@@ -97,14 +100,21 @@ export default function Home() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/brainlifts'] });
+      setDeleteModalOpen(false);
+      setBrainliftToDelete(null);
     },
   });
 
-  const handleDelete = (e: React.MouseEvent, id: number) => {
+  const handleDelete = (e: React.MouseEvent, brainlift: { id: number; title: string }) => {
     e.preventDefault();
     e.stopPropagation();
-    if (confirm('Are you sure you want to delete this brainlift?')) {
-      deleteMutation.mutate(id);
+    setBrainliftToDelete(brainlift);
+    setDeleteModalOpen(true);
+  };
+
+  const confirmDelete = () => {
+    if (brainliftToDelete) {
+      deleteMutation.mutate(brainliftToDelete.id);
     }
   };
 
@@ -286,7 +296,7 @@ export default function Home() {
                     {/* Delete Button */}
                     <button
                       data-testid={`button-delete-${data.id}`}
-                      onClick={(e) => handleDelete(e, data.id)}
+                      onClick={(e) => handleDelete(e, { id: data.id, title: data.title })}
                       style={{
                         display: 'flex',
                         alignItems: 'center',
@@ -700,6 +710,21 @@ export default function Home() {
           </div>
         </div>
       )}
+
+      <ConfirmationModal
+        open={deleteModalOpen}
+        onOpenChange={(open) => {
+          setDeleteModalOpen(open);
+          if (!open) setBrainliftToDelete(null);
+        }}
+        title="Delete Brainlift"
+        description={`Are you sure you want to delete "${brainliftToDelete?.title || 'this brainlift'}"? This action cannot be undone.`}
+        confirmText="Delete"
+        cancelText="Cancel"
+        onConfirm={confirmDelete}
+        variant="destructive"
+        isLoading={deleteMutation.isPending}
+      />
 
       <style>{`
         @keyframes spin {
