@@ -53,6 +53,7 @@
 
   /* Border: #E2E8F0 */
   --card-border: 214 32% 91%;
+  --border: 214 32% 91%;
 
   /* Surface Alt: #F1F5F9 */
   --sidebar: 210 40% 96%;
@@ -87,11 +88,13 @@
   /* Border: #E2E8F0 */
   --popover-border: 214 32% 91%;
 
-  /* White */
+  /* Primary: #1E3A8A */
+  --primary: 224 64% 33%;
   --primary-foreground: 0 0% 100%;
 
   /* Secondary: #0F766E */
-  --secondary-foreground: 173 77% 26%;
+  --secondary: 175 77% 26%;
+  --secondary-foreground: 0 0% 100%;
 
   /* Muted: #94A3B8 */
   --muted: 215 16% 65%;
@@ -107,9 +110,23 @@
 
   /* Danger: #DC2626 */
   --destructive: 0 72% 51%;
-
-  /* White */
   --destructive-foreground: 0 0% 100%;
+  --destructive-soft: 0 93% 94%;
+
+  /* Success: #16A34A */
+  --success: 142 76% 36%;
+  --success-foreground: 0 0% 100%;
+  --success-soft: 141 84% 93%;
+
+  /* Warning: #D97706 */
+  --warning: 32 95% 44%;
+  --warning-foreground: 0 0% 100%;
+  --warning-soft: 34 100% 92%;
+
+  /* Info: #0284C7 */
+  --info: 200 98% 39%;
+  --info-foreground: 0 0% 100%;
+  --info-soft: 204 94% 94%;
 
   /* Border: #E2E8F0 */
   --input: 214 32% 91%;
@@ -220,6 +237,7 @@
 
   /* Dark border */
   --card-border: 217 33% 20%;
+  --border: 215 25% 27%;
 
   /* Dark sidebar */
   --sidebar: 222 47% 9%;
@@ -254,11 +272,13 @@
   /* Dark border */
   --popover-border: 217 33% 20%;
 
-  /* White */
+  /* Primary: #3B82F6 */
+  --primary: 217 91% 60%;
   --primary-foreground: 0 0% 100%;
 
-  /* Lighter secondary text */
-  --secondary-foreground: 166 76% 89%;
+  /* Secondary: #14B8A6 */
+  --secondary: 173 80% 40%;
+  --secondary-foreground: 0 0% 100%;
 
   /* Darker muted */
   --muted: 217 33% 20%;
@@ -272,11 +292,25 @@
   /* Light text */
   --accent-foreground: 210 40% 96%;
 
-  /* Danger: #DC2626 */
-  --destructive: 0 72% 51%;
-
-  /* White */
+  /* Danger: #EF4444 */
+  --destructive: 0 84% 60%;
   --destructive-foreground: 0 0% 100%;
+  --destructive-soft: 0 63% 31%;
+
+  /* Success: #22C55E */
+  --success: 142 71% 45%;
+  --success-foreground: 0 0% 100%;
+  --success-soft: 144 61% 20%;
+
+  /* Warning: #F59E0B */
+  --warning: 38 92% 50%;
+  --warning-foreground: 0 0% 100%;
+  --warning-soft: 22 78% 26%;
+
+  /* Info: #38BDF8 */
+  --info: 198 93% 60%;
+  --info-foreground: 0 0% 100%;
+  --info-soft: 202 80% 24%;
 
   /* Lighter input border for dark mode */
   --input: 217 33% 25%;

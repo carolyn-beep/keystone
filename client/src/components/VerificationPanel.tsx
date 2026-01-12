@@ -138,13 +138,13 @@ export function VerificationPanel({ slug }: VerificationPanelProps) {
 
   const getStatusIcon = (status: string, needsReview: boolean) => {
     if (status === 'completed' && !needsReview) {
-      return <CheckCircle size={16} style={{ color: tokens.success }} />;
+      return <CheckCircle size={16} className="text-success" />;
     } else if (status === 'completed' && needsReview) {
-      return <AlertCircle size={16} style={{ color: tokens.warning }} />;
+      return <AlertCircle size={16} className="text-warning" />;
     } else if (status === 'in_progress') {
-      return <RefreshCw size={16} style={{ color: tokens.info }} className="animate-spin" />;
+      return <RefreshCw size={16} className="text-info animate-spin" />;
     }
-    return <Clock size={16} style={{ color: tokens.textSecondary }} />;
+    return <Clock size={16} className="text-muted-foreground" />;
   };
 
   const getConfidenceBadge = (level: string | null) => {
@@ -158,7 +158,7 @@ export function VerificationPanel({ slug }: VerificationPanelProps) {
   };
 
   if (loadingVerifications) {
-    return <div style={{ padding: '40px', textAlign: 'center', color: tokens.textSecondary }}>Loading verification data...</div>;
+    return <div className="p-10 text-center text-muted-foreground">Loading verification data...</div>;
   }
 
   return (
@@ -167,32 +167,32 @@ export function VerificationPanel({ slug }: VerificationPanelProps) {
         <div className="grid grid-cols-2 sm:grid-cols-5 gap-4 mb-6">
           <Card>
             <CardContent className="p-4">
-              <p style={{ color: tokens.textSecondary, fontSize: '12px', fontWeight: 500 }}>Total Facts</p>
-              <p style={{ fontSize: '24px', fontWeight: 700, color: tokens.primary }}>{summary.totalFacts}</p>
+              <p className="text-muted-foreground text-xs font-medium">Total Facts</p>
+              <p className="text-2xl font-bold text-primary">{summary.totalFacts}</p>
             </CardContent>
           </Card>
           <Card>
             <CardContent className="p-4">
-              <p style={{ color: tokens.textSecondary, fontSize: '12px', fontWeight: 500 }}>Verified</p>
-              <p style={{ fontSize: '24px', fontWeight: 700, color: tokens.success }}>{summary.verified}</p>
+              <p className="text-muted-foreground text-xs font-medium">Verified</p>
+              <p className="text-2xl font-bold text-success">{summary.verified}</p>
             </CardContent>
           </Card>
           <Card>
             <CardContent className="p-4">
-              <p style={{ color: tokens.textSecondary, fontSize: '12px', fontWeight: 500 }}>Needs Review</p>
-              <p style={{ fontSize: '24px', fontWeight: 700, color: tokens.warning }}>{summary.needsReview}</p>
+              <p className="text-muted-foreground text-xs font-medium">Needs Review</p>
+              <p className="text-2xl font-bold text-warning">{summary.needsReview}</p>
             </CardContent>
           </Card>
           <Card>
             <CardContent className="p-4">
-              <p style={{ color: tokens.textSecondary, fontSize: '12px', fontWeight: 500 }}>Avg Consensus</p>
-              <p style={{ fontSize: '24px', fontWeight: 700, color: tokens.info }}>{summary.averageConsensus}/5</p>
+              <p className="text-muted-foreground text-xs font-medium">Avg Consensus</p>
+              <p className="text-2xl font-bold text-info">{summary.averageConsensus}/5</p>
             </CardContent>
           </Card>
           <Card>
             <CardContent className="p-4">
-              <p style={{ color: tokens.textSecondary, fontSize: '12px', fontWeight: 500 }}>Pending</p>
-              <p style={{ fontSize: '24px', fontWeight: 700, color: tokens.textSecondary }}>{summary.pending}</p>
+              <p className="text-muted-foreground text-xs font-medium">Pending</p>
+              <p className="text-2xl font-bold text-muted-foreground">{summary.pending}</p>
             </CardContent>
           </Card>
         </div>
@@ -200,10 +200,10 @@ export function VerificationPanel({ slug }: VerificationPanelProps) {
 
       <div className="flex items-center justify-between gap-4 mb-4">
         <div>
-          <h3 style={{ fontSize: '18px', fontWeight: 600, color: tokens.text }}>Multi-LLM Fact Verification</h3>
-          <p style={{ fontSize: '13px', color: tokens.textSecondary, maxWidth: '600px' }}>
-            Each fact is independently scored by 5 AI models (1-5 scale: 1=false, 5=verified). 
-            The median score becomes the consensus. High disagreement flags facts for human review. 
+          <h3 className="text-lg font-semibold text-foreground">Multi-LLM Fact Verification</h3>
+          <p className="text-[13px] text-muted-foreground max-w-[600px]">
+            Each fact is independently scored by 5 AI models (1-5 scale: 1=false, 5=verified).
+            The median score becomes the consensus. High disagreement flags facts for human review.
             Click any fact to see individual model scores and override if needed.
           </p>
         </div>
@@ -226,7 +226,7 @@ export function VerificationPanel({ slug }: VerificationPanelProps) {
         </div>
       </div>
 
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+      <div className="flex flex-col gap-2">
         {facts.map((fact) => {
           const v = fact.verification;
           const isExpanded = expandedFacts[fact.id] || false;
@@ -238,22 +238,15 @@ export function VerificationPanel({ slug }: VerificationPanelProps) {
               <Collapsible open={isExpanded} onOpenChange={() => toggleFact(fact.id)}>
                 <CollapsibleTrigger asChild>
                   <div
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      padding: '12px 16px',
-                      cursor: 'pointer',
-                      gap: '12px',
-                    }}
-                    className="hover-elevate"
+                    className="flex items-center px-4 py-3 cursor-pointer gap-3 hover-elevate"
                   >
                     {isExpanded ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
-                    
-                    <span style={{ fontFamily: 'monospace', fontWeight: 600, color: tokens.primary, minWidth: '40px' }}>
+
+                    <span className="font-mono font-semibold text-primary min-w-[40px]">
                       {fact.originalId}
                     </span>
 
-                    <span style={{ flex: 1, fontSize: '14px', color: tokens.text }}>
+                    <span className="flex-1 text-sm text-foreground">
                       {fact.fact.slice(0, 100)}{fact.fact.length > 100 ? '...' : ''}
                     </span>
 
@@ -291,29 +284,23 @@ export function VerificationPanel({ slug }: VerificationPanelProps) {
                 </CollapsibleTrigger>
 
                 <CollapsibleContent>
-                  <div style={{ padding: '0 16px 16px 16px', borderTop: `1px solid ${tokens.border}` }}>
-                    <div style={{ marginBottom: '16px', paddingTop: '16px' }}>
-                      <p style={{ fontSize: '14px', color: tokens.text, marginBottom: '8px' }}>
+                  <div className="px-4 pb-4" style={{ borderTop: `1px solid ${tokens.border}` }}>
+                    <div className="mb-4 pt-4">
+                      <p className="text-sm text-foreground mb-2">
                         <strong>Full Fact:</strong> {fact.fact}
                       </p>
                       {fact.source && (
-                        <p style={{ fontSize: '13px', color: tokens.textSecondary }}>
+                        <p className="text-[13px] text-muted-foreground">
                           <strong>Source:</strong> {fact.source}
                         </p>
                       )}
                     </div>
 
                     {v && (v.status === 'in_progress' || v.status === 'pending') && (
-                      <div style={{ 
-                        textAlign: 'center', 
-                        padding: '32px',
-                        backgroundColor: tokens.surface,
-                        borderRadius: '8px',
-                        marginBottom: '16px'
-                      }}>
-                        <RefreshCw size={32} className="animate-spin mx-auto mb-3" style={{ color: tokens.info }} />
-                        <p style={{ fontWeight: 600, color: tokens.text, marginBottom: '4px' }}>Verification in progress...</p>
-                        <p style={{ fontSize: '13px', color: tokens.textSecondary }}>
+                      <div className="text-center p-8 bg-card rounded-lg mb-4">
+                        <RefreshCw size={32} className="animate-spin mx-auto mb-3 text-info" />
+                        <p className="font-semibold text-foreground mb-1">Verification in progress...</p>
+                        <p className="text-[13px] text-muted-foreground">
                           5 AI models are independently grading this fact. This typically takes 15-30 seconds.
                         </p>
                       </div>
@@ -321,47 +308,38 @@ export function VerificationPanel({ slug }: VerificationPanelProps) {
 
                     {v && v.status === 'completed' && (
                       <>
-                        <div style={{ 
-                          backgroundColor: tokens.surface, 
-                          borderRadius: '8px', 
-                          padding: '16px',
-                          marginBottom: '16px'
-                        }}>
+                        <div className="bg-card rounded-lg p-4 mb-4">
                           <div className="flex items-center justify-between mb-3">
-                            <h4 style={{ fontWeight: 600, color: tokens.text }}>Consensus Result</h4>
+                            <h4 className="font-semibold text-foreground">Consensus Result</h4>
                             {v.confidenceLevel && getConfidenceBadge(v.confidenceLevel)}
                           </div>
-                          
+
                           <div className="flex items-center gap-4 mb-3">
                             <div>
-                              <p style={{ fontSize: '12px', color: tokens.textSecondary }}>Consensus Score</p>
-                              <p style={{ fontSize: '28px', fontWeight: 700, color: tokens.primary }}>
+                              <p className="text-xs text-muted-foreground">Consensus Score</p>
+                              <p className="text-[28px] font-bold text-primary">
                                 {v.consensusScore}/5
                               </p>
                             </div>
                             {v.humanOverrideScore && (
-                              <div style={{ 
-                                padding: '8px 12px', 
-                                backgroundColor: tokens.infoSoft, 
-                                borderRadius: '8px' 
-                              }}>
-                                <p style={{ fontSize: '12px', color: tokens.info }}>Human Override</p>
-                                <p style={{ fontSize: '20px', fontWeight: 700, color: tokens.info }}>
+                              <div className="px-3 py-2 bg-info-soft rounded-lg">
+                                <p className="text-xs text-info">Human Override</p>
+                                <p className="text-xl font-bold text-info">
                                   {v.humanOverrideScore}/5
                                 </p>
                               </div>
                             )}
                           </div>
-                          
+
                           {v.verificationNotes && (
-                            <p style={{ fontSize: '13px', color: tokens.textSecondary }}>
+                            <p className="text-[13px] text-muted-foreground">
                               {v.verificationNotes}
                             </p>
                           )}
                         </div>
 
-                        <div style={{ marginBottom: '16px' }}>
-                          <h4 style={{ fontWeight: 600, color: tokens.text, marginBottom: '12px' }}>
+                        <div className="mb-4">
+                          <h4 className="font-semibold text-foreground mb-3">
                             Individual Model Grades
                           </h4>
                           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
@@ -373,65 +351,51 @@ export function VerificationPanel({ slug }: VerificationPanelProps) {
                               return (
                                 <div
                                   key={ms.id}
-                                  style={{
-                                    padding: '12px',
-                                    borderRadius: '8px',
-                                    backgroundColor: tokens.surface,
-                                    border: `1px solid ${tokens.border}`,
-                                  }}
+                                  className="p-3 rounded-lg bg-card"
+                                  style={{ border: `1px solid ${tokens.border}` }}
                                 >
                                   <div className="flex items-center gap-2 mb-2">
                                     <Bot size={14} style={{ color: modelColor }} />
-                                    <span style={{ fontSize: '12px', fontWeight: 600, color: modelColor }}>
+                                    <span className="text-xs font-semibold" style={{ color: modelColor }}>
                                       {modelName}
                                     </span>
                                   </div>
                                   {ms.status === 'completed' && ms.score ? (
                                     <>
-                                      <div style={{ 
-                                        fontSize: '24px', 
-                                        fontWeight: 700, 
-                                        color: msScoreColors?.text || tokens.text,
-                                        marginBottom: '4px'
-                                      }}>
+                                      <div
+                                        className="text-2xl font-bold mb-1"
+                                        style={{ color: msScoreColors?.text || tokens.text }}
+                                      >
                                         {ms.score}/5
                                       </div>
                                       {ms.rationale && (
                                         <Tooltip>
                                           <TooltipTrigger asChild>
-                                            <p style={{ 
-                                              fontSize: '11px', 
-                                              color: tokens.textSecondary, 
-                                              lineHeight: 1.4,
-                                              cursor: 'pointer',
-                                            }}>
+                                            <p className="text-[11px] text-muted-foreground leading-[1.4] cursor-pointer">
                                               {ms.rationale.slice(0, 100)}{ms.rationale.length > 100 ? '...' : ''}
                                             </p>
                                           </TooltipTrigger>
-                                          <TooltipContent 
-                                            side="bottom" 
-                                            className="max-w-[300px]"
-                                            style={{ 
-                                              backgroundColor: tokens.bg, 
+                                          <TooltipContent
+                                            side="bottom"
+                                            className="max-w-[300px] p-3 text-xs leading-normal"
+                                            style={{
+                                              backgroundColor: tokens.bg,
                                               color: tokens.text,
                                               border: `1px solid ${tokens.border}`,
-                                              padding: '12px',
-                                              fontSize: '12px',
-                                              lineHeight: 1.5,
                                             }}
                                           >
                                             <p><strong>{modelName}</strong></p>
-                                            <p style={{ marginTop: '8px' }}>{ms.rationale}</p>
+                                            <p className="mt-2">{ms.rationale}</p>
                                           </TooltipContent>
                                         </Tooltip>
                                       )}
                                     </>
                                   ) : ms.status === 'failed' ? (
-                                    <div style={{ fontSize: '12px', color: tokens.danger }}>
+                                    <div className="text-xs text-destructive">
                                       Failed: {ms.error?.slice(0, 50)}
                                     </div>
                                   ) : (
-                                    <div style={{ fontSize: '12px', color: tokens.textSecondary }}>
+                                    <div className="text-xs text-muted-foreground">
                                       Pending...
                                     </div>
                                   )}
@@ -442,16 +406,11 @@ export function VerificationPanel({ slug }: VerificationPanelProps) {
                         </div>
 
                         {v.needsReview && !v.humanOverrideScore && (
-                          <div style={{ 
-                            backgroundColor: tokens.warningSoft, 
-                            borderRadius: '8px', 
-                            padding: '16px',
-                            marginTop: '16px'
-                          }}>
-                            <h4 style={{ fontWeight: 600, color: tokens.warning, marginBottom: '12px' }}>
+                          <div className="bg-warning-soft rounded-lg p-4 mt-4">
+                            <h4 className="font-semibold text-warning mb-3">
                               Human Review Required
                             </h4>
-                            <p style={{ fontSize: '13px', color: tokens.text, marginBottom: '12px' }}>
+                            <p className="text-[13px] text-foreground mb-3">
                               The AI models disagreed significantly. Please set a final score.
                             </p>
                             <div className="flex items-center gap-3">
@@ -463,19 +422,15 @@ export function VerificationPanel({ slug }: VerificationPanelProps) {
                                       ...prev,
                                       [v.id]: { ...prev[v.id], score, notes: prev[v.id]?.notes || '' }
                                     }))}
+                                    className="w-9 h-9 rounded-lg font-semibold cursor-pointer"
                                     style={{
-                                      width: '36px',
-                                      height: '36px',
-                                      borderRadius: '8px',
-                                      border: overrideData[v.id]?.score === score 
-                                        ? `2px solid ${tokens.primary}` 
+                                      border: overrideData[v.id]?.score === score
+                                        ? `2px solid ${tokens.primary}`
                                         : `1px solid ${tokens.border}`,
-                                      backgroundColor: overrideData[v.id]?.score === score 
-                                        ? tokens.primarySoft 
+                                      backgroundColor: overrideData[v.id]?.score === score
+                                        ? tokens.primarySoft
                                         : 'white',
-                                      fontWeight: 600,
                                       color: tokens.text,
-                                      cursor: 'pointer',
                                     }}
                                     data-testid={`button-override-score-${score}`}
                                   >
@@ -491,13 +446,8 @@ export function VerificationPanel({ slug }: VerificationPanelProps) {
                                   ...prev,
                                   [v.id]: { ...prev[v.id], score: prev[v.id]?.score || 0, notes: e.target.value }
                                 }))}
-                                style={{
-                                  flex: 1,
-                                  padding: '8px 12px',
-                                  borderRadius: '8px',
-                                  border: `1px solid ${tokens.border}`,
-                                  fontSize: '14px',
-                                }}
+                                className="flex-1 px-3 py-2 rounded-lg text-sm"
+                                style={{ border: `1px solid ${tokens.border}` }}
                                 data-testid="input-override-notes"
                               />
                               <Button
@@ -523,7 +473,7 @@ export function VerificationPanel({ slug }: VerificationPanelProps) {
                     )}
 
                     {!v && (
-                      <div style={{ textAlign: 'center', padding: '20px' }}>
+                      <div className="text-center p-5">
                         <Button
                           onClick={() => verifyFactMutation.mutate(fact.id)}
                           disabled={verifyFactMutation.isPending}

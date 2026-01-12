@@ -11,26 +11,15 @@ export function FactDetailModal({ fact, onClose }: FactDetailModalProps) {
   if (!fact) return null;
 
   return (
-    <div style={{
-      position: 'fixed',
-      top: 0,
-      left: 0,
-      right: 0,
-      bottom: 0,
-      backgroundColor: tokens.overlay,
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center',
-      zIndex: 2000,
-    }}>
-      <div className="p-6 w-[90%] max-w-[600px] max-h-[80vh] overflow-auto rounded-xl" style={{ backgroundColor: tokens.surface }}>
+    <div className="fixed inset-0 flex items-center justify-center z-[2000]" style={{ backgroundColor: tokens.overlay }}>
+      <div className="p-6 w-[90%] max-w-[600px] max-h-[80vh] overflow-auto rounded-xl bg-card">
         <div className="flex justify-between items-center mb-4">
-          <h3 style={{ margin: 0, fontSize: '18px', fontWeight: 600 }}>Original Fact Text</h3>
-          <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer' }}>
+          <h3 className="m-0 text-lg font-semibold">Original Fact Text</h3>
+          <button onClick={onClose} className="bg-transparent border-none cursor-pointer">
             <X size={20} />
           </button>
         </div>
-        <div className="p-4 rounded-lg bg-slate-50 border border-slate-200" style={{ whiteSpace: 'pre-wrap', fontSize: '14px', lineHeight: 1.6 }}>
+        <div className="p-4 rounded-lg bg-slate-50 border border-slate-200 whitespace-pre-wrap text-sm leading-relaxed">
           {fact.fact}
         </div>
         <div className="mt-6 flex justify-end">

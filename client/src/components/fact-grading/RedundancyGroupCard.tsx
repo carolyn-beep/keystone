@@ -24,47 +24,21 @@ export function RedundancyGroupCard({
   onReview,
 }: RedundancyGroupCardProps) {
   return (
-    <div style={{
-      marginBottom: '28px',
-      borderRadius: '12px',
-      overflow: 'hidden',
-      boxShadow: '0 2px 12px rgba(0,0,0,0.08)',
-    }}>
+    <div className="mb-7 rounded-xl overflow-hidden shadow-md">
       {/* Alert Banner */}
-      <div style={{
-        background: `linear-gradient(135deg, ${tokens.warning} 0%, #d97706 100%)`,
-        padding: '12px 16px',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-      }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-          <div style={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            width: '28px',
-            height: '28px',
-            backgroundColor: 'rgba(255,255,255,0.25)',
-            borderRadius: '6px',
-          }}>
+      <div
+        className="py-3 px-4 flex items-center justify-between"
+        style={{ background: `linear-gradient(135deg, ${tokens.warning} 0%, #d97706 100%)` }}
+      >
+        <div className="flex items-center gap-2.5">
+          <div className="flex items-center justify-center w-7 h-7 bg-white/25 rounded-md">
             <Copy size={16} color="#fff" />
           </div>
           <div>
-            <span style={{
-              fontSize: '12px',
-              fontWeight: 700,
-              color: '#fff',
-              textTransform: 'uppercase',
-              letterSpacing: '0.08em',
-            }}>
+            <span className="text-xs font-bold text-white uppercase tracking-wider">
               Redundancy Found
             </span>
-            <span style={{
-              marginLeft: '10px',
-              fontSize: '11px',
-              color: 'rgba(255,255,255,0.85)',
-            }}>
+            <span className="ml-2.5 text-[11px] text-white/85">
               {group.facts.length} similar facts • {group.similarityScore} match
             </span>
           </div>
@@ -73,20 +47,8 @@ export function RedundancyGroupCard({
         {/* Review Button */}
         <button
           onClick={onReview}
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: '6px',
-            padding: '8px 14px',
-            backgroundColor: '#fff',
-            border: 'none',
-            borderRadius: '6px',
-            fontSize: '12px',
-            fontWeight: 700,
-            color: '#b45309',
-            cursor: 'pointer',
-            transition: 'all 0.15s ease',
-          }}
+          className="flex items-center gap-1.5 py-2 px-3.5 bg-white border-none rounded-md text-xs font-bold cursor-pointer transition-all duration-150"
+          style={{ color: '#b45309' }}
           onMouseEnter={(e) => {
             e.currentTarget.style.backgroundColor = '#fefce8';
             e.currentTarget.style.transform = 'translateY(-1px)';
@@ -102,34 +64,28 @@ export function RedundancyGroupCard({
       </div>
 
       {/* Reason Box */}
-      <div style={{
-        padding: '10px 16px',
-        backgroundColor: tokens.warningSoft,
-        borderLeft: `3px solid ${tokens.warning}`,
-        borderBottom: `1px solid ${tokens.warning}`,
-        display: 'flex',
-        alignItems: 'flex-start',
-        gap: '8px',
-      }}>
-        <AlertTriangle size={14} color={tokens.warning} style={{ marginTop: '2px', flexShrink: 0 }} />
-        <p style={{
-          margin: 0,
-          fontSize: '13px',
-          color: tokens.textSecondary,
-          lineHeight: 1.5,
-        }}>
+      <div
+        className="py-2.5 px-4 bg-warning-soft flex items-start gap-2"
+        style={{
+          borderLeft: `3px solid ${tokens.warning}`,
+          borderBottom: `1px solid ${tokens.warning}`,
+        }}
+      >
+        <AlertTriangle size={14} color={tokens.warning} className="mt-0.5 shrink-0" />
+        <p className="m-0 text-[13px] text-muted-foreground leading-normal">
           {group.reason}
         </p>
       </div>
 
       {/* Facts Container */}
-      <div style={{
-        backgroundColor: tokens.surface,
-        borderLeft: `3px solid ${tokens.warning}`,
-        borderRight: `1px solid ${tokens.border}`,
-        borderBottom: `1px solid ${tokens.border}`,
-        borderRadius: '0 0 12px 12px',
-      }}>
+      <div
+        className="bg-card rounded-b-xl"
+        style={{
+          borderLeft: `3px solid ${tokens.warning}`,
+          borderRight: `1px solid ${tokens.border}`,
+          borderBottom: `1px solid ${tokens.border}`,
+        }}
+      >
         {children}
       </div>
     </div>

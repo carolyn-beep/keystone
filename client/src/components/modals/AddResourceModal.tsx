@@ -60,50 +60,33 @@ export function AddResourceModal({
   };
 
   return (
-    <div style={{
-      position: 'fixed',
-      top: 0,
-      left: 0,
-      right: 0,
-      bottom: 0,
-      backgroundColor: tokens.overlay,
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center',
-      zIndex: 1000,
-    }}>
+    <div className="fixed inset-0 flex items-center justify-center z-[1000]" style={{ backgroundColor: tokens.overlay }}>
       <div
-        className="p-4 sm:p-8 w-[95%] max-w-[500px] max-h-[90vh] overflow-auto rounded-xl"
-        style={{ backgroundColor: tokens.surface }}
+        className="p-4 sm:p-8 w-[95%] max-w-[500px] max-h-[90vh] overflow-auto rounded-xl bg-card"
       >
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
-          <h2 style={{ fontSize: '20px', fontWeight: 700, margin: 0, color: tokens.primary }}>
-            <Plus size={20} style={{ marginRight: '8px', verticalAlign: 'middle' }} />
+        <div className="flex justify-between items-center mb-6">
+          <h2 className="text-xl font-bold m-0 text-primary">
+            <Plus size={20} className="mr-2 align-middle" />
             Add Resource
           </h2>
           <button
             data-testid="button-close-add-resource-modal"
             onClick={onClose}
-            style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '4px' }}
+            className="bg-transparent border-none cursor-pointer p-1"
           >
             <X size={20} />
           </button>
         </div>
 
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+        <div className="flex flex-col gap-4">
           <div>
-            <label style={{ display: 'block', marginBottom: '6px', fontWeight: 500, fontSize: '14px' }}>Type</label>
+            <label className="block mb-1.5 font-medium text-sm">Type</label>
             <select
               data-testid="select-resource-type"
               value={resource.type}
               onChange={(e) => setResource({ ...resource, type: e.target.value })}
-              style={{
-                width: '100%',
-                padding: '10px 12px',
-                borderRadius: '6px',
-                border: `1px solid ${tokens.border}`,
-                fontSize: '14px',
-              }}
+              className="w-full px-3 py-2.5 rounded-md text-sm"
+              style={{ border: `1px solid ${tokens.border}` }}
             >
               <option value="Article">Article</option>
               <option value="Substack">Substack</option>
@@ -117,93 +100,67 @@ export function AddResourceModal({
           </div>
 
           <div>
-            <label style={{ display: 'block', marginBottom: '6px', fontWeight: 500, fontSize: '14px' }}>Title / Topic *</label>
+            <label className="block mb-1.5 font-medium text-sm">Title / Topic *</label>
             <input
               data-testid="input-resource-topic"
               type="text"
               value={resource.topic}
               onChange={(e) => setResource({ ...resource, topic: e.target.value })}
               placeholder="e.g., The Science of Reading"
-              style={{
-                width: '100%',
-                padding: '10px 12px',
-                borderRadius: '6px',
-                border: `1px solid ${tokens.border}`,
-                fontSize: '14px',
-              }}
+              className="w-full px-3 py-2.5 rounded-md text-sm"
+              style={{ border: `1px solid ${tokens.border}` }}
             />
           </div>
 
           <div>
-            <label style={{ display: 'block', marginBottom: '6px', fontWeight: 500, fontSize: '14px' }}>Author *</label>
+            <label className="block mb-1.5 font-medium text-sm">Author *</label>
             <input
               data-testid="input-resource-author"
               type="text"
               value={resource.author}
               onChange={(e) => setResource({ ...resource, author: e.target.value })}
               placeholder="e.g., Emily Hanford"
-              style={{
-                width: '100%',
-                padding: '10px 12px',
-                borderRadius: '6px',
-                border: `1px solid ${tokens.border}`,
-                fontSize: '14px',
-              }}
+              className="w-full px-3 py-2.5 rounded-md text-sm"
+              style={{ border: `1px solid ${tokens.border}` }}
             />
           </div>
 
           <div>
-            <label style={{ display: 'block', marginBottom: '6px', fontWeight: 500, fontSize: '14px' }}>URL *</label>
+            <label className="block mb-1.5 font-medium text-sm">URL *</label>
             <input
               data-testid="input-resource-url"
               type="url"
               value={resource.url}
               onChange={(e) => setResource({ ...resource, url: e.target.value })}
               placeholder="https://..."
-              style={{
-                width: '100%',
-                padding: '10px 12px',
-                borderRadius: '6px',
-                border: `1px solid ${tokens.border}`,
-                fontSize: '14px',
-              }}
+              className="w-full px-3 py-2.5 rounded-md text-sm"
+              style={{ border: `1px solid ${tokens.border}` }}
             />
           </div>
 
           <div>
-            <label style={{ display: 'block', marginBottom: '6px', fontWeight: 500, fontSize: '14px' }}>Reading Time</label>
+            <label className="block mb-1.5 font-medium text-sm">Reading Time</label>
             <input
               data-testid="input-resource-time"
               type="text"
               value={resource.time}
               onChange={(e) => setResource({ ...resource, time: e.target.value })}
               placeholder="e.g., 15 min"
-              style={{
-                width: '100%',
-                padding: '10px 12px',
-                borderRadius: '6px',
-                border: `1px solid ${tokens.border}`,
-                fontSize: '14px',
-              }}
+              className="w-full px-3 py-2.5 rounded-md text-sm"
+              style={{ border: `1px solid ${tokens.border}` }}
             />
           </div>
 
           <div>
-            <label style={{ display: 'block', marginBottom: '6px', fontWeight: 500, fontSize: '14px' }}>Description / Key Facts</label>
+            <label className="block mb-1.5 font-medium text-sm">Description / Key Facts</label>
             <textarea
               data-testid="input-resource-facts"
               value={resource.facts}
               onChange={(e) => setResource({ ...resource, facts: e.target.value })}
               placeholder="Brief description or key points from this resource..."
               rows={3}
-              style={{
-                width: '100%',
-                padding: '10px 12px',
-                borderRadius: '6px',
-                border: `1px solid ${tokens.border}`,
-                fontSize: '14px',
-                resize: 'vertical',
-              }}
+              className="w-full px-3 py-2.5 rounded-md text-sm resize-y"
+              style={{ border: `1px solid ${tokens.border}` }}
             />
           </div>
         </div>
@@ -212,27 +169,17 @@ export function AddResourceModal({
           data-testid="button-submit-resource"
           onClick={handleSubmit}
           disabled={addResourceMutation.isPending}
+          className="w-full mt-6 px-5 py-3.5 border-none rounded-lg text-[15px] font-semibold flex items-center justify-center gap-2"
           style={{
-            width: '100%',
-            marginTop: '24px',
-            padding: '14px 20px',
             backgroundColor: tokens.success,
             color: tokens.surface,
-            border: 'none',
-            borderRadius: '8px',
             cursor: addResourceMutation.isPending ? 'wait' : 'pointer',
-            fontSize: '15px',
-            fontWeight: 600,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            gap: '8px',
             opacity: addResourceMutation.isPending ? 0.7 : 1,
           }}
         >
           {addResourceMutation.isPending ? (
             <>
-              <Loader2 size={18} style={{ animation: 'spin 1s linear infinite' }} />
+              <Loader2 size={18} className="animate-spin" />
               Adding...
             </>
           ) : (

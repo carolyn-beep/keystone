@@ -2,6 +2,7 @@ import { useState, useRef, useEffect, useLayoutEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { AlertTriangle, Check, Loader2, Brain, X, ExternalLink } from 'lucide-react';
 import { tokens, getScoreChipColors } from '@/lib/colors';
+import { cn } from '@/lib/utils';
 import type { Fact } from '@shared/schema';
 
 export interface HumanGrade {
@@ -56,14 +57,7 @@ function parseAnalysisWithLinks(
             target="_blank"
             rel="noopener noreferrer"
             onClick={(e) => e.stopPropagation()}
-            style={{
-              color: tokens.info,
-              textDecoration: 'underline',
-              fontWeight: 600,
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: '2px',
-            }}
+            className="text-info underline font-semibold inline-flex items-center gap-0.5"
           >
             {part}
             <ExternalLink size={11} />
@@ -73,10 +67,7 @@ function parseAnalysisWithLinks(
         return (
           <span
             key={index}
-            style={{
-              color: tokens.info,
-              fontWeight: 600,
-            }}
+            className="text-info font-semibold"
           >
             {part}
           </span>
@@ -161,127 +152,61 @@ export function FactRow({
   return (
     <div
       data-testid={`row-fact-${fact.originalId}`}
+      className={cn(
+        "transition-all duration-200 overflow-hidden",
+        isInGroup ? "rounded-none mb-0" : "rounded-xl mb-3",
+      )}
       style={{
         backgroundColor: isPrimary ? tokens.primarySoft : tokens.surface,
-        borderRadius: isInGroup ? '0' : '12px',
         border: isInGroup ? 'none' : `1px solid ${isPrimary ? tokens.primary : tokens.border}`,
         borderBottom: isInGroup && !isLastInGroup ? `1px solid ${tokens.border}` : undefined,
-        transition: 'all 0.2s ease',
-        overflow: 'hidden',
-        marginBottom: isInGroup ? 0 : '12px',
       }}
     >
       {/* Main Row: Fact ID | Content | Scores Area */}
       <div
+        className="grid gap-4 px-5 py-4 items-start"
         style={{
-          display: 'grid',
           gridTemplateColumns: '70px 1fr auto',
-          gap: '16px',
-          padding: '16px 20px',
-          alignItems: 'start',
         }}
       >
         {/* Fact ID */}
-        <div style={{
-          display: 'flex',
-          flexDirection: 'column',
-          alignItems: 'center',
-          gap: '4px',
-        }}>
-          <span style={{
-            fontFamily: 'monospace',
-            fontSize: '14px',
-            fontWeight: 700,
-            color: tokens.primary,
-            padding: '4px 8px',
-            backgroundColor: tokens.primarySoft,
-            borderRadius: '6px',
-          }}>
+        <div className="flex flex-col items-center gap-1">
+          <span className="font-mono text-sm font-bold text-primary px-2 py-1 bg-accent rounded-md">
             {fact.originalId}
           </span>
           {isPrimary && (
-            <span style={{
-              fontSize: '9px',
-              fontWeight: 600,
-              color: tokens.success,
-              textTransform: 'uppercase',
-              letterSpacing: '0.05em',
-            }}>
+            <span className="text-[9px] font-semibold text-success uppercase tracking-wider">
               Primary
             </span>
           )}
           {hasContradiction && (
             <span
               title={`Contradicts: ${fact.contradicts}`}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                width: '20px',
-                height: '20px',
-                backgroundColor: tokens.warningSoft,
-                color: tokens.warning,
-                borderRadius: '50%',
-                fontSize: '12px',
-                fontWeight: 700,
-              }}
+              className="flex items-center justify-center w-5 h-5 bg-warning-soft text-warning rounded-full text-xs font-bold"
             >!</span>
           )}
         </div>
 
         {/* Fact Content */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-          <p style={{
-            fontSize: '15px',
-            lineHeight: 1.6,
-            color: tokens.textPrimary,
-            margin: 0,
-            fontWeight: 400,
-          }}>
+        <div className="flex flex-col gap-1.5">
+          <p className="text-[15px] leading-relaxed text-foreground m-0 font-normal">
             {fact.summary || fact.fact}
           </p>
           {fact.source && (
-            <span style={{
-              fontSize: '12px',
-              color: tokens.textMuted,
-              fontStyle: 'italic',
-            }}>
+            <span className="text-xs text-muted italic">
               Source: {fact.source}
             </span>
           )}
           {fact.summary && onViewFullText && (
             <button
               onClick={(e) => { e.stopPropagation(); onViewFullText(); }}
-              style={{
-                fontSize: '11px',
-                color: tokens.primary,
-                background: 'none',
-                border: 'none',
-                padding: 0,
-                cursor: 'pointer',
-                textDecoration: 'underline',
-                textAlign: 'left',
-                width: 'fit-content',
-              }}
+              className="text-[11px] text-primary bg-transparent border-none p-0 cursor-pointer underline text-left w-fit"
             >
               View full original text
             </button>
           )}
           {isRedundant && (
-            <span style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: '4px',
-              padding: '3px 8px',
-              backgroundColor: tokens.warningSoft,
-              color: tokens.warning,
-              borderRadius: '4px',
-              fontSize: '10px',
-              fontWeight: 600,
-              textTransform: 'uppercase',
-              letterSpacing: '0.03em',
-              width: 'fit-content',
-            }}>
+            <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-warning-soft text-warning rounded text-[10px] font-semibold uppercase tracking-wider w-fit">
               <AlertTriangle size={10} />
               Redundant
             </span>
@@ -289,83 +214,39 @@ export function FactRow({
         </div>
 
         {/* Scores Area - AI Score, Your Grade, and Understand Score button */}
-        <div style={{
-          display: 'flex',
-          flexDirection: 'column',
-          gap: '12px',
-          alignItems: 'flex-end',
-        }}>
+        <div className="flex flex-col gap-3 items-end">
           {/* Top row: AI Score and Your Grade side by side */}
-          <div style={{
-            display: 'flex',
-            gap: '16px',
-          }}>
+          <div className="flex gap-4">
             {/* AI Score */}
-            <div style={{
-              display: 'flex',
-              flexDirection: 'column',
-              alignItems: 'center',
-              gap: '4px',
-            }}>
-              <span style={{
-                fontSize: '10px',
-                fontWeight: 600,
-                color: tokens.textMuted,
-                textTransform: 'uppercase',
-                letterSpacing: '0.05em',
-              }}>AI Score</span>
-              <div style={{
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                gap: '6px',
-                padding: '8px 12px',
-                borderRadius: '20px',
-                backgroundColor: isGradeable ? scoreChip.bg : tokens.surfaceAlt,
-                color: isGradeable ? scoreChip.text : tokens.textMuted,
-                border: `2px solid ${isGradeable ? scoreChip.text : tokens.border}`,
-                fontWeight: 700,
-                fontSize: '14px',
-                minWidth: '70px',
-              }}>
+            <div className="flex flex-col items-center gap-1">
+              <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">AI Score</span>
+              <div
+                className="flex items-center justify-center gap-1.5 px-3 py-2 rounded-full font-bold text-sm min-w-[70px]"
+                style={{
+                  backgroundColor: isGradeable ? scoreChip.bg : tokens.surfaceAlt,
+                  color: isGradeable ? scoreChip.text : tokens.textMuted,
+                  border: `2px solid ${isGradeable ? scoreChip.text : tokens.border}`,
+                }}
+              >
                 {isGradeable ? fact.score : '—'}
               </div>
-              <span style={{
-                fontSize: '10px',
-                color: isGradeable ? scoreChip.text : tokens.textMuted,
-                fontWeight: 500,
-              }}>{scoreLabel}</span>
+              <span
+                className="text-[10px] font-medium"
+                style={{
+                  color: isGradeable ? scoreChip.text : tokens.textMuted,
+                }}
+              >{scoreLabel}</span>
             </div>
 
             {/* Your Grade */}
             <div
               ref={gradeDropdownRef}
-              style={{
-                display: 'flex',
-                flexDirection: 'column',
-                alignItems: 'center',
-                gap: '4px',
-                position: 'relative',
-              }}
+              className="flex flex-col items-center gap-1 relative"
             >
-              <span style={{
-                fontSize: '10px',
-                fontWeight: 600,
-                color: tokens.textMuted,
-                textTransform: 'uppercase',
-                letterSpacing: '0.05em',
-              }}>Your Grade</span>
+              <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Your Grade</span>
 
               {isGrading && isSavingGrade ? (
-                <div style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  padding: '8px 12px',
-                  borderRadius: '20px',
-                  backgroundColor: tokens.surfaceAlt,
-                  minWidth: '70px',
-                }}>
+                <div className="flex items-center justify-center px-3 py-2 rounded-full bg-sidebar min-w-[70px]">
                   <Loader2 size={16} className="animate-spin" color={tokens.primary} />
                 </div>
               ) : humanGrade && humanGrade.score !== null ? (
@@ -375,21 +256,11 @@ export function FactRow({
                     e.stopPropagation();
                     setShowQuickGrade(!showQuickGrade);
                   }}
+                  className="flex items-center justify-center gap-1.5 px-3 py-2 rounded-full font-bold text-sm min-w-[70px] cursor-pointer transition-all duration-150"
                   style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    gap: '6px',
-                    padding: '8px 12px',
-                    borderRadius: '20px',
                     backgroundColor: getScoreChipColors(humanGrade.score).bg,
                     color: getScoreChipColors(humanGrade.score).text,
                     border: `2px solid ${getScoreChipColors(humanGrade.score).text}`,
-                    fontWeight: 700,
-                    fontSize: '14px',
-                    minWidth: '70px',
-                    cursor: 'pointer',
-                    transition: 'all 0.15s ease',
                   }}
                 >
                   {humanGrade.score}
@@ -401,21 +272,9 @@ export function FactRow({
                     e.stopPropagation();
                     setShowQuickGrade(!showQuickGrade);
                   }}
+                  className="flex items-center justify-center gap-1 px-3 py-2 rounded-full bg-accent text-primary text-sm font-bold min-w-[70px] cursor-pointer transition-all duration-150"
                   style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    gap: '4px',
-                    padding: '8px 12px',
-                    borderRadius: '20px',
-                    backgroundColor: tokens.primarySoft,
-                    color: tokens.primary,
                     border: `2px solid ${tokens.primary}`,
-                    fontSize: '14px',
-                    fontWeight: 700,
-                    minWidth: '70px',
-                    cursor: 'pointer',
-                    transition: 'all 0.15s ease',
                   }}
                 >
                   + Grade
@@ -426,28 +285,19 @@ export function FactRow({
               {showQuickGrade && createPortal(
                 <div
                   ref={gradeDropdownRef}
+                  className="fixed bg-card rounded-xl shadow-lg p-2 z-[9999] min-w-[140px]"
                   style={{
-                    position: 'fixed',
                     top: dropdownPosition.top,
                     right: dropdownPosition.right,
-                    backgroundColor: tokens.surface,
                     border: `1px solid ${tokens.border}`,
-                    borderRadius: '12px',
-                    boxShadow: '0 4px 20px rgba(0,0,0,0.15)',
-                    padding: '8px',
-                    zIndex: 9999,
-                    minWidth: '140px',
                   }}
                 >
-                  <div style={{
-                    fontSize: '10px',
-                    fontWeight: 600,
-                    color: tokens.textMuted,
-                    textTransform: 'uppercase',
-                    padding: '4px 8px 8px',
-                    borderBottom: `1px solid ${tokens.border}`,
-                    marginBottom: '8px',
-                  }}>
+                  <div
+                    className="text-[10px] font-semibold text-muted-foreground uppercase px-2 pt-1 pb-2 mb-2"
+                    style={{
+                      borderBottom: `1px solid ${tokens.border}`,
+                    }}
+                  >
                     Quick Grade
                   </div>
                   {[5, 4, 3, 2, 1].map((score) => {
@@ -460,17 +310,9 @@ export function FactRow({
                           e.stopPropagation();
                           handleQuickGrade(score);
                         }}
+                        className="flex items-center gap-2 w-full px-2.5 py-2 border-none rounded-md cursor-pointer transition-colors duration-150"
                         style={{
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: '8px',
-                          width: '100%',
-                          padding: '8px 10px',
                           backgroundColor: humanGrade?.score === score ? colors.bg : 'transparent',
-                          border: 'none',
-                          borderRadius: '6px',
-                          cursor: 'pointer',
-                          transition: 'background 0.15s',
                         }}
                         onMouseEnter={(e) => e.currentTarget.style.backgroundColor = colors.bg}
                         onMouseLeave={(e) => {
@@ -479,39 +321,31 @@ export function FactRow({
                           }
                         }}
                       >
-                        <span style={{
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          width: '24px',
-                          height: '24px',
-                          borderRadius: '50%',
-                          backgroundColor: colors.bg,
-                          color: colors.text,
-                          fontWeight: 700,
-                          fontSize: '12px',
-                          border: `2px solid ${colors.text}`,
-                        }}>
+                        <span
+                          className="flex items-center justify-center w-6 h-6 rounded-full font-bold text-xs"
+                          style={{
+                            backgroundColor: colors.bg,
+                            color: colors.text,
+                            border: `2px solid ${colors.text}`,
+                          }}
+                        >
                           {score}
                         </span>
-                        <span style={{
-                          fontSize: '12px',
-                          fontWeight: 500,
-                          color: tokens.textPrimary,
-                        }}>
+                        <span className="text-xs font-medium text-foreground">
                           {label}
                         </span>
                         {humanGrade?.score === score && (
-                          <Check size={14} color={tokens.success} style={{ marginLeft: 'auto' }} />
+                          <Check size={14} color={tokens.success} className="ml-auto" />
                         )}
                       </button>
                     );
                   })}
-                  <div style={{
-                    borderTop: `1px solid ${tokens.border}`,
-                    marginTop: '8px',
-                    paddingTop: '8px',
-                  }}>
+                  <div
+                    className="mt-2 pt-2"
+                    style={{
+                      borderTop: `1px solid ${tokens.border}`,
+                    }}
+                  >
                     <button
                       onClick={(e) => {
                         e.stopPropagation();
@@ -519,20 +353,7 @@ export function FactRow({
                         setShowNotesPanel(true);
                         onStartGrading();
                       }}
-                      style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        gap: '6px',
-                        width: '100%',
-                        padding: '8px',
-                        backgroundColor: tokens.surfaceAlt,
-                        border: 'none',
-                        borderRadius: '6px',
-                        fontSize: '11px',
-                        color: tokens.textSecondary,
-                        cursor: 'pointer',
-                      }}
+                      className="flex items-center justify-center gap-1.5 w-full p-2 bg-sidebar border-none rounded-md text-[11px] text-muted-foreground cursor-pointer"
                     >
                       Add notes...
                     </button>
@@ -550,22 +371,11 @@ export function FactRow({
                 e.stopPropagation();
                 setShowAIAnalysis(!showAIAnalysis);
               }}
+              className="flex items-center gap-1.5 px-3 py-1.5 mt-2 rounded-md text-[11px] font-semibold cursor-pointer transition-all duration-150 w-full justify-center"
               style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '6px',
-                padding: '6px 12px',
-                marginTop: '8px',
                 backgroundColor: showAIAnalysis ? tokens.info : tokens.infoSoft,
                 color: showAIAnalysis ? '#fff' : tokens.info,
                 border: `1px solid ${tokens.info}`,
-                borderRadius: '6px',
-                fontSize: '11px',
-                fontWeight: 600,
-                cursor: 'pointer',
-                transition: 'all 0.15s ease',
-                width: '100%',
-                justifyContent: 'center',
               }}
             >
               <Brain size={14} />
@@ -577,47 +387,32 @@ export function FactRow({
 
       {/* AI Analysis Panel */}
       {showAIAnalysis && hasAIAnalysis && (
-        <div style={{
-          margin: '0 20px 16px 20px',
-          padding: '16px',
-          backgroundColor: tokens.infoSoft,
-          borderRadius: '10px',
-          border: `1px solid ${tokens.info}`,
-        }}>
-          <div style={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            marginBottom: '12px',
-          }}>
-            <div style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '8px',
-            }}>
-              <div style={{
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                width: '32px',
-                height: '32px',
-                backgroundColor: tokens.info,
-                borderRadius: '8px',
-              }}>
+        <div
+          className="mx-5 mb-4 p-4 bg-info-soft rounded-[10px]"
+          style={{
+            border: `1px solid ${tokens.info}`,
+          }}
+        >
+          <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center gap-2">
+              <div
+                className="flex items-center justify-center w-8 h-8 rounded-lg"
+                style={{
+                  backgroundColor: tokens.info,
+                }}
+              >
                 <Brain size={18} color="#fff" />
               </div>
               <div>
-                <div style={{
-                  fontSize: '13px',
-                  fontWeight: 700,
-                  color: tokens.info,
-                }}>
+                <div
+                  className="text-[13px] font-bold"
+                  style={{
+                    color: tokens.info,
+                  }}
+                >
                   AI Analysis
                 </div>
-                <div style={{
-                  fontSize: '11px',
-                  color: tokens.textSecondary,
-                }}>
+                <div className="text-[11px] text-muted-foreground">
                   Why this fact scored {fact.score}/5
                 </div>
               </div>
@@ -627,28 +422,16 @@ export function FactRow({
                 e.stopPropagation();
                 setShowAIAnalysis(false);
               }}
+              className="flex items-center justify-center w-7 h-7 bg-transparent rounded-md cursor-pointer"
               style={{
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                width: '28px',
-                height: '28px',
-                backgroundColor: 'transparent',
                 border: `1px solid ${tokens.info}`,
-                borderRadius: '6px',
-                cursor: 'pointer',
                 color: tokens.info,
               }}
             >
               <X size={16} />
             </button>
           </div>
-          <p style={{
-            margin: 0,
-            fontSize: '14px',
-            lineHeight: 1.7,
-            color: tokens.textPrimary,
-          }}>
+          <p className="m-0 text-sm leading-[1.7] text-foreground">
             {parseAnalysisWithLinks(fact.note || '', sourceUrls)}
           </p>
         </div>
@@ -656,24 +439,14 @@ export function FactRow({
 
       {/* Notes Panel - for adding/editing grade with notes */}
       {showNotesPanel && (
-        <div style={{
-          margin: '0 20px 16px 20px',
-          padding: '16px',
-          backgroundColor: tokens.surfaceAlt,
-          borderRadius: '10px',
-          border: `1px solid ${tokens.border}`,
-        }}>
-          <div style={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            marginBottom: '12px',
-          }}>
-            <div style={{
-              fontSize: '13px',
-              fontWeight: 700,
-              color: tokens.textPrimary,
-            }}>
+        <div
+          className="mx-5 mb-4 p-4 bg-sidebar rounded-[10px]"
+          style={{
+            border: `1px solid ${tokens.border}`,
+          }}
+        >
+          <div className="flex items-center justify-between mb-3">
+            <div className="text-[13px] font-bold text-foreground">
               {humanGrade ? 'Update Grade & Notes' : 'Add Grade with Notes'}
             </div>
             <button
@@ -682,36 +455,22 @@ export function FactRow({
                 setShowNotesPanel(false);
                 onCancelGrading();
               }}
+              className="flex items-center justify-center w-7 h-7 bg-transparent rounded-md cursor-pointer text-muted"
               style={{
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                width: '28px',
-                height: '28px',
-                backgroundColor: 'transparent',
                 border: `1px solid ${tokens.border}`,
-                borderRadius: '6px',
-                cursor: 'pointer',
-                color: tokens.textMuted,
               }}
             >
               <X size={16} />
             </button>
           </div>
 
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+          <div className="flex flex-col gap-3">
             <select
               value={gradingScore}
               onChange={(e) => onGradingScoreChange(parseInt(e.target.value))}
+              className="px-3.5 py-2.5 rounded-lg bg-card text-sm font-semibold cursor-pointer w-full"
               style={{
-                padding: '10px 14px',
-                borderRadius: '8px',
                 border: `1px solid ${tokens.border}`,
-                backgroundColor: tokens.surface,
-                fontSize: '14px',
-                fontWeight: 600,
-                cursor: 'pointer',
-                width: '100%',
               }}
               data-testid={`select-grade-${fact.originalId}`}
             >
@@ -725,39 +484,23 @@ export function FactRow({
               placeholder="Add your notes..."
               value={gradingNotes}
               onChange={(e) => onGradingNotesChange(e.target.value)}
+              className="px-3.5 py-2.5 rounded-lg text-[13px] min-h-[80px] resize-y font-[inherit]"
               style={{
-                padding: '10px 14px',
-                borderRadius: '8px',
                 border: `1px solid ${tokens.border}`,
-                fontSize: '13px',
-                minHeight: '80px',
-                resize: 'vertical',
-                fontFamily: 'inherit',
               }}
               data-testid={`input-grade-notes-${fact.originalId}`}
             />
-            <div style={{ display: 'flex', gap: '8px' }}>
+            <div className="flex gap-2">
               <button
                 onClick={() => {
                   onSaveGrade();
                   setShowNotesPanel(false);
                 }}
                 disabled={isSavingGrade}
+                className="flex-1 px-4 py-2.5 rounded-lg border-none bg-success text-white text-[13px] font-semibold flex items-center justify-center gap-1.5"
                 style={{
-                  flex: 1,
-                  padding: '10px 16px',
-                  borderRadius: '8px',
-                  border: 'none',
-                  backgroundColor: tokens.success,
-                  color: '#fff',
-                  fontSize: '13px',
-                  fontWeight: 600,
                   cursor: isSavingGrade ? 'not-allowed' : 'pointer',
                   opacity: isSavingGrade ? 0.7 : 1,
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  gap: '6px',
                 }}
                 data-testid={`button-save-grade-${fact.originalId}`}
               >
@@ -772,13 +515,9 @@ export function FactRow({
                   setShowNotesPanel(false);
                   onCancelGrading();
                 }}
+                className="px-4 py-2.5 rounded-lg bg-card text-[13px] cursor-pointer"
                 style={{
-                  padding: '10px 16px',
-                  borderRadius: '8px',
                   border: `1px solid ${tokens.border}`,
-                  backgroundColor: tokens.surface,
-                  fontSize: '13px',
-                  cursor: 'pointer',
                 }}
                 data-testid={`button-cancel-grade-${fact.originalId}`}
               >
@@ -789,57 +528,32 @@ export function FactRow({
 
           {/* Existing notes display */}
           {humanGrade?.notes && (
-            <div style={{
-              marginTop: '12px',
-              padding: '12px',
-              backgroundColor: tokens.primarySoft,
-              borderRadius: '8px',
-              borderLeft: `4px solid ${tokens.primary}`,
-            }}>
-              <div style={{
-                fontSize: '11px',
-                fontWeight: 600,
-                color: tokens.primary,
-                textTransform: 'uppercase',
-                marginBottom: '6px',
-              }}>
+            <div
+              className="mt-3 p-3 bg-accent rounded-lg"
+              style={{
+                borderLeft: `4px solid ${tokens.primary}`,
+              }}
+            >
+              <div className="text-[11px] font-semibold text-primary uppercase mb-1.5">
                 Current Notes
               </div>
-              <p style={{
-                margin: 0,
-                fontSize: '13px',
-                color: tokens.textPrimary,
-              }}>{humanGrade.notes}</p>
+              <p className="m-0 text-[13px] text-foreground">{humanGrade.notes}</p>
             </div>
           )}
 
           {/* Contradiction warning */}
           {hasContradiction && (
-            <div style={{
-              marginTop: '12px',
-              padding: '12px',
-              backgroundColor: tokens.warningSoft,
-              borderRadius: '8px',
-              borderLeft: `4px solid ${tokens.warning}`,
-            }}>
-              <div style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '6px',
-                fontSize: '11px',
-                fontWeight: 600,
-                color: tokens.warning,
-                textTransform: 'uppercase',
-                marginBottom: '6px',
-              }}>
+            <div
+              className="mt-3 p-3 bg-warning-soft rounded-lg"
+              style={{
+                borderLeft: `4px solid ${tokens.warning}`,
+              }}
+            >
+              <div className="flex items-center gap-1.5 text-[11px] font-semibold text-warning uppercase mb-1.5">
                 <AlertTriangle size={12} />
                 Contradiction Detected
               </div>
-              <p style={{
-                margin: 0,
-                fontSize: '13px',
-                color: tokens.textPrimary,
-              }}>This fact contradicts: <strong>{fact.contradicts}</strong></p>
+              <p className="m-0 text-[13px] text-foreground">This fact contradicts: <strong>{fact.contradicts}</strong></p>
             </div>
           )}
         </div>

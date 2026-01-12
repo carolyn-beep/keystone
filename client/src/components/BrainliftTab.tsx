@@ -21,43 +21,18 @@ export const BrainliftTab = ({ originalContent, sourceType, slug }: BrainliftTab
   };
 
   return (
-    <div style={{
-      backgroundColor: tokens.surface,
-      borderRadius: '12px',
-      border: `1px solid ${tokens.border}`,
-      padding: '24px',
-    }}>
+    <div className="bg-card rounded-xl border border-border p-6">
       {/* Header with Download Button */}
-      <div style={{
-        display: 'flex',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        marginBottom: '20px',
-        paddingBottom: '16px',
-        borderBottom: `1px solid ${tokens.border}`,
-      }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-          <div style={{
-            padding: '10px',
-            borderRadius: '8px',
-            backgroundColor: tokens.primarySoft,
-          }}>
+      <div className="flex justify-between items-center mb-5 pb-4" style={{ borderBottom: `1px solid ${tokens.border}` }}>
+        <div className="flex items-center gap-3">
+          <div className="p-2.5 rounded-lg bg-accent">
             <FileText size={20} style={{ color: tokens.primary }} />
           </div>
           <div>
-            <h3 style={{
-              margin: 0,
-              fontSize: '16px',
-              fontWeight: 600,
-              color: tokens.textPrimary
-            }}>
+            <h3 className="m-0 text-base font-semibold text-foreground">
               Original Document
             </h3>
-            <p style={{
-              margin: 0,
-              fontSize: '13px',
-              color: tokens.textSecondary
-            }}>
+            <p className="m-0 text-[13px] text-muted-foreground">
               {sourceType ? `Source: ${sourceType.toUpperCase()}` : 'The source document for this brainlift'}
             </p>
           </div>
@@ -67,19 +42,8 @@ export const BrainliftTab = ({ originalContent, sourceType, slug }: BrainliftTab
           <button
             data-testid="button-download-original"
             onClick={handleDownload}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '6px',
-              padding: '8px 16px',
-              borderRadius: '6px',
-              border: `1px solid ${tokens.border}`,
-              backgroundColor: tokens.surface,
-              color: tokens.textPrimary,
-              cursor: 'pointer',
-              fontSize: '13px',
-              fontWeight: 500,
-            }}
+            className="flex items-center gap-1.5 px-4 py-2 rounded-md bg-card text-foreground cursor-pointer text-[13px] font-medium"
+            style={{ border: `1px solid ${tokens.border}` }}
           >
             <Download size={14} />
             Download
@@ -89,36 +53,18 @@ export const BrainliftTab = ({ originalContent, sourceType, slug }: BrainliftTab
 
       {/* Document Content */}
       {originalContent ? (
-        <div style={{
-          backgroundColor: tokens.surfaceAlt,
-          borderRadius: '8px',
-          padding: '20px',
-          maxHeight: '600px',
-          overflowY: 'auto',
-        }}>
-          <pre style={{
-            margin: 0,
-            whiteSpace: 'pre-wrap',
-            wordWrap: 'break-word',
-            fontFamily: 'system-ui, -apple-system, sans-serif',
-            fontSize: '14px',
-            lineHeight: 1.7,
-            color: tokens.textPrimary,
-          }}>
+        <div className="bg-muted rounded-lg p-5 max-h-[600px] overflow-y-auto">
+          <pre className="m-0 whitespace-pre-wrap break-words font-sans text-sm leading-relaxed text-foreground">
             {originalContent}
           </pre>
         </div>
       ) : (
-        <div style={{
-          textAlign: 'center',
-          padding: '60px 20px',
-          color: tokens.textSecondary,
-        }}>
-          <FileText size={48} style={{ opacity: 0.3, marginBottom: '16px' }} />
-          <p style={{ margin: 0, fontSize: '15px' }}>
+        <div className="text-center py-[60px] px-5 text-muted-foreground">
+          <FileText size={48} className="opacity-30 mb-4" />
+          <p className="m-0 text-[15px]">
             No original document available
           </p>
-          <p style={{ margin: '8px 0 0', fontSize: '13px', opacity: 0.7 }}>
+          <p className="mt-2 mb-0 text-[13px] opacity-70">
             Original content is saved when you import or update a brainlift
           </p>
         </div>

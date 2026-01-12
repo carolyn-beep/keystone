@@ -50,46 +50,27 @@ export function DashboardHeader({
 
   return (
     <header
-      className="px-4 pt-4 sm:px-8 md:px-12"
-      style={{ backgroundColor: tokens.surface }}
+      className="px-4 pt-4 sm:px-8 md:px-12 bg-card"
     >
       {/* Row 1: Back Link */}
       {!isSharedView && (
-        <Link href="/" style={{
-          color: tokens.textSecondary,
-          textDecoration: 'none',
-          fontSize: '13px',
-          display: 'inline-block',
-          marginBottom: '8px',
-        }}>
+        <Link href="/" className="text-muted-foreground no-underline text-[13px] inline-block mb-2">
           ← All Brainlifts
         </Link>
       )}
 
       {/* Row 2: Identity Block - Title only, no buttons */}
-      <h1 style={{
-        fontSize: '26px',
-        fontWeight: 700,
-        margin: 0,
-        color: tokens.textPrimary,
-        letterSpacing: '-0.02em',
-        lineHeight: 1.3,
-      }}>{title}</h1>
+      <h1 className="text-[26px] font-bold m-0 text-foreground tracking-tight leading-[1.3]">{title}</h1>
 
       {/* Row 3: Subtitle */}
-      <p style={{
-        color: tokens.textSecondary,
-        fontSize: '14px',
-        margin: '6px 0 0 0',
-      }}>{description}</p>
+      <p className="text-muted-foreground text-sm mt-1.5 mb-0">
+        {description}
+      </p>
 
       {/* Row 4: Author */}
       <div
+        className="mt-1 flex items-center gap-1"
         style={{
-          margin: '4px 0 0 0',
-          display: 'flex',
-          alignItems: 'center',
-          gap: '4px',
           cursor: editingAuthor ? 'text' : 'pointer',
         }}
         onClick={() => {
@@ -100,7 +81,7 @@ export function DashboardHeader({
         }}
         title={editingAuthor ? undefined : "Click to set owner name"}
       >
-        <span style={{ color: tokens.textMuted, fontSize: '13px' }}>By</span>
+        <span className="text-muted text-[13px]">By</span>
         {editingAuthor ? (
           <input
             type="text"
@@ -121,27 +102,17 @@ export function DashboardHeader({
             }}
             autoFocus
             placeholder="Enter name..."
-            style={{
-              border: 'none',
-              borderBottom: '1px solid #D1D5DB',
-              background: 'transparent',
-              padding: '2px 0',
-              fontSize: '13px',
-              width: '150px',
-              outline: 'none',
-              color: tokens.textPrimary,
-            }}
+            className="border-none border-b border-b-gray-300 bg-transparent py-0.5 px-0 text-[13px] w-[150px] outline-none text-foreground"
             onClick={(e) => e.stopPropagation()}
           />
         ) : (
           <span
-            className="owner-name-hover"
+            className="owner-name-hover transition-all duration-150"
             style={{
               color: data.author ? tokens.textMuted : '#9CA3AF',
               fontStyle: data.author ? 'normal' : 'italic',
               borderBottom: data.author ? 'none' : '1px dashed #D1D5DB',
               paddingBottom: data.author ? 0 : '1px',
-              transition: 'all 0.15s ease',
             }}
           >
             {data.author || 'Set Owner Name...'}
@@ -150,49 +121,19 @@ export function DashboardHeader({
       </div>
 
       {/* Row 5: Status Rail - Classification badge with checkmark */}
-      <div style={{ marginTop: '12px' }}>
+      <div className="mt-3">
             {data.classification === 'brainlift' ? (
-              <span style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: '6px',
-                padding: '4px 10px',
-                backgroundColor: tokens.successSoft,
-                color: tokens.success,
-                borderRadius: '4px',
-                fontSize: '12px',
-                fontWeight: 600,
-              }}>
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-success-soft text-success rounded text-xs font-semibold">
                 <Check size={14} />
                 Brainlift · DOK1 Graded
               </span>
             ) : data.classification === 'partial' ? (
-              <span style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: '6px',
-                padding: '4px 10px',
-                backgroundColor: tokens.warningSoft,
-                color: tokens.warning,
-                borderRadius: '4px',
-                fontSize: '12px',
-                fontWeight: 600,
-              }}>
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-warning-soft text-warning rounded text-xs font-semibold">
                 <AlertTriangle size={14} />
                 Partial Brainlift
               </span>
             ) : (
-              <span style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: '6px',
-                padding: '4px 10px',
-                backgroundColor: tokens.warningSoft,
-                color: tokens.warning,
-                borderRadius: '4px',
-                fontSize: '12px',
-                fontWeight: 600,
-              }}>
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-warning-soft text-warning rounded text-xs font-semibold">
                 <AlertTriangle size={14} />
                 Not a Brainlift
               </span>
@@ -201,30 +142,19 @@ export function DashboardHeader({
 
       {/* Row 6: Navigation Tabs (left) + Actions (right) */}
       <div
-        className="flex flex-col sm:flex-row sm:justify-between sm:items-end gap-2 sm:gap-0"
-        style={{
-          marginTop: '16px',
-          borderBottom: `1px solid ${tokens.border}`,
-        }}
+        className="flex flex-col sm:flex-row sm:justify-between sm:items-end gap-2 sm:gap-0 mt-4 border-b border-border"
       >
         {/* Navigation Tabs - Left aligned, flat underline style */}
-        <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
+        <div className="flex gap-1 flex-wrap">
           {!isNotBrainlift && ['brainlift', 'grading', 'contradictions', 'reading'].map(tab => (
             <button
               key={tab}
               onClick={() => setActiveTab(tab)}
               data-testid={`tab-${tab}`}
+              className="px-5 py-3 bg-transparent border-none cursor-pointer text-sm font-medium transition-colors duration-150 -mb-px"
               style={{
-                padding: '12px 20px',
-                backgroundColor: 'transparent',
-                border: 'none',
                 borderBottom: activeTab === tab ? `2px solid ${tokens.primary}` : '2px solid transparent',
                 color: activeTab === tab ? tokens.primary : tokens.textSecondary,
-                cursor: 'pointer',
-                fontSize: '14px',
-                fontWeight: 500,
-                transition: 'color 0.15s ease',
-                marginBottom: '-1px',
               }}
               onMouseEnter={(e) => {
                 if (activeTab !== tab) {
@@ -248,26 +178,13 @@ export function DashboardHeader({
         </div>
 
         {/* Action Cluster - Right aligned */}
-        <div style={{ display: 'flex', gap: '8px', alignItems: 'center', paddingBottom: '8px', flexWrap: 'wrap' }}>
+        <div className="flex gap-2 items-center pb-2 flex-wrap">
           {/* Primary Action: Update */}
           {!isSharedView && !isNotBrainlift && (
             <button
               data-testid="button-update-brainlift"
               onClick={() => setShowUpdateModal(true)}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                gap: '6px',
-                padding: '8px 16px',
-                borderRadius: '6px',
-                border: 'none',
-                backgroundColor: tokens.primary,
-                color: tokens.surface,
-                cursor: 'pointer',
-                fontSize: '13px',
-                fontWeight: 500,
-              }}
+              className="flex items-center justify-center gap-1.5 px-4 py-2 rounded-md border-none bg-primary text-card cursor-pointer text-[13px] font-medium"
             >
               <RefreshCw size={14} />
               Update
@@ -279,20 +196,8 @@ export function DashboardHeader({
             <button
               data-testid="button-download-pdf"
               onClick={handleDownloadPDF}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                gap: '6px',
-                padding: '8px 16px',
-                borderRadius: '6px',
-                border: 'none',
-                backgroundColor: 'transparent',
-                color: tokens.textSecondary,
-                cursor: 'pointer',
-                fontSize: '13px',
-                fontWeight: 500,
-              }}
+              className="flex items-center justify-center gap-1.5 px-4 py-2 rounded-md border-none bg-transparent cursor-pointer text-[13px] font-medium"
+              style={{ color: tokens.textSecondary }}
               onMouseEnter={(e) => e.currentTarget.style.color = tokens.textPrimary}
               onMouseLeave={(e) => e.currentTarget.style.color = tokens.textSecondary}
             >
@@ -304,20 +209,10 @@ export function DashboardHeader({
           <button
             data-testid="button-copy-link"
             onClick={handleCopyLink}
+            className="flex items-center justify-center gap-1.5 px-4 py-2 rounded-md border-none cursor-pointer text-[13px] font-medium transition-all duration-150"
             style={{
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: '6px',
-              padding: '8px 16px',
-              borderRadius: '6px',
-              border: 'none',
               backgroundColor: copied ? tokens.success : 'transparent',
               color: copied ? tokens.surface : tokens.textSecondary,
-              cursor: 'pointer',
-              fontSize: '13px',
-              fontWeight: 500,
-              transition: 'all 0.15s ease',
             }}
             onMouseEnter={(e) => { if (!copied) e.currentTarget.style.color = tokens.textPrimary; }}
             onMouseLeave={(e) => { if (!copied) e.currentTarget.style.color = tokens.textSecondary; }}
@@ -331,20 +226,8 @@ export function DashboardHeader({
             <button
               data-testid="button-view-history"
               onClick={() => setShowHistoryModal(true)}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                gap: '6px',
-                padding: '8px 16px',
-                borderRadius: '6px',
-                border: 'none',
-                backgroundColor: 'transparent',
-                color: tokens.textSecondary,
-                cursor: 'pointer',
-                fontSize: '13px',
-                fontWeight: 500,
-              }}
+              className="flex items-center justify-center gap-1.5 px-4 py-2 rounded-md border-none bg-transparent cursor-pointer text-[13px] font-medium"
+              style={{ color: tokens.textSecondary }}
               onMouseEnter={(e) => e.currentTarget.style.color = tokens.textPrimary}
               onMouseLeave={(e) => e.currentTarget.style.color = tokens.textSecondary}
             >

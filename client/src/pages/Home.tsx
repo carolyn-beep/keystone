@@ -177,48 +177,22 @@ export default function Home() {
   };
 
   return (
-    <div style={{
-      minHeight: '100vh',
-      backgroundColor: tokens.bg,
-      fontFamily: "'Inter', -apple-system, sans-serif",
-    }}>
+    <div className="min-h-screen bg-background font-['Inter',-apple-system,sans-serif]">
       {/* Header - surface bg with border */}
-      <header 
-        className="flex justify-between items-center flex-wrap gap-3 px-4 py-4 sm:px-8 md:px-12"
-        style={{
-          backgroundColor: tokens.surface,
-          borderBottom: `1px solid ${tokens.border}`,
-        }}
+      <header
+        className="flex justify-between items-center flex-wrap gap-3 px-4 py-4 sm:px-8 md:px-12 bg-card border-b border-border"
       >
         <div>
-          <h1 style={{
-            fontSize: '28px',
-            fontWeight: 700,
-            color: tokens.textPrimary,
-            margin: 0,
-          }}>DOK1 GRADING</h1>
-          <p style={{ color: tokens.textSecondary, fontSize: '14px', marginTop: '4px' }}>
+          <h1 className="text-[28px] font-bold text-foreground m-0">DOK1 GRADING</h1>
+          <p className="text-muted-foreground text-sm mt-1">
             Grade and manage your educational brainlifts
           </p>
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+        <div className="flex items-center gap-3">
           <button
             data-testid="button-add-brainlift"
             onClick={() => setShowModal(true)}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '8px',
-              backgroundColor: tokens.primary,
-              color: tokens.onPrimary,
-              border: 'none',
-              borderRadius: '8px',
-              padding: '10px 20px',
-              fontSize: '14px',
-              fontWeight: 500,
-              cursor: 'pointer',
-              transition: 'background-color 0.15s',
-            }}
+            className="flex items-center gap-2 bg-primary text-primary-foreground border-none rounded-lg px-5 py-2.5 text-sm font-medium cursor-pointer transition-colors duration-150"
             onMouseEnter={(e) => e.currentTarget.style.backgroundColor = tokens.primaryHover}
             onMouseLeave={(e) => e.currentTarget.style.backgroundColor = tokens.primary}
           >
@@ -229,27 +203,18 @@ export default function Home() {
       </header>
 
       {/* Thin primary indicator line */}
-      <div style={{
-        height: '2px',
-        backgroundColor: tokens.primary,
-      }} />
+      <div className="h-0.5 bg-primary" />
 
       <main className="px-4 sm:px-6 md:px-8 py-4 max-w-[1200px] mx-auto">
         {isLoading ? (
-          <div style={{ display: 'flex', justifyContent: 'center', padding: '40px' }}>
-            <Loader2 size={32} style={{ animation: 'spin 1s linear infinite', color: tokens.textMuted }} />
+          <div className="flex justify-center p-10">
+            <Loader2 size={32} className="animate-spin text-muted" />
           </div>
         ) : !brainlifts || brainlifts.length === 0 ? (
-          <div style={{
-            textAlign: 'center',
-            padding: '60px 24px',
-            backgroundColor: '#F9FAFB',
-            borderRadius: '12px',
-            border: '2px dashed #E5E7EB',
-          }}>
-            <Upload size={48} style={{ marginBottom: '16px', color: tokens.textMuted }} />
-            <h3 style={{ fontSize: '18px', fontWeight: 600, color: tokens.primary, margin: '0 0 8px 0' }}>No brainlifts yet</h3>
-            <p style={{ fontSize: '14px', color: tokens.textSecondary, margin: '0 0 20px 0' }}>
+          <div className="text-center py-[60px] px-6 bg-[#F9FAFB] rounded-xl border-2 border-dashed border-[#E5E7EB]">
+            <Upload size={48} className="mb-4 mx-auto text-muted" />
+            <h3 className="text-lg font-semibold text-primary m-0 mb-2">No brainlifts yet</h3>
+            <p className="text-sm text-muted-foreground m-0 mb-5">
               Click "Add Brainlift" to upload your first one.
             </p>
           </div>
@@ -285,22 +250,12 @@ export default function Home() {
                   key={data.slug}
                   href={`/grading/${data.slug}`}
                   data-testid={`card-brainlift-${data.slug}`}
+                  className="rounded-xl p-5 pr-6 no-underline flex flex-col relative transition-all duration-200 cursor-pointer h-full box-border"
                   style={{
                     backgroundColor: isNotGradeable ? '#F9FAFB' : 'white',
                     border: isNotGradeable ? '1px dashed #D1D5DB' : '1px solid #E5E7EB',
-                    borderRadius: '12px',
-                    padding: '20px',
-                    paddingRight: '24px',
-                    textDecoration: 'none',
                     color: 'inherit',
-                    display: 'flex',
-                    flexDirection: 'column',
-                    position: 'relative',
-                    transition: 'all 0.2s ease',
-                    cursor: 'pointer',
                     opacity: isNotGradeable ? 0.7 : 1,
-                    height: '100%',
-                    boxSizing: 'border-box',
                   }}
                   onMouseEnter={(e) => {
                     if (!isNotGradeable) {
@@ -320,33 +275,12 @@ export default function Home() {
                   }}
                 >
                   {/* Top Right Actions */}
-                  <div style={{
-                    position: 'absolute',
-                    top: '16px',
-                    right: '16px',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '8px',
-                    zIndex: 2,
-                  }}>
+                  <div className="absolute top-4 right-4 flex items-center gap-2 z-[2]">
                     {/* Delete Button */}
                     <button
                       data-testid={`button-delete-${data.id}`}
                       onClick={(e) => handleDelete(e, { id: data.id, title: data.title })}
-                      style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        width: '28px',
-                        height: '28px',
-                        borderRadius: '6px',
-                        border: '1px solid #E5E7EB',
-                        backgroundColor: 'white',
-                        color: '#9CA3AF',
-                        cursor: 'pointer',
-                        transition: 'all 0.15s',
-                        padding: 0,
-                      }}
+                      className="flex items-center justify-center w-7 h-7 rounded-md border border-[#E5E7EB] bg-white text-[#9CA3AF] cursor-pointer transition-all duration-150 p-0"
                       onMouseEnter={(e) => {
                         e.currentTarget.style.backgroundColor = '#FEE2E2';
                         e.currentTarget.style.borderColor = '#FCA5A5';
@@ -360,64 +294,36 @@ export default function Home() {
                     >
                       <Trash2 size={14} />
                     </button>
-                    
+
                     {/* Status Badge */}
-                    <span style={{
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      gap: '4px',
-                      padding: '4px 10px',
-                      borderRadius: '6px',
-                      fontSize: '10px',
-                      fontWeight: 600,
-                      textTransform: 'uppercase',
-                      letterSpacing: '0.3px',
-                      whiteSpace: 'nowrap',
-                      backgroundColor: status.bg,
-                      color: status.color,
-                      border: `1px solid ${status.border}`,
-                    }}>
+                    <span
+                      className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-[10px] font-semibold uppercase tracking-wide whitespace-nowrap"
+                      style={{
+                        backgroundColor: status.bg,
+                        color: status.color,
+                        border: `1px solid ${status.border}`,
+                      }}
+                    >
                       <StatusIcon size={10} />
                       {status.label}
                     </span>
                   </div>
                   
                   {/* Card Header */}
-                  <div style={{ marginBottom: '12px', paddingRight: '145px' }}>
-                    <h3 style={{
-                      fontSize: '17px',
-                      fontWeight: 600,
-                      color: '#111827',
-                      margin: '0 0 6px 0',
-                      lineHeight: 1.3,
-                      wordWrap: 'break-word',
-                    }}>{data.title}</h3>
-                    <p style={{
-                      fontSize: '14px',
-                      color: '#6B7280',
-                      margin: 0,
-                      lineHeight: 1.5,
-                      display: '-webkit-box',
-                      WebkitLineClamp: 2,
-                      WebkitBoxOrient: 'vertical',
-                      overflow: 'hidden',
-                    }}>{data.description}</p>
+                  <div className="mb-3 pr-[145px]">
+                    <h3 className="text-[17px] font-semibold text-[#111827] m-0 mb-1.5 leading-[1.3] break-words">
+                      {data.title}
+                    </h3>
+                    <p className="text-sm text-[#6B7280] m-0 leading-normal overflow-hidden line-clamp-2">
+                      {data.description}
+                    </p>
                   </div>
                   
                   {/* Author & Date */}
-                  <div style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '12px',
-                    marginBottom: '16px',
-                    fontSize: '13px',
-                    color: '#6B7280',
-                  }}>
+                  <div className="flex items-center gap-3 mb-4 text-[13px] text-[#6B7280]">
                     <div
+                      className="flex items-center gap-1.5"
                       style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '6px',
                         cursor: editingAuthorSlug === data.slug ? 'text' : 'pointer',
                       }}
                       onClick={(e) => {
@@ -428,19 +334,9 @@ export default function Home() {
                       title={editingAuthorSlug === data.slug ? undefined : "Click to set owner name"}
                     >
                       {/* Avatar circle - always visible */}
-                      <span style={{
-                        width: '24px',
-                        height: '24px',
-                        borderRadius: '50%',
-                        backgroundColor: '#E5E7EB',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        fontSize: '11px',
-                        fontWeight: 600,
-                        color: '#6B7280',
-                        flexShrink: 0,
-                      }}>{authorInitials}</span>
+                      <span className="w-6 h-6 rounded-full bg-[#E5E7EB] flex items-center justify-center text-[11px] font-semibold text-[#6B7280] shrink-0">
+                        {authorInitials}
+                      </span>
 
                       {/* Name or input */}
                       {editingAuthorSlug === data.slug ? (
@@ -455,27 +351,17 @@ export default function Home() {
                           onBlur={() => handleAuthorSubmit(data.slug)}
                           autoFocus
                           placeholder="Enter owner name..."
-                          style={{
-                            border: 'none',
-                            borderBottom: '1px solid #D1D5DB',
-                            background: 'transparent',
-                            padding: '2px 0',
-                            fontSize: '13px',
-                            width: '130px',
-                            outline: 'none',
-                            color: '#374151',
-                          }}
+                          className="border-0 border-b border-[#D1D5DB] bg-transparent py-0.5 px-0 text-[13px] w-[130px] outline-none text-[#374151]"
                           onClick={(e) => e.stopPropagation()}
                         />
                       ) : (
                         <span
-                          className="owner-name-hover"
+                          className="owner-name-hover transition-all duration-150"
                           style={{
                             color: data.author ? '#6B7280' : '#9CA3AF',
                             fontStyle: data.author ? 'normal' : 'italic',
                             borderBottom: data.author ? 'none' : '1px dashed #D1D5DB',
                             paddingBottom: data.author ? 0 : '1px',
-                            transition: 'all 0.15s ease',
                           }}
                         >
                           {data.author || 'Set Owner Name...'}
@@ -485,63 +371,43 @@ export default function Home() {
                   </div>
                   
                   {/* Stats Row */}
-                  <div style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '8px',
-                    paddingTop: '16px',
-                    borderTop: '1px solid #F3F4F6',
-                    marginTop: 'auto',
-                    flexWrap: 'wrap',
-                  }}>
+                  <div className="flex items-center gap-2 pt-4 border-t border-[#F3F4F6] mt-auto flex-wrap">
                     {/* Facts Badge */}
-                    <span style={{
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      gap: '6px',
-                      padding: '6px 12px',
-                      borderRadius: '8px',
-                      fontSize: '13px',
-                      fontWeight: 500,
-                      backgroundColor: isNotGradeable && (summary.totalFacts || 0) === 0 ? '#FEE2E2' : '#F0FDFA',
-                      color: isNotGradeable && (summary.totalFacts || 0) === 0 ? '#DC2626' : '#0D9488',
-                    }}>
-                      <span style={{ fontWeight: 700 }}>{summary.totalFacts || 0}</span> facts
+                    <span
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[13px] font-medium"
+                      style={{
+                        backgroundColor: isNotGradeable && (summary.totalFacts || 0) === 0 ? '#FEE2E2' : '#F0FDFA',
+                        color: isNotGradeable && (summary.totalFacts || 0) === 0 ? '#DC2626' : '#0D9488',
+                      }}
+                    >
+                      <span className="font-bold">{summary.totalFacts || 0}</span> facts
                     </span>
-                    
+
                     {/* Contradictions Badge */}
-                    <span style={{
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      gap: '6px',
-                      padding: '6px 12px',
-                      borderRadius: '8px',
-                      fontSize: '13px',
-                      fontWeight: 500,
-                      backgroundColor: hasContradictions ? '#FFF7ED' : '#F3F4F6',
-                      color: hasContradictions ? '#EA580C' : '#6B7280',
-                    }}>
+                    <span
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[13px] font-medium"
+                      style={{
+                        backgroundColor: hasContradictions ? '#FFF7ED' : '#F3F4F6',
+                        color: hasContradictions ? '#EA580C' : '#6B7280',
+                      }}
+                    >
                       {hasContradictions && <AlertTriangle size={12} />}
                       {summary.contradictionCount || 0} {hasContradictions ? 'contradictions' : 'contradictions'}
                     </span>
-                    
+
                     {/* Score Preview */}
-                    <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                      <div style={{ fontSize: '11px', color: '#6B7280', textAlign: 'right', lineHeight: 1.3 }}>
+                    <div className="ml-auto flex items-center gap-2">
+                      <div className="text-[11px] text-[#6B7280] text-right leading-[1.3]">
                         Mean<br/>Score
                       </div>
-                      <div style={{
-                        width: '40px',
-                        height: '40px',
-                        borderRadius: '50%',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        fontSize: isNotGradeable || (summary.totalFacts || 0) === 0 ? '12px' : '14px',
-                        fontWeight: 700,
-                        color: isNotGradeable || (summary.totalFacts || 0) === 0 ? '#6B7280' : 'white',
-                        backgroundColor: isNotGradeable || (summary.totalFacts || 0) === 0 ? '#E5E7EB' : getScoreColor(),
-                      }}>
+                      <div
+                        className="w-10 h-10 rounded-full flex items-center justify-center font-bold"
+                        style={{
+                          fontSize: isNotGradeable || (summary.totalFacts || 0) === 0 ? '12px' : '14px',
+                          color: isNotGradeable || (summary.totalFacts || 0) === 0 ? '#6B7280' : 'white',
+                          backgroundColor: isNotGradeable || (summary.totalFacts || 0) === 0 ? '#E5E7EB' : getScoreColor(),
+                        }}
+                      >
                         {isNotGradeable || (summary.totalFacts || 0) === 0 ? 'N/A' : meanScore.toFixed(1)}
                       </div>
                     </div>
@@ -555,47 +421,33 @@ export default function Home() {
 
       {showModal && (
         <div
-          style={{
-            position: 'fixed',
-            inset: 0,
-            backgroundColor: tokens.overlay,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            zIndex: 1000,
-            padding: '20px',
-          }}
+          className="fixed inset-0 flex items-center justify-center z-[1000] p-5"
+          style={{ backgroundColor: tokens.overlay }}
           onClick={closeModal}
         >
           <div
-            className="p-4 sm:p-6 w-full max-w-[600px] max-h-[90vh] overflow-auto rounded-xl"
-            style={{ backgroundColor: tokens.surface }}
+            className="p-4 sm:p-6 w-full max-w-[600px] max-h-[90vh] overflow-auto rounded-xl bg-card"
             onClick={(e) => e.stopPropagation()}
           >
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-              <h2 style={{ fontSize: '20px', fontWeight: 600, color: tokens.textPrimary, margin: 0 }}>
+            <div className="flex justify-between items-center mb-5">
+              <h2 className="text-xl font-semibold text-foreground m-0">
                 Add New Brainlift
               </h2>
               <button
                 data-testid="button-close-modal"
                 onClick={closeModal}
-                style={{
-                  background: 'none',
-                  border: 'none',
-                  cursor: 'pointer',
-                  color: tokens.textSecondary,
-                }}
+                className="bg-transparent border-none cursor-pointer text-muted-foreground"
               >
                 <X size={24} />
               </button>
             </div>
 
-            <p style={{ color: tokens.textSecondary, fontSize: '14px', marginBottom: '20px' }}>
+            <p className="text-muted-foreground text-sm mb-5">
               Add New Brainlift to Grade DOK1 facts and create a curated reading list.
             </p>
 
             {/* Secondary/ghost tabs */}
-            <div style={{ display: 'flex', gap: '4px', marginBottom: '20px', flexWrap: 'wrap' }}>
+            <div className="flex gap-1 mb-5 flex-wrap">
               {tabs.map((tab) => (
                 <button
                   key={tab.id}
@@ -607,19 +459,11 @@ export default function Home() {
                     setUrl('');
                     setTextContent('');
                   }}
+                  className="flex items-center gap-1.5 px-4 py-2 rounded-md text-[13px] font-medium cursor-pointer transition-all duration-150"
                   style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '6px',
-                    padding: '8px 16px',
-                    borderRadius: '6px',
                     border: `1px solid ${activeTab === tab.id ? tokens.primary : tokens.border}`,
                     backgroundColor: activeTab === tab.id ? tokens.primarySoft : 'transparent',
                     color: activeTab === tab.id ? tokens.primary : tokens.textSecondary,
-                    fontSize: '13px',
-                    fontWeight: 500,
-                    cursor: 'pointer',
-                    transition: 'all 0.15s',
                   }}
                 >
                   <tab.icon size={14} />
@@ -628,7 +472,7 @@ export default function Home() {
               ))}
             </div>
 
-            <div style={{ minHeight: '150px' }}>
+            <div className="min-h-[150px]">
               {(activeTab === 'pdf' || activeTab === 'docx' || activeTab === 'html') && (
                 <div>
                   <input
@@ -636,35 +480,32 @@ export default function Home() {
                     type="file"
                     accept={activeTab === 'pdf' ? '.pdf' : activeTab === 'docx' ? '.docx,.doc' : '.html,.htm'}
                     onChange={handleFileSelect}
-                    style={{ display: 'none' }}
+                    className="hidden"
                     data-testid="input-file"
                   />
                   <div
                     onClick={() => fileInputRef.current?.click()}
+                    className="border-2 border-dashed rounded-lg py-10 px-5 text-center cursor-pointer"
                     style={{
-                      border: `2px dashed ${tokens.border}`,
-                      borderRadius: '8px',
-                      padding: '40px 20px',
-                      textAlign: 'center',
-                      cursor: 'pointer',
+                      borderColor: tokens.border,
                       backgroundColor: selectedFile ? tokens.surfaceAlt : 'transparent',
                     }}
                   >
                     {selectedFile ? (
                       <>
-                        <File size={32} color={tokens.secondary} style={{ marginBottom: '8px' }} />
-                        <p style={{ margin: 0, color: tokens.textPrimary, fontWeight: 500 }}>{selectedFile.name}</p>
-                        <p style={{ margin: '4px 0 0', color: tokens.textSecondary, fontSize: '13px' }}>
+                        <File size={32} color={tokens.secondary} className="mb-2 mx-auto" />
+                        <p className="m-0 text-foreground font-medium">{selectedFile.name}</p>
+                        <p className="mt-1 mb-0 text-muted-foreground text-[13px]">
                           {(selectedFile.size / 1024 / 1024).toFixed(2)} MB
                         </p>
                       </>
                     ) : (
                       <>
-                        <Upload size={32} color={tokens.textMuted} style={{ marginBottom: '8px' }} />
-                        <p style={{ margin: 0, color: tokens.textSecondary }}>
+                        <Upload size={32} color={tokens.textMuted} className="mb-2 mx-auto" />
+                        <p className="m-0 text-muted-foreground">
                           Click to upload {activeTab === 'pdf' ? 'a PDF' : activeTab === 'docx' ? 'a Word' : 'an HTML'} file
                         </p>
-                        <p style={{ margin: '4px 0 0', color: tokens.textMuted, fontSize: '13px' }}>
+                        <p className="mt-1 mb-0 text-muted text-[13px]">
                           Max file size: 10MB
                         </p>
                       </>
@@ -675,7 +516,7 @@ export default function Home() {
 
               {(activeTab === 'workflowy' || activeTab === 'googledocs') && (
                 <div>
-                  <label style={{ display: 'block', marginBottom: '8px', color: tokens.textPrimary, fontSize: '14px', fontWeight: 500 }}>
+                  <label className="block mb-2 text-foreground text-sm font-medium">
                     {activeTab === 'workflowy' ? 'Workflowy Share Link' : 'Google Docs URL'}
                   </label>
                   <input
@@ -684,17 +525,11 @@ export default function Home() {
                     value={url}
                     onChange={(e) => setUrl(e.target.value)}
                     placeholder={activeTab === 'workflowy' ? 'https://workflowy.com/#/...' : 'https://docs.google.com/document/d/...'}
-                    style={{
-                      width: '100%',
-                      padding: '12px',
-                      borderRadius: '8px',
-                      border: `1px solid ${tokens.border}`,
-                      fontSize: '14px',
-                      boxSizing: 'border-box',
-                    }}
+                    className="w-full p-3 rounded-lg border text-sm box-border"
+                    style={{ borderColor: tokens.border }}
                   />
-                  <p style={{ marginTop: '8px', color: tokens.textMuted, fontSize: '13px' }}>
-                    {activeTab === 'workflowy' 
+                  <p className="mt-2 text-muted text-[13px]">
+                    {activeTab === 'workflowy'
                       ? 'Enter a Workflowy URL (e.g., https://workflowy.com/#/abc123) or node ID. Uses your connected Workflowy account.'
                       : 'Make sure your Google Doc has link sharing enabled (anyone with the link can view).'}
                   </p>
@@ -703,7 +538,7 @@ export default function Home() {
 
               {activeTab === 'text' && (
                 <div>
-                  <label style={{ display: 'block', marginBottom: '8px', color: tokens.textPrimary, fontSize: '14px', fontWeight: 500 }}>
+                  <label className="block mb-2 text-foreground text-sm font-medium">
                     Paste your content
                   </label>
                   <textarea
@@ -711,41 +546,28 @@ export default function Home() {
                     value={textContent}
                     onChange={(e) => setTextContent(e.target.value)}
                     placeholder="Paste your educational content here. Include facts, claims, and any source references..."
-                    style={{
-                      width: '100%',
-                      height: '200px',
-                      padding: '12px',
-                      borderRadius: '8px',
-                      border: `1px solid ${tokens.border}`,
-                      fontSize: '14px',
-                      resize: 'vertical',
-                      boxSizing: 'border-box',
-                      fontFamily: 'inherit',
-                    }}
+                    className="w-full h-[200px] p-3 rounded-lg border text-sm resize-y box-border font-[inherit]"
+                    style={{ borderColor: tokens.border }}
                   />
                 </div>
               )}
             </div>
 
             {error && (
-              <p style={{ color: tokens.danger, fontSize: '14px', marginTop: '12px' }}>
+              <p className="text-destructive text-sm mt-3">
                 {error}
               </p>
             )}
 
-            <div style={{ display: 'flex', gap: '12px', marginTop: '20px', justifyContent: 'flex-end' }}>
+            <div className="flex gap-3 mt-5 justify-end">
               {/* Ghost button */}
               <button
                 data-testid="button-cancel"
                 onClick={closeModal}
                 disabled={importMutation.isPending}
+                className="px-5 py-2.5 rounded-lg border bg-transparent text-muted-foreground text-sm"
                 style={{
-                  padding: '10px 20px',
-                  borderRadius: '8px',
-                  border: `1px solid ${tokens.border}`,
-                  backgroundColor: 'transparent',
-                  color: tokens.textSecondary,
-                  fontSize: '14px',
+                  borderColor: tokens.border,
                   cursor: importMutation.isPending ? 'not-allowed' : 'pointer',
                   opacity: importMutation.isPending ? 0.5 : 1,
                 }}
@@ -757,17 +579,9 @@ export default function Home() {
                 data-testid="button-submit-import"
                 onClick={handleSubmit}
                 disabled={importMutation.isPending}
+                className="flex items-center gap-2 px-5 py-2.5 rounded-lg border-none text-primary-foreground text-sm font-medium"
                 style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '8px',
-                  padding: '10px 20px',
-                  borderRadius: '8px',
-                  border: 'none',
                   backgroundColor: importMutation.isPending ? tokens.textMuted : tokens.primary,
-                  color: tokens.onPrimary,
-                  fontSize: '14px',
-                  fontWeight: 500,
                   cursor: importMutation.isPending ? 'not-allowed' : 'pointer',
                 }}
                 onMouseEnter={(e) => {
@@ -783,7 +597,7 @@ export default function Home() {
               >
                 {importMutation.isPending ? (
                   <>
-                    <Loader2 size={16} style={{ animation: 'spin 1s linear infinite' }} />
+                    <Loader2 size={16} className="animate-spin" />
                     Analyzing...
                   </>
                 ) : (
@@ -793,7 +607,7 @@ export default function Home() {
             </div>
 
             {importMutation.isPending && (
-              <p style={{ textAlign: 'center', color: tokens.textMuted, fontSize: '13px', marginTop: '16px' }}>
+              <p className="text-center text-muted text-[13px] mt-4">
                 AI is analyzing your content. This may take 30-60 seconds...
               </p>
             )}

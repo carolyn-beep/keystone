@@ -51,116 +51,85 @@ export function RedundancyModal({
   if (!show || !data) return null;
 
   return (
-    <div style={{
-      position: 'fixed',
-      top: 0,
-      left: 0,
-      right: 0,
-      bottom: 0,
-      backgroundColor: tokens.overlay,
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center',
-      zIndex: 1000,
-    }}>
+    <div
+      className="fixed inset-0 flex items-center justify-center z-[1000]"
+      style={{ backgroundColor: tokens.overlay }}
+    >
       <div
-        className="p-4 sm:p-8 w-[95%] max-w-[800px] max-h-[90vh] overflow-auto rounded-xl scrollbar-styled"
-        style={{
-          backgroundColor: tokens.surface,
-          overscrollBehavior: 'contain',
-        }}
+        className="p-4 sm:p-8 w-[95%] max-w-[800px] max-h-[90vh] overflow-auto rounded-xl scrollbar-styled bg-card"
+        style={{ overscrollBehavior: 'contain' }}
         onWheel={(e) => e.stopPropagation()}
       >
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
-          <h2 style={{ fontSize: '20px', fontWeight: 700, margin: 0, color: tokens.primary }}>
-            <AlertTriangle size={20} style={{ marginRight: '8px', verticalAlign: 'middle', color: tokens.warning }} />
+        <div className="flex justify-between items-center mb-6">
+          <h2 className="text-xl font-bold m-0 text-primary">
+            <AlertTriangle size={20} className="mr-2 align-middle text-warning inline-block" />
             Review Redundant Facts
           </h2>
           <button
             data-testid="button-close-redundancy-modal"
             onClick={onClose}
-            style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '4px' }}
+            className="bg-transparent border-none cursor-pointer p-1"
           >
             <X size={20} />
           </button>
         </div>
 
-        <p style={{ color: tokens.textSecondary, fontSize: '14px', marginBottom: '20px' }}>
+        <p className="text-muted-foreground text-sm mb-5">
           These facts have been flagged as potentially redundant. Review each group and decide which facts to keep.
           Keeping fewer, stronger facts helps focus the brainlift on essential DOK1 content.
         </p>
 
-        <div style={{
-          display: 'grid',
-          gridTemplateColumns: 'repeat(3, 1fr)',
-          gap: '12px',
-          marginBottom: '24px',
-          padding: '16px',
-          backgroundColor: tokens.surfaceAlt,
-          borderRadius: '8px',
-        }}>
-          <div style={{ textAlign: 'center' }}>
-            <p style={{ fontSize: '24px', fontWeight: 700, color: tokens.primary, margin: 0 }}>{data.stats.totalFacts}</p>
-            <p style={{ fontSize: '12px', color: tokens.textSecondary, margin: 0 }}>Total Facts</p>
+        <div className="grid grid-cols-3 gap-3 mb-6 p-4 bg-muted rounded-lg">
+          <div className="text-center">
+            <p className="text-2xl font-bold text-primary m-0">{data.stats.totalFacts}</p>
+            <p className="text-xs text-muted-foreground m-0">Total Facts</p>
           </div>
-          <div style={{ textAlign: 'center' }}>
-            <p style={{ fontSize: '24px', fontWeight: 700, color: tokens.success, margin: 0 }}>{data.stats.uniqueFactCount}</p>
-            <p style={{ fontSize: '12px', color: tokens.textSecondary, margin: 0 }}>Core Facts</p>
+          <div className="text-center">
+            <p className="text-2xl font-bold text-success m-0">{data.stats.uniqueFactCount}</p>
+            <p className="text-xs text-muted-foreground m-0">Core Facts</p>
           </div>
-          <div style={{ textAlign: 'center' }}>
-            <p style={{ fontSize: '24px', fontWeight: 700, color: tokens.warning, margin: 0 }}>{data.stats.pendingReview}</p>
-            <p style={{ fontSize: '12px', color: tokens.textSecondary, margin: 0 }}>Pending Review</p>
+          <div className="text-center">
+            <p className="text-2xl font-bold text-warning m-0">{data.stats.pendingReview}</p>
+            <p className="text-xs text-muted-foreground m-0">Pending Review</p>
           </div>
         </div>
 
         {data.groups.filter(g => g.status === 'pending').length === 0 ? (
-          <div style={{ textAlign: 'center', padding: '40px', color: tokens.textSecondary }}>
-            <CheckCircle size={48} style={{ opacity: 0.3, marginBottom: '16px' }} />
-            <p style={{ margin: 0 }}>No redundancies pending review</p>
+          <div className="text-center p-10 text-muted-foreground">
+            <CheckCircle size={48} className="opacity-30 mb-4 inline-block" />
+            <p className="m-0">No redundancies pending review</p>
           </div>
         ) : (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+          <div className="flex flex-col gap-4">
             {data.groups.filter(g => g.status === 'pending').map((group) => (
               <div
                 key={group.id}
                 data-testid={`redundancy-group-${group.id}`}
-                style={{
-                  border: `1px solid ${tokens.border}`,
-                  borderRadius: '12px',
-                  padding: '20px',
-                  backgroundColor: tokens.surface,
-                }}
+                className="rounded-xl p-5 bg-card border border-border"
               >
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '12px' }}>
+                <div className="flex justify-between items-start mb-3">
                   <div>
-                    <h3 style={{ margin: '0 0 4px 0', fontSize: '15px', fontWeight: 600, color: tokens.textPrimary }}>
+                    <h3 className="m-0 mb-1 text-[15px] font-semibold text-foreground">
                       {group.groupName}
                     </h3>
-                    <p style={{ margin: 0, fontSize: '12px', color: tokens.textSecondary }}>
+                    <p className="m-0 text-xs text-muted-foreground">
                       {group.factIds.length} facts | {group.similarityScore} similarity
                     </p>
                   </div>
-                  <span style={{
-                    padding: '4px 10px',
-                    borderRadius: '12px',
-                    backgroundColor: tokens.warningSoft,
-                    color: tokens.warning,
-                    fontSize: '11px',
-                    fontWeight: 500,
-                  }}>
+                  <span className="px-[10px] py-1 rounded-xl bg-warning-soft text-warning text-[11px] font-medium">
                     Pending
                   </span>
                 </div>
 
-                <p style={{ fontSize: '13px', color: tokens.textSecondary, marginBottom: '16px', fontStyle: 'italic' }}>
+                <p className="text-[13px] text-muted-foreground mb-4 italic">
                   {group.reason}
                 </p>
 
                 {/* Fact selection - click to choose primary */}
-                <p style={{ fontSize: '11px', color: tokens.textMuted, marginBottom: '8px' }}>
+                <p className="text-[11px] text-muted mb-2">
                   Click a fact to select it as the one to keep:
                 </p>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginBottom: '16px' }}>
+                <div className="flex flex-col gap-2 mb-4">
                   {group.facts.map((fact) => {
                     const currentPrimary = selectedPrimaryFacts[group.id] ?? group.primaryFactId;
                     const isSelected = fact.id === currentPrimary;
@@ -170,72 +139,48 @@ export function RedundancyModal({
                       <div
                         key={fact.id}
                         onClick={() => onSelectPrimaryFact(group.id, fact.id)}
+                        className="flex items-start gap-3 p-3 rounded-lg cursor-pointer transition-all duration-150"
                         style={{
-                          display: 'flex',
-                          alignItems: 'flex-start',
-                          gap: '12px',
-                          padding: '12px',
-                          borderRadius: '8px',
                           backgroundColor: isSelected ? tokens.successSoft : tokens.surfaceAlt,
-                          border: isSelected ? `2px solid ${tokens.success}` : `2px solid transparent`,
-                          cursor: 'pointer',
-                          transition: 'all 0.15s ease',
+                          border: isSelected ? `2px solid ${tokens.success}` : '2px solid transparent',
                         }}
                       >
-                        <div style={{ flexShrink: 0 }}>
+                        <div className="shrink-0">
                           {isSelected ? (
                             <CheckCircle size={16} style={{ color: tokens.success }} />
                           ) : (
-                            <div style={{
-                              width: 16,
-                              height: 16,
-                              borderRadius: '50%',
-                              border: `2px solid ${tokens.border}`,
-                              backgroundColor: tokens.surface,
-                            }} />
+                            <div
+                              className="w-4 h-4 rounded-full bg-card"
+                              style={{ border: `2px solid ${tokens.border}` }}
+                            />
                           )}
                         </div>
-                        <div style={{ flex: 1 }}>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
-                            <span style={{ fontWeight: 600, fontSize: '12px', color: tokens.textSecondary }}>
+                        <div className="flex-1">
+                          <div className="flex items-center gap-2 mb-1">
+                            <span className="font-semibold text-xs text-muted-foreground">
                               Fact {fact.originalId}
                             </span>
-                            <span style={{
-                              padding: '2px 6px',
-                              borderRadius: '4px',
-                              backgroundColor: getScoreChipColors(fact.score).bg,
-                              color: getScoreChipColors(fact.score).text,
-                              fontSize: '10px',
-                              fontWeight: 600,
-                            }}>
+                            <span
+                              className="px-[6px] py-[2px] rounded text-[10px] font-semibold"
+                              style={{
+                                backgroundColor: getScoreChipColors(fact.score).bg,
+                                color: getScoreChipColors(fact.score).text,
+                              }}
+                            >
                               {fact.score}/5
                             </span>
                             {isAutoRecommended && (
-                              <span style={{
-                                padding: '2px 6px',
-                                borderRadius: '4px',
-                                backgroundColor: tokens.infoSoft,
-                                color: tokens.info,
-                                fontSize: '10px',
-                                fontWeight: 600,
-                              }}>
+                              <span className="px-[6px] py-[2px] rounded bg-info-soft text-info text-[10px] font-semibold">
                                 AI Pick
                               </span>
                             )}
                             {isSelected && (
-                              <span style={{
-                                padding: '2px 6px',
-                                borderRadius: '4px',
-                                backgroundColor: tokens.success,
-                                color: '#fff',
-                                fontSize: '10px',
-                                fontWeight: 600,
-                              }}>
+                              <span className="px-[6px] py-[2px] rounded bg-success text-white text-[10px] font-semibold">
                                 Will Keep
                               </span>
                             )}
                           </div>
-                          <p style={{ margin: 0, fontSize: '13px', color: tokens.textPrimary, lineHeight: 1.5 }}>
+                          <p className="m-0 text-[13px] text-foreground leading-normal">
                             {fact.summary || fact.fact}
                           </p>
                         </div>
@@ -244,7 +189,7 @@ export function RedundancyModal({
                   })}
                 </div>
 
-                <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                <div className="flex gap-2 flex-wrap">
                   <button
                     onClick={() => {
                       const primaryFactId = selectedPrimaryFacts[group.id] ?? group.primaryFactId;
@@ -254,20 +199,7 @@ export function RedundancyModal({
                     }}
                     disabled={isUpdating}
                     data-testid={`button-keep-${group.id}`}
-                    className="hover-elevate active-elevate-2"
-                    style={{
-                      padding: '8px 16px',
-                      borderRadius: '6px',
-                      border: 'none',
-                      backgroundColor: tokens.success,
-                      color: '#fff',
-                      fontSize: '12px',
-                      fontWeight: 500,
-                      cursor: 'pointer',
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '6px',
-                    }}
+                    className="hover-elevate active-elevate-2 px-4 py-2 rounded-md border-none bg-success text-white text-xs font-medium cursor-pointer flex items-center gap-[6px]"
                   >
                     <CheckCircle size={12} />
                     Keep Selected & Remove Others
@@ -276,20 +208,8 @@ export function RedundancyModal({
                     onClick={() => onDismiss(group.id)}
                     disabled={isUpdating}
                     data-testid={`button-dismiss-${group.id}`}
-                    className="hover-elevate active-elevate-2"
-                    style={{
-                      padding: '8px 16px',
-                      borderRadius: '6px',
-                      border: `1px solid ${tokens.border}`,
-                      backgroundColor: tokens.surface,
-                      color: tokens.textSecondary,
-                      fontSize: '12px',
-                      fontWeight: 500,
-                      cursor: 'pointer',
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '6px',
-                    }}
+                    className="hover-elevate active-elevate-2 px-4 py-2 rounded-md bg-card text-muted-foreground text-xs font-medium cursor-pointer flex items-center gap-[6px]"
+                    style={{ border: `1px solid ${tokens.border}` }}
                   >
                     <X size={12} />
                     Keep All (Not Redundant)

@@ -12,97 +12,73 @@ export function HistoryModal({ show, onClose, versions }: HistoryModalProps) {
   if (!show) return null;
 
   return (
-    <div style={{
-      position: 'fixed',
-      top: 0,
-      left: 0,
-      right: 0,
-      bottom: 0,
-      backgroundColor: tokens.overlay,
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center',
-      zIndex: 1000,
-    }}>
+    <div
+      className="fixed inset-0 flex items-center justify-center z-[1000]"
+      style={{ backgroundColor: tokens.overlay }}
+    >
       <div
-        className="p-4 sm:p-8 w-[95%] max-w-[700px] max-h-[90vh] overflow-auto rounded-xl"
-        style={{ backgroundColor: tokens.surface }}
+        className="p-4 sm:p-8 w-[95%] max-w-[700px] max-h-[90vh] overflow-auto rounded-xl bg-card"
       >
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
-          <h2 style={{ fontSize: '20px', fontWeight: 700, margin: 0, color: tokens.primary }}>Version History</h2>
+        <div className="flex justify-between items-center mb-6">
+          <h2 className="text-xl font-bold m-0 text-primary">Version History</h2>
           <button
             data-testid="button-close-history-modal"
             onClick={onClose}
-            style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '4px' }}
+            className="bg-transparent border-none cursor-pointer p-1"
           >
             <X size={20} />
           </button>
         </div>
 
-        <p style={{ color: tokens.textSecondary, fontSize: '14px', marginBottom: '20px' }}>
+        <p className="text-muted-foreground text-sm mb-5">
           View previous versions of this brainlift with their preserved grades and data.
         </p>
 
         {versions.length === 0 ? (
-          <p style={{ textAlign: 'center', color: tokens.textSecondary, padding: '24px' }}>
+          <p className="text-center text-muted-foreground p-6">
             No previous versions available.
           </p>
         ) : (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+          <div className="flex flex-col gap-3">
             {versions.map((version) => {
               const snapshot = version.snapshot as any;
               return (
                 <div
                   key={version.id}
                   data-testid={`version-${version.versionNumber}`}
-                  style={{
-                    border: `1px solid ${tokens.border}`,
-                    borderRadius: '8px',
-                    padding: '16px 20px',
-                  }}
+                  className="rounded-lg px-5 py-4"
+                  style={{ border: `1px solid ${tokens.border}` }}
                 >
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
-                    <span style={{
-                      padding: '4px 10px',
-                      backgroundColor: tokens.primary,
-                      color: tokens.surface,
-                      borderRadius: '4px',
-                      fontSize: '12px',
-                      fontWeight: 600,
-                    }}>
+                  <div className="flex justify-between items-center mb-3">
+                    <span className="px-2.5 py-1 bg-primary text-card rounded text-xs font-semibold">
                       Version {version.versionNumber}
                     </span>
-                    <span style={{ color: tokens.textSecondary, fontSize: '13px' }}>
+                    <span className="text-muted-foreground text-[13px]">
                       {new Date(version.createdAt).toLocaleDateString()} at {new Date(version.createdAt).toLocaleTimeString()}
                     </span>
                   </div>
-                  <p style={{ margin: '0 0 8px 0', fontSize: '15px', fontWeight: 600, color: tokens.textPrimary }}>
+                  <p className="m-0 mb-2 text-[15px] font-semibold text-foreground">
                     {snapshot?.title || 'Untitled'}
                   </p>
-                  <div style={{ display: 'flex', gap: '16px', fontSize: '13px', color: tokens.textSecondary }}>
+                  <div className="flex gap-4 text-[13px] text-muted-foreground">
                     <span>{snapshot?.facts?.length || 0} facts</span>
                     <span>{snapshot?.readingList?.length || 0} reading items</span>
                     <span>Source: {version.sourceType}</span>
                   </div>
                   {snapshot?.grades && snapshot.grades.length > 0 && (
-                    <div style={{ marginTop: '12px', paddingTop: '12px', borderTop: `1px solid ${tokens.border}` }}>
-                      <p style={{ fontSize: '12px', fontWeight: 600, color: tokens.textSecondary, marginBottom: '8px' }}>Preserved Grades:</p>
-                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+                    <div className="mt-3 pt-3" style={{ borderTop: `1px solid ${tokens.border}` }}>
+                      <p className="text-xs font-semibold text-muted-foreground mb-2">Preserved Grades:</p>
+                      <div className="flex flex-wrap gap-2">
                         {snapshot.grades.filter((g: any) => g.aligns || g.quality).slice(0, 5).map((grade: any, i: number) => (
                           <span
                             key={i}
-                            style={{
-                              padding: '4px 8px',
-                              backgroundColor: tokens.surfaceAlt,
-                              borderRadius: '4px',
-                              fontSize: '11px',
-                            }}
+                            className="px-2 py-1 bg-muted rounded text-[11px]"
                           >
                             {grade.readingListTopic?.substring(0, 30)}... {grade.quality ? `(${grade.quality}/5)` : ''}
                           </span>
                         ))}
                         {snapshot.grades.filter((g: any) => g.aligns || g.quality).length > 5 && (
-                          <span style={{ fontSize: '11px', color: tokens.textSecondary }}>
+                          <span className="text-[11px] text-muted-foreground">
                             +{snapshot.grades.filter((g: any) => g.aligns || g.quality).length - 5} more
                           </span>
                         )}

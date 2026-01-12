@@ -163,7 +163,7 @@ const { downloadBrainliftPDF } = usePDFExport();
 
   if (isLoading) return <div className="p-12 text-center">Loading...</div>;
   if (error || !data) return (
-    <div style={{ padding: '48px', textAlign: 'center' }}>
+    <div className="p-12 text-center">
       <h1>Brainlift not found</h1>
       <p>No brainlift exists at this URL.</p>
       <Link href="/">← Back to home</Link>
@@ -173,12 +173,7 @@ const { downloadBrainliftPDF } = usePDFExport();
   const { title, description, facts, contradictionClusters, readingList, summary } = data;
 
   return (
-    <div style={{
-      minHeight: '100vh',
-      backgroundColor: tokens.bg,
-      color: tokens.textPrimary,
-      fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, sans-serif",
-    }}>
+    <div className="min-h-screen bg-background text-foreground font-sans">
       <DashboardHeader
         data={data}
         isSharedView={isSharedView}
@@ -206,19 +201,11 @@ const { downloadBrainliftPDF } = usePDFExport();
 
         {/* Partial Brainlift Warning */}
         {isPartialBrainlift && (
-          <div style={{
-            backgroundColor: tokens.warningSoft,
-            borderRadius: '8px',
-            padding: '16px',
-            marginBottom: '24px',
-            display: 'flex',
-            alignItems: 'flex-start',
-            gap: '12px',
-          }}>
-            <AlertTriangle size={20} style={{ color: tokens.warning, flexShrink: 0, marginTop: '2px' }} />
+          <div className="bg-warning-soft rounded-lg p-4 mb-6 flex items-start gap-3">
+            <AlertTriangle size={20} className="shrink-0 mt-0.5" style={{ color: tokens.warning }} />
             <div>
-              <div style={{ fontWeight: 600, color: tokens.warning }}>Partial Brainlift</div>
-              <div style={{ fontSize: '14px', color: tokens.textSecondary }}>
+              <div className="font-semibold" style={{ color: tokens.warning }}>Partial Brainlift</div>
+              <div className="text-sm text-muted-foreground">
                 This document contains {facts.filter(f => !f.isGradeable).length} non-gradeable claims (prescriptive statements or uncited claims) alongside verifiable DOK1 facts.
               </div>
             </div>
@@ -239,24 +226,15 @@ const { downloadBrainliftPDF } = usePDFExport();
           <div>
             {/* Flags/Warnings - Compact inline callouts */}
             {data?.flags && data.flags.length > 0 && (
-              <div style={{ marginBottom: '16px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+              <div className="mb-4 flex flex-col gap-2">
                 {data.flags.map((flag, index) => (
                   <div
                     key={index}
                     data-testid={`flag-${index}`}
-                    style={{
-                      display: 'flex',
-                      alignItems: 'flex-start',
-                      gap: '8px',
-                      padding: '10px 14px',
-                      backgroundColor: tokens.warningSoft,
-                      borderRadius: '6px',
-                      fontSize: '13px',
-                      color: tokens.warning,
-                      lineHeight: 1.5,
-                    }}
+                    className="flex items-start gap-2 py-2.5 px-3.5 bg-warning-soft rounded-md text-[13px] leading-normal"
+                    style={{ color: tokens.warning }}
                   >
-                    <AlertTriangle size={14} style={{ color: tokens.warning, flexShrink: 0, marginTop: '2px' }} />
+                    <AlertTriangle size={14} className="shrink-0 mt-0.5" style={{ color: tokens.warning }} />
                     <span>{flag}</span>
                   </div>
                 ))}

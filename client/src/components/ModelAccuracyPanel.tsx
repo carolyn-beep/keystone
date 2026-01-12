@@ -43,15 +43,15 @@ export function ModelAccuracyPanel() {
   if (isLoading) {
     return (
       <div className="flex items-center justify-center p-8">
-        <Loader2 className="h-8 w-8 animate-spin" style={{ color: tokens.primary }} />
-        <span className="ml-3" style={{ color: tokens.textSecondary }}>Loading model accuracy data...</span>
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+        <span className="ml-3 text-muted-foreground">Loading model accuracy data...</span>
       </div>
     );
   }
 
   if (error || !data) {
     return (
-      <div className="p-6 text-center" style={{ color: tokens.textSecondary }}>
+      <div className="p-6 text-center text-muted-foreground">
         Failed to load model accuracy analytics
       </div>
     );
@@ -61,10 +61,10 @@ export function ModelAccuracyPanel() {
 
   if (totalOverrides === 0) {
     return (
-      <Card className="border" style={{ borderColor: tokens.border }}>
+      <Card className="border border-border">
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <BarChart3 className="h-5 w-5" style={{ color: tokens.primary }} />
+            <BarChart3 className="h-5 w-5 text-primary" />
             Model Accuracy Analytics
           </CardTitle>
           <CardDescription>
@@ -72,7 +72,7 @@ export function ModelAccuracyPanel() {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="text-center py-8" style={{ color: tokens.textSecondary }}>
+          <div className="text-center py-8 text-muted-foreground">
             <Target className="h-12 w-12 mx-auto mb-4 opacity-40" />
             <p className="text-sm">Human overrides help improve AI grading accuracy over time.</p>
             <p className="text-sm mt-2">When you override an AI grade, the system learns which models are most accurate.</p>
@@ -84,10 +84,10 @@ export function ModelAccuracyPanel() {
 
   return (
     <div className="space-y-6">
-      <Card className="border" style={{ borderColor: tokens.border }}>
+      <Card className="border border-border">
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <BarChart3 className="h-5 w-5" style={{ color: tokens.primary }} />
+            <BarChart3 className="h-5 w-5 text-primary" />
             Model Accuracy Leaderboard
           </CardTitle>
           <CardDescription>
@@ -118,10 +118,10 @@ export function ModelAccuracyPanel() {
                         <Award className="h-5 w-5" style={{ color: colors.border }} />
                       )}
                       <div>
-                        <span className="font-medium" style={{ color: tokens.textPrimary }}>
+                        <span className="font-medium text-foreground">
                           {model.modelName}
                         </span>
-                        <span className="ml-2 text-xs" style={{ color: tokens.textMuted }}>
+                        <span className="ml-2 text-xs text-muted">
                           #{model.rank}
                         </span>
                       </div>
@@ -138,23 +138,23 @@ export function ModelAccuracyPanel() {
                       >
                         {tierLabels[model.accuracyTier]}
                       </Badge>
-                      <span className="text-sm" style={{ color: tokens.textSecondary }}>
+                      <span className="text-sm text-muted-foreground">
                         Weight: {weight.toFixed(2)}x
                       </span>
                     </div>
                   </div>
-                  
+
                   <div className="space-y-2">
                     <div className="flex justify-between text-sm">
-                      <span style={{ color: tokens.textSecondary }}>Accuracy</span>
-                      <span style={{ color: tokens.textPrimary }}>
+                      <span className="text-muted-foreground">Accuracy</span>
+                      <span className="text-foreground">
                         MAE: {mae.toFixed(2)} points
                       </span>
                     </div>
                     <Progress value={accuracyPercent} className="h-2" />
                   </div>
-                  
-                  <div className="mt-2 text-xs" style={{ color: tokens.textMuted }}>
+
+                  <div className="mt-2 text-xs text-muted">
                     {model.totalSamples} sample{model.totalSamples !== 1 ? 's' : ''} compared to human review
                   </div>
                 </div>
@@ -164,22 +164,22 @@ export function ModelAccuracyPanel() {
         </CardContent>
       </Card>
 
-      <Card className="border" style={{ borderColor: tokens.border }}>
+      <Card className="border border-border">
         <CardHeader>
           <CardTitle className="text-base">How Weights Work</CardTitle>
         </CardHeader>
         <CardContent>
-          <ul className="space-y-2 text-sm" style={{ color: tokens.textSecondary }}>
+          <ul className="space-y-2 text-sm text-muted-foreground">
             <li className="flex items-start gap-2">
-              <TrendingUp className="h-4 w-4 mt-0.5 flex-shrink-0" style={{ color: tokens.success }} />
+              <TrendingUp className="h-4 w-4 mt-0.5 shrink-0 text-success" />
               <span>Models closer to human judgment get <strong>higher weights</strong> in consensus</span>
             </li>
             <li className="flex items-start gap-2">
-              <TrendingDown className="h-4 w-4 mt-0.5 flex-shrink-0" style={{ color: tokens.warning }} />
+              <TrendingDown className="h-4 w-4 mt-0.5 shrink-0 text-warning" />
               <span>Models that disagree with humans get <strong>lower weights</strong></span>
             </li>
             <li className="flex items-start gap-2">
-              <Minus className="h-4 w-4 mt-0.5 flex-shrink-0" style={{ color: tokens.textMuted }} />
+              <Minus className="h-4 w-4 mt-0.5 shrink-0 text-muted" />
               <span>Weights range from 0.5x to 2.0x, default is 1.0x</span>
             </li>
           </ul>

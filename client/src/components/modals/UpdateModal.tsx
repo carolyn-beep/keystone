@@ -62,38 +62,26 @@ export function UpdateModal({
   };
 
   return (
-    <div style={{
-      position: 'fixed',
-      top: 0,
-      left: 0,
-      right: 0,
-      bottom: 0,
-      backgroundColor: tokens.overlay,
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center',
-      zIndex: 1000,
-    }}>
+    <div className="fixed inset-0 flex items-center justify-center z-[1000]" style={{ backgroundColor: tokens.overlay }}>
       <div
-        className="p-4 sm:p-8 w-[95%] max-w-[500px] max-h-[90vh] overflow-auto rounded-xl"
-        style={{ backgroundColor: tokens.surface }}
+        className="p-4 sm:p-8 w-[95%] max-w-[500px] max-h-[90vh] overflow-auto rounded-xl bg-card"
       >
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
-          <h2 style={{ fontSize: '20px', fontWeight: 700, margin: 0, color: tokens.primary }}>Update Brainlift</h2>
+        <div className="flex justify-between items-center mb-6">
+          <h2 className="text-xl font-bold m-0 text-primary">Update Brainlift</h2>
           <button
             data-testid="button-close-update-modal"
             onClick={onClose}
-            style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '4px' }}
+            className="bg-transparent border-none cursor-pointer p-1"
           >
             <X size={20} />
           </button>
         </div>
 
-        <p style={{ color: tokens.textSecondary, fontSize: '14px', marginBottom: '20px' }}>
+        <p className="text-muted-foreground text-sm mb-5">
           Import new content to update this brainlift. Your current data will be saved to version history.
         </p>
 
-        <div style={{ display: 'flex', gap: '4px', marginBottom: '20px', flexWrap: 'wrap' }}>
+        <div className="flex gap-1 mb-5 flex-wrap">
           {[
             { id: 'pdf', label: 'PDF' },
             { id: 'docx', label: 'Word' },
@@ -111,19 +99,11 @@ export function UpdateModal({
                 onUrlChange('');
                 onTextChange('');
               }}
+              className="flex items-center gap-1.5 px-4 py-2 rounded-md text-[13px] font-medium cursor-pointer transition-all duration-150"
               style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '6px',
-                padding: '8px 16px',
-                borderRadius: '6px',
                 border: `1px solid ${sourceType === tab.id ? tokens.primary : tokens.border}`,
                 backgroundColor: sourceType === tab.id ? tokens.primarySoft : 'transparent',
                 color: sourceType === tab.id ? tokens.primary : tokens.textSecondary,
-                fontSize: '13px',
-                fontWeight: 500,
-                cursor: 'pointer',
-                transition: 'all 0.15s',
               }}
             >
               {tab.label}
@@ -132,19 +112,15 @@ export function UpdateModal({
         </div>
 
         {(sourceType === 'pdf' || sourceType === 'docx' || sourceType === 'html') && (
-          <div style={{ marginBottom: '20px' }}>
-            <label style={{ display: 'block', marginBottom: '8px', fontWeight: 500, fontSize: '14px' }}>Upload File</label>
-            <div style={{
-              border: `2px dashed ${tokens.border}`,
-              borderRadius: '8px',
-              padding: '24px',
-              textAlign: 'center',
-              cursor: 'pointer',
-            }}
-            onClick={() => document.getElementById('update-file-input')?.click()}
+          <div className="mb-5">
+            <label className="block mb-2 font-medium text-sm">Upload File</label>
+            <div
+              className="rounded-lg p-6 text-center cursor-pointer"
+              style={{ border: `2px dashed ${tokens.border}` }}
+              onClick={() => document.getElementById('update-file-input')?.click()}
             >
-              <Upload size={24} style={{ marginBottom: '8px', color: tokens.textSecondary }} />
-              <p style={{ margin: 0, fontSize: '14px', color: tokens.textSecondary }}>
+              <Upload size={24} className="mb-2 text-muted-foreground" />
+              <p className="m-0 text-sm text-muted-foreground">
                 {file ? file.name : `Click to upload ${sourceType === 'html' ? 'an HTML' : sourceType === 'pdf' ? 'a PDF' : 'a Word'} file`}
               </p>
               <input
@@ -153,15 +129,15 @@ export function UpdateModal({
                 data-testid="input-update-file"
                 accept={sourceType === 'pdf' ? '.pdf' : sourceType === 'docx' ? '.docx' : '.html,.htm'}
                 onChange={(e) => onFileChange(e.target.files?.[0] || null)}
-                style={{ display: 'none' }}
+                className="hidden"
               />
             </div>
           </div>
         )}
 
         {(sourceType === 'workflowy' || sourceType === 'googledocs') && (
-          <div style={{ marginBottom: '20px' }}>
-            <label style={{ display: 'block', marginBottom: '8px', fontWeight: 500, fontSize: '14px' }}>
+          <div className="mb-5">
+            <label className="block mb-2 font-medium text-sm">
               {sourceType === 'workflowy' ? 'Workflowy URL' : 'Google Docs URL'}
             </label>
             <input
@@ -170,42 +146,28 @@ export function UpdateModal({
               value={url}
               onChange={(e) => onUrlChange(e.target.value)}
               placeholder={sourceType === 'workflowy' ? 'https://workflowy.com/#/...' : 'https://docs.google.com/...'}
-              style={{
-                width: '100%',
-                padding: '10px 12px',
-                borderRadius: '6px',
-                border: `1px solid ${tokens.border}`,
-                fontSize: '14px',
-                boxSizing: 'border-box',
-              }}
+              className="w-full px-3 py-2.5 rounded-md text-sm box-border"
+              style={{ border: `1px solid ${tokens.border}` }}
             />
           </div>
         )}
 
         {sourceType === 'text' && (
-          <div style={{ marginBottom: '20px' }}>
-            <label style={{ display: 'block', marginBottom: '8px', fontWeight: 500, fontSize: '14px' }}>Content</label>
+          <div className="mb-5">
+            <label className="block mb-2 font-medium text-sm">Content</label>
             <textarea
               data-testid="input-update-text"
               value={text}
               onChange={(e) => onTextChange(e.target.value)}
               placeholder="Paste your educational content here..."
-              style={{
-                width: '100%',
-                minHeight: '150px',
-                padding: '10px 12px',
-                borderRadius: '6px',
-                border: `1px solid ${tokens.border}`,
-                fontSize: '14px',
-                resize: 'vertical',
-                boxSizing: 'border-box',
-              }}
+              className="w-full min-h-[150px] px-3 py-2.5 rounded-md text-sm resize-y box-border"
+              style={{ border: `1px solid ${tokens.border}` }}
             />
           </div>
         )}
 
         {error && (
-          <p style={{ color: tokens.danger, fontSize: '14px', marginBottom: '16px' }}>
+          <p className="text-sm mb-4 text-destructive">
             {error}
           </p>
         )}
@@ -214,15 +176,10 @@ export function UpdateModal({
           data-testid="button-submit-update"
           onClick={handleSubmit}
           disabled={isSubmitting || !canSubmit}
+          className="w-full px-3 py-3 border-none rounded-lg text-sm font-semibold"
           style={{
-            width: '100%',
-            padding: '12px',
             backgroundColor: (isSubmitting || !canSubmit) ? tokens.textMuted : tokens.secondary,
             color: tokens.surface,
-            border: 'none',
-            borderRadius: '8px',
-            fontSize: '14px',
-            fontWeight: 600,
             cursor: (isSubmitting || !canSubmit) ? 'not-allowed' : 'pointer',
           }}
         >

@@ -189,48 +189,25 @@ export function FactGradingPanel({
   return (
     <div className="max-w-[1200px] mx-auto">
       {/* Panel Header */}
-      <div style={{
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        marginBottom: '24px',
-        paddingBottom: '16px',
-        borderBottom: `1px solid ${tokens.border}`,
-      }}>
+      <div className="flex items-center justify-between mb-6 pb-4" style={{ borderBottom: `1px solid ${tokens.border}` }}>
         <div>
-          <h2 style={{
-            fontSize: '20px',
-            fontWeight: 700,
-            color: tokens.textPrimary,
-            margin: 0,
-          }}>
+          <h2 className="text-xl font-bold text-foreground m-0">
             Fact Grading
           </h2>
-          <p style={{
-            fontSize: '14px',
-            color: tokens.textSecondary,
-            margin: '4px 0 0 0',
-          }}>
+          <p className="text-sm text-muted-foreground mt-1 mb-0">
             {facts.length} facts &bull; {Object.keys(humanGrades).length} graded
             {redundancyData?.stats?.pendingReview ? ` \u2022 ${redundancyData.stats.pendingReview} redundancy reviews pending` : ''}
           </p>
         </div>
 
         {/* Redundancy Actions */}
-        <div style={{ display: 'flex', gap: '8px' }}>
+        <div className="flex gap-2">
           <button
             onClick={onAnalyzeRedundancy}
             disabled={isAnalyzingRedundancy}
+            className="flex items-center gap-1.5 px-3.5 py-2 bg-card rounded-lg text-[13px] font-medium"
             style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '6px',
-              padding: '8px 14px',
-              backgroundColor: tokens.surface,
               border: `1px solid ${tokens.border}`,
-              borderRadius: '8px',
-              fontSize: '13px',
-              fontWeight: 500,
               cursor: isAnalyzingRedundancy ? 'not-allowed' : 'pointer',
               opacity: isAnalyzingRedundancy ? 0.7 : 1,
             }}
@@ -241,18 +218,10 @@ export function FactGradingPanel({
           {redundancyData?.stats?.pendingReview ? (
             <button
               onClick={onShowRedundancyModal}
+              className="flex items-center gap-1.5 px-3.5 py-2 bg-warning-soft rounded-lg text-[13px] font-semibold cursor-pointer"
               style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '6px',
-                padding: '8px 14px',
-                backgroundColor: tokens.warningSoft,
                 border: `1px solid ${tokens.warning}`,
-                borderRadius: '8px',
-                fontSize: '13px',
-                fontWeight: 600,
                 color: tokens.warning,
-                cursor: 'pointer',
               }}
             >
               <AlertTriangle size={14} />
@@ -264,25 +233,13 @@ export function FactGradingPanel({
 
       {/* Non-gradeable notice */}
       {nonGradeableFacts.length > 0 && (
-        <div style={{
-          padding: '12px 16px',
-          backgroundColor: tokens.surfaceAlt,
-          borderRadius: '8px',
-          marginBottom: '20px',
-          fontSize: '13px',
-          color: tokens.textSecondary,
-        }}>
+        <div className="py-3 px-4 bg-muted rounded-lg mb-5 text-[13px] text-muted-foreground">
           This document contains {nonGradeableFacts.length} non-gradeable claims (prescriptive statements or uncited claims) alongside verifiable DOK1 facts.
         </div>
       )}
 
       {/* Stats Summary */}
-      <div style={{
-        display: 'grid',
-        gridTemplateColumns: 'repeat(5, 1fr)',
-        gap: '12px',
-        marginBottom: '24px',
-      }}>
+      <div className="grid grid-cols-5 gap-3 mb-6">
         {(() => {
           const gradeableFacts = facts.filter(f => f.isGradeable && f.score > 0);
           const meanScoreNum = gradeableFacts.length > 0
@@ -313,28 +270,12 @@ export function FactGradingPanel({
         })().map((stat, i) => (
           <div
             key={i}
-            style={{
-              padding: '16px',
-              backgroundColor: tokens.surface,
-              borderRadius: '8px',
-              border: `1px solid ${tokens.border}`,
-              textAlign: 'center',
-            }}
+            className="p-4 bg-card rounded-lg border border-border text-center"
           >
-            <div style={{
-              fontSize: '24px',
-              fontWeight: 700,
-              color: stat.color,
-              marginBottom: '4px',
-            }}>
+            <div className="text-2xl font-bold mb-1" style={{ color: stat.color }}>
               {stat.value}
             </div>
-            <div style={{
-              fontSize: '12px',
-              color: tokens.textSecondary,
-              textTransform: 'uppercase',
-              letterSpacing: '0.05em',
-            }}>
+            <div className="text-xs text-muted-foreground uppercase tracking-wider">
               {stat.label}
             </div>
           </div>
@@ -391,16 +332,10 @@ export function FactGradingPanel({
       {/* Individual Facts Section (Stack Ranked) */}
       {groupedFacts.allFactsSorted.length > 0 && (
         <div>
-          <h3 style={{
-            fontSize: '16px',
-            fontWeight: 600,
-            color: tokens.textPrimary,
-            marginBottom: '16px',
-            paddingTop: '8px',
-          }}>
+          <h3 className="text-base font-semibold text-foreground mb-4 pt-2">
             Individual Facts (Stack Ranked)
           </h3>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '0' }}>
+          <div className="flex flex-col gap-0">
             {groupedFacts.allFactsSorted.map((fact) => (
               <FactRow
                 key={fact.id}
@@ -441,11 +376,7 @@ export function FactGradingPanel({
 
       {/* Empty State */}
       {facts.length === 0 && (
-        <div style={{
-          padding: '48px',
-          textAlign: 'center',
-          color: tokens.textMuted,
-        }}>
+        <div className="p-12 text-center text-muted">
           <p>No facts to grade yet.</p>
         </div>
       )}
