@@ -29,12 +29,8 @@ interface DashboardProps {
 
 export default function Dashboard({ slug, isSharedView = false }: DashboardProps) {
   const [activeTab, setActiveTab] = useState('brainlift');
-  const [selectedCluster, setSelectedCluster] = useState<number | null>(null);
-  const [readingFilter, setReadingFilter] = useState<'all' | 'graded' | 'ungraded'>('all');
-  
-  const [expandedItems, setExpandedItems] = useState<Record<number, boolean>>({});
+
   const [expandedFacts, setExpandedFacts] = useState<number[]>([]);
-  const [localGrades, setLocalGrades] = useState<Record<number, { aligns?: string; contradicts?: string; newInfo?: string; quality?: number }>>({});
   const [showUpdateModal, setShowUpdateModal] = useState(false);
   const [showHistoryModal, setShowHistoryModal] = useState(false);
   const [updateSourceType, setUpdateSourceType] = useState<'pdf' | 'docx' | 'html' | 'text' | 'workflowy' | 'googledocs'>('pdf');
@@ -56,7 +52,6 @@ export default function Dashboard({ slug, isSharedView = false }: DashboardProps
   });
   const [tweetResults, setTweetResults] = useState<any>(null);
   const [showTweetSection, setShowTweetSection] = useState(false);
-  const [tweetFeedbackState, setTweetFeedbackState] = useState<Record<string, 'accepted' | 'rejected'>>({});
   const [expertsExpanded, setExpertsExpanded] = useState(true);
   const [showAllExperts, setShowAllExperts] = useState(false);
   const [selectedFactForModal, setSelectedFactForModal] = useState<Fact | null>(null);
@@ -74,8 +69,6 @@ const { toast } = useToast();
     update: updateBrainlift,
     isUpdating,
     updateError,
-    saveGrade,
-    isSavingGrade,
   } = useBrainlift(slug, isSharedView);
 
   const { downloadBrainliftPDF } = usePDFExport();
@@ -109,10 +102,6 @@ const { toast } = useToast();
       setEditingAuthor(false);
     },
     isPending: isUpdatingAuthor,
-  };
-
-  const toggleExpand = (itemId: number) => {
-    setExpandedItems(prev => ({ ...prev, [itemId]: !prev[itemId] }));
   };
 
   const isNotBrainlift = data?.classification === 'not_brainlift';
@@ -182,21 +171,6 @@ const { toast } = useToast();
     error: updateError,
   };
 
-  const saveGradeMutation = {
-    mutate: (gradeData: { readingListItemId: number; aligns?: string; contradicts?: string; newInfo?: string; quality?: number }) => {
-      saveGrade(gradeData, {
-        onSuccess: () => {
-          setLocalGrades(prev => {
-            const updated = { ...prev };
-            delete updated[gradeData.readingListItemId];
-            return updated;
-          });
-        }
-      });
-    },
-    isPending: isSavingGrade,
-  };
-
   const addResourceMutation = useMutation({
     mutationFn: async (resource: { type: string; author: string; topic: string; time: string; facts: string; url: string }) => {
       return apiRequest('POST', `/api/brainlifts/${slug}/reading-list`, resource);
@@ -205,67 +179,6 @@ const { toast } = useToast();
       queryClient.invalidateQueries({ queryKey: ['brainlift', slug] });
     }
   });
-
-  const sourceFeedbackMutation = useMutation({
-    mutationFn: async (feedback: { sourceId: string; sourceType: 'tweet' | 'research'; title: string; snippet: string; url: string; decision: 'accepted' | 'rejected' }) => {
-      const res = await fetch(`/api/brainlifts/${slug}/feedback`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(feedback),
-      });
-      if (!res.ok) {
-        const err = await res.json();
-        throw new Error(err.message || 'Failed to save feedback');
-      }
-      return res.json();
-    },
-    onSuccess: (_, variables) => {
-      setTweetFeedbackState(prev => ({
-        ...prev,
-        [variables.sourceId]: variables.decision,
-      }));
-      const sourceLabel = variables.sourceType === 'tweet' ? 'Tweet' : 'Source';
-      toast({
-        title: variables.decision === 'accepted' ? `${sourceLabel} accepted` : `${sourceLabel} rejected`,
-        description: 'Your feedback helps improve future searches.',
-      });
-    },
-    onError: (err: Error) => {
-      toast({
-        title: 'Failed to save feedback',
-        description: err.message,
-        variant: 'destructive',
-      });
-    }
-  });
-
-  const getGradeForItem = (itemId: number) => {
-    return grades.find(g => g.readingListItemId === itemId);
-  };
-
-  const isItemGraded = (itemId: number) => {
-    const grade = getGradeForItem(itemId);
-    return grade && (grade.aligns || grade.contradicts || grade.newInfo || grade.quality);
-  };
-
-  const handleGradeChange = (itemId: number, field: string, value: string | number) => {
-    setLocalGrades(prev => ({
-      ...prev,
-      [itemId]: { ...prev[itemId], [field]: value }
-    }));
-  };
-
-  const handleSaveGrade = (itemId: number) => {
-    const local = localGrades[itemId] || {};
-    const existing = getGradeForItem(itemId);
-    saveGradeMutation.mutate({
-      readingListItemId: itemId,
-      aligns: local.aligns ?? existing?.aligns ?? undefined,
-      contradicts: local.contradicts ?? existing?.contradicts ?? undefined,
-      newInfo: local.newInfo ?? existing?.newInfo ?? undefined,
-      quality: local.quality ?? existing?.quality ?? undefined,
-    });
-  };
 
   const handleDownloadPDF = () => {
     if (!data) return;
@@ -282,67 +195,6 @@ const { toast } = useToast();
   );
 
   const { title, description, facts, contradictionClusters, readingList, summary } = data;
-
-  // Reading List categorization
-  const readingCategories = [
-    { id: 1, name: 'Student Motivation', facts: '1.1, 2.1', keywords: ['motivat', 'interest', 'choice', 'engagement', 'Writing Gap', 'What Motivates'] },
-    { id: 2, name: 'Explicit Instruction', facts: '1.2, 2.2, 2.3, 2.4', keywords: ['Writing Revolution', 'Six Principles', 'Hochman', 'TWR', 'sentence', 'explicit'] },
-    { id: 3, name: 'Cognitive Load', facts: '3.1-3.5', keywords: ['cognitive', 'working memory', 'CLT', 'load', 'Hendrick', 'Ashman', 'Wiliam'] },
-    { id: 4, name: 'Knowledge-Building', facts: '4.1-4.3', keywords: ['knowledge', 'writing to learn', 'Graham', 'elaboration', 'Shanahan'] },
-    { id: 5, name: 'Mathemagenic', facts: '5.1-5.2', keywords: ['mathemagenic', 'transfer', 'Rothkopf', 'Kirschner', 'Stockard', 'Direct Instruction'] },
-    { id: 6, name: 'Wise Feedback', facts: '6.1-6.2', keywords: ['wise feedback', 'Yeager', 'mentor', 'identity', 'Huberman'] },
-    { id: 7, name: 'PCK', facts: '7.1-7.3', keywords: ['PCK', 'Shulman', 'pedagogical content', 'WWC', 'Practice Guide', 'Evidence Based'] },
-  ];
-
-  const categorizeSource = (item: typeof readingList[0]) => {
-    const searchText = `${item.author} ${item.topic} ${item.facts}`.toLowerCase();
-    for (const cat of readingCategories) {
-      if (cat.keywords.some(kw => searchText.includes(kw.toLowerCase()))) {
-        return cat;
-      }
-    }
-    return { id: 8, name: 'Other', facts: 'various', keywords: [] as string[] };
-  };
-
-  // Build category groups
-  const categoryGroups = readingCategories.map(cat => ({
-    ...cat,
-    items: readingList.filter(item => categorizeSource(item).id === cat.id),
-    gradedCount: readingList.filter(item => categorizeSource(item).id === cat.id && isItemGraded(item.id)).length,
-  }));
-  
-  const uncategorizedItems = readingList.filter(item => categorizeSource(item).id === 8);
-  if (uncategorizedItems.length > 0) {
-    categoryGroups.push({ 
-      id: 8, name: 'Other', facts: 'various', keywords: [] as string[], 
-      items: uncategorizedItems,
-      gradedCount: uncategorizedItems.filter(item => isItemGraded(item.id)).length,
-    });
-  }
-
-  // Add "All Sources" as the first option (id: 0)
-  const allSourcesCluster = {
-    id: 0,
-    name: 'All Sources',
-    facts: 'all',
-    keywords: [] as string[],
-    items: readingList,
-    gradedCount: readingList.filter(item => isItemGraded(item.id)).length,
-  };
-  
-  const groupedSources = [allSourcesCluster, ...categoryGroups];
-
-  // Default to "All Sources" (id: 0)
-  const activeCluster = selectedCluster ?? 0;
-  const currentCluster = groupedSources.find(c => c.id === activeCluster) || allSourcesCluster;
-  
-  const filteredItems = currentCluster?.items.filter(item => {
-    if (readingFilter === 'graded') return isItemGraded(item.id);
-    if (readingFilter === 'ungraded') return !isItemGraded(item.id);
-    return true;
-  }) || [];
-  
-  const totalGraded = readingList.filter(item => isItemGraded(item.id)).length;
 
   return (
     <div style={{
@@ -474,16 +326,13 @@ const { toast } = useToast();
         {/* Reading List Tab - Card-based Design */}
         {!isNotBrainlift && activeTab === 'reading' && (
           <ReadingListTab
+            slug={slug}
             readingList={readingList}
-            categoryGroups={categoryGroups}
             expertsList={expertsList}
             tweetResults={tweetResults}
             showTweetSection={showTweetSection}
             expertsExpanded={expertsExpanded}
             showAllExperts={showAllExperts}
-            expandedItems={expandedItems}
-            localGrades={localGrades}
-            tweetFeedbackState={tweetFeedbackState}
             isSharedView={isSharedView}
             grades={grades}
             setShowResearchModal={setShowResearchModal}
@@ -495,14 +344,6 @@ const { toast } = useToast();
             refreshExpertsMutation={refreshExpertsMutation}
             toggleExpertFollowMutation={toggleExpertFollowMutation}
             deleteExpertMutation={deleteExpertMutation}
-            sourceFeedbackMutation={sourceFeedbackMutation}
-            saveGradeMutation={saveGradeMutation}
-            toggleExpand={toggleExpand}
-            handleGradeChange={handleGradeChange}
-            handleSaveGrade={handleSaveGrade}
-            isItemGraded={isItemGraded}
-            getGradeForItem={getGradeForItem}
-            categorizeSource={categorizeSource}
           />
         )}
 
@@ -574,24 +415,6 @@ const { toast } = useToast();
           url: resource.url,
         })}
         isAddingResource={addResourceMutation.isPending}
-        onAccept={(resource) => sourceFeedbackMutation.mutate({
-          sourceId: resource.url,
-          sourceType: 'research',
-          title: resource.title || resource.topic || '',
-          snippet: resource.summary || '',
-          url: resource.url,
-          decision: 'accepted',
-        })}
-        onReject={(resource) => sourceFeedbackMutation.mutate({
-          sourceId: resource.url,
-          sourceType: 'research',
-          title: resource.title || resource.topic || '',
-          snippet: resource.summary || '',
-          url: resource.url,
-          decision: 'rejected',
-        })}
-        isSavingFeedback={sourceFeedbackMutation.isPending}
-        feedbackState={tweetFeedbackState}
         error={researchMutation.isError ? (researchMutation.error as Error).message : undefined}
       />
 
