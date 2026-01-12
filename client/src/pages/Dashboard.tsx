@@ -9,6 +9,7 @@ import { tokens, getScoreChipColors } from '@/lib/colors';
 import { useToast } from '@/hooks/use-toast';
 import { useBrainlift } from '@/hooks/useBrainlift';
 import { useExperts } from '@/hooks/useExperts';
+import { useRedundancy } from '@/hooks/useRedundancy';
 import { VerificationPanel } from '@/components/VerificationPanel';
 import { ModelAccuracyPanel } from '@/components/ModelAccuracyPanel';
 import { FactGradingPanel } from '@/components/fact-grading';
@@ -126,95 +127,14 @@ export default function Dashboard({ slug, isSharedView = false }: DashboardProps
   // Track user-selected primary fact per group (key: groupId, value: factId)
   const [selectedPrimaryFacts, setSelectedPrimaryFacts] = useState<Record<number, number>>({});
 
-  interface RedundancyData {
-    groups: Array<{
-      id: number;
-      groupName: string;
-      factIds: number[];
-      primaryFactId: number | null;
-      similarityScore: string;
-      reason: string;
-      status: string;
-      facts: Array<{ id: number; originalId: string; fact: string; score: number; summary?: string }>;
-      primaryFact?: { id: number; originalId: string; fact: string; score: number; summary?: string };
-    }>;
-    stats: {
-      totalFacts: number;
-      uniqueFactCount: number;
-      redundantFactCount: number;
-      pendingReview: number;
-    };
-  }
-
-  const { data: redundancyData, refetch: refetchRedundancy } = useQuery<RedundancyData>({
-    queryKey: ['redundancy', slug],
-    queryFn: async () => {
-      const res = await fetch(`/api/brainlifts/${slug}/redundancy`);
-      if (!res.ok) return { groups: [], stats: { totalFacts: 0, uniqueFactCount: 0, redundantFactCount: 0, pendingReview: 0 } };
-      return res.json();
-    },
-    enabled: !!slug
-  });
-
-  const analyzeRedundancyMutation = useMutation({
-    mutationFn: async () => {
-      const res = await fetch(`/api/brainlifts/${slug}/analyze-redundancy`, {
-        method: 'POST',
-      });
-      if (!res.ok) {
-        const err = await res.json();
-        throw new Error(err.message || 'Failed to analyze');
-      }
-      return res.json();
-    },
-    onSuccess: (data) => {
-      refetchRedundancy();
-      toast({
-        title: 'Redundancy Analysis Complete',
-        description: data.message || `Found ${data.redundancyGroups?.length || 0} redundancy groups`,
-      });
-    },
-    onError: (error: Error) => {
-      toast({
-        title: 'Analysis Failed',
-        description: error.message || 'Failed to analyze redundancy. Please try again.',
-        variant: 'destructive',
-      });
-    }
-  });
-
-  const updateRedundancyStatusMutation = useMutation({
-    mutationFn: async ({ groupId, status, primaryFactId }: { groupId: number; status: string; primaryFactId?: number }) => {
-      const res = await fetch(`/api/redundancy-groups/${groupId}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status, primaryFactId }),
-      });
-      if (!res.ok) {
-        const err = await res.json();
-        throw new Error(err.message || 'Failed to update');
-      }
-      return res.json();
-    },
-    onSuccess: (_, variables) => {
-      refetchRedundancy();
-      // Also refetch main brainlift data if we deleted facts
-      if (variables.status === 'kept' && variables.primaryFactId) {
-        queryClient.invalidateQueries({ queryKey: ['brainlift', slug] });
-      }
-      toast({
-        title: variables.status === 'kept' ? 'Facts Deduplicated' : 'Redundancy Updated',
-        description: variables.status === 'kept' ? 'Redundant facts removed, primary fact kept.' : 'Status updated successfully',
-      });
-    },
-    onError: (error: Error) => {
-      toast({
-        title: 'Update Failed',
-        description: error.message || 'Failed to update redundancy status',
-        variant: 'destructive',
-      });
-    }
-  });
+  const {
+    data: redundancyData,
+    refetch: refetchRedundancy,
+    analyze: analyzeRedundancy,
+    isAnalyzing: isAnalyzingRedundancy,
+    updateStatus: updateRedundancyStatus,
+    isUpdatingStatus: isUpdatingRedundancyStatus,
+  } = useRedundancy(slug);
 
   const expertsList = data?.experts || [];
   const { refreshMutation: refreshExpertsMutation, toggleFollowMutation: toggleExpertFollowMutation, deleteMutation: deleteExpertMutation } = useExperts(slug);
@@ -728,8 +648,8 @@ export default function Dashboard({ slug, isSharedView = false }: DashboardProps
               humanGrades={humanGrades}
               redundancyData={redundancyData}
               onShowRedundancyModal={() => setShowRedundancyModal(true)}
-              onAnalyzeRedundancy={() => analyzeRedundancyMutation.mutate()}
-              isAnalyzingRedundancy={analyzeRedundancyMutation.isPending}
+              onAnalyzeRedundancy={() => analyzeRedundancy()}
+              isAnalyzingRedundancy={isAnalyzingRedundancy}
               onViewFactFullText={(fact) => setSelectedFactForModal(fact)}
             />
           </div>
@@ -831,9 +751,9 @@ export default function Dashboard({ slug, isSharedView = false }: DashboardProps
         data={redundancyData}
         selectedPrimaryFacts={selectedPrimaryFacts}
         onSelectPrimaryFact={(groupId, factId) => setSelectedPrimaryFacts(prev => ({ ...prev, [groupId]: factId }))}
-        onKeep={(groupId, primaryFactId) => updateRedundancyStatusMutation.mutate({ groupId, status: 'kept', primaryFactId })}
-        onDismiss={(groupId) => updateRedundancyStatusMutation.mutate({ groupId, status: 'dismissed' })}
-        isUpdating={updateRedundancyStatusMutation.isPending}
+        onKeep={(groupId, primaryFactId) => updateRedundancyStatus({ groupId, status: 'kept', primaryFactId })}
+        onDismiss={(groupId) => updateRedundancyStatus({ groupId, status: 'dismissed' })}
+        isUpdating={isUpdatingRedundancyStatus}
       />
 
       {/* Research Modal */}
