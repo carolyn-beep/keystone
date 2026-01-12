@@ -432,3 +432,30 @@
   border-bottom-style: dashed !important;
   border-bottom-width: 1px !important;
 }
+
+/* Styled scrollbar for modals and scrollable containers */
+.scrollbar-styled {
+  scrollbar-width: thin;
+  scrollbar-color: var(--border-hex) transparent;
+}
+
+.scrollbar-styled::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+.scrollbar-styled::-webkit-scrollbar-track {
+  background: transparent;
+  border-radius: 4px;
+}
+
+.scrollbar-styled::-webkit-scrollbar-thumb {
+  background-color: var(--border-hex);
+  border-radius: 4px;
+  border: 2px solid transparent;
+  background-clip: content-box;
+}
+
+.scrollbar-styled::-webkit-scrollbar-thumb:hover {
+  background-color: var(--text-muted-hex);
+}

@@ -64,8 +64,12 @@ export function RedundancyModal({
       zIndex: 1000,
     }}>
       <div
-        className="p-4 sm:p-8 w-[95%] max-w-[800px] max-h-[90vh] overflow-auto rounded-xl"
-        style={{ backgroundColor: tokens.surface }}
+        className="p-4 sm:p-8 w-[95%] max-w-[800px] max-h-[90vh] overflow-auto rounded-xl scrollbar-styled"
+        style={{
+          backgroundColor: tokens.surface,
+          overscrollBehavior: 'contain',
+        }}
+        onWheel={(e) => e.stopPropagation()}
       >
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
           <h2 style={{ fontSize: '20px', fontWeight: 700, margin: 0, color: tokens.primary }}>
