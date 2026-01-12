@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { UseMutationResult } from '@tanstack/react-query';
+import { useState, useMemo } from 'react';
+import { UseMutationResult, useMutation } from '@tanstack/react-query';
 import {
   Search,
   Check,
@@ -19,7 +19,9 @@ import {
 } from 'lucide-react';
 import { SiX } from 'react-icons/si';
 import { tokens } from '@/lib/colors';
-import type { Expert } from '@shared/schema';
+import { useToast } from '@/hooks/use-toast';
+import { queryClient } from '@/lib/queryClient';
+import type { Expert, ReadingListGrade } from '@shared/schema';
 
 // Types
 interface ReadingListItem {
@@ -56,22 +58,21 @@ interface CategoryGroup {
   id: number;
   name: string;
   facts: string;
+  keywords: string[];
   items: ReadingListItem[];
+  gradedCount?: number;
 }
 
 interface ReadingListTabProps {
   readingList: ReadingListItem[];
-  categoryGroups: CategoryGroup[];
   expertsList: Expert[];
   tweetResults: TweetResults | null;
   showTweetSection: boolean;
   expertsExpanded: boolean;
   showAllExperts: boolean;
-  expandedItems: Record<number, boolean>;
-  localGrades: Record<number, { aligns?: string; contradicts?: string; newInfo?: string; quality?: number }>;
-  tweetFeedbackState: Record<string, 'accepted' | 'rejected'>;
   isSharedView: boolean;
-  grades: Array<{ readingListItemId: number; aligns?: string; contradicts?: string; newInfo?: string; quality?: number }>;
+  grades: ReadingListGrade[];
+  slug: string;
   setShowResearchModal: (show: boolean) => void;
   setShowTweetSection: (show: boolean) => void;
   setExpertsExpanded: (expanded: boolean) => void;
@@ -81,29 +82,18 @@ interface ReadingListTabProps {
   refreshExpertsMutation: UseMutationResult<any, Error, void, unknown>;
   toggleExpertFollowMutation: UseMutationResult<any, Error, { expertId: number; isFollowing: boolean }, unknown>;
   deleteExpertMutation: UseMutationResult<any, Error, number, unknown>;
-  sourceFeedbackMutation: UseMutationResult<any, Error, any, unknown>;
-  saveGradeMutation: UseMutationResult<any, Error, any, unknown>;
-  toggleExpand: (itemId: number) => void;
-  handleGradeChange: (itemId: number, field: string, value: string | number) => void;
-  handleSaveGrade: (itemId: number) => void;
-  isItemGraded: (itemId: number) => boolean;
-  getGradeForItem: (itemId: number) => any;
-  categorizeSource: (item: ReadingListItem) => CategoryGroup;
 }
 
 export function ReadingListTab({
   readingList,
-  categoryGroups,
   expertsList,
   tweetResults,
   showTweetSection,
   expertsExpanded,
   showAllExperts,
-  expandedItems,
-  localGrades,
-  tweetFeedbackState,
   isSharedView,
   grades,
+  slug,
   setShowResearchModal,
   setShowTweetSection,
   setExpertsExpanded,
@@ -113,16 +103,147 @@ export function ReadingListTab({
   refreshExpertsMutation,
   toggleExpertFollowMutation,
   deleteExpertMutation,
-  sourceFeedbackMutation,
-  saveGradeMutation,
-  toggleExpand,
-  handleGradeChange,
-  handleSaveGrade,
-  isItemGraded,
-  getGradeForItem,
-  categorizeSource,
 }: ReadingListTabProps) {
+  const { toast } = useToast();
 
+  // Local state for grading
+  const [expandedItems, setExpandedItems] = useState<Record<number, boolean>>({});
+  const [localGrades, setLocalGrades] = useState<Record<number, { aligns?: string; contradicts?: string; newInfo?: string; quality?: number }>>({});
+  const [tweetFeedbackState, setTweetFeedbackState] = useState<Record<string, 'accepted' | 'rejected'>>({});
+
+  // Grading helper functions
+  const getGradeForItem = (itemId: number) => {
+    return grades.find(g => g.readingListItemId === itemId);
+  };
+
+  const isItemGraded = (itemId: number) => {
+    const grade = getGradeForItem(itemId);
+    return grade && (grade.aligns || grade.contradicts || grade.newInfo || grade.quality);
+  };
+
+  const handleGradeChange = (itemId: number, field: string, value: string | number) => {
+    setLocalGrades(prev => ({
+      ...prev,
+      [itemId]: { ...prev[itemId], [field]: value }
+    }));
+  };
+
+  const toggleExpand = (itemId: number) => {
+    setExpandedItems(prev => ({ ...prev, [itemId]: !prev[itemId] }));
+  };
+
+  // Save grade mutation
+  const saveGradeMutation = useMutation({
+    mutationFn: async (gradeData: { readingListItemId: number; aligns?: string; contradicts?: string; newInfo?: string; quality?: number }) => {
+      const res = await fetch(`/api/brainlifts/${slug}/grades`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(gradeData),
+      });
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.message || 'Failed to save grade');
+      }
+      return res.json();
+    },
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: ['grades', slug] });
+      setLocalGrades(prev => {
+        const updated = { ...prev };
+        delete updated[variables.readingListItemId];
+        return updated;
+      });
+    }
+  });
+
+  const handleSaveGrade = (itemId: number) => {
+    const local = localGrades[itemId] || {};
+    const existing = getGradeForItem(itemId);
+    saveGradeMutation.mutate({
+      readingListItemId: itemId,
+      aligns: local.aligns ?? existing?.aligns ?? undefined,
+      contradicts: local.contradicts ?? existing?.contradicts ?? undefined,
+      newInfo: local.newInfo ?? existing?.newInfo ?? undefined,
+      quality: local.quality ?? existing?.quality ?? undefined,
+    });
+  };
+
+  // Source feedback mutation
+  const sourceFeedbackMutation = useMutation({
+    mutationFn: async (feedback: { sourceId: string; sourceType: 'tweet' | 'research'; title: string; snippet: string; url: string; decision: 'accepted' | 'rejected' }) => {
+      const res = await fetch(`/api/brainlifts/${slug}/feedback`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(feedback),
+      });
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.message || 'Failed to save feedback');
+      }
+      return res.json();
+    },
+    onSuccess: (_, variables) => {
+      setTweetFeedbackState(prev => ({
+        ...prev,
+        [variables.sourceId]: variables.decision,
+      }));
+      const sourceLabel = variables.sourceType === 'tweet' ? 'Tweet' : 'Source';
+      toast({
+        title: variables.decision === 'accepted' ? `${sourceLabel} accepted` : `${sourceLabel} rejected`,
+        description: 'Your feedback helps improve future searches.',
+      });
+    },
+    onError: (err: Error) => {
+      toast({
+        title: 'Failed to save feedback',
+        description: err.message,
+        variant: 'destructive',
+      });
+    }
+  });
+
+  // Reading List categorization
+  const readingCategories = [
+    { id: 1, name: 'Student Motivation', facts: '1.1, 2.1', keywords: ['motivat', 'interest', 'choice', 'engagement', 'Writing Gap', 'What Motivates'] },
+    { id: 2, name: 'Explicit Instruction', facts: '1.2, 2.2, 2.3, 2.4', keywords: ['Writing Revolution', 'Six Principles', 'Hochman', 'TWR', 'sentence', 'explicit'] },
+    { id: 3, name: 'Cognitive Load', facts: '3.1-3.5', keywords: ['cognitive', 'working memory', 'CLT', 'load', 'Hendrick', 'Ashman', 'Wiliam'] },
+    { id: 4, name: 'Knowledge-Building', facts: '4.1-4.3', keywords: ['knowledge', 'writing to learn', 'Graham', 'elaboration', 'Shanahan'] },
+    { id: 5, name: 'Mathemagenic', facts: '5.1-5.2', keywords: ['mathemagenic', 'transfer', 'Rothkopf', 'Kirschner', 'Stockard', 'Direct Instruction'] },
+    { id: 6, name: 'Wise Feedback', facts: '6.1-6.2', keywords: ['wise feedback', 'Yeager', 'mentor', 'identity', 'Huberman'] },
+    { id: 7, name: 'PCK', facts: '7.1-7.3', keywords: ['PCK', 'Shulman', 'pedagogical content', 'WWC', 'Practice Guide', 'Evidence Based'] },
+  ];
+
+  const categorizeSource = (item: ReadingListItem): CategoryGroup => {
+    const searchText = `${item.author} ${item.topic} ${item.facts}`.toLowerCase();
+    for (const cat of readingCategories) {
+      if (cat.keywords.some(kw => searchText.includes(kw.toLowerCase()))) {
+        return cat as CategoryGroup;
+      }
+    }
+    return { id: 8, name: 'Other', facts: 'various', keywords: [], items: [] };
+  };
+
+  // Build category groups
+  const categoryGroups = useMemo(() => {
+    const groups = readingCategories.map(cat => ({
+      ...cat,
+      items: readingList.filter(item => categorizeSource(item).id === cat.id),
+      gradedCount: readingList.filter(item => categorizeSource(item).id === cat.id && isItemGraded(item.id)).length,
+    }));
+
+    const uncategorizedItems = readingList.filter(item => categorizeSource(item).id === 8);
+    if (uncategorizedItems.length > 0) {
+      groups.push({
+        id: 8, name: 'Other', facts: 'various', keywords: [],
+        items: uncategorizedItems,
+        gradedCount: uncategorizedItems.filter(item => isItemGraded(item.id)).length,
+      });
+    }
+
+    return groups;
+  }, [readingList, grades]);
+
+  // Helper to get styling for different source types
   const getSourceTypeStyle = (type: string) => {
     const lower = type.toLowerCase();
     if (lower.includes('blog')) return { bg: '#DBEAFE', color: '#1D4ED8', icon: 'Blog' };

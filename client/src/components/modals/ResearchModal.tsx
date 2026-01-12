@@ -42,10 +42,10 @@ interface ResearchModalProps {
   results: ResearchResults | null;
   onAddResource: (resource: ResearchResource) => void;
   isAddingResource: boolean;
-  onAccept: (resource: ResearchResource) => void;
-  onReject: (resource: ResearchResource) => void;
-  isSavingFeedback: boolean;
-  feedbackState: Record<string, 'accepted' | 'rejected'>;
+  onAccept?: (resource: ResearchResource) => void;
+  onReject?: (resource: ResearchResource) => void;
+  isSavingFeedback?: boolean;
+  feedbackState?: Record<string, 'accepted' | 'rejected'>;
   error?: string;
 }
 
@@ -61,10 +61,10 @@ export function ResearchModal({
   results,
   onAddResource,
   isAddingResource,
-  onAccept,
-  onReject,
-  isSavingFeedback,
-  feedbackState,
+  onAccept = () => {},
+  onReject = () => {},
+  isSavingFeedback = false,
+  feedbackState = {},
   error,
 }: ResearchModalProps) {
   if (!show) return null;
