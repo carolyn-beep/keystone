@@ -7,6 +7,7 @@ import { SiX } from 'react-icons/si';
 import { queryClient, apiRequest } from '@/lib/queryClient';
 import { tokens, getScoreChipColors } from '@/lib/colors';
 import { useToast } from '@/hooks/use-toast';
+import { useResearch } from '@/hooks/useResearch';
 import { VerificationPanel } from '@/components/VerificationPanel';
 import { ModelAccuracyPanel } from '@/components/ModelAccuracyPanel';
 import { FactGradingPanel } from '@/components/fact-grading';
@@ -59,6 +60,31 @@ export default function Dashboard({ slug, isSharedView = false }: DashboardProps
   const [selectedFactForModal, setSelectedFactForModal] = useState<Fact | null>(null);
   const [editingAuthor, setEditingAuthor] = useState(false);
   const [authorInput, setAuthorInput] = useState('');
+
+  const { toast } = useToast();
+
+  const { researchMutation, tweetSearchMutation } = useResearch(slug, {
+    onResearchSuccess: (data) => {
+      setResearchResults(data);
+    },
+    onTweetSearchSuccess: (data) => {
+      setTweetResults(data);
+      setShowTweetSection(true);
+      if (data.tweets?.length === 0) {
+        toast({
+          title: 'No relevant tweets found',
+          description: data.searchSummary || 'Try again later or with different brainlift content.',
+        });
+      }
+    },
+    onTweetSearchError: (err: Error) => {
+      toast({
+        title: 'Tweet search failed',
+        description: err.message || 'Could not search Twitter. Please check your API key.',
+        variant: 'destructive',
+      });
+    },
+  });
 
   const updateAuthorMutation = useMutation({
     mutationFn: async (author: string) => {
@@ -308,63 +334,12 @@ export default function Dashboard({ slug, isSharedView = false }: DashboardProps
     }
   });
 
-  const researchMutation = useMutation({
-    mutationFn: async ({ mode, query }: { mode: 'quick' | 'deep'; query?: string }) => {
-      const res = await fetch(`/api/brainlifts/${slug}/research`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ mode: mode === 'deep' ? 'deep' : 'quick', query }),
-      });
-      if (!res.ok) {
-        const err = await res.json();
-        throw new Error(err.message || 'Research failed');
-      }
-      return res.json();
-    },
-    onSuccess: (data) => {
-      setResearchResults(data);
-    }
-  });
-
   const addResourceMutation = useMutation({
     mutationFn: async (resource: { type: string; author: string; topic: string; time: string; facts: string; url: string }) => {
       return apiRequest('POST', `/api/brainlifts/${slug}/reading-list`, resource);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['brainlift', slug] });
-    }
-  });
-
-  const { toast } = useToast();
-
-  const tweetSearchMutation = useMutation({
-    mutationFn: async () => {
-      const res = await fetch(`/api/brainlifts/${slug}/tweets`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-      });
-      if (!res.ok) {
-        const err = await res.json();
-        throw new Error(err.message || 'Tweet search failed');
-      }
-      return res.json();
-    },
-    onSuccess: (data) => {
-      setTweetResults(data);
-      setShowTweetSection(true);
-      if (data.tweets?.length === 0) {
-        toast({
-          title: 'No relevant tweets found',
-          description: data.searchSummary || 'Try again later or with different brainlift content.',
-        });
-      }
-    },
-    onError: (err: Error) => {
-      toast({
-        title: 'Tweet search failed',
-        description: err.message || 'Could not search Twitter. Please check your API key.',
-        variant: 'destructive',
-      });
     }
   });
 
