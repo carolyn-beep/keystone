@@ -544,13 +544,22 @@ async function saveBrainliftFromAI(data: BrainliftOutput, originalContent?: stri
         console.log(`[Auto-Grade] Fact ${fact.id} extracted source: "${sourceUrl?.substring(0, 80)}..."`);
         if (sourceUrl) {
           try {
-            console.log(`[Auto-Grade] Fact ${fact.id} calling fetchEvidenceForFact...`);
             const evidence = await fetchEvidenceForFact(fact.fact, sourceUrl);
             evidenceContent = evidence.content || "";
-            console.log(`[Auto-Grade] Fact ${fact.id} evidence result: ${evidenceContent.length} chars, error: ${evidence.error}`);
-            if (!evidenceContent) linkFailed = true;
+
+            // Clear logging about what happened
+            if (evidenceContent) {
+              if (evidence.error) {
+                console.log(`[Auto-Grade] Fact ${fact.id}: GOT ${evidenceContent.length} chars via AI fallback (direct fetch failed: ${evidence.error})`);
+              } else {
+                console.log(`[Auto-Grade] Fact ${fact.id}: GOT ${evidenceContent.length} chars from direct URL fetch`);
+              }
+            } else {
+              console.log(`[Auto-Grade] Fact ${fact.id}: FAILED to get evidence - ${evidence.error || 'unknown error'}`);
+              linkFailed = true;
+            }
           } catch (err) {
-            console.error(`Failed to fetch evidence for fact: ${fact.id}`, err);
+            console.error(`[Auto-Grade] Fact ${fact.id}: EXCEPTION during evidence fetch:`, err);
             linkFailed = true;
           }
         }

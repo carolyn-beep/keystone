@@ -2,7 +2,7 @@ import { useState, useMemo } from 'react';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { Link } from 'wouter';
 import { BrainliftData, ReadingListGrade, BrainliftVersion, CLASSIFICATION, type Classification, type Expert, type Fact } from '@shared/schema';
-import { Share2, Check, ChevronDown, ChevronUp, ExternalLink, Download, RefreshCw, History, X, Upload, Search, Plus, Loader2, FileX, AlertTriangle, FileText, Clock, ThumbsUp, ThumbsDown, Users, User, Trash2 } from 'lucide-react';
+import { Share2, Check, ChevronDown, ChevronUp, ExternalLink, Download, RefreshCw, History, X, Upload, Search, Plus, Loader2, FileX, AlertTriangle, FileText, Clock, ThumbsUp, ThumbsDown, Users, User, Trash2, Lightbulb, CheckCircle } from 'lucide-react';
 import { SiX } from 'react-icons/si';
 import { queryClient, apiRequest } from '@/lib/queryClient';
 import { tokens, getScoreChipColors, classificationColors } from '@/lib/colors';

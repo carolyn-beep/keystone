@@ -1,0 +1,26 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git worktree:*)",
+      "Bash(git checkout:*)",
+      "Bash(git branch:*)",
+      "Bash(git merge:*)",
+      "Bash(git stash:*)",
+      "Bash(npm run build:*)",
+      "Bash(npm run typecheck:*)",
+      "Bash(npx tsc:*)",
+      "Bash(cd:*)",
+      "Bash(ls:*)",
+      "Bash(mkdir:*)"
+    ]
+  },
+  "allowedDirectories": [
+    "/home/perotti/XO/DOK1GraderV3",
+    "/home/perotti/XO/DOK1GraderV3-header",
+    "/home/perotti/XO/DOK1GraderV3-brainlift-tab",
+    "/home/perotti/XO/DOK1GraderV3-contradictions-tab",
+    "/home/perotti/XO/DOK1GraderV3-reading-tab",
+    "/home/perotti/XO/DOK1GraderV3-modals",
+    "/home/perotti/XO/DOK1GraderV3-utils"
+  ]
+}
