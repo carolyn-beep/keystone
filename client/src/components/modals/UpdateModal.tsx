@@ -12,9 +12,8 @@ interface UpdateModalProps {
   onUrlChange: (url: string) => void;
   text: string;
   onTextChange: (text: string) => void;
-  onSubmit: () => void;
+  onSubmit: (formData: FormData) => void;
   isSubmitting: boolean;
-  canSubmit: boolean;
   error?: string;
 }
 
@@ -31,10 +30,36 @@ export function UpdateModal({
   onTextChange,
   onSubmit,
   isSubmitting,
-  canSubmit,
   error,
 }: UpdateModalProps) {
   if (!show) return null;
+
+  // Compute canSubmit based on current state
+  const canSubmit = (() => {
+    if (sourceType === 'pdf' || sourceType === 'docx') {
+      return !!file;
+    } else if (sourceType === 'workflowy' || sourceType === 'googledocs') {
+      return !!url.trim();
+    } else if (sourceType === 'text') {
+      return text.trim().length >= 100;
+    }
+    return false;
+  })();
+
+  // Build FormData and submit
+  const handleSubmit = () => {
+    if (!canSubmit) return;
+    const formData = new FormData();
+    formData.append('sourceType', sourceType);
+    if (sourceType === 'pdf' || sourceType === 'docx') {
+      if (file) formData.append('file', file);
+    } else if (sourceType === 'workflowy' || sourceType === 'googledocs') {
+      formData.append('url', url);
+    } else if (sourceType === 'text') {
+      formData.append('content', text);
+    }
+    onSubmit(formData);
+  };
 
   return (
     <div style={{
@@ -187,7 +212,7 @@ export function UpdateModal({
 
         <button
           data-testid="button-submit-update"
-          onClick={onSubmit}
+          onClick={handleSubmit}
           disabled={isSubmitting || !canSubmit}
           style={{
             width: '100%',

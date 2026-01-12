@@ -1,11 +1,11 @@
 import { useState, useMemo } from 'react';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { Link } from 'wouter';
-import { BrainliftData, ReadingListGrade, BrainliftVersion, CLASSIFICATION, type Classification, type Expert, type Fact } from '@shared/schema';
-import { Share2, Check, ChevronDown, ChevronUp, ExternalLink, Download, RefreshCw, History, X, Upload, Search, Plus, Loader2, FileX, AlertTriangle, FileText, Clock, ThumbsUp, ThumbsDown, Users, User, Trash2, Lightbulb, CheckCircle } from 'lucide-react';
+import { BrainliftData, ReadingListGrade, BrainliftVersion, CLASSIFICATION, type Expert, type Fact } from '@shared/schema';
+import { ChevronUp, ExternalLink, Download, RefreshCw, History, X, Upload, Search, Plus, Loader2, AlertTriangle, FileText, Clock, ThumbsUp, ThumbsDown, Users, User, Trash2, CheckCircle } from 'lucide-react';
 import { SiX } from 'react-icons/si';
 import { queryClient, apiRequest } from '@/lib/queryClient';
-import { tokens, getScoreChipColors, classificationColors } from '@/lib/colors';
+import { tokens, getScoreChipColors } from '@/lib/colors';
 import { useToast } from '@/hooks/use-toast';
 import { VerificationPanel } from '@/components/VerificationPanel';
 import { ModelAccuracyPanel } from '@/components/ModelAccuracyPanel';
@@ -14,313 +14,10 @@ import { DashboardHeader } from '@/components/DashboardHeader';
 import { ContradictionsTab } from '@/components/ContradictionsTab';
 import { ReadingListTab } from '@/components/ReadingListTab';
 import { UpdateModal, FactDetailModal, HistoryModal, RedundancyModal, ResearchModal, AddResourceModal } from '@/components/modals';
+import { NotBrainliftView } from '@/components/NotBrainliftView';
+import { BrainliftTab } from '@/components/BrainliftTab';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
-
-const getTypeColor = (type: string) => {
-  if (type === 'Twitter') return tokens.info;
-  if (type === 'Substack') return tokens.warning;
-  if (type === 'Blog') return tokens.secondary;
-  return tokens.info;
-};
-
-const ClassificationBadge = ({ classification }: { classification?: Classification }) => {
-  const badges = {
-    brainlift: {
-      icon: Check,
-      text: 'BRAINLIFT',
-      colors: classificationColors.brainlift,
-    },
-    partial: {
-      icon: AlertTriangle,
-      text: 'PARTIAL BRAINLIFT',
-      colors: classificationColors.partial,
-    },
-    not_brainlift: {
-      icon: FileX,
-      text: 'NOT A BRAINLIFT',
-      colors: classificationColors.not_brainlift,
-    },
-  };
-
-  const badge = badges[classification || 'brainlift'];
-  const Icon = badge.icon;
-
-  return (
-    <span
-      data-testid={`badge-classification-${classification}`}
-      style={{
-        display: 'inline-flex',
-        alignItems: 'center',
-        gap: '6px',
-        padding: '6px 12px',
-        borderRadius: '999px',
-        fontSize: '11px',
-        fontWeight: 600,
-        backgroundColor: badge.colors.bg,
-        color: badge.colors.text,
-        textTransform: 'uppercase',
-        letterSpacing: '0.02em',
-      }}
-    >
-      <Icon size={14} />
-      {badge.text}
-    </span>
-  );
-};
-
-interface NotBrainliftViewProps {
-  data: BrainliftData;
-  isSharedView: boolean;
-  toast: any;
-}
-
-const NotBrainliftView = ({ data, isSharedView, toast }: NotBrainliftViewProps) => {
-  const [debugExpanded, setDebugExpanded] = useState(false);
-
-  return (
-    <div 
-      className="p-6 sm:p-12 mt-6 rounded-xl"
-      style={{ backgroundColor: tokens.surfaceAlt }}
-    >
-      <div className="flex flex-col items-center text-center mb-10">
-        <div style={{
-          padding: '20px',
-          borderRadius: '50%',
-          backgroundColor: tokens.warningSoft,
-          marginBottom: '16px',
-        }}>
-          <AlertTriangle size={40} style={{ color: tokens.warning }} />
-        </div>
-        <h2 style={{
-          fontSize: '28px',
-          fontWeight: 600,
-          color: tokens.textPrimary,
-          marginBottom: '8px',
-        }}>
-          Not a Brainlift
-        </h2>
-        <p style={{ fontSize: '15px', color: tokens.textSecondary, maxWidth: '500px' }}>
-          This document isn't a brainlift yet, but it can be converted
-        </p>
-      </div>
-
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6" style={{ maxWidth: '900px', margin: '0 auto' }}>
-        {data.rejectionSubtype && (
-          <div style={{
-            padding: '24px',
-            backgroundColor: tokens.surface,
-            borderRadius: '12px',
-            border: `1px solid ${tokens.border}`,
-          }}>
-            <div style={{ 
-              fontSize: '11px', 
-              color: tokens.textSecondary, 
-              textTransform: 'uppercase', 
-              letterSpacing: '0.08em', 
-              marginBottom: '12px',
-              fontWeight: 600,
-            }}>
-              What It Is
-            </div>
-            <div style={{ 
-              fontSize: '16px', 
-              color: tokens.textPrimary, 
-              fontWeight: 500,
-              lineHeight: 1.5,
-            }}>
-              {data.rejectionSubtype}
-            </div>
-          </div>
-        )}
-
-        {data.rejectionReason && (
-          <div style={{
-            padding: '24px',
-            backgroundColor: tokens.surface,
-            borderRadius: '12px',
-            border: `1px solid ${tokens.border}`,
-          }}>
-            <div style={{ 
-              fontSize: '11px', 
-              color: tokens.textSecondary, 
-              textTransform: 'uppercase', 
-              letterSpacing: '0.08em', 
-              marginBottom: '12px',
-              fontWeight: 600,
-            }}>
-              Why It Can't Be Graded
-            </div>
-            <div style={{ 
-              fontSize: '14px', 
-              color: tokens.textPrimary, 
-              lineHeight: 1.7,
-            }}>
-              {data.rejectionReason}
-            </div>
-          </div>
-        )}
-
-        {data.rejectionRecommendation && (
-          <div 
-            className="lg:col-span-2"
-            style={{
-              padding: '24px',
-              backgroundColor: tokens.successSoft,
-              borderRadius: '12px',
-              border: `2px solid ${tokens.success}`,
-            }}
-          >
-            <div className="flex items-center gap-2 mb-3">
-              <Lightbulb size={18} style={{ color: tokens.success }} />
-              <div style={{ 
-                fontSize: '11px', 
-                color: tokens.success, 
-                textTransform: 'uppercase', 
-                letterSpacing: '0.08em',
-                fontWeight: 600,
-              }}>
-                How to Fix
-              </div>
-            </div>
-            <div style={{ 
-              fontSize: '14px', 
-              color: tokens.textPrimary, 
-              lineHeight: 1.7,
-            }}>
-              {data.rejectionRecommendation}
-            </div>
-          </div>
-        )}
-
-        {/* DEBUG Section for Not a Brainlift */}
-        <div 
-          className="lg:col-span-2 mt-4 p-6 rounded-xl border transition-all duration-200"
-          style={{ 
-            backgroundColor: tokens.surface,
-            borderColor: tokens.border
-          }}
-        >
-          <button
-            data-testid="button-toggle-debug-content-not-brainlift"
-            onClick={() => setDebugExpanded(!debugExpanded)}
-            className="w-full flex items-center justify-between group"
-            style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
-          >
-            <div className="flex items-center gap-3">
-              <div 
-                className="p-2 rounded-lg transition-colors"
-                style={{ backgroundColor: debugExpanded ? tokens.primarySoft : tokens.surfaceAlt }}
-              >
-                <FileText 
-                  size={20} 
-                  style={{ color: debugExpanded ? tokens.primary : tokens.textSecondary }} 
-                />
-              </div>
-              <div className="text-left">
-                <h3 style={{ fontSize: '16px', fontWeight: 600, color: tokens.textPrimary, margin: 0 }}>
-                  DEBUG: Extracted Raw Content
-                </h3>
-                <p style={{ fontSize: '12px', color: tokens.textSecondary, margin: '2px 0 0 0' }}>
-                  {data.sourceType || 'Workflowy'} extraction result • {data.originalContent?.length || 0} characters
-                </p>
-              </div>
-            </div>
-            <div 
-              className="p-2 rounded-full transition-transform duration-200"
-              style={{ 
-                backgroundColor: tokens.surfaceAlt,
-                transform: debugExpanded ? 'rotate(180deg)' : 'rotate(0deg)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center'
-              }}
-            >
-              <ChevronDown size={18} style={{ color: tokens.textSecondary }} />
-            </div>
-          </button>
-
-          {debugExpanded && (
-            <div className="mt-6 pt-6 border-t animate-in fade-in slide-in-from-top-2 duration-200" style={{ borderTop: `1px solid ${tokens.border}` }}>
-              <div className="flex justify-end mb-4">
-                <button
-                  onClick={() => {
-                    navigator.clipboard.writeText(data.originalContent || '');
-                    toast({ title: 'Copied to clipboard', description: 'Raw content has been copied.' });
-                  }}
-                  className="flex items-center gap-2 px-3 py-1.5 rounded-md text-xs font-medium hover-elevate"
-                  style={{ backgroundColor: tokens.surfaceAlt, color: tokens.textSecondary, border: 'none', cursor: 'pointer' }}
-                >
-                  <Share2 size={14} />
-                  Copy Raw Text
-                </button>
-              </div>
-              <div 
-                className="p-4 rounded-lg overflow-x-auto font-mono text-xs leading-relaxed"
-                style={{ 
-                  backgroundColor: tokens.surfaceAlt,
-                  color: tokens.textPrimary,
-                  maxHeight: '400px',
-                  overflowY: 'auto',
-                  border: `1px solid ${tokens.border}`
-                }}
-              >
-                <pre style={{ margin: 0, whiteSpace: 'pre-wrap', wordWrap: 'break-word', fontFamily: 'monospace' }}>
-                  {data.originalContent || 'No raw content available.'}
-                </pre>
-              </div>
-            </div>
-          )}
-        </div>
-      </div>
-
-      <div className="flex flex-wrap justify-center gap-3 mt-10 pt-6" style={{ borderTop: `1px solid ${tokens.border}` }}>
-        <Link href="/grading/knowledge-rich-curriculum">
-          <button
-            data-testid="button-view-example"
-            className="hover-elevate active-elevate-2"
-            style={{
-              padding: '12px 24px',
-              backgroundColor: tokens.surface,
-              color: tokens.primary,
-              borderRadius: '8px',
-              border: `1px solid ${tokens.primary}`,
-              cursor: 'pointer',
-              fontSize: '14px',
-              fontWeight: 500,
-              display: 'flex',
-              alignItems: 'center',
-              gap: '8px',
-            }}
-          >
-            <FileText size={16} />
-            View Example Brainlift
-          </button>
-        </Link>
-        {!isSharedView && (
-          <Link href="/">
-            <button
-              data-testid="button-back-to-list"
-              className="hover-elevate active-elevate-2"
-              style={{
-                padding: '12px 24px',
-                backgroundColor: tokens.primary,
-                color: tokens.onPrimary,
-                borderRadius: '8px',
-                border: 'none',
-                cursor: 'pointer',
-                fontSize: '14px',
-                fontWeight: 500,
-              }}
-            >
-              Back to List
-            </button>
-          </Link>
-        )}
-      </div>
-    </div>
-  );
-};
 
 interface DashboardProps {
   slug: string;
@@ -332,7 +29,6 @@ export default function Dashboard({ slug, isSharedView = false }: DashboardProps
   const [selectedCluster, setSelectedCluster] = useState<number | null>(null);
   const [readingFilter, setReadingFilter] = useState<'all' | 'graded' | 'ungraded'>('all');
   
-  const [copied, setCopied] = useState(false);
   const [expandedItems, setExpandedItems] = useState<Record<number, boolean>>({});
   const [expandedFacts, setExpandedFacts] = useState<number[]>([]);
   const [localGrades, setLocalGrades] = useState<Record<number, { aligns?: string; contradicts?: string; newInfo?: string; quality?: number }>>({});
@@ -379,13 +75,6 @@ export default function Dashboard({ slug, isSharedView = false }: DashboardProps
       setEditingAuthor(false);
     },
   });
-
-  const handleCopyLink = () => {
-    const shareUrl = `${window.location.origin}/view/${slug}`;
-    navigator.clipboard.writeText(shareUrl);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
-  };
 
   const toggleExpand = (itemId: number) => {
     setExpandedItems(prev => ({ ...prev, [itemId]: !prev[itemId] }));
@@ -604,31 +293,6 @@ export default function Dashboard({ slug, isSharedView = false }: DashboardProps
       queryClient.invalidateQueries({ queryKey: ['versions', slug] });
     }
   });
-
-  const canSubmitUpdate = () => {
-    if (updateSourceType === 'pdf' || updateSourceType === 'docx') {
-      return !!updateFile;
-    } else if (updateSourceType === 'workflowy' || updateSourceType === 'googledocs') {
-      return !!updateUrl.trim();
-    } else if (updateSourceType === 'text') {
-      return updateText.trim().length >= 100;
-    }
-    return false;
-  };
-
-  const handleUpdate = () => {
-    if (!canSubmitUpdate()) return;
-    const formData = new FormData();
-    formData.append('sourceType', updateSourceType);
-    if (updateSourceType === 'pdf' || updateSourceType === 'docx') {
-      if (updateFile) formData.append('file', updateFile);
-    } else if (updateSourceType === 'workflowy' || updateSourceType === 'googledocs') {
-      formData.append('url', updateUrl);
-    } else if (updateSourceType === 'text') {
-      formData.append('content', updateText);
-    }
-    updateMutation.mutate(formData);
-  };
 
   const saveGradeMutation = useMutation({
     mutationFn: async (gradeData: { readingListItemId: number; aligns?: string; contradicts?: string; newInfo?: string; quality?: number }) => {
@@ -1038,7 +702,6 @@ export default function Dashboard({ slug, isSharedView = false }: DashboardProps
         activeTab={activeTab}
         setActiveTab={setActiveTab}
         versions={versions}
-        copied={copied}
         editingAuthor={editingAuthor}
         setEditingAuthor={setEditingAuthor}
         authorInput={authorInput}
@@ -1047,7 +710,6 @@ export default function Dashboard({ slug, isSharedView = false }: DashboardProps
         setShowUpdateModal={setShowUpdateModal}
         setShowHistoryModal={setShowHistoryModal}
         handleDownloadPDF={handleDownloadPDF}
-        handleCopyLink={handleCopyLink}
       />
 
       {/* Main Content */}
@@ -1081,119 +743,11 @@ export default function Dashboard({ slug, isSharedView = false }: DashboardProps
 
         {/* Brainlift Tab - Original Document */}
         {!isNotBrainlift && activeTab === 'brainlift' && (
-          <div style={{
-            backgroundColor: tokens.surface,
-            borderRadius: '12px',
-            border: `1px solid ${tokens.border}`,
-            padding: '24px',
-          }}>
-            {/* Header with Download Button */}
-            <div style={{
-              display: 'flex',
-              justifyContent: 'space-between',
-              alignItems: 'center',
-              marginBottom: '20px',
-              paddingBottom: '16px',
-              borderBottom: `1px solid ${tokens.border}`,
-            }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                <div style={{
-                  padding: '10px',
-                  borderRadius: '8px',
-                  backgroundColor: tokens.primarySoft,
-                }}>
-                  <FileText size={20} style={{ color: tokens.primary }} />
-                </div>
-                <div>
-                  <h3 style={{ 
-                    margin: 0, 
-                    fontSize: '16px', 
-                    fontWeight: 600, 
-                    color: tokens.textPrimary 
-                  }}>
-                    Original Document
-                  </h3>
-                  <p style={{ 
-                    margin: 0, 
-                    fontSize: '13px', 
-                    color: tokens.textSecondary 
-                  }}>
-                    {data.sourceType ? `Source: ${data.sourceType.toUpperCase()}` : 'The source document for this brainlift'}
-                  </p>
-                </div>
-              </div>
-              
-              {data.originalContent && (
-                <button
-                  data-testid="button-download-original"
-                  onClick={() => {
-                    const blob = new Blob([data.originalContent || ''], { type: 'text/plain' });
-                    const url = URL.createObjectURL(blob);
-                    const a = document.createElement('a');
-                    a.href = url;
-                    a.download = `${data.slug}-original.txt`;
-                    document.body.appendChild(a);
-                    a.click();
-                    document.body.removeChild(a);
-                    URL.revokeObjectURL(url);
-                  }}
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '6px',
-                    padding: '8px 16px',
-                    borderRadius: '6px',
-                    border: `1px solid ${tokens.border}`,
-                    backgroundColor: tokens.surface,
-                    color: tokens.textPrimary,
-                    cursor: 'pointer',
-                    fontSize: '13px',
-                    fontWeight: 500,
-                  }}
-                >
-                  <Download size={14} />
-                  Download
-                </button>
-              )}
-            </div>
-
-            {/* Document Content */}
-            {data.originalContent ? (
-              <div style={{
-                backgroundColor: tokens.surfaceAlt,
-                borderRadius: '8px',
-                padding: '20px',
-                maxHeight: '600px',
-                overflowY: 'auto',
-              }}>
-                <pre style={{
-                  margin: 0,
-                  whiteSpace: 'pre-wrap',
-                  wordWrap: 'break-word',
-                  fontFamily: 'system-ui, -apple-system, sans-serif',
-                  fontSize: '14px',
-                  lineHeight: 1.7,
-                  color: tokens.textPrimary,
-                }}>
-                  {data.originalContent}
-                </pre>
-              </div>
-            ) : (
-              <div style={{
-                textAlign: 'center',
-                padding: '60px 20px',
-                color: tokens.textSecondary,
-              }}>
-                <FileText size={48} style={{ opacity: 0.3, marginBottom: '16px' }} />
-                <p style={{ margin: 0, fontSize: '15px' }}>
-                  No original document available
-                </p>
-                <p style={{ margin: '8px 0 0', fontSize: '13px', opacity: 0.7 }}>
-                  Original content is saved when you import or update a brainlift
-                </p>
-              </div>
-            )}
-          </div>
+          <BrainliftTab
+            originalContent={data.originalContent}
+            sourceType={data.sourceType}
+            slug={data.slug}
+          />
         )}
 
         {/* Grading Tab */}
@@ -1310,9 +864,8 @@ export default function Dashboard({ slug, isSharedView = false }: DashboardProps
         onUrlChange={setUpdateUrl}
         text={updateText}
         onTextChange={setUpdateText}
-        onSubmit={handleUpdate}
+        onSubmit={(formData) => updateMutation.mutate(formData)}
         isSubmitting={updateMutation.isPending}
-        canSubmit={canSubmitUpdate()}
         error={updateMutation.isError ? (updateMutation.error as Error).message : undefined}
       />
 

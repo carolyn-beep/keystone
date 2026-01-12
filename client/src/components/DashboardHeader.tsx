@@ -12,7 +12,6 @@ interface DashboardHeaderProps {
   activeTab: string;
   setActiveTab: (tab: string) => void;
   versions: BrainliftVersion[];
-  copied: boolean;
   editingAuthor: boolean;
   setEditingAuthor: (editing: boolean) => void;
   authorInput: string;
@@ -21,7 +20,6 @@ interface DashboardHeaderProps {
   setShowUpdateModal: (show: boolean) => void;
   setShowHistoryModal: (show: boolean) => void;
   handleDownloadPDF: () => void;
-  handleCopyLink: () => void;
 }
 
 export function DashboardHeader({
@@ -31,7 +29,6 @@ export function DashboardHeader({
   activeTab,
   setActiveTab,
   versions,
-  copied,
   editingAuthor,
   setEditingAuthor,
   authorInput,
@@ -40,9 +37,16 @@ export function DashboardHeader({
   setShowUpdateModal,
   setShowHistoryModal,
   handleDownloadPDF,
-  handleCopyLink,
 }: DashboardHeaderProps) {
-  const { title, description } = data;
+  const [copied, setCopied] = useState(false);
+  const { title, description, slug } = data;
+
+  const handleCopyLink = () => {
+    const shareUrl = `${window.location.origin}/view/${slug}`;
+    navigator.clipboard.writeText(shareUrl);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
 
   return (
     <header
