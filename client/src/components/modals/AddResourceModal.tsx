@@ -1,5 +1,8 @@
+import { useState } from 'react';
+import { useMutation } from '@tanstack/react-query';
 import { X, Plus, Loader2 } from 'lucide-react';
 import { tokens } from '@/lib/colors';
+import { queryClient, apiRequest } from '@/lib/queryClient';
 
 interface ManualResource {
   type: string;
@@ -13,20 +16,39 @@ interface ManualResource {
 interface AddResourceModalProps {
   show: boolean;
   onClose: () => void;
-  resource: ManualResource;
-  onResourceChange: (resource: ManualResource) => void;
-  onSubmit: () => void;
-  isSubmitting: boolean;
+  slug: string;
+  onSuccess?: () => void;
 }
+
+const initialResource: ManualResource = {
+  type: 'Article',
+  author: '',
+  topic: '',
+  time: '10 min',
+  facts: '',
+  url: '',
+};
 
 export function AddResourceModal({
   show,
   onClose,
-  resource,
-  onResourceChange,
-  onSubmit,
-  isSubmitting,
+  slug,
+  onSuccess,
 }: AddResourceModalProps) {
+  const [resource, setResource] = useState<ManualResource>(initialResource);
+
+  const addResourceMutation = useMutation({
+    mutationFn: async (resource: ManualResource) => {
+      return apiRequest('POST', `/api/brainlifts/${slug}/reading-list`, resource);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['brainlift', slug] });
+      setResource(initialResource);
+      onSuccess?.();
+      onClose();
+    }
+  });
+
   if (!show) return null;
 
   const handleSubmit = () => {
@@ -34,7 +56,7 @@ export function AddResourceModal({
       alert('Please fill in all required fields (Title, Author, URL)');
       return;
     }
-    onSubmit();
+    addResourceMutation.mutate(resource);
   };
 
   return (
@@ -74,7 +96,7 @@ export function AddResourceModal({
             <select
               data-testid="select-resource-type"
               value={resource.type}
-              onChange={(e) => onResourceChange({ ...resource, type: e.target.value })}
+              onChange={(e) => setResource({ ...resource, type: e.target.value })}
               style={{
                 width: '100%',
                 padding: '10px 12px',
@@ -100,7 +122,7 @@ export function AddResourceModal({
               data-testid="input-resource-topic"
               type="text"
               value={resource.topic}
-              onChange={(e) => onResourceChange({ ...resource, topic: e.target.value })}
+              onChange={(e) => setResource({ ...resource, topic: e.target.value })}
               placeholder="e.g., The Science of Reading"
               style={{
                 width: '100%',
@@ -118,7 +140,7 @@ export function AddResourceModal({
               data-testid="input-resource-author"
               type="text"
               value={resource.author}
-              onChange={(e) => onResourceChange({ ...resource, author: e.target.value })}
+              onChange={(e) => setResource({ ...resource, author: e.target.value })}
               placeholder="e.g., Emily Hanford"
               style={{
                 width: '100%',
@@ -136,7 +158,7 @@ export function AddResourceModal({
               data-testid="input-resource-url"
               type="url"
               value={resource.url}
-              onChange={(e) => onResourceChange({ ...resource, url: e.target.value })}
+              onChange={(e) => setResource({ ...resource, url: e.target.value })}
               placeholder="https://..."
               style={{
                 width: '100%',
@@ -154,7 +176,7 @@ export function AddResourceModal({
               data-testid="input-resource-time"
               type="text"
               value={resource.time}
-              onChange={(e) => onResourceChange({ ...resource, time: e.target.value })}
+              onChange={(e) => setResource({ ...resource, time: e.target.value })}
               placeholder="e.g., 15 min"
               style={{
                 width: '100%',
@@ -171,7 +193,7 @@ export function AddResourceModal({
             <textarea
               data-testid="input-resource-facts"
               value={resource.facts}
-              onChange={(e) => onResourceChange({ ...resource, facts: e.target.value })}
+              onChange={(e) => setResource({ ...resource, facts: e.target.value })}
               placeholder="Brief description or key points from this resource..."
               rows={3}
               style={{
@@ -189,7 +211,7 @@ export function AddResourceModal({
         <button
           data-testid="button-submit-resource"
           onClick={handleSubmit}
-          disabled={isSubmitting}
+          disabled={addResourceMutation.isPending}
           style={{
             width: '100%',
             marginTop: '24px',
@@ -198,17 +220,17 @@ export function AddResourceModal({
             color: tokens.surface,
             border: 'none',
             borderRadius: '8px',
-            cursor: isSubmitting ? 'wait' : 'pointer',
+            cursor: addResourceMutation.isPending ? 'wait' : 'pointer',
             fontSize: '15px',
             fontWeight: 600,
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
             gap: '8px',
-            opacity: isSubmitting ? 0.7 : 1,
+            opacity: addResourceMutation.isPending ? 0.7 : 1,
           }}
         >
-          {isSubmitting ? (
+          {addResourceMutation.isPending ? (
             <>
               <Loader2 size={18} style={{ animation: 'spin 1s linear infinite' }} />
               Adding...

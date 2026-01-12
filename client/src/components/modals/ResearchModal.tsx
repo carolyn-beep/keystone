@@ -1,5 +1,9 @@
+import { useState } from 'react';
+import { useMutation } from '@tanstack/react-query';
 import { X, Search, Loader2, Plus, ThumbsUp, ThumbsDown, Users } from 'lucide-react';
 import { tokens } from '@/lib/colors';
+import { useResearch } from '@/hooks/useResearch';
+import { queryClient, apiRequest } from '@/lib/queryClient';
 
 const getTypeColor = (type: string) => {
   if (type === 'Twitter') return tokens.info;
@@ -33,40 +37,81 @@ interface ResearchResults {
 interface ResearchModalProps {
   show: boolean;
   onClose: () => void;
-  mode: 'quick' | 'deep';
-  onModeChange: (mode: 'quick' | 'deep') => void;
-  query: string;
-  onQueryChange: (query: string) => void;
-  onStartResearch: () => void;
-  isSearching: boolean;
-  results: ResearchResults | null;
-  onAddResource: (resource: ResearchResource) => void;
-  isAddingResource: boolean;
-  onAccept?: (resource: ResearchResource) => void;
-  onReject?: (resource: ResearchResource) => void;
-  isSavingFeedback?: boolean;
-  feedbackState?: Record<string, 'accepted' | 'rejected'>;
-  error?: string;
+  slug: string;
 }
 
 export function ResearchModal({
   show,
   onClose,
-  mode,
-  onModeChange,
-  query,
-  onQueryChange,
-  onStartResearch,
-  isSearching,
-  results,
-  onAddResource,
-  isAddingResource,
-  onAccept = () => {},
-  onReject = () => {},
-  isSavingFeedback = false,
-  feedbackState = {},
-  error,
+  slug,
 }: ResearchModalProps) {
+  const [mode, setMode] = useState<'quick' | 'deep'>('quick');
+  const [query, setQuery] = useState('');
+  const [results, setResults] = useState<ResearchResults | null>(null);
+  const [feedbackState, setFeedbackState] = useState<Record<string, 'accepted' | 'rejected'>>({});
+
+  const { researchMutation } = useResearch(slug, {
+    onResearchSuccess: (resData) => {
+      setResults(resData);
+    },
+    onTweetSearchSuccess: () => {},
+    onTweetSearchError: () => {},
+  });
+
+  const addResourceMutation = useMutation({
+    mutationFn: async (resource: ResearchResource) => {
+      return apiRequest('POST', `/api/brainlifts/${slug}/reading-list`, {
+        type: resource.type,
+        author: resource.author,
+        topic: resource.title || resource.topic || '',
+        time: resource.time,
+        facts: resource.summary || resource.relevance || '',
+        url: resource.url,
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['brainlift', slug] });
+    }
+  });
+
+  const feedbackMutation = useMutation({
+    mutationFn: async (feedback: { url: string; decision: 'accepted' | 'rejected'; resource: ResearchResource }) => {
+      const res = await fetch(`/api/brainlifts/${slug}/feedback`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          sourceId: feedback.url,
+          sourceType: 'research',
+          title: feedback.resource.title || feedback.resource.topic || '',
+          snippet: feedback.resource.summary || '',
+          url: feedback.url,
+          decision: feedback.decision,
+        }),
+      });
+      if (!res.ok) throw new Error('Failed to save feedback');
+      return { url: feedback.url, decision: feedback.decision };
+    },
+    onSuccess: (data) => {
+      setFeedbackState(prev => ({ ...prev, [data.url]: data.decision }));
+    }
+  });
+
+  const onAccept = (resource: ResearchResource) => {
+    feedbackMutation.mutate({ url: resource.url, decision: 'accepted', resource });
+  };
+
+  const onReject = (resource: ResearchResource) => {
+    feedbackMutation.mutate({ url: resource.url, decision: 'rejected', resource });
+  };
+
+  const isSavingFeedback = feedbackMutation.isPending;
+
+  const handleClose = () => {
+    setResults(null);
+    setQuery('');
+    onClose();
+  };
+
   if (!show) return null;
 
   return (
@@ -93,7 +138,7 @@ export function ResearchModal({
           </h2>
           <button
             data-testid="button-close-research-modal"
-            onClick={onClose}
+            onClick={handleClose}
             style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '4px' }}
           >
             <X size={20} />
@@ -109,7 +154,7 @@ export function ResearchModal({
           <div style={{ display: 'flex', gap: '12px' }}>
             <button
               data-testid="button-research-quick"
-              onClick={() => onModeChange('quick')}
+              onClick={() => setMode('quick')}
               style={{
                 flex: 1,
                 padding: '12px 16px',
@@ -125,7 +170,7 @@ export function ResearchModal({
             </button>
             <button
               data-testid="button-research-deep"
-              onClick={() => onModeChange('deep')}
+              onClick={() => setMode('deep')}
               style={{
                 flex: 1,
                 padding: '12px 16px',
@@ -151,7 +196,7 @@ export function ResearchModal({
               data-testid="input-research-query"
               type="text"
               value={query}
-              onChange={(e) => onQueryChange(e.target.value)}
+              onChange={(e) => setQuery(e.target.value)}
               placeholder="e.g., 'studies on phonics instruction' or 'counter-arguments to direct instruction'"
               style={{
                 width: '100%',
@@ -166,8 +211,8 @@ export function ResearchModal({
 
         <button
           data-testid="button-start-research"
-          onClick={onStartResearch}
-          disabled={isSearching}
+          onClick={() => researchMutation.mutate({ mode, query: query || undefined })}
+          disabled={researchMutation.isPending}
           style={{
             width: '100%',
             padding: '14px 20px',
@@ -175,17 +220,17 @@ export function ResearchModal({
             color: tokens.surface,
             border: 'none',
             borderRadius: '8px',
-            cursor: isSearching ? 'wait' : 'pointer',
+            cursor: researchMutation.isPending ? 'wait' : 'pointer',
             fontSize: '15px',
             fontWeight: 600,
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
             gap: '8px',
-            opacity: isSearching ? 0.7 : 1,
+            opacity: researchMutation.isPending ? 0.7 : 1,
           }}
         >
-          {isSearching ? (
+          {researchMutation.isPending ? (
             <>
               <Loader2 size={18} style={{ animation: 'spin 1s linear infinite' }} />
               Searching the web...
@@ -198,9 +243,9 @@ export function ResearchModal({
           )}
         </button>
 
-        {error && (
+        {researchMutation.isError && (
           <div style={{ marginTop: '16px', padding: '12px', backgroundColor: tokens.dangerSoft, borderRadius: '8px', color: tokens.danger, fontSize: '14px' }}>
-            {error}
+            {(researchMutation.error as Error).message}
           </div>
         )}
 
@@ -267,8 +312,8 @@ export function ResearchModal({
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', alignItems: 'flex-end' }}>
                       <button
                         data-testid={`button-add-resource-${index}`}
-                        onClick={() => onAddResource(resource)}
-                        disabled={isAddingResource}
+                        onClick={() => addResourceMutation.mutate(resource)}
+                        disabled={addResourceMutation.isPending}
                         style={{
                           padding: '8px 12px',
                           backgroundColor: tokens.success,

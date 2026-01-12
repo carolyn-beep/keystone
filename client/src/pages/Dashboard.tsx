@@ -4,7 +4,6 @@ import { Link } from 'wouter';
 import { BrainliftData, ReadingListGrade, BrainliftVersion, CLASSIFICATION, type Expert, type Fact } from '@shared/schema';
 import { ChevronUp, ExternalLink, Download, RefreshCw, History, X, Upload, Search, Plus, Loader2, AlertTriangle, FileText, Clock, ThumbsUp, ThumbsDown, Users, User, Trash2, CheckCircle } from 'lucide-react';
 import { SiX } from 'react-icons/si';
-import { queryClient, apiRequest } from '@/lib/queryClient';
 import { tokens, getScoreChipColors } from '@/lib/colors';
 import { useToast } from '@/hooks/use-toast';
 import { useBrainlift } from '@/hooks/useBrainlift';
@@ -38,18 +37,7 @@ export default function Dashboard({ slug, isSharedView = false }: DashboardProps
   const [updateUrl, setUpdateUrl] = useState('');
   const [updateText, setUpdateText] = useState('');
   const [showResearchModal, setShowResearchModal] = useState(false);
-  const [researchMode, setResearchMode] = useState<'quick' | 'deep'>('quick');
-  const [researchQuery, setResearchQuery] = useState('');
-  const [researchResults, setResearchResults] = useState<any>(null);
   const [showAddResourceModal, setShowAddResourceModal] = useState(false);
-  const [manualResource, setManualResource] = useState({
-    type: 'Article',
-    author: '',
-    topic: '',
-    time: '10 min',
-    facts: '',
-    url: '',
-  });
   const [tweetResults, setTweetResults] = useState<any>(null);
   const [showTweetSection, setShowTweetSection] = useState(false);
   const [expertsExpanded, setExpertsExpanded] = useState(true);
@@ -71,12 +59,9 @@ const { toast } = useToast();
     updateError,
   } = useBrainlift(slug, isSharedView);
 
-  const { downloadBrainliftPDF } = usePDFExport();
+const { downloadBrainliftPDF } = usePDFExport();
 
-  const { researchMutation, tweetSearchMutation } = useResearch(slug, {
-    onResearchSuccess: (resData) => {
-      setResearchResults(resData);
-    },
+  const { tweetSearchMutation } = useResearch(slug, {
     onTweetSearchSuccess: (tweetData) => {
       setTweetResults(tweetData);
       setShowTweetSection(true);
@@ -170,15 +155,6 @@ const { toast } = useToast();
     isError: !!updateError,
     error: updateError,
   };
-
-  const addResourceMutation = useMutation({
-    mutationFn: async (resource: { type: string; author: string; topic: string; time: string; facts: string; url: string }) => {
-      return apiRequest('POST', `/api/brainlifts/${slug}/reading-list`, resource);
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['brainlift', slug] });
-    }
-  });
 
   const handleDownloadPDF = () => {
     if (!data) return;
@@ -394,52 +370,15 @@ const { toast } = useToast();
       {/* Research Modal */}
       <ResearchModal
         show={showResearchModal}
-        onClose={() => {
-          setShowResearchModal(false);
-          setResearchResults(null);
-          setResearchQuery('');
-        }}
-        mode={researchMode}
-        onModeChange={setResearchMode}
-        query={researchQuery}
-        onQueryChange={setResearchQuery}
-        onStartResearch={() => researchMutation.mutate({ mode: researchMode, query: researchQuery || undefined })}
-        isSearching={researchMutation.isPending}
-        results={researchResults}
-        onAddResource={(resource) => addResourceMutation.mutate({
-          type: resource.type,
-          author: resource.author,
-          topic: resource.title || resource.topic || '',
-          time: resource.time,
-          facts: resource.summary || resource.relevance || '',
-          url: resource.url,
-        })}
-        isAddingResource={addResourceMutation.isPending}
-        error={researchMutation.isError ? (researchMutation.error as Error).message : undefined}
+        onClose={() => setShowResearchModal(false)}
+        slug={slug}
       />
 
       {/* Manual Add Resource Modal */}
       <AddResourceModal
         show={showAddResourceModal}
         onClose={() => setShowAddResourceModal(false)}
-        resource={manualResource}
-        onResourceChange={setManualResource}
-        onSubmit={() => {
-          addResourceMutation.mutate(manualResource, {
-            onSuccess: () => {
-              setShowAddResourceModal(false);
-              setManualResource({
-                type: 'Article',
-                author: '',
-                topic: '',
-                time: '10 min',
-                facts: '',
-                url: '',
-              });
-            }
-          });
-        }}
-        isSubmitting={addResourceMutation.isPending}
+        slug={slug}
       />
     </div>
   );

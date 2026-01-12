@@ -24,7 +24,7 @@ export interface FactRowProps {
   onGradingScoreChange: (score: number) => void;
   onGradingNotesChange: (notes: string) => void;
   onStartGrading: () => void;
-  onSaveGrade: () => void;
+  onSaveGrade: (score?: number) => void;
   onCancelGrading: () => void;
   isSavingGrade: boolean;
   onViewFullText?: () => void;
@@ -154,11 +154,7 @@ export function FactRow({
   }, [showQuickGrade]);
 
   const handleQuickGrade = (score: number) => {
-    onGradingScoreChange(score);
-    onStartGrading();
-    setTimeout(() => {
-      onSaveGrade();
-    }, 50);
+    onSaveGrade(score);  // Pass score directly - no state timing issues
     setShowQuickGrade(false);
   };
 

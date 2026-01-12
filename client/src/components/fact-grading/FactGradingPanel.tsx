@@ -369,10 +369,10 @@ export function FactGradingPanel({
                 setGradingScore(humanGrades[fact.id]?.score || 3);
                 setGradingNotes(humanGrades[fact.id]?.notes || '');
               }}
-              onSaveGrade={() => {
+              onSaveGrade={(score) => {
                 setHumanGradeMutation.mutate({
                   factId: fact.id,
-                  score: gradingScore,
+                  score: score ?? gradingScore,
                   notes: gradingNotes,
                 });
               }}
@@ -418,10 +418,10 @@ export function FactGradingPanel({
                   setGradingScore(humanGrades[fact.id]?.score || 3);
                   setGradingNotes(humanGrades[fact.id]?.notes || '');
                 }}
-                onSaveGrade={() => {
+                onSaveGrade={(score) => {
                   setHumanGradeMutation.mutate({
                     factId: fact.id,
-                    score: gradingScore,
+                    score: score ?? gradingScore,
                     notes: gradingNotes,
                   });
                 }}
