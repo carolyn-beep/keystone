@@ -7,6 +7,7 @@ import { SiX } from 'react-icons/si';
 import { queryClient, apiRequest } from '@/lib/queryClient';
 import { tokens, getScoreChipColors } from '@/lib/colors';
 import { useToast } from '@/hooks/use-toast';
+import { useBrainlift } from '@/hooks/useBrainlift';
 import { VerificationPanel } from '@/components/VerificationPanel';
 import { ModelAccuracyPanel } from '@/components/ModelAccuracyPanel';
 import { FactGradingPanel } from '@/components/fact-grading';
@@ -60,35 +61,30 @@ export default function Dashboard({ slug, isSharedView = false }: DashboardProps
   const [editingAuthor, setEditingAuthor] = useState(false);
   const [authorInput, setAuthorInput] = useState('');
 
-  const updateAuthorMutation = useMutation({
-    mutationFn: async (author: string) => {
-      const res = await fetch(`/api/brainlifts/${slug}/author`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ author }),
-      });
-      if (!res.ok) throw new Error('Failed to update author');
-      return res.json();
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['brainlift', slug] });
+  const {
+    data,
+    isLoading,
+    error,
+    updateAuthor,
+    isUpdatingAuthor,
+    update: updateBrainlift,
+    isUpdating,
+    updateError,
+    saveGrade,
+    isSavingGrade,
+  } = useBrainlift(slug, isSharedView);
+
+  const updateAuthorMutation = {
+    mutateAsync: async (author: string) => {
+      await updateAuthor(author);
       setEditingAuthor(false);
     },
-  });
+    isPending: isUpdatingAuthor,
+  };
 
   const toggleExpand = (itemId: number) => {
     setExpandedItems(prev => ({ ...prev, [itemId]: !prev[itemId] }));
   };
-
-  const { data, isLoading, error } = useQuery<BrainliftData>({
-    queryKey: ['brainlift', slug],
-    queryFn: async () => {
-      const res = await fetch(`/api/brainlifts/${slug}`);
-      if (!res.ok) throw new Error('Failed to fetch brainlift');
-      return res.json();
-    },
-    enabled: !!slug
-  });
 
   const isNotBrainlift = data?.classification === 'not_brainlift';
   const isPartialBrainlift = data?.classification === 'partial';
@@ -271,42 +267,36 @@ export default function Dashboard({ slug, isSharedView = false }: DashboardProps
     }
   });
 
-  const updateMutation = useMutation({
-    mutationFn: async (formData: FormData) => {
-      const res = await fetch(`/api/brainlifts/${slug}/update`, {
-        method: 'PATCH',
-        body: formData,
+  const updateMutation = {
+    mutate: (formData: FormData) => {
+      updateBrainlift(formData, {
+        onSuccess: () => {
+          setShowUpdateModal(false);
+          setUpdateFile(null);
+          setUpdateUrl('');
+          setUpdateText('');
+        }
       });
-      if (!res.ok) {
-        const err = await res.json();
-        throw new Error(err.message || 'Failed to update');
-      }
-      return res.json();
     },
-    onSuccess: () => {
-      setShowUpdateModal(false);
-      setUpdateFile(null);
-      setUpdateUrl('');
-      setUpdateText('');
-      queryClient.invalidateQueries({ queryKey: ['brainlift', slug] });
-      queryClient.invalidateQueries({ queryKey: ['grades', slug] });
-      queryClient.invalidateQueries({ queryKey: ['versions', slug] });
-    }
-  });
+    isPending: isUpdating,
+    isError: !!updateError,
+    error: updateError,
+  };
 
-  const saveGradeMutation = useMutation({
-    mutationFn: async (gradeData: { readingListItemId: number; aligns?: string; contradicts?: string; newInfo?: string; quality?: number }) => {
-      return apiRequest('POST', '/api/grades', gradeData);
-    },
-    onSuccess: (_, variables) => {
-      setLocalGrades(prev => {
-        const updated = { ...prev };
-        delete updated[variables.readingListItemId];
-        return updated;
+  const saveGradeMutation = {
+    mutate: (gradeData: { readingListItemId: number; aligns?: string; contradicts?: string; newInfo?: string; quality?: number }) => {
+      saveGrade(gradeData, {
+        onSuccess: () => {
+          setLocalGrades(prev => {
+            const updated = { ...prev };
+            delete updated[gradeData.readingListItemId];
+            return updated;
+          });
+        }
       });
-      queryClient.invalidateQueries({ queryKey: ['grades', slug] });
-    }
-  });
+    },
+    isPending: isSavingGrade,
+  };
 
   const researchMutation = useMutation({
     mutationFn: async ({ mode, query }: { mode: 'quick' | 'deep'; query?: string }) => {
