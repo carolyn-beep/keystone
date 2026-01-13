@@ -116,9 +116,12 @@ export async function fetchWorkflowyContent(nodeIdOrUrl: string): Promise<string
 
       console.log('projectTreeData keys:', Object.keys(projectTreeData).join(', '));
 
-      // Helper function to strip HTML tags from text
+      // Helper function to strip HTML tags from text, preserving links as markdown
       function stripHtml(html: string): string {
         return html
+          // Convert <a href="url">text</a> to [text](url) markdown format FIRST
+          .replace(/<a[^>]+href=["']([^"']+)["'][^>]*>([^<]*)<\/a>/gi, '[$2]($1)')
+          // Then strip remaining HTML tags
           .replace(/<[^>]*>/g, '')
           .replace(/&nbsp;/g, ' ')
           .replace(/&amp;/g, '&')

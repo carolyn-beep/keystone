@@ -43,104 +43,250 @@ interface ExpertProfile {
   score5FactCitations: number;
 }
 
-function extractExpertsFromDocument(content: string): Array<{name: string, twitterHandle: string | null, description: string}> {
-  const experts: Array<{name: string, twitterHandle: string | null, description: string}> = [];
-  
-  if (!content) return experts;
-  
+/**
+ * Extract Twitter/X handle from a block of text
+ * Handles multiple formats:
+ * - Markdown links: [@handle](https://x.com/handle)
+ * - URLs: https://x.com/handle or x.com/handle
+ * - Labeled: X: @handle or Twitter: @handle
+ * - Plain @handle
+ */
+function extractTwitterHandle(block: string): string | null {
+  const handlePatterns = [
+    // Markdown link format: [@handle](https://x.com/handle) - most reliable
+    /\[@([A-Za-z0-9_]+)\]\(https?:\/\/(?:x|twitter)\.com\/[^)]+\)/i,
+    // Markdown link with URL containing handle: [text](https://x.com/handle)
+    /\[[^\]]*\]\(https?:\/\/(?:x|twitter)\.com\/([A-Za-z0-9_]+)[^)]*\)/i,
+    // URL with handle: https://x.com/handle (with various terminators)
+    /(?:https?:\/\/)?(?:x|twitter)\.com\/([A-Za-z0-9_]+)(?:[?\s)\]]|$)/i,
+    // X: @handle or Twitter: @handle (with or without colon)
+    /(?:^|\n)\s*-?\s*(?:X|Twitter)(?:\s*\([^)]*\))?[:\s]+@([A-Za-z0-9_]+)/im,
+    // Where section with X/Twitter mention
+    /- Where:[\s\S]*?(?:X|Twitter)[^@]*@([A-Za-z0-9_]+)/i,
+    // Plain @handle after X: or Twitter:
+    /(?:X|Twitter)[:\s]+@([A-Za-z0-9_]+)/i,
+  ];
+
+  for (const pattern of handlePatterns) {
+    const match = pattern.exec(block);
+    if (match && match[1]) {
+      // Validate handle: 1-15 chars, alphanumeric + underscore
+      const handle = match[1];
+      if (handle.length >= 1 && handle.length <= 15 && /^[A-Za-z0-9_]+$/.test(handle)) {
+        return '@' + handle;
+      }
+    }
+  }
+
+  return null;
+}
+
+/**
+ * Find and extract the Experts section from document content
+ */
+function findExpertsSection(content: string): string | null {
   // Try multiple patterns to find experts section
   const expertsPatterns = [
-    /DOK1:\s*Experts/i,
-    /##\s*Experts/i,
-    /Experts\s*(?:\n|=+|-+)/i,
-    /^#+\s*Experts\s*$/im,
-    /^\s*-?\s*Experts\s*$/im,
-    /Experts\s*:?\s*\n/i,
+    /^#\s*Experts\s*$/im,           // # Experts (H1)
+    /^##\s*Experts\s*$/im,          // ## Experts (H2)
+    /^-\s*Experts\s*$/im,           // - Experts (bullet)
+    /DOK1:\s*Experts/i,             // DOK1: Experts
+    /Experts\s*(?:\n|=+|-+)/i,      // Experts followed by newline or underline
   ];
-  
-  let expertSection = '';
+
   for (const pattern of expertsPatterns) {
     const match = pattern.exec(content);
     if (match) {
       const startIdx = match.index;
-      // Extract up to 5000 chars or until next major section
-      const stopPatterns = /\n(?:DOK[234]|Insights|Sources|Reading|References|Summary|Bibliography)/i;
+      // Extract until next major section (DOK2/3/4, Knowledge tree, etc.)
+      const stopPatterns = /\n(?:#+\s*)?(?:DOK[234]|Knowledge\s*[Tt]ree|Insights|Sources|Reading|References|Summary|Bibliography)/i;
       const remainingContent = content.slice(startIdx);
       const stopMatch = stopPatterns.exec(remainingContent);
-      const endIdx = stopMatch ? stopMatch.index : Math.min(5000, remainingContent.length);
-      expertSection = remainingContent.slice(0, endIdx);
-      break;
+      // Allow up to 50000 chars for large expert sections (Firstname Lastname has 88 experts)
+      const endIdx = stopMatch ? stopMatch.index : Math.min(50000, remainingContent.length);
+      return remainingContent.slice(0, endIdx);
     }
   }
-  
-  if (!expertSection) return experts;
-  
-    // Try structured format first: "- Expert 1", "- Who:", etc.
-  const expertBlocks = expertSection.split(/- Expert \d+/i);
-  if (expertBlocks.length > 1) {
-    for (let i = 1; i < expertBlocks.length; i++) {
-      const block = expertBlocks[i];
-      
-      const whoMatch = /-\s*(?:Who|Expert #?\d+):\s*([^;\n]+)/i.exec(block);
-      if (!whoMatch) continue;
-      
-      const rawName = whoMatch[1].trim().replace(/[;.]$/, '').trim();
-      if (!rawName || rawName.match(/^(Why follow|Focus|Key views|Where|Expertise Topic|Expert #?\d+|Who follow)/i)) continue;
 
-      // Ensure name isn't just a long paragraph that accidentally matched
-      const name = rawName.split('\n')[0].split(/[;:]/)[0].trim();
-      if (name.split(' ').length > 6) continue;
-      
-      let twitterHandle: string | null = null;
-      // Search for Twitter handles in Where, find her, or the whole block
-      const handlePatterns = [
-        /- Where:\s*.*(@[A-Za-z0-9_]+)/i,
-        /- (?:Find her|Where|Find him):\s*.*twitter\.com\/([A-Za-z0-9_]+)/i,
-        /- (?:Find her|Where|Find him):\s*.*x\.com\/([A-Za-z0-9_]+)/i,
-        /twitter\.com\/([A-Za-z0-9_]+)/i,
-        /x\.com\/([A-Za-z0-9_]+)/i,
-        /@([A-Za-z0-9_]+)/,
-      ];
+  return null;
+}
 
-      for (const pattern of handlePatterns) {
-        const match = pattern.exec(block);
-        if (match) {
-          twitterHandle = match[1].startsWith('@') ? match[1] : '@' + match[1];
-          break;
-        }
-      }
-      
-      let description = '';
-      const focusMatch = /- Focus:\s*([^\n]+)/i.exec(block);
-      if (focusMatch) {
-        description = focusMatch[1].trim();
-      }
-      
-      experts.push({ name, twitterHandle, description });
+/**
+ * Parse Format A: H2 header format
+ * Handles two variants:
+ * 1. Direct name: ## Tim Surma
+ * 2. Numbered: ## Expert 1: Mark McCrindle
+ */
+function parseH2HeaderFormat(expertSection: string): Array<{name: string, twitterHandle: string | null, description: string}> {
+  const experts: Array<{name: string, twitterHandle: string | null, description: string}> = [];
+
+  // Find all ## headers (expert names)
+  const h2Pattern = /^##\s+(.+)$/gm;
+  const h2Positions: {name: string, start: number}[] = [];
+
+  let match;
+  while ((match = h2Pattern.exec(expertSection)) !== null) {
+    let name = match[1].trim();
+
+    // Skip section headers like "## Experts"
+    if (name.toLowerCase() === 'experts') continue;
+
+    // Handle "Expert N: Name" format - extract just the name after colon
+    const numberedMatch = name.match(/^Expert\s+\d+[:\s]+(.+)$/i);
+    if (numberedMatch) {
+      name = numberedMatch[1].trim();
+    }
+
+    // Clean up trailing punctuation
+    name = name.replace(/[;.,]$/, '').trim();
+
+    if (name) {
+      h2Positions.push({ name, start: match.index });
     }
   }
-  
-  // Also try simple bullet list format: "- John Smith" or "• Paul Nation"
-  if (experts.length === 0) {
-    const lines = expertSection.split('\n');
-    for (const line of lines) {
-      // Match bullet points with names (2+ words, starts with capital)
-      const bulletMatch = line.match(/^\s*[-•*]\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)+)/);
-      if (bulletMatch) {
-        const name = bulletMatch[1].trim();
-        // Skip common non-name patterns and section headers
-        if (!name.match(/^(The|An?|This|That|These|Some|Many|All|Most|Each|Why follow|Focus|Key views|Where|Expertise Topic|Expert #\d+)/i)) {
-          let twitterHandle: string | null = null;
-          const handleMatch = line.match(/@([A-Za-z0-9_]+)/);
-          if (handleMatch) {
-            twitterHandle = '@' + handleMatch[1];
-          }
-          experts.push({ name, twitterHandle, description: '' });
-        }
+
+  if (h2Positions.length === 0) return experts;
+
+  // Parse each expert block
+  for (let i = 0; i < h2Positions.length; i++) {
+    const start = h2Positions[i].start;
+    const end = h2Positions[i + 1]?.start || expertSection.length;
+    const block = expertSection.slice(start, end);
+    const name = h2Positions[i].name;
+
+    // Skip if name looks like a section header
+    if (name.match(/^(Why follow|Focus|Key views|Where|Expertise|Main views)/i)) continue;
+    // Skip if name is too long (likely a paragraph)
+    if (name.split(' ').length > 6) continue;
+
+    // Extract description from Who: or Why follow: field
+    let description = '';
+    const descPatterns = [
+      /- Who:\s*(.+)/i,
+      /- Why follow[:\s]*\n?\s*-?\s*(.+)/i,
+    ];
+    for (const pattern of descPatterns) {
+      const descMatch = pattern.exec(block);
+      if (descMatch) {
+        description = descMatch[1].trim();
+        break;
+      }
+    }
+
+    // Extract Twitter handle
+    const twitterHandle = extractTwitterHandle(block);
+
+    experts.push({ name, twitterHandle, description });
+  }
+
+  return experts;
+}
+
+/**
+ * Parse Format B: Numbered expert format (Firstname Lastname style)
+ * - Expert 1: Mark McCrindle
+ *   - Main views
+ *     - ...
+ *   - Where
+ *     - X: @MarkMcCrindle
+ */
+function parseNumberedFormat(expertSection: string): Array<{name: string, twitterHandle: string | null, description: string}> {
+  const experts: Array<{name: string, twitterHandle: string | null, description: string}> = [];
+
+  // Find all "Expert N:" or "Expert N" patterns with the name
+  const expertPattern = /-\s*Expert\s+\d+[:\s]+([^\n]+)/gi;
+  const expertPositions: {name: string, start: number}[] = [];
+
+  let match;
+  while ((match = expertPattern.exec(expertSection)) !== null) {
+    const rawName = match[1].trim();
+    // Clean up the name - remove trailing punctuation
+    const name = rawName.replace(/[;.,]$/, '').trim();
+    if (name && name.split(' ').length <= 6) {
+      expertPositions.push({ name, start: match.index });
+    }
+  }
+
+  if (expertPositions.length === 0) return experts;
+
+  // Parse each expert block
+  for (let i = 0; i < expertPositions.length; i++) {
+    const start = expertPositions[i].start;
+    const end = expertPositions[i + 1]?.start || expertSection.length;
+    const block = expertSection.slice(start, end);
+    const name = expertPositions[i].name;
+
+    // Skip if name looks like a section header
+    if (name.match(/^(Why follow|Focus|Key views|Where|Expertise|Main views)/i)) continue;
+
+    // Extract description from "Why follow" or "Main Views" field
+    let description = '';
+    const descPatterns = [
+      /- Why follow[:\s]*\n?\s*-?\s*(.+)/i,
+      /- Main [Vv]iews[:\s]*\n?\s*-?\s*(.+)/i,
+    ];
+    for (const pattern of descPatterns) {
+      const descMatch = pattern.exec(block);
+      if (descMatch) {
+        description = descMatch[1].trim();
+        break;
+      }
+    }
+
+    // Extract Twitter handle
+    const twitterHandle = extractTwitterHandle(block);
+
+    experts.push({ name, twitterHandle, description });
+  }
+
+  return experts;
+}
+
+function extractExpertsFromDocument(content: string): Array<{name: string, twitterHandle: string | null, description: string}> {
+  if (!content) return [];
+
+  // Find the Experts section
+  const expertSection = findExpertsSection(content);
+  if (!expertSection) {
+    console.log('No Experts section found in document');
+    return [];
+  }
+
+  console.log(`Found Experts section (${expertSection.length} chars)`);
+
+  // Try Format A: H2 headers (## Expert Name)
+  const h2Experts = parseH2HeaderFormat(expertSection);
+  if (h2Experts.length > 0) {
+    console.log(`Parsed ${h2Experts.length} experts using H2 header format`);
+    return h2Experts;
+  }
+
+  // Try Format B: Numbered experts (- Expert 1: Name)
+  const numberedExperts = parseNumberedFormat(expertSection);
+  if (numberedExperts.length > 0) {
+    console.log(`Parsed ${numberedExperts.length} experts using numbered format`);
+    return numberedExperts;
+  }
+
+  // Fallback: simple bullet list format (- John Smith)
+  console.log('Trying fallback bullet list format');
+  const experts: Array<{name: string, twitterHandle: string | null, description: string}> = [];
+  const lines = expertSection.split('\n');
+
+  for (const line of lines) {
+    // Match bullet points with names (2+ words, starts with capital)
+    const bulletMatch = line.match(/^\s*[-•*]\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)+)/);
+    if (bulletMatch) {
+      const name = bulletMatch[1].trim();
+      // Skip common non-name patterns and section headers
+      if (!name.match(/^(The|An?|This|That|These|Some|Many|All|Most|Each|Why follow|Focus|Key views|Where|Expertise Topic|Expert #\d+|Main views)/i)) {
+        const twitterHandle = extractTwitterHandle(line);
+        experts.push({ name, twitterHandle, description: '' });
       }
     }
   }
-  
+
+  console.log(`Parsed ${experts.length} experts using fallback bullet format`);
   return experts;
 }
 
@@ -374,6 +520,7 @@ export async function extractAndRankExperts(input: ExtractionInput): Promise<Ins
   // Extract experts from document "Experts" section
   const documentExperts = extractExpertsFromDocument(input.originalContent || '');
   console.log('Experts from document section:', documentExperts.map(e => e.name));
+  console.log('Experts with handles:', documentExperts.filter(e => e.twitterHandle).map(e => `${e.name}: ${e.twitterHandle}`));
   
   // Extract experts from fact sources (person names)
   const factSourceExperts = extractExpertsFromFactSources(input.facts);
@@ -510,22 +657,54 @@ Assign differentiated scores (1-10) based on the citation counts or relevance in
         isFollowing: true,
       }));
     } catch (parseError) {
-      console.error("Failed to parse expert extraction JSON. Attempting manual regex extraction.", parseError);
-      
-      // Manual regex fallback for common non-JSON responses
+      console.error("Failed to parse expert extraction JSON. Attempting fallback with pre-extracted data.", parseError);
+
+      // Fallback: use the experts we already extracted with their handles preserved
+      // Build a map for quick handle lookup
+      const handleMap = new Map<string, string | null>();
+      for (const expert of filteredExperts) {
+        handleMap.set(expert.name.toLowerCase(), expert.twitterHandle);
+      }
+
+      // Try to extract names from the malformed JSON response
       const expertMatches = content.matchAll(/"name":\s*"([^"]+)"/g);
       const manualExperts: InsertExpert[] = [];
+      const seenNames = new Set<string>();
+
       for (const match of expertMatches) {
+        const name = match[1];
+        const normalizedName = name.toLowerCase();
+        if (seenNames.has(normalizedName)) continue;
+        seenNames.add(normalizedName);
+
+        // Look up the handle from our pre-extracted data
+        const twitterHandle = handleMap.get(normalizedName) || null;
+
         manualExperts.push({
           brainliftId: input.brainliftId,
-          name: match[1],
+          name,
           rankScore: 5,
           rationale: "Identified from document context.",
-          source: 'cited',
-          twitterHandle: null,
+          source: 'listed',
+          twitterHandle,
           isFollowing: true
         });
       }
+
+      // If no names extracted from AI response, just use our pre-extracted experts
+      if (manualExperts.length === 0) {
+        console.log("No names from AI response, using pre-extracted experts directly");
+        return filteredExperts.map(expert => ({
+          brainliftId: input.brainliftId,
+          name: expert.name,
+          rankScore: 5,
+          rationale: "Listed in DOK1 Experts section",
+          source: 'listed' as const,
+          twitterHandle: expert.twitterHandle,
+          isFollowing: true
+        }));
+      }
+
       return manualExperts;
     }
   } catch (error) {
