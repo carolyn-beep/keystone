@@ -471,13 +471,16 @@ export function ReadingListTab({
               </div>
             ) : (
               <>
-                <div className="grid gap-3 items-stretch" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))' }}>
-                  {(expertsList.length <= 8 ? expertsList : (showAllExperts ? expertsList : expertsList.slice(0, 6))).map((expert) => (
+                <div
+                  className={`flex gap-3 ${showAllExperts ? 'flex-wrap' : 'flex-nowrap overflow-hidden'}`}
+                  style={{ maxHeight: showAllExperts ? 'none' : '210px' }}
+                >
+                  {expertsList.map((expert) => (
                     <div
                       key={expert.id}
                       data-testid={`expert-card-${expert.id}`}
-                      className="p-4 bg-background rounded-lg flex flex-col"
-                      style={{ border: `1px solid ${tokens.border}` }}
+                      className="p-4 bg-background rounded-lg flex flex-col flex-shrink-0"
+                      style={{ border: `1px solid ${tokens.border}`, width: '220px' }}
                     >
                       <div className="flex justify-between items-start mb-2.5">
                         <div className="flex items-center gap-2">
@@ -510,25 +513,14 @@ export function ReadingListTab({
                         {expert.rationale ?? 'Unranked'}
                       </p>
 
-                      {/* Source & Twitter */}
-                      <div className="flex items-center justify-between gap-2 mb-2.5">
-                        <span className="text-[10px] py-0.5 px-1.5 rounded bg-accent text-primary uppercase font-semibold">
+                      {/* Source Badge */}
+                      <div className="mb-2.5">
+                        <span className="text-[10px] py-0.5 px-1.5 rounded bg-accent text-primary uppercase font-semibold whitespace-nowrap">
                           {expert.source === 'listed' ? 'Listed in brainlift' : 'From verification'}
                         </span>
-                        {expert.twitterHandle && (
-                          <a
-                            href={`https://x.com/${expert.twitterHandle.replace('@', '')}`}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="text-[11px] text-[#0284C7] no-underline flex items-center gap-1"
-                          >
-                            <SiX size={10} />
-                            {expert.twitterHandle}
-                          </a>
-                        )}
                       </div>
 
-                      {/* Follow & Delete Buttons */}
+                      {/* Follow, Twitter & Delete Buttons */}
                       <div className="flex gap-1.5">
                         <button
                           data-testid={`button-follow-expert-${expert.id}`}
@@ -552,6 +544,26 @@ export function ReadingListTab({
                             'Follow'
                           )}
                         </button>
+                        {expert.twitterHandle ? (
+                          <a
+                            href={`https://x.com/${expert.twitterHandle.replace('@', '')}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="px-2.5 py-1.5 bg-sidebar rounded-md text-xs cursor-pointer flex items-center justify-center hover:bg-[#1DA1F2]/10"
+                            style={{ border: `1px solid ${tokens.border}`, color: '#1DA1F2' }}
+                            title={expert.twitterHandle}
+                          >
+                            <SiX size={12} />
+                          </a>
+                        ) : (
+                          <span
+                            className="px-2.5 py-1.5 bg-sidebar rounded-md text-xs flex items-center justify-center opacity-40 cursor-not-allowed"
+                            style={{ border: `1px solid ${tokens.border}`, color: tokens.textSecondary }}
+                            title="X handle not found"
+                          >
+                            <SiX size={12} />
+                          </span>
+                        )}
                         <button
                           data-testid={`button-delete-expert-${expert.id}`}
                           onClick={() => {
@@ -570,7 +582,7 @@ export function ReadingListTab({
                   ))}
                 </div>
 
-                {expertsList.length > 8 && (
+                {expertsList.length > 5 && (
                   <button
                     data-testid="button-show-all-experts"
                     onClick={() => setShowAllExperts(!showAllExperts)}

@@ -3,6 +3,8 @@ import type { Fact, Expert, InsertExpert } from '@shared/schema';
 
 const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY;
 const MODEL = 'anthropic/claude-sonnet-4';
+const CLEANUP_MODEL_PRIMARY = 'google/gemini-2.0-flash-001';
+const CLEANUP_MODEL_FALLBACK = 'meta-llama/llama-3.1-8b-instruct';
 
 const expertExtractionSchema = z.object({
   experts: z.array(z.object({
@@ -15,6 +17,113 @@ const expertExtractionSchema = z.object({
 });
 
 export type ExpertExtractionOutput = z.infer<typeof expertExtractionSchema>;
+
+/**
+ * AI-powered cleanup pass to filter out invalid expert names.
+ * Uses fast models with parallel batched calls.
+ * Fallback: if both models fail, keep the expert (don't discard).
+ */
+async function cleanupExpertNames(
+  experts: Array<{name: string, twitterHandle: string | null, description: string}>
+): Promise<Array<{name: string, twitterHandle: string | null, description: string}>> {
+  if (!OPENROUTER_API_KEY || experts.length === 0) return experts;
+
+  const BATCH_SIZE = 15;
+  const batches: Array<Array<{name: string, twitterHandle: string | null, description: string}>> = [];
+
+  for (let i = 0; i < experts.length; i += BATCH_SIZE) {
+    batches.push(experts.slice(i, i + BATCH_SIZE));
+  }
+
+  const cleanupPrompt = `You analyze expert names and determine if they are valid person names.
+
+Valid expert names:
+- Have first name + last name (e.g., "John Smith", "María García")
+- May have middle name/initial (e.g., "John F. Kennedy")
+- May have titles like Dr., Prof. (e.g., "Dr. Jane Doe")
+- May have suffixes like Jr., PhD (e.g., "Robert Smith Jr.")
+
+INVALID - discard these:
+- Single words or numbers (e.g., "0", "1", "Focus", "Where")
+- Section headers or field labels (e.g., "Why follow", "Main views")
+- Random text or incomplete names
+- Organizations (unless clearly a person's name)
+
+Return ONLY a JSON array of booleans, true=keep, false=discard.
+Example: ["John Smith", "0", "Jane Doe", "Focus"] → [true, false, true, false]`;
+
+  async function processBatch(
+    batch: Array<{name: string, twitterHandle: string | null, description: string}>,
+    model: string
+  ): Promise<boolean[]> {
+    const names = batch.map(e => e.name);
+    const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${OPENROUTER_API_KEY}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model,
+        messages: [
+          { role: 'system', content: cleanupPrompt },
+          { role: 'user', content: JSON.stringify(names) },
+        ],
+        temperature: 0,
+        max_tokens: 200,
+      }),
+    });
+
+    if (!response.ok) throw new Error(`API error: ${response.status}`);
+
+    const data = await response.json();
+    let content = data.choices?.[0]?.message?.content || '';
+
+    // Extract JSON array from response
+    content = content.replace(/```json\s*/g, '').replace(/```\s*/g, '').trim();
+    const jsonMatch = content.match(/\[[\s\S]*\]/);
+    if (!jsonMatch) throw new Error('No JSON array found');
+
+    const result = JSON.parse(jsonMatch[0]);
+    if (!Array.isArray(result) || result.length !== batch.length) {
+      throw new Error('Invalid response length');
+    }
+    return result;
+  }
+
+  async function processBatchWithFallback(
+    batch: Array<{name: string, twitterHandle: string | null, description: string}>
+  ): Promise<boolean[]> {
+    try {
+      return await processBatch(batch, CLEANUP_MODEL_PRIMARY);
+    } catch (primaryError) {
+      console.log(`Cleanup primary model failed, trying fallback:`, primaryError);
+      try {
+        return await processBatch(batch, CLEANUP_MODEL_FALLBACK);
+      } catch (fallbackError) {
+        console.log(`Cleanup fallback model also failed, keeping all:`, fallbackError);
+        // Both failed - keep all experts in this batch
+        return batch.map(() => true);
+      }
+    }
+  }
+
+  // Process all batches in parallel
+  console.log(`[Expert Cleanup] Processing ${experts.length} experts in ${batches.length} parallel batches`);
+  const batchResults = await Promise.all(batches.map(processBatchWithFallback));
+
+  // Flatten results and filter experts
+  const keepFlags = batchResults.flat();
+  const cleanedExperts = experts.filter((_, i) => keepFlags[i]);
+
+  const discarded = experts.filter((_, i) => !keepFlags[i]).map(e => e.name);
+  if (discarded.length > 0) {
+    console.log(`[Expert Cleanup] Discarded ${discarded.length} invalid names:`, discarded);
+  }
+  console.log(`[Expert Cleanup] Kept ${cleanedExperts.length}/${experts.length} experts`);
+
+  return cleanedExperts;
+}
 
 interface ReadingListItem {
   author?: string;
@@ -166,7 +275,8 @@ export function parseH2HeaderFormat(expertSection: string): Array<{name: string,
     let nameFromWhoField = false;
 
     // Handle "Expert N: Name" or "Expert N - Name" format - extract just the name
-    const numberedWithNameMatch = name.match(/^Expert\s+\d+\s*[:\-–—]?\s*(.+)$/i);
+    // Require explicit separator (: or -) to avoid regex backtracking capturing digits as names
+    const numberedWithNameMatch = name.match(/^Expert\s+\d+\s*[:\-–—]\s*(.+)$/i);
     if (numberedWithNameMatch) {
       name = numberedWithNameMatch[1].trim();
       // Clean any remaining leading dash/bullet
@@ -634,10 +744,15 @@ export async function extractAndRankExperts(input: ExtractionInput): Promise<Ins
     console.log('No experts found via regex/sources. Falling back to AI-only extraction from content.');
   }
 
-  console.log('Total merged experts:', filteredExperts.map(e => e.name));
-  
+  console.log('Total merged experts (pre-cleanup):', filteredExperts.map(e => e.name));
+
+  // AI cleanup pass to filter out invalid expert names
+  const cleanedExperts = await cleanupExpertNames(filteredExperts);
+
+  console.log('Total merged experts (post-cleanup):', cleanedExperts.map(e => e.name));
+
   const profiles = buildExpertProfiles(
-    filteredExperts,
+    cleanedExperts,
     input.facts,
     input.originalContent || '',
     input.author,
@@ -738,7 +853,7 @@ Assign differentiated scores (1-10) based on the citation counts or relevance in
 
       // Add any pre-extracted experts that AI didn't rank (don't throw them away!)
       const rankedNames = new Set(validated.experts.map(e => e.name.toLowerCase()));
-      for (const expert of filteredExperts) {
+      for (const expert of cleanedExperts) {
         if (!rankedNames.has(expert.name.toLowerCase())) {
           console.log(`Adding unranked expert: ${expert.name}`);
           result.push({
@@ -760,7 +875,7 @@ Assign differentiated scores (1-10) based on the citation counts or relevance in
       // Fallback: use the experts we already extracted with their handles preserved
       // Build a map for quick handle lookup
       const handleMap = new Map<string, string | null>();
-      for (const expert of filteredExperts) {
+      for (const expert of cleanedExperts) {
         handleMap.set(expert.name.toLowerCase(), expert.twitterHandle);
       }
 
@@ -792,7 +907,7 @@ Assign differentiated scores (1-10) based on the citation counts or relevance in
       // If no names extracted from AI response, just use our pre-extracted experts
       if (manualExperts.length === 0) {
         console.log("No names from AI response, using pre-extracted experts directly");
-        return filteredExperts.map(expert => ({
+        return cleanedExperts.map(expert => ({
           brainliftId: input.brainliftId,
           name: expert.name,
           rankScore: 5,
