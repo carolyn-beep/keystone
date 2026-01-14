@@ -30,6 +30,22 @@ export const brainlifts = pgTable("brainlifts", {
   improperlyFormatted: boolean("improperly_formatted").default(false).notNull(),
   originalContent: text("original_content"),
   sourceType: text("source_type"),
+  expertDiagnostics: jsonb("expert_diagnostics").$type<{
+    isValid: boolean;
+    diagnostics: Array<{
+      code: string;
+      severity: 'error' | 'warning' | 'info';
+      message: string;
+      details?: string;
+      affectedExperts?: string[];
+    }>;
+    summary: {
+      expertsFound: number;
+      expertsWithStructuredFields: number;
+      expertsWithSocialLinks: number;
+      hasRequiredFields: boolean;
+    };
+  }>(),
   summary: jsonb("summary").$type<{
     totalFacts: number;
     meanScore: string;

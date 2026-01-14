@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { storage } from '../storage';
-import { extractAndRankExperts } from '../ai/expertExtractor';
+import { extractAndRankExperts, diagnoseExpertFormat } from '../ai/expertExtractor';
 
 export const expertsRouter = Router();
 
@@ -28,6 +28,7 @@ expertsRouter.post('/api/brainlifts/:slug/experts/refresh', async (req, res) => 
       return res.status(404).json({ message: 'Brainlift not found' });
     }
 
+    // Run expert extraction
     const expertsData = await extractAndRankExperts({
       brainliftId: brainlift.id,
       title: brainlift.title,
@@ -40,9 +41,23 @@ expertsRouter.post('/api/brainlifts/:slug/experts/refresh', async (req, res) => 
 
     const savedExperts = await storage.saveExperts(brainlift.id, expertsData);
 
+    // Run expert format diagnostics and save
+    let expertDiagnostics = null;
+    if (brainlift.originalContent) {
+      console.log('[Expert Refresh] Running diagnostics for:', brainlift.slug);
+      expertDiagnostics = diagnoseExpertFormat(brainlift.originalContent);
+      console.log('[Expert Refresh] Diagnostics result:', JSON.stringify(expertDiagnostics, null, 2));
+
+      // Save diagnostics to brainlift
+      await storage.updateBrainliftFields(brainlift.id, { expertDiagnostics });
+    } else {
+      console.log('[Expert Refresh] No originalContent for:', brainlift.slug);
+    }
+
     return res.json({
       ...brainlift,
-      experts: savedExperts
+      experts: savedExperts,
+      expertDiagnostics
     });
   } catch (err: any) {
     console.error('Refresh experts error:', err);

@@ -493,3 +493,22 @@
 .scrollbar-styled::-webkit-scrollbar-thumb:hover {
   background-color: var(--text-muted-hex);
 }
+
+/* Subtle pulsing glow animations for diagnostic badges */
+@keyframes subtle-glow-error {
+  0%, 100% {
+    box-shadow: 0 0 6px rgba(239, 68, 68, 0.2);
+  }
+  50% {
+    box-shadow: 0 0 12px rgba(239, 68, 68, 0.4);
+  }
+}
+
+@keyframes subtle-glow-warning {
+  0%, 100% {
+    box-shadow: 0 0 6px rgba(245, 158, 11, 0.2);
+  }
+  50% {
+    box-shadow: 0 0 12px rgba(245, 158, 11, 0.4);
+  }
+}

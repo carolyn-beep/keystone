@@ -52,6 +52,10 @@ export function useSomething(id: string) {
 
 Express + TypeScript backend in `server/`. Uses Drizzle ORM, domain-based routing, service layer for business logic.
 
+> **API Reference:** See [`docs/API.md`](docs/API.md) for a complete map of all endpoints.
+> - **Before starting backend work:** Review the API map to understand existing endpoints
+> - **After completing backend work:** Update the API map with any new/modified endpoints
+
 **Key directories:**
 - `server/routes/` - Express routers, one per domain
 - `server/services/` - Business logic (e.g., `saveBrainliftFromAI`)

@@ -6,6 +6,7 @@ import { redundancyRouter } from "./routes/redundancy";
 import { researchRouter } from "./routes/research";
 import { analyticsRouter } from "./routes/analytics";
 import { brainliftsRouter } from "./routes/brainlifts";
+import { devRouter } from "./routes/dev";
 import { seedDatabase, backfillOriginalContent } from "./seed";
 
 export async function registerRoutes(
@@ -19,6 +20,7 @@ export async function registerRoutes(
   app.use(researchRouter);
   app.use(analyticsRouter);
   app.use(brainliftsRouter);
+  app.use(devRouter);
 
   await seedDatabase();
 

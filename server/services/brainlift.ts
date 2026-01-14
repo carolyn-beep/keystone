@@ -3,7 +3,7 @@ import { generateUniqueSlug } from "../utils/slug";
 import { summarizeFact } from "../ai/factSummarizer";
 import { verifyFactWithAllModels } from "../ai/factVerifier";
 import { fetchEvidenceForFact } from "../ai/evidenceFetcher";
-import { extractAndRankExperts } from "../ai/expertExtractor";
+import { extractAndRankExperts, diagnoseExpertFormat } from "../ai/expertExtractor";
 import { type BrainliftOutput } from "../ai/brainliftExtractor";
 import { type BrainliftData } from "@shared/schema";
 import pLimit from "p-limit";
@@ -163,6 +163,9 @@ export async function saveBrainliftFromAI(data: BrainliftOutput, originalContent
     url: r.url,
   }));
 
+  // Run expert format diagnostics on the original content
+  const expertDiagnostics = originalContent ? diagnoseExpertFormat(originalContent) : null;
+
   let brainlift;
   try {
     brainlift = await storage.createBrainlift(
@@ -179,6 +182,7 @@ export async function saveBrainliftFromAI(data: BrainliftOutput, originalContent
         rejectionRecommendation: data.rejectionRecommendation || null,
         originalContent: originalContent || null,
         sourceType: sourceType || null,
+        expertDiagnostics: expertDiagnostics || null,
       },
       factsWithSummaries,
       clusters,

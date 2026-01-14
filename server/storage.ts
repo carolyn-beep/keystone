@@ -52,7 +52,7 @@ export interface IStorage {
   updateExpertFollowing(expertId: number, isFollowing: boolean): Promise<Expert>;
   getFollowedExperts(brainliftId: number): Promise<Expert[]>;
   deleteExpert(expertId: number): Promise<void>;
-  updateBrainliftFields(id: number, fields: { originalContent?: string | null; sourceType?: string | null; author?: string | null }): Promise<void>;
+  updateBrainliftFields(id: number, fields: { originalContent?: string | null; sourceType?: string | null; author?: string | null; expertDiagnostics?: any | null }): Promise<void>;
   
   getFactVerification(factId: number): Promise<(FactVerification & { modelScores: FactModelScore[] }) | null>;
   getFactsWithVerifications(brainliftId: number): Promise<FactWithVerification[]>;
@@ -447,7 +447,7 @@ export class DatabaseStorage implements IStorage {
     await db.delete(experts).where(eq(experts.id, expertId));
   }
 
-  async updateBrainliftFields(id: number, fields: { originalContent?: string | null; sourceType?: string | null; author?: string | null }): Promise<void> {
+  async updateBrainliftFields(id: number, fields: { originalContent?: string | null; sourceType?: string | null; author?: string | null; expertDiagnostics?: any | null }): Promise<void> {
     await db.update(brainlifts)
       .set(fields)
       .where(eq(brainlifts.id, id));

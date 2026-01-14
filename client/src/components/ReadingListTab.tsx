@@ -15,7 +15,10 @@ import {
   User,
   Trash2,
   RefreshCw,
-  X
+  X,
+  AlertTriangle,
+  Info,
+  AlertCircle
 } from 'lucide-react';
 import { SiX } from 'react-icons/si';
 import { tokens } from '@/lib/colors';
@@ -63,19 +66,37 @@ interface CategoryGroup {
   gradedCount?: number;
 }
 
+interface ExpertDiagnostic {
+  code: string;
+  severity: 'error' | 'warning' | 'info';
+  message: string;
+  details?: string;
+  affectedExperts?: string[];
+}
+
+interface ExpertDiagnostics {
+  isValid: boolean;
+  diagnostics: ExpertDiagnostic[];
+  summary: {
+    expertsFound: number;
+    expertsWithStructuredFields: number;
+    expertsWithSocialLinks: number;
+    hasRequiredFields: boolean;
+  };
+}
+
 interface ReadingListTabProps {
   readingList: ReadingListItem[];
   expertsList: Expert[];
+  expertDiagnostics: ExpertDiagnostics | null;
   tweetResults: TweetResults | null;
   showTweetSection: boolean;
-  expertsExpanded: boolean;
   showAllExperts: boolean;
   isSharedView: boolean;
   grades: ReadingListGrade[];
   slug: string;
   setShowResearchModal: (show: boolean) => void;
   setShowTweetSection: (show: boolean) => void;
-  setExpertsExpanded: (expanded: boolean) => void;
   setShowAllExperts: (show: boolean) => void;
   setActiveTab: (tab: string) => void;
   tweetSearchMutation: UseMutationResult<any, Error, void, unknown>;
@@ -87,16 +108,15 @@ interface ReadingListTabProps {
 export function ReadingListTab({
   readingList,
   expertsList,
+  expertDiagnostics,
   tweetResults,
   showTweetSection,
-  expertsExpanded,
   showAllExperts,
   isSharedView,
   grades,
   slug,
   setShowResearchModal,
   setShowTweetSection,
-  setExpertsExpanded,
   setShowAllExperts,
   setActiveTab,
   tweetSearchMutation,
@@ -327,10 +347,8 @@ export function ReadingListTab({
       {/* Experts Section */}
       <div className="mb-8 p-5 bg-card rounded-xl" style={{ border: `1px solid ${tokens.border}` }}>
         <div
-          className="flex justify-between items-center cursor-pointer"
-          style={{ marginBottom: expertsExpanded ? '16px' : '0' }}
-          onClick={() => setExpertsExpanded(!expertsExpanded)}
-          data-testid="button-toggle-experts"
+          className="flex justify-between items-center mb-4"
+          data-testid="experts-header"
         >
           <div className="flex items-center gap-3">
             <Users size={20} color={tokens.primary} />
@@ -342,38 +360,110 @@ export function ReadingListTab({
                 Stack ranked by impact on this brainlift
               </p>
             </div>
-            <span className="py-0.5 px-2.5 rounded-xl text-xs font-semibold bg-accent text-primary">
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="h-7 px-3 rounded-xl text-sm font-semibold bg-accent text-primary flex items-center select-none">
               {expertsList.length} experts
             </span>
-          </div>
-          <div className="flex items-center gap-3">
+            {/* Expert Diagnostics Indicator */}
+            {(() => {
+              if (!expertDiagnostics || expertDiagnostics.diagnostics.length === 0) return null;
+
+              // Filter out redundant "X/X experts lack structured fields" when all experts lack them
+              // (the "No experts have structured fields" diagnostic already covers this case)
+              const filteredDiagnostics = expertDiagnostics.diagnostics.filter(d => {
+                const match = d.message.match(/^(\d+)\/(\d+) experts lack structured fields$/);
+                if (match && match[1] === match[2]) return false; // X/X means all, skip it
+                return true;
+              });
+
+              if (filteredDiagnostics.length === 0) return null;
+
+              const hasError = filteredDiagnostics.some(d => d.severity === 'error');
+              const hasWarning = filteredDiagnostics.some(d => d.severity === 'warning');
+
+              return (
+                <div className="relative group">
+                  <div
+                    className="h-7 px-3 rounded-xl text-sm flex items-center gap-1.5 select-none"
+                    style={{
+                      backgroundColor: hasError
+                        ? 'rgba(239, 68, 68, 0.1)'
+                        : hasWarning
+                          ? 'rgba(245, 158, 11, 0.1)'
+                          : 'rgba(59, 130, 246, 0.1)',
+                      color: hasError
+                        ? '#ef4444'
+                        : hasWarning
+                          ? '#f59e0b'
+                          : '#3b82f6',
+                      animation: hasError
+                        ? 'subtle-glow-error 2s ease-in-out infinite'
+                        : hasWarning
+                          ? 'subtle-glow-warning 2s ease-in-out infinite'
+                          : 'none',
+                    }}
+                  >
+                    {hasError ? (
+                      <AlertCircle size={14} />
+                    ) : hasWarning ? (
+                      <AlertTriangle size={14} />
+                    ) : (
+                      <Info size={14} />
+                    )}
+                    <span>{filteredDiagnostics.length} {filteredDiagnostics.length === 1 ? 'issue' : 'issues'}</span>
+                  </div>
+                  {/* Tooltip */}
+                  <div className="absolute right-0 top-full mt-2 w-72 p-3 bg-popover rounded-lg shadow-lg border border-border opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-50">
+                    <p className="text-xs font-semibold text-foreground mb-2">Expert Section Diagnostics</p>
+                    <div className="space-y-2">
+                      {filteredDiagnostics.map((d, i) => (
+                        <div key={i} className="flex items-start gap-2">
+                          {d.severity === 'error' ? (
+                            <AlertCircle size={12} className="mt-0.5 text-red-500 shrink-0" />
+                          ) : d.severity === 'warning' ? (
+                            <AlertTriangle size={12} className="mt-0.5 text-amber-500 shrink-0" />
+                          ) : (
+                            <Info size={12} className="mt-0.5 text-blue-500 shrink-0" />
+                          )}
+                          <div>
+                            <p className="text-xs text-foreground">{d.message}</p>
+                            {d.details && <p className="text-[10px] text-muted-foreground mt-0.5">{d.details}</p>}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                    <a
+                      href="https://workflowy.com/s/experts/DQ4A494Kp6Q1oq4L"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center justify-center gap-1.5 w-full mt-3 py-1.5 text-xs font-medium text-primary bg-accent rounded-md hover:bg-accent/80 transition-colors"
+                    >
+                      Review Experts Template
+                      <ExternalLink size={12} />
+                    </a>
+                  </div>
+                </div>
+              );
+            })()}
             <button
               data-testid="button-refresh-experts"
-              onClick={(e) => {
-                e.stopPropagation();
-                refreshExpertsMutation.mutate();
-              }}
+              onClick={() => refreshExpertsMutation.mutate()}
               disabled={refreshExpertsMutation.isPending}
-              className="flex items-center gap-1.5 px-3 py-1.5 bg-sidebar text-muted-foreground rounded-md text-xs font-medium"
-              style={{
-                border: `1px solid ${tokens.border}`,
-                cursor: refreshExpertsMutation.isPending ? 'wait' : 'pointer',
-              }}
+              className="flex items-center justify-center w-7 h-7 rounded-xl bg-accent text-primary group/refresh"
+              style={{ cursor: refreshExpertsMutation.isPending ? 'wait' : 'pointer' }}
+              title="Refresh experts"
             >
               {refreshExpertsMutation.isPending ? (
                 <Loader2 size={14} className="animate-spin" />
               ) : (
-                <RefreshCw size={14} />
+                <RefreshCw size={14} className="group-hover/refresh:animate-spin" />
               )}
-              {refreshExpertsMutation.isPending ? 'Refreshing...' : 'Refresh'}
             </button>
-            {expertsExpanded ? <ChevronUp size={20} color={tokens.textMuted} /> : <ChevronDown size={20} color={tokens.textMuted} />}
           </div>
         </div>
 
-        {expertsExpanded && (
-          <>
-            {expertsList.length === 0 ? (
+        {expertsList.length === 0 ? (
               <div className="text-center p-6 text-muted-foreground">
                 <Users size={32} className="mb-2 opacity-50" />
                 <p className="m-0 mb-2 text-sm">No experts extracted yet</p>
@@ -495,8 +585,6 @@ export function ReadingListTab({
                 )}
               </>
             )}
-          </>
-        )}
       </div>
 
       {/* Tweet Results Section */}

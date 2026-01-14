@@ -40,7 +40,6 @@ export default function Dashboard({ slug, isSharedView = false }: DashboardProps
   const [showAddResourceModal, setShowAddResourceModal] = useState(false);
   const [tweetResults, setTweetResults] = useState<any>(null);
   const [showTweetSection, setShowTweetSection] = useState(false);
-  const [expertsExpanded, setExpertsExpanded] = useState(true);
   const [showAllExperts, setShowAllExperts] = useState(false);
   const [selectedFactForModal, setSelectedFactForModal] = useState<Fact | null>(null);
   const [editingAuthor, setEditingAuthor] = useState(false);
@@ -170,7 +169,7 @@ const { downloadBrainliftPDF } = usePDFExport();
     </div>
   );
 
-  const { title, description, facts, contradictionClusters, readingList, summary } = data;
+  const { title, description, facts, contradictionClusters, readingList, summary, expertDiagnostics } = data;
 
   return (
     <div className="min-h-screen bg-background text-foreground font-sans">
@@ -283,15 +282,14 @@ const { downloadBrainliftPDF } = usePDFExport();
             slug={slug}
             readingList={readingList}
             expertsList={expertsList}
+            expertDiagnostics={expertDiagnostics ?? null}
             tweetResults={tweetResults}
             showTweetSection={showTweetSection}
-            expertsExpanded={expertsExpanded}
             showAllExperts={showAllExperts}
             isSharedView={isSharedView}
             grades={grades}
             setShowResearchModal={setShowResearchModal}
             setShowTweetSection={setShowTweetSection}
-            setExpertsExpanded={setExpertsExpanded}
             setShowAllExperts={setShowAllExperts}
             setActiveTab={setActiveTab}
             tweetSearchMutation={tweetSearchMutation}
