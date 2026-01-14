@@ -6,6 +6,8 @@ import { registerRoutes } from "./routes";
 import { serveStatic } from "./static";
 import { createServer } from "http";
 import { seedProductionIfEmpty } from "./seedProduction";
+import { auth } from "./lib/auth";
+import { toNodeHandler } from "better-auth/node";
 
 const app = express();
 const httpServer = createServer(app);
@@ -26,6 +28,9 @@ app.use(
 );
 
 app.use(express.urlencoded({ extended: false }));
+
+// Better Auth handler - must be before other routes
+app.all("/api/auth/*", toNodeHandler(auth));
 
 export function log(message: string, source = "express") {
   const formattedTime = new Date().toLocaleTimeString("en-US", {

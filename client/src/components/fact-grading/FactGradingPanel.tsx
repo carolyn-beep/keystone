@@ -376,7 +376,7 @@ export function FactGradingPanel({
 
       {/* Empty State */}
       {facts.length === 0 && (
-        <div className="p-12 text-center text-muted">
+        <div className="p-12 text-center text-muted-foreground">
           <p>No facts to grade yet.</p>
         </div>
       )}

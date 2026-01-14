@@ -95,27 +95,35 @@ export function extractTwitterHandle(block: string): string | null {
  * Find and extract the Experts section from document content
  */
 export function findExpertsSection(content: string): string | null {
-  // Try multiple patterns to find experts section
-  const expertsPatterns = [
-    /^#\s*Experts\s*$/im,           // # Experts (H1)
-    /^##\s*Experts\s*$/im,          // ## Experts (H2)
-    /^-\s*Experts\s*$/im,           // - Experts (bullet)
-    /DOK1:\s*Experts/i,             // DOK1: Experts
-    /Experts\s*(?:\n|=+|-+)/i,      // Experts followed by newline or underline
+  // Try multiple patterns to find experts section, tracking the header level
+  const expertsPatterns: Array<{pattern: RegExp, stopPattern: RegExp}> = [
+    {
+      pattern: /^#\s*Experts\s*$/im,      // # Experts (H1)
+      stopPattern: /\n#\s+[^\n]+/         // Stop at next H1
+    },
+    {
+      pattern: /^##\s*Experts\s*$/im,     // ## Experts (H2)
+      stopPattern: /\n##?\s+[^\n]+/       // Stop at next H1 or H2
+    },
+    {
+      pattern: /^-\s*Experts\s*$/im,      // - Experts (bullet)
+      stopPattern: /\n-\s+[A-Z][^\n]+/    // Stop at next top-level bullet (capitalized)
+    },
+    {
+      pattern: /DOK1:\s*Experts/i,        // DOK1: Experts
+      stopPattern: /\n(?:DOK\s*[234]|#)/i // Stop at DOK2/3/4 or any header
+    },
   ];
 
-  for (const pattern of expertsPatterns) {
+  for (const {pattern, stopPattern} of expertsPatterns) {
     const match = pattern.exec(content);
     if (match) {
       const startIdx = match.index;
-      // Extract until next major section (DOK2/3/4, Knowledge tree, etc.)
-      // Note: DOK sections can be written as "DOK2" or "DOK 2" (with space)
-      const stopPatterns = /\n(?:#+\s*)?(?:DOK\s*[234]|Knowledge\s*[Tt]ree|Insights|Sources|Reading|References|Summary|Bibliography)/i;
-      const remainingContent = content.slice(startIdx);
-      const stopMatch = stopPatterns.exec(remainingContent);
-      // Allow up to 50000 chars for large expert sections (Firstname Lastname has 88 experts)
+      const remainingContent = content.slice(startIdx + match[0].length); // Skip past the header itself
+      const stopMatch = stopPattern.exec(remainingContent);
       const endIdx = stopMatch ? stopMatch.index : Math.min(50000, remainingContent.length);
-      return remainingContent.slice(0, endIdx);
+      // Include the header line + content until next section
+      return match[0] + remainingContent.slice(0, endIdx);
     }
   }
 
@@ -124,37 +132,27 @@ export function findExpertsSection(content: string): string | null {
 
 /**
  * Parse Format A: H2 header format
- * Handles two variants:
+ * Handles three variants:
  * 1. Direct name: ## Tim Surma
- * 2. Numbered: ## Expert 1: Mark McCrindle
+ * 2. Numbered with name: ## Expert 1: Mark McCrindle or ## Expert 1 - Name
+ * 3. Numbered only: ## Expert 1 (name in "- Who:" field)
  */
 export function parseH2HeaderFormat(expertSection: string): Array<{name: string, twitterHandle: string | null, description: string}> {
   const experts: Array<{name: string, twitterHandle: string | null, description: string}> = [];
 
   // Find all ## headers (expert names)
   const h2Pattern = /^##\s+(.+)$/gm;
-  const h2Positions: {name: string, start: number}[] = [];
+  const h2Positions: {rawHeader: string, start: number}[] = [];
 
   let match;
   while ((match = h2Pattern.exec(expertSection)) !== null) {
-    let name = match[1].trim();
+    const rawHeader = match[1].trim();
 
     // Skip section headers like "## Experts" or "## Expertise Topic:"
-    if (name.toLowerCase() === 'experts') continue;
-    if (/^expertise\s*topic/i.test(name)) continue;
+    if (rawHeader.toLowerCase() === 'experts') continue;
+    if (/^expertise\s*topic/i.test(rawHeader)) continue;
 
-    // Handle "Expert N: Name" format - extract just the name after colon
-    const numberedMatch = name.match(/^Expert\s+\d+[:\s]+(.+)$/i);
-    if (numberedMatch) {
-      name = numberedMatch[1].trim();
-    }
-
-    // Clean up trailing punctuation
-    name = name.replace(/[;.,]$/, '').trim();
-
-    if (name) {
-      h2Positions.push({ name, start: match.index });
-    }
+    h2Positions.push({ rawHeader, start: match.index });
   }
 
   if (h2Positions.length === 0) return experts;
@@ -164,19 +162,50 @@ export function parseH2HeaderFormat(expertSection: string): Array<{name: string,
     const start = h2Positions[i].start;
     const end = h2Positions[i + 1]?.start || expertSection.length;
     const block = expertSection.slice(start, end);
-    const name = h2Positions[i].name;
+    let name = h2Positions[i].rawHeader;
+    let nameFromWhoField = false;
+
+    // Handle "Expert N: Name" or "Expert N - Name" format - extract just the name
+    const numberedWithNameMatch = name.match(/^Expert\s+\d+\s*[:\-–—]?\s*(.+)$/i);
+    if (numberedWithNameMatch) {
+      name = numberedWithNameMatch[1].trim();
+      // Clean any remaining leading dash/bullet
+      name = name.replace(/^[-–—]\s*/, '');
+    }
+    // Handle "Expert N" format (no name in header) - look for name in "- Who:" field
+    else if (/^Expert\s+\d+$/i.test(name)) {
+      const whoMatch = block.match(/- Who:\s*([^\n]+)/i);
+      if (whoMatch) {
+        name = whoMatch[1].trim();
+        nameFromWhoField = true;
+      } else {
+        // Can't find a name for this expert, skip it
+        continue;
+      }
+    }
+
+    // Clean up trailing punctuation
+    name = name.replace(/[;.,]$/, '').trim();
 
     // Skip if name looks like a section header
     if (name.match(/^(Why follow|Focus|Key views|Where|Expertise|Main views)/i)) continue;
     // Skip if name is too long (likely a paragraph)
     if (name.split(' ').length > 6) continue;
+    // Skip empty names
+    if (!name) continue;
 
     // Extract description from Who: or Why follow: field
+    // If name came from Who field, use Focus for description instead
     let description = '';
-    const descPatterns = [
-      /- Who:\s*(.+)/i,
-      /- Why follow[:\s]*\n?\s*-?\s*(.+)/i,
-    ];
+    const descPatterns = nameFromWhoField
+      ? [
+          /- Focus:\s*([^\n]+)/i,
+          /- Why follow[:\s]*\n?\s*-?\s*([^\n]+)/i,
+        ]
+      : [
+          /- Who:\s*([^\n]+)/i,
+          /- Why follow[:\s]*\n?\s*-?\s*([^\n]+)/i,
+        ];
     for (const pattern of descPatterns) {
       const descMatch = pattern.exec(block);
       if (descMatch) {
@@ -693,10 +722,11 @@ Assign differentiated scores (1-10) based on the citation counts or relevance in
     try {
       const parsed = JSON.parse(cleanResponse);
       const validated = expertExtractionSchema.parse(parsed);
-      
+
       console.log('AI returned experts with scores:', validated.experts.map(e => `${e.name}: ${e.rankScore}`));
-      
-      return validated.experts.map(expert => ({
+
+      // Start with AI-ranked experts
+      const result: InsertExpert[] = validated.experts.map(expert => ({
         brainliftId: input.brainliftId,
         name: expert.name,
         rankScore: expert.rankScore,
@@ -705,6 +735,25 @@ Assign differentiated scores (1-10) based on the citation counts or relevance in
         twitterHandle: expert.twitterHandle,
         isFollowing: true,
       }));
+
+      // Add any pre-extracted experts that AI didn't rank (don't throw them away!)
+      const rankedNames = new Set(validated.experts.map(e => e.name.toLowerCase()));
+      for (const expert of filteredExperts) {
+        if (!rankedNames.has(expert.name.toLowerCase())) {
+          console.log(`Adding unranked expert: ${expert.name}`);
+          result.push({
+            brainliftId: input.brainliftId,
+            name: expert.name,
+            rankScore: null,
+            rationale: null,
+            source: 'listed',
+            twitterHandle: expert.twitterHandle,
+            isFollowing: true,
+          });
+        }
+      }
+
+      return result;
     } catch (parseError) {
       console.error("Failed to parse expert extraction JSON. Attempting fallback with pre-extracted data.", parseError);
 

@@ -1,8 +1,82 @@
-import { pgTable, text, serial, integer, jsonb, boolean, timestamp, varchar } from "drizzle-orm/pg-core";
+import { pgTable, text, serial, integer, jsonb, boolean, timestamp, varchar, index } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 import { relations } from "drizzle-orm";
 
+
+// === AUTH TABLES (Better Auth) ===
+
+export const user = pgTable("user", {
+  id: text("id").primaryKey(),
+  name: text("name").notNull(),
+  email: text("email").notNull().unique(),
+  emailVerified: boolean("email_verified").default(false).notNull(),
+  image: text("image"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at")
+    .defaultNow()
+    .$onUpdate(() => new Date())
+    .notNull(),
+});
+
+export const session = pgTable(
+  "session",
+  {
+    id: text("id").primaryKey(),
+    expiresAt: timestamp("expires_at").notNull(),
+    token: text("token").notNull().unique(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at")
+      .$onUpdate(() => new Date())
+      .notNull(),
+    ipAddress: text("ip_address"),
+    userAgent: text("user_agent"),
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+  },
+  (table) => [index("session_userId_idx").on(table.userId)],
+);
+
+export const account = pgTable(
+  "account",
+  {
+    id: text("id").primaryKey(),
+    accountId: text("account_id").notNull(),
+    providerId: text("provider_id").notNull(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    accessToken: text("access_token"),
+    refreshToken: text("refresh_token"),
+    idToken: text("id_token"),
+    accessTokenExpiresAt: timestamp("access_token_expires_at"),
+    refreshTokenExpiresAt: timestamp("refresh_token_expires_at"),
+    scope: text("scope"),
+    password: text("password"),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at")
+      .$onUpdate(() => new Date())
+      .notNull(),
+  },
+  (table) => [index("account_userId_idx").on(table.userId)],
+);
+
+export const verification = pgTable(
+  "verification",
+  {
+    id: text("id").primaryKey(),
+    identifier: text("identifier").notNull(),
+    value: text("value").notNull(),
+    expiresAt: timestamp("expires_at").notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at")
+      .defaultNow()
+      .$onUpdate(() => new Date())
+      .notNull(),
+  },
+  (table) => [index("verification_identifier_idx").on(table.identifier)],
+);
 
 // === TABLE DEFINITIONS ===
 
@@ -21,7 +95,7 @@ export const brainlifts = pgTable("brainlifts", {
   title: text("title").notNull(),
   description: text("description").notNull(),
   author: text("author"),
-  createdByUserId: varchar("created_by_user_id"), // Nullable for legacy/public brainlifts
+  createdByUserId: text("created_by_user_id").references(() => user.id), // Nullable for legacy/public brainlifts
   classification: text("classification").$type<Classification>().default('brainlift').notNull(),
   rejectionReason: text("rejection_reason"),
   rejectionSubtype: text("rejection_subtype"),
@@ -133,8 +207,8 @@ export const experts = pgTable("experts", {
   id: serial("id").primaryKey(),
   brainliftId: integer("brainlift_id").notNull().references(() => brainlifts.id),
   name: text("name").notNull(),
-  rankScore: integer("rank_score").notNull(), // 1-10 impact score
-  rationale: text("rationale").notNull(), // One-line explanation for ranking
+  rankScore: integer("rank_score"), // 1-10 impact score (null if unranked)
+  rationale: text("rationale"), // One-line explanation for ranking (null if unranked)
   source: text("source").notNull(), // "listed" (from brainlift) or "verification" (from fact notes)
   twitterHandle: text("twitter_handle"), // Optional X/Twitter handle
   isFollowing: boolean("is_following").notNull().default(true), // Auto-follow if rank > 5
@@ -203,7 +277,33 @@ export const factModelScores = pgTable("fact_model_scores", {
 
 // === RELATIONS ===
 
-export const brainliftsRelations = relations(brainlifts, ({ many }) => ({
+// Auth relations
+export const userRelations = relations(user, ({ many }) => ({
+  sessions: many(session),
+  accounts: many(account),
+  brainlifts: many(brainlifts),
+}));
+
+export const sessionRelations = relations(session, ({ one }) => ({
+  user: one(user, {
+    fields: [session.userId],
+    references: [user.id],
+  }),
+}));
+
+export const accountRelations = relations(account, ({ one }) => ({
+  user: one(user, {
+    fields: [account.userId],
+    references: [user.id],
+  }),
+}));
+
+// App relations
+export const brainliftsRelations = relations(brainlifts, ({ one, many }) => ({
+  createdBy: one(user, {
+    fields: [brainlifts.createdByUserId],
+    references: [user.id],
+  }),
   facts: many(facts),
   contradictionClusters: many(contradictionClusters),
   readingListItems: many(readingListItems),
@@ -360,6 +460,12 @@ export const insertModelAccuracyStatsSchema = createInsertSchema(modelAccuracySt
 export const insertFactRedundancyGroupSchema = createInsertSchema(factRedundancyGroups).omit({ id: true, createdAt: true });
 
 // === TYPES ===
+
+// Auth types
+export type User = typeof user.$inferSelect;
+export type Session = typeof session.$inferSelect;
+export type Account = typeof account.$inferSelect;
+export type Verification = typeof verification.$inferSelect;
 
 export type Brainlift = typeof brainlifts.$inferSelect;
 export type InsertBrainlift = z.infer<typeof insertBrainliftSchema>;
