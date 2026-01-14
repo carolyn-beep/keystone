@@ -208,11 +208,11 @@ export default function Home() {
       <main className="px-4 sm:px-6 md:px-8 py-4 max-w-[1200px] mx-auto">
         {isLoading ? (
           <div className="flex justify-center p-10">
-            <Loader2 size={32} className="animate-spin text-muted" />
+            <Loader2 size={32} className="animate-spin text-muted-foreground" />
           </div>
         ) : !brainlifts || brainlifts.length === 0 ? (
           <div className="text-center py-[60px] px-6 bg-[#F9FAFB] rounded-xl border-2 border-dashed border-[#E5E7EB]">
-            <Upload size={48} className="mb-4 mx-auto text-muted" />
+            <Upload size={48} className="mb-4 mx-auto text-muted-foreground" />
             <h3 className="text-lg font-semibold text-primary m-0 mb-2">No brainlifts yet</h3>
             <p className="text-sm text-muted-foreground m-0 mb-5">
               Click "Add Brainlift" to upload your first one.
@@ -505,7 +505,7 @@ export default function Home() {
                         <p className="m-0 text-muted-foreground">
                           Click to upload {activeTab === 'pdf' ? 'a PDF' : activeTab === 'docx' ? 'a Word' : 'an HTML'} file
                         </p>
-                        <p className="mt-1 mb-0 text-muted text-[13px]">
+                        <p className="mt-1 mb-0 text-muted-foreground text-[13px]">
                           Max file size: 10MB
                         </p>
                       </>
@@ -528,7 +528,7 @@ export default function Home() {
                     className="w-full p-3 rounded-lg border text-sm box-border"
                     style={{ borderColor: tokens.border }}
                   />
-                  <p className="mt-2 text-muted text-[13px]">
+                  <p className="mt-2 text-muted-foreground text-[13px]">
                     {activeTab === 'workflowy'
                       ? 'Enter a Workflowy URL (e.g., https://workflowy.com/#/abc123) or node ID. Uses your connected Workflowy account.'
                       : 'Make sure your Google Doc has link sharing enabled (anyone with the link can view).'}
@@ -607,7 +607,7 @@ export default function Home() {
             </div>
 
             {importMutation.isPending && (
-              <p className="text-center text-muted text-[13px] mt-4">
+              <p className="text-center text-muted-foreground text-[13px] mt-4">
                 AI is analyzing your content. This may take 30-60 seconds...
               </p>
             )}

@@ -126,7 +126,7 @@ export function RedundancyModal({
                 </p>
 
                 {/* Fact selection - click to choose primary */}
-                <p className="text-[11px] text-muted mb-2">
+                <p className="text-[11px] text-muted-foreground mb-2">
                   Click a fact to select it as the one to keep:
                 </p>
                 <div className="flex flex-col gap-2 mb-4">

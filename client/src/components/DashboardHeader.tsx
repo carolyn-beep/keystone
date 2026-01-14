@@ -81,7 +81,7 @@ export function DashboardHeader({
         }}
         title={editingAuthor ? undefined : "Click to set owner name"}
       >
-        <span className="text-muted text-[13px]">By</span>
+        <span className="text-muted-foreground text-[13px]">By</span>
         {editingAuthor ? (
           <input
             type="text"

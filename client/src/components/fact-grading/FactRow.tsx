@@ -193,7 +193,7 @@ export function FactRow({
             {fact.summary || fact.fact}
           </p>
           {fact.source && (
-            <span className="text-xs text-muted italic">
+            <span className="text-xs text-muted-foreground italic">
               Source: {fact.source}
             </span>
           )}
@@ -455,7 +455,7 @@ export function FactRow({
                 setShowNotesPanel(false);
                 onCancelGrading();
               }}
-              className="flex items-center justify-center w-7 h-7 bg-transparent rounded-md cursor-pointer text-muted"
+              className="flex items-center justify-center w-7 h-7 bg-transparent rounded-md cursor-pointer text-muted-foreground"
               style={{
                 border: `1px solid ${tokens.border}`,
               }}

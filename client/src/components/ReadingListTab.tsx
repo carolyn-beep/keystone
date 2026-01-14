@@ -496,18 +496,18 @@ export function ReadingListTab({
                           <div className="flex-1 h-1.5 bg-sidebar rounded overflow-hidden">
                             <div
                               className="h-full bg-primary rounded"
-                              style={{ width: `${expert.rankScore * 10}%` }}
+                              style={{ width: expert.rankScore ? `${expert.rankScore * 10}%` : '0%' }}
                             />
                           </div>
                           <span className="text-xs font-semibold text-foreground min-w-[20px]">
-                            {expert.rankScore}
+                            {expert.rankScore ?? '—'}
                           </span>
                         </div>
                       </div>
 
                       {/* Rationale */}
                       <p className="m-0 mb-2 text-xs text-muted-foreground leading-[1.4] flex-1">
-                        {expert.rationale}
+                        {expert.rationale ?? 'Unranked'}
                       </p>
 
                       {/* Source & Twitter */}
@@ -642,7 +642,7 @@ export function ReadingListTab({
                           {dok.label}
                         </span>
                         */}
-                        <span className="text-xs text-muted">
+                        <span className="text-xs text-muted-foreground">
                           {Math.round(tweet.relevanceScore * 100)}% relevant
                         </span>
                       </div>
@@ -660,7 +660,7 @@ export function ReadingListTab({
                     <div className="mb-3">
                       <div className="flex items-center gap-2 mb-2">
                         <span className="font-semibold text-foreground">@{tweet.authorUsername}</span>
-                        <span className="text-xs text-muted">
+                        <span className="text-xs text-muted-foreground">
                           {tweet.authorFollowers?.toLocaleString()} followers
                         </span>
                       </div>
@@ -686,7 +686,7 @@ export function ReadingListTab({
                     </p>
 
                     <div className="flex justify-between items-center mt-3">
-                      <div className="flex gap-4 text-xs text-muted">
+                      <div className="flex gap-4 text-xs text-muted-foreground">
                         <span>{tweet.likes} likes</span>
                         <span>{tweet.retweets} retweets</span>
                         <span>{tweet.replies} replies</span>

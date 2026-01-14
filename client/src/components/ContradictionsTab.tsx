@@ -34,7 +34,7 @@ export function ContradictionsTab({ contradictionClusters, setActiveTab }: Contr
       </div>
 
       {contradictionClusters.length === 0 ? (
-        <div className="text-center py-[60px] px-6 text-muted">
+        <div className="text-center py-[60px] px-6 text-muted-foreground">
           <CheckCircle size={48} className="opacity-50 mb-4" />
           <h3 className="text-lg font-semibold text-foreground m-0 mb-2">
             No Contradictions Found

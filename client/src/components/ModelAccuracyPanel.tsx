@@ -121,7 +121,7 @@ export function ModelAccuracyPanel() {
                         <span className="font-medium text-foreground">
                           {model.modelName}
                         </span>
-                        <span className="ml-2 text-xs text-muted">
+                        <span className="ml-2 text-xs text-muted-foreground">
                           #{model.rank}
                         </span>
                       </div>
@@ -154,7 +154,7 @@ export function ModelAccuracyPanel() {
                     <Progress value={accuracyPercent} className="h-2" />
                   </div>
 
-                  <div className="mt-2 text-xs text-muted">
+                  <div className="mt-2 text-xs text-muted-foreground">
                     {model.totalSamples} sample{model.totalSamples !== 1 ? 's' : ''} compared to human review
                   </div>
                 </div>
@@ -179,7 +179,7 @@ export function ModelAccuracyPanel() {
               <span>Models that disagree with humans get <strong>lower weights</strong></span>
             </li>
             <li className="flex items-start gap-2">
-              <Minus className="h-4 w-4 mt-0.5 shrink-0 text-muted" />
+              <Minus className="h-4 w-4 mt-0.5 shrink-0 text-muted-foreground" />
               <span>Weights range from 0.5x to 2.0x, default is 1.0x</span>
             </li>
           </ul>
