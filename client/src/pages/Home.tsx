@@ -1,6 +1,6 @@
-import { useState, useRef, useEffect, useCallback } from 'react';
+import { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import { useInfiniteQuery, useMutation } from '@tanstack/react-query';
-import { Link, useLocation } from 'wouter';
+import { Link, useLocation, useSearch } from 'wouter';
 import { Brainlift } from '@shared/schema';
 import { queryClient } from '@/lib/queryClient';
 import { authClient } from '@/lib/auth-client';
@@ -30,13 +30,32 @@ export default function Home() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
   const [brainliftToDelete, setBrainliftToDelete] = useState<{ id: number; title: string } | null>(null);
-  const [adminView, setAdminView] = useState(false);
   const loadMoreRef = useRef<HTMLDivElement>(null);
   const prefetchRef = useRef<HTMLDivElement>(null);
 
   // Get session to check if user is admin
   const { data: session } = authClient.useSession();
   const isAdmin = session?.user?.role === 'admin';
+
+  // Admin view state from URL query param (?admin=true)
+  const searchString = useSearch();
+  const adminView = useMemo(() => {
+    const params = new URLSearchParams(searchString);
+    return params.get('admin') === 'true' && isAdmin;
+  }, [searchString, isAdmin]);
+
+  const setAdminView = useCallback((enabled: boolean) => {
+    const params = new URLSearchParams(window.location.search);
+    if (enabled) {
+      params.set('admin', 'true');
+    } else {
+      params.delete('admin');
+    }
+    const newSearch = params.toString();
+    const newUrl = newSearch ? `?${newSearch}` : window.location.pathname;
+    window.history.replaceState(null, '', newUrl);
+    window.dispatchEvent(new PopStateEvent('popstate'));
+  }, []);
 
   interface PaginatedResponse {
     brainlifts: Brainlift[];
@@ -351,7 +370,7 @@ export default function Home() {
               return (
                 <Link
                   key={data.slug}
-                  href={`/grading/${data.slug}`}
+                  href={`/grading/${data.slug}${adminView ? '?admin=true' : ''}`}
                   data-testid={`card-brainlift-${data.slug}`}
                   className="rounded-xl p-5 pr-6 no-underline flex flex-col relative transition-all duration-200 cursor-pointer h-full box-border"
                   style={{

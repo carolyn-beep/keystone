@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Link } from 'wouter';
+import { Link, useSearch } from 'wouter';
 import { Check, AlertTriangle, RefreshCw, Download, Share2, History } from 'lucide-react';
 import { BrainliftData, BrainliftVersion } from '@shared/schema';
 import { tokens } from '@/lib/colors';
@@ -41,6 +41,11 @@ export function DashboardHeader({
   const [copied, setCopied] = useState(false);
   const { title, description, slug } = data;
 
+  // Preserve admin param when navigating back
+  const searchString = useSearch();
+  const isAdminView = new URLSearchParams(searchString).get('admin') === 'true';
+  const backLink = isAdminView ? '/?admin=true' : '/';
+
   const handleCopyLink = () => {
     const shareUrl = `${window.location.origin}/view/${slug}`;
     navigator.clipboard.writeText(shareUrl);
@@ -54,7 +59,7 @@ export function DashboardHeader({
     >
       {/* Row 1: Back Link */}
       {!isSharedView && (
-        <Link href="/" className="text-muted-foreground no-underline text-[13px] inline-block mb-2">
+        <Link href={backLink} className="text-muted-foreground no-underline text-[13px] inline-block mb-2">
           ← All Brainlifts
         </Link>
       )}
