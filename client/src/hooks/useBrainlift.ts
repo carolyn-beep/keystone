@@ -53,7 +53,7 @@ export function useBrainlift(slug: string, isSharedView = false) {
   // Save grade mutation
   const saveGradeMutation = useMutation({
     mutationFn: async (gradeData: { readingListItemId: number; aligns?: string; contradicts?: string; newInfo?: string; quality?: number }) => {
-      return apiRequest('POST', '/api/grades', gradeData);
+      return apiRequest('POST', `/api/brainlifts/${slug}/grades`, gradeData);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['grades', slug] });

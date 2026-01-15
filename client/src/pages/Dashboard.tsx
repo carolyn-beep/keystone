@@ -1,6 +1,6 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useCallback } from 'react';
 import { useQuery, useMutation } from '@tanstack/react-query';
-import { Link } from 'wouter';
+import { Link, useSearch } from 'wouter';
 import { BrainliftData, ReadingListGrade, BrainliftVersion, CLASSIFICATION, type Expert, type Fact } from '@shared/schema';
 import { ChevronUp, ExternalLink, Download, RefreshCw, History, X, Upload, Search, Plus, Loader2, AlertTriangle, FileText, Clock, ThumbsUp, ThumbsDown, Users, User, Trash2, CheckCircle } from 'lucide-react';
 import { SiX } from 'react-icons/si';
@@ -26,8 +26,31 @@ interface DashboardProps {
   isSharedView?: boolean;
 }
 
+const VALID_TABS = ['brainlift', 'grading', 'contradictions', 'reading'] as const;
+type TabKey = typeof VALID_TABS[number];
+
 export default function Dashboard({ slug, isSharedView = false }: DashboardProps) {
-  const [activeTab, setActiveTab] = useState('brainlift');
+  // URL-synced tab state using query params (?tab=grading)
+  const searchString = useSearch();
+  const activeTab = useMemo(() => {
+    const params = new URLSearchParams(searchString);
+    const tab = params.get('tab');
+    return tab && VALID_TABS.includes(tab as TabKey) ? tab : 'grading';
+  }, [searchString]);
+
+  const setActiveTab = useCallback((tab: string) => {
+    const params = new URLSearchParams(window.location.search);
+    if (tab === 'grading') {
+      params.delete('tab'); // Clean URL for default tab
+    } else {
+      params.set('tab', tab);
+    }
+    const newSearch = params.toString();
+    const newUrl = newSearch ? `?${newSearch}` : window.location.pathname;
+    window.history.replaceState(null, '', newUrl);
+    // Force re-render by dispatching a popstate event
+    window.dispatchEvent(new PopStateEvent('popstate'));
+  }, []);
 
   const [expandedFacts, setExpandedFacts] = useState<number[]>([]);
   const [showUpdateModal, setShowUpdateModal] = useState(false);

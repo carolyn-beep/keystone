@@ -20,7 +20,7 @@ export function useExperts(slug: string) {
 
   const toggleExpertFollowMutation = useMutation({
     mutationFn: async ({ expertId, isFollowing }: { expertId: number; isFollowing: boolean }) => {
-      const res = await fetch(`/api/experts/${expertId}/follow`, {
+      const res = await fetch(`/api/brainlifts/${slug}/experts/${expertId}/follow`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ isFollowing }),
@@ -38,7 +38,7 @@ export function useExperts(slug: string) {
 
   const deleteExpertMutation = useMutation({
     mutationFn: async (expertId: number) => {
-      const res = await fetch(`/api/experts/${expertId}`, {
+      const res = await fetch(`/api/brainlifts/${slug}/experts/${expertId}`, {
         method: 'DELETE',
       });
       if (!res.ok) {

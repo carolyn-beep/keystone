@@ -64,7 +64,7 @@ export function useRedundancy(brainliftId: string | undefined) {
 
   const updateStatusMutation = useMutation({
     mutationFn: async ({ groupId, status, primaryFactId }: { groupId: number; status: string; primaryFactId?: number }) => {
-      const res = await fetch(`/api/redundancy-groups/${groupId}`, {
+      const res = await fetch(`/api/brainlifts/${brainliftId}/redundancy-groups/${groupId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ status, primaryFactId }),

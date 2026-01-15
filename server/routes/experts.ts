@@ -1,15 +1,19 @@
 import { Router } from 'express';
 import { storage } from '../storage';
 import { extractAndRankExperts, diagnoseExpertFormat } from '../ai/expertExtractor';
+import { requireAuth } from '../middleware/auth';
 
 export const expertsRouter = Router();
 
 // Get experts for a brainlift
-expertsRouter.get('/api/brainlifts/:slug/experts', async (req, res) => {
+expertsRouter.get('/api/brainlifts/:slug/experts', requireAuth, async (req, res) => {
   try {
     const brainlift = await storage.getBrainliftBySlug(req.params.slug);
     if (!brainlift) {
       return res.status(404).json({ message: 'Brainlift not found' });
+    }
+    if (!storage.canAccessBrainlift(brainlift, req.authContext!)) {
+      return res.status(403).json({ message: 'Access denied' });
     }
 
     const expertsList = await storage.getExpertsByBrainliftId(brainlift.id);
@@ -21,11 +25,14 @@ expertsRouter.get('/api/brainlifts/:slug/experts', async (req, res) => {
 });
 
 // Refresh/extract experts for a brainlift using AI
-expertsRouter.post('/api/brainlifts/:slug/experts/refresh', async (req, res) => {
+expertsRouter.post('/api/brainlifts/:slug/experts/refresh', requireAuth, async (req, res) => {
   try {
     const brainlift = await storage.getBrainliftBySlug(req.params.slug);
     if (!brainlift) {
       return res.status(404).json({ message: 'Brainlift not found' });
+    }
+    if (!storage.canModifyBrainlift(brainlift, req.authContext!)) {
+      return res.status(403).json({ message: 'Access denied' });
     }
 
     // Run expert extraction
@@ -65,9 +72,17 @@ expertsRouter.post('/api/brainlifts/:slug/experts/refresh', async (req, res) => 
   }
 });
 
-// Update expert following status
-expertsRouter.patch('/api/experts/:id/follow', async (req, res) => {
+// Update expert following status (nested under brainlift for authorization)
+expertsRouter.patch('/api/brainlifts/:slug/experts/:id/follow', requireAuth, async (req, res) => {
   try {
+    const brainlift = await storage.getBrainliftBySlug(req.params.slug);
+    if (!brainlift) {
+      return res.status(404).json({ message: 'Brainlift not found' });
+    }
+    if (!storage.canModifyBrainlift(brainlift, req.authContext!)) {
+      return res.status(403).json({ message: 'Access denied' });
+    }
+
     const expertId = parseInt(req.params.id);
     const { isFollowing } = req.body;
 
@@ -83,9 +98,17 @@ expertsRouter.patch('/api/experts/:id/follow', async (req, res) => {
   }
 });
 
-// Delete an expert
-expertsRouter.delete('/api/experts/:id', async (req, res) => {
+// Delete an expert (nested under brainlift for authorization)
+expertsRouter.delete('/api/brainlifts/:slug/experts/:id', requireAuth, async (req, res) => {
   try {
+    const brainlift = await storage.getBrainliftBySlug(req.params.slug);
+    if (!brainlift) {
+      return res.status(404).json({ message: 'Brainlift not found' });
+    }
+    if (!storage.canModifyBrainlift(brainlift, req.authContext!)) {
+      return res.status(403).json({ message: 'Access denied' });
+    }
+
     const expertId = parseInt(req.params.id);
     await storage.deleteExpert(expertId);
     res.json({ success: true });
@@ -96,11 +119,14 @@ expertsRouter.delete('/api/experts/:id', async (req, res) => {
 });
 
 // Get followed experts for a brainlift (used by tweet search)
-expertsRouter.get('/api/brainlifts/:slug/experts/following', async (req, res) => {
+expertsRouter.get('/api/brainlifts/:slug/experts/following', requireAuth, async (req, res) => {
   try {
     const brainlift = await storage.getBrainliftBySlug(req.params.slug);
     if (!brainlift) {
       return res.status(404).json({ message: 'Brainlift not found' });
+    }
+    if (!storage.canAccessBrainlift(brainlift, req.authContext!)) {
+      return res.status(403).json({ message: 'Access denied' });
     }
 
     const followedExperts = await storage.getFollowedExperts(brainlift.id);

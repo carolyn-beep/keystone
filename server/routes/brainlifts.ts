@@ -8,6 +8,7 @@ import { extractTextFromPDF, extractTextFromDocx, extractTextFromHTML } from "..
 import { fetchWorkflowyContent, fetchGoogleDocsContent } from "../utils/external-sources";
 import { saveBrainliftFromAI } from "../services/brainlift";
 import { extractAndRankExperts } from "../ai/expertExtractor";
+import { requireAuth } from "../middleware/auth";
 
 export const brainliftsRouter = Router();
 
@@ -16,23 +17,44 @@ const upload = multer({
   limits: { fileSize: 10 * 1024 * 1024 }, // 10MB limit
 });
 
-// Get all brainlifts
-brainliftsRouter.get(api.brainlifts.list.path, async (req, res) => {
-  const brainlifts = await storage.getAllBrainlifts();
-  res.json(brainlifts);
+const PAGE_SIZE = 9;
+
+// Get all brainlifts (filtered by user role, or all if admin with ?all=true)
+// Supports pagination via ?page=1 (1-indexed)
+brainliftsRouter.get(api.brainlifts.list.path, requireAuth, async (req, res) => {
+  const showAll = req.query.all === 'true' && req.authContext!.isAdmin;
+  const page = Math.max(1, parseInt(req.query.page as string) || 1);
+  const offset = (page - 1) * PAGE_SIZE;
+
+  const { brainlifts, total } = showAll
+    ? await storage.getAllBrainliftsPaginated(offset, PAGE_SIZE)
+    : await storage.getBrainliftsForUserPaginated(req.authContext!, offset, PAGE_SIZE);
+
+  res.json({
+    brainlifts,
+    pagination: {
+      page,
+      pageSize: PAGE_SIZE,
+      total,
+      totalPages: Math.ceil(total / PAGE_SIZE),
+    },
+  });
 });
 
 // Get single brainlift by slug
-brainliftsRouter.get(api.brainlifts.get.path, async (req, res) => {
+brainliftsRouter.get(api.brainlifts.get.path, requireAuth, async (req, res) => {
   const brainlift = await storage.getBrainliftBySlug(req.params.slug);
   if (!brainlift) {
     return res.status(404).json({ message: "Brainlift not found" });
+  }
+  if (!storage.canAccessBrainlift(brainlift, req.authContext!)) {
+    return res.status(403).json({ message: "Access denied" });
   }
   res.json(brainlift);
 });
 
 // Create brainlift
-brainliftsRouter.post(api.brainlifts.create.path, async (req, res) => {
+brainliftsRouter.post(api.brainlifts.create.path, requireAuth, async (req, res) => {
   try {
     const input = api.brainlifts.create.input.parse(req.body);
     const brainlift = await storage.createBrainlift(
@@ -45,7 +67,8 @@ brainliftsRouter.post(api.brainlifts.create.path, async (req, res) => {
       },
       input.facts,
       input.contradictionClusters,
-      input.readingList
+      input.readingList,
+      req.authContext!.userId
     );
     res.status(201).json(brainlift);
   } catch (err) {
@@ -60,11 +83,18 @@ brainliftsRouter.post(api.brainlifts.create.path, async (req, res) => {
 });
 
 // Delete brainlift
-brainliftsRouter.delete('/api/brainlifts/:id', async (req, res) => {
+brainliftsRouter.delete('/api/brainlifts/:id', requireAuth, async (req, res) => {
   try {
     const id = parseInt(req.params.id, 10);
     if (isNaN(id)) {
       return res.status(400).json({ message: "Invalid brainlift ID" });
+    }
+    const brainlift = await storage.getBrainliftById(id);
+    if (!brainlift) {
+      return res.status(404).json({ message: "Brainlift not found" });
+    }
+    if (!storage.canModifyBrainlift(brainlift, req.authContext!)) {
+      return res.status(403).json({ message: "Access denied" });
     }
     await storage.deleteBrainlift(id);
     res.json({ message: "Brainlift deleted successfully" });
@@ -75,9 +105,8 @@ brainliftsRouter.delete('/api/brainlifts/:id', async (req, res) => {
 });
 
 // Import brainlift from file or URL
-brainliftsRouter.post('/api/brainlifts/import', upload.single('file'), async (req, res) => {
+brainliftsRouter.post('/api/brainlifts/import', requireAuth, upload.single('file'), async (req, res) => {
   try {
-
     const sourceType = req.body.sourceType as string;
     let content: string;
     let sourceLabel: string;
@@ -146,7 +175,7 @@ brainliftsRouter.post('/api/brainlifts/import', upload.single('file'), async (re
     console.log(`Processing ${sourceLabel}, content length: ${content.length} chars`);
 
     const brainliftData = await extractBrainlift(content, sourceLabel);
-    const brainlift = await saveBrainliftFromAI(brainliftData, content, sourceType);
+    const brainlift = await saveBrainliftFromAI(brainliftData, content, sourceType, req.authContext!.userId);
 
     res.status(201).json(brainlift);
   } catch (err: any) {
@@ -156,11 +185,14 @@ brainliftsRouter.post('/api/brainlifts/import', upload.single('file'), async (re
 });
 
 // Get grades for a brainlift
-brainliftsRouter.get('/api/brainlifts/:slug/grades', async (req, res) => {
+brainliftsRouter.get('/api/brainlifts/:slug/grades', requireAuth, async (req, res) => {
   try {
     const brainlift = await storage.getBrainliftBySlug(req.params.slug);
     if (!brainlift) {
       return res.status(404).json({ message: 'Brainlift not found' });
+    }
+    if (!storage.canAccessBrainlift(brainlift, req.authContext!)) {
+      return res.status(403).json({ message: 'Access denied' });
     }
     const grades = await storage.getGradesByBrainliftId(brainlift.id);
     res.json(grades);
@@ -178,13 +210,22 @@ const gradeSchema = z.object({
   quality: z.number().min(1).max(5).nullable().optional(),
 });
 
-brainliftsRouter.post('/api/grades', async (req, res) => {
+brainliftsRouter.post('/api/brainlifts/:slug/grades', requireAuth, async (req, res) => {
   try {
+    const brainlift = await storage.getBrainliftBySlug(req.params.slug);
+    if (!brainlift) {
+      return res.status(404).json({ message: 'Brainlift not found' });
+    }
+    if (!storage.canModifyBrainlift(brainlift, req.authContext!)) {
+      return res.status(403).json({ message: 'Access denied' });
+    }
+
     const parsed = gradeSchema.safeParse(req.body);
     if (!parsed.success) {
       return res.status(400).json({ message: 'Invalid grade data', errors: parsed.error.errors });
     }
     const { readingListItemId, aligns, contradicts, newInfo, quality } = parsed.data;
+
     const grade = await storage.saveGrade({
       readingListItemId,
       aligns: aligns ?? null,
@@ -199,9 +240,19 @@ brainliftsRouter.post('/api/grades', async (req, res) => {
 });
 
 // Update brainlift (import new version)
-brainliftsRouter.patch('/api/brainlifts/:slug/update', upload.single('file'), async (req, res) => {
+brainliftsRouter.patch('/api/brainlifts/:slug/update', requireAuth, upload.single('file'), async (req, res) => {
   try {
     const { slug } = req.params;
+
+    // Check modify permission
+    const existingBrainlift = await storage.getBrainliftBySlug(slug);
+    if (!existingBrainlift) {
+      return res.status(404).json({ message: 'Brainlift not found' });
+    }
+    if (!storage.canModifyBrainlift(existingBrainlift, req.authContext!)) {
+      return res.status(403).json({ message: 'Access denied' });
+    }
+
     const sourceType = req.body.sourceType as string;
     let content: string;
     let sourceLabel: string;
@@ -372,11 +423,14 @@ brainliftsRouter.patch('/api/brainlifts/:slug/update', upload.single('file'), as
 });
 
 // Update brainlift author/owner
-brainliftsRouter.patch('/api/brainlifts/:slug/author', async (req, res) => {
+brainliftsRouter.patch('/api/brainlifts/:slug/author', requireAuth, async (req, res) => {
   try {
     const brainlift = await storage.getBrainliftBySlug(req.params.slug);
     if (!brainlift) {
       return res.status(404).json({ message: 'Brainlift not found' });
+    }
+    if (!storage.canModifyBrainlift(brainlift, req.authContext!)) {
+      return res.status(403).json({ message: 'Access denied' });
     }
     const { author } = req.body;
     await storage.updateBrainliftFields(brainlift.id, { author: author || null });
@@ -388,11 +442,14 @@ brainliftsRouter.patch('/api/brainlifts/:slug/author', async (req, res) => {
 });
 
 // Get version history for a brainlift
-brainliftsRouter.get('/api/brainlifts/:slug/versions', async (req, res) => {
+brainliftsRouter.get('/api/brainlifts/:slug/versions', requireAuth, async (req, res) => {
   try {
     const brainlift = await storage.getBrainliftBySlug(req.params.slug);
     if (!brainlift) {
       return res.status(404).json({ message: 'Brainlift not found' });
+    }
+    if (!storage.canAccessBrainlift(brainlift, req.authContext!)) {
+      return res.status(403).json({ message: 'Access denied' });
     }
     const versions = await storage.getVersionsByBrainliftId(brainlift.id);
     res.json(versions);

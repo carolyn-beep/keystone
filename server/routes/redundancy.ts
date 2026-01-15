@@ -3,15 +3,19 @@ import { storage } from '../storage';
 import { db } from '../db';
 import { facts, factVerifications, factModelScores, llmFeedback, factRedundancyGroups } from '@shared/schema';
 import { eq, inArray } from 'drizzle-orm';
+import { requireAuth } from '../middleware/auth';
 
 export const redundancyRouter = Router();
 
 // Analyze facts for redundancy
-redundancyRouter.post('/api/brainlifts/:slug/analyze-redundancy', async (req, res) => {
+redundancyRouter.post('/api/brainlifts/:slug/analyze-redundancy', requireAuth, async (req, res) => {
   try {
     const brainlift = await storage.getBrainliftBySlug(req.params.slug);
     if (!brainlift) {
       return res.status(404).json({ message: 'Brainlift not found' });
+    }
+    if (!storage.canModifyBrainlift(brainlift, req.authContext!)) {
+      return res.status(403).json({ message: 'Access denied' });
     }
 
     const { analyzeFactRedundancy } = await import('../ai/redundancyAnalyzer');
@@ -42,11 +46,14 @@ redundancyRouter.post('/api/brainlifts/:slug/analyze-redundancy', async (req, re
 });
 
 // Get redundancy groups for a brainlift
-redundancyRouter.get('/api/brainlifts/:slug/redundancy', async (req, res) => {
+redundancyRouter.get('/api/brainlifts/:slug/redundancy', requireAuth, async (req, res) => {
   try {
     const brainlift = await storage.getBrainliftBySlug(req.params.slug);
     if (!brainlift) {
       return res.status(404).json({ message: 'Brainlift not found' });
+    }
+    if (!storage.canAccessBrainlift(brainlift, req.authContext!)) {
+      return res.status(403).json({ message: 'Access denied' });
     }
 
     const groups = await storage.getRedundancyGroups(brainlift.id);
@@ -85,8 +92,16 @@ redundancyRouter.get('/api/brainlifts/:slug/redundancy', async (req, res) => {
 
 // Update redundancy group status (keep, dismiss, merge)
 // When status='kept' and primaryFactId is provided, deletes other facts in the group
-redundancyRouter.patch('/api/redundancy-groups/:groupId', async (req, res) => {
+redundancyRouter.patch('/api/brainlifts/:slug/redundancy-groups/:groupId', requireAuth, async (req, res) => {
   try {
+    const brainlift = await storage.getBrainliftBySlug(req.params.slug);
+    if (!brainlift) {
+      return res.status(404).json({ message: 'Brainlift not found' });
+    }
+    if (!storage.canModifyBrainlift(brainlift, req.authContext!)) {
+      return res.status(403).json({ message: 'Access denied' });
+    }
+
     const groupId = parseInt(req.params.groupId);
     const { status, primaryFactId } = req.body;
 

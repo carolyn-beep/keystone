@@ -64,7 +64,7 @@ export function FactGradingPanel({
   // Human grade mutation
   const setHumanGradeMutation = useMutation({
     mutationFn: async ({ factId, score, notes }: { factId: number; score: number; notes: string }) => {
-      const res = await fetch(`/api/facts/${factId}/human-grade`, {
+      const res = await fetch(`/api/brainlifts/${slug}/facts/${factId}/human-grade`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ score, notes }),

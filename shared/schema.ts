@@ -17,6 +17,11 @@ export const user = pgTable("user", {
     .defaultNow()
     .$onUpdate(() => new Date())
     .notNull(),
+  // Better Auth admin plugin fields
+  role: text("role"),
+  banned: boolean("banned").default(false),
+  banReason: text("ban_reason"),
+  banExpires: timestamp("ban_expires"),
 });
 
 export const session = pgTable(
@@ -34,6 +39,8 @@ export const session = pgTable(
     userId: text("user_id")
       .notNull()
       .references(() => user.id, { onDelete: "cascade" }),
+    // Better Auth admin plugin field
+    impersonatedBy: text("impersonated_by"),
   },
   (table) => [index("session_userId_idx").on(table.userId)],
 );
@@ -126,7 +133,9 @@ export const brainlifts = pgTable("brainlifts", {
     score5Count: number;
     contradictionCount: number;
   }>().notNull(),
-});
+}, (table) => [
+  index("brainlifts_created_by_user_id_idx").on(table.createdByUserId),
+]);
 
 export const facts = pgTable("facts", {
   id: serial("id").primaryKey(),
@@ -505,4 +514,20 @@ export interface FactWithVerification extends Fact {
   verification?: FactVerification & {
     modelScores: FactModelScore[];
   };
+}
+
+// === AUTHORIZATION ===
+
+export const USER_ROLES = {
+  USER: "user",
+  ADMIN: "admin",
+  // GUIDE: "guide", // Future: Guide role for accessing students' data
+} as const;
+
+export type UserRole = (typeof USER_ROLES)[keyof typeof USER_ROLES];
+
+export interface AuthContext {
+  userId: string;
+  role: UserRole;
+  isAdmin: boolean;
 }

@@ -1,10 +1,11 @@
-import { useState, useRef } from 'react';
-import { useQuery, useMutation } from '@tanstack/react-query';
+import { useState, useRef, useEffect, useCallback } from 'react';
+import { useInfiniteQuery, useMutation } from '@tanstack/react-query';
 import { Link, useLocation } from 'wouter';
 import { Brainlift } from '@shared/schema';
 import { queryClient } from '@/lib/queryClient';
+import { authClient } from '@/lib/auth-client';
 import { tokens } from '@/lib/colors';
-import { Plus, X, Upload, FileText, Link as LinkIcon, File, Loader2, Check, Clock, AlertTriangle, Trash2 } from 'lucide-react';
+import { Plus, X, Upload, FileText, Link as LinkIcon, File, Loader2, Check, Clock, AlertTriangle, Trash2, Shield, ChevronDown } from 'lucide-react';
 import { ConfirmationModal } from '@/components/ui/confirmation-modal';
 
 type SourceType = 'pdf' | 'docx' | 'html' | 'workflowy' | 'googledocs' | 'text';
@@ -29,17 +30,77 @@ export default function Home() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
   const [brainliftToDelete, setBrainliftToDelete] = useState<{ id: number; title: string } | null>(null);
+  const [adminView, setAdminView] = useState(false);
+  const loadMoreRef = useRef<HTMLDivElement>(null);
+  const prefetchRef = useRef<HTMLDivElement>(null);
 
-  const { data: brainlifts, isLoading } = useQuery<Brainlift[]>({
-    queryKey: ['/api/brainlifts'],
-    queryFn: async () => {
-      const res = await fetch('/api/brainlifts');
+  // Get session to check if user is admin
+  const { data: session } = authClient.useSession();
+  const isAdmin = session?.user?.role === 'admin';
+
+  interface PaginatedResponse {
+    brainlifts: Brainlift[];
+    pagination: {
+      page: number;
+      pageSize: number;
+      total: number;
+      totalPages: number;
+    };
+  }
+
+  const {
+    data,
+    isLoading,
+    fetchNextPage,
+    hasNextPage,
+    isFetchingNextPage,
+  } = useInfiniteQuery<PaginatedResponse>({
+    queryKey: ['/api/brainlifts', adminView],
+    queryFn: async ({ pageParam = 1 }) => {
+      const params = new URLSearchParams();
+      if (adminView) params.set('all', 'true');
+      params.set('page', pageParam.toString());
+      const res = await fetch(`/api/brainlifts?${params}`);
       if (!res.ok) throw new Error('Failed to fetch');
       return res.json();
     },
+    getNextPageParam: (lastPage) => {
+      const { page, totalPages } = lastPage.pagination;
+      return page < totalPages ? page + 1 : undefined;
+    },
+    initialPageParam: 1,
     staleTime: 0,
     refetchOnMount: 'always',
   });
+
+  // Flatten all pages into single array
+  const brainlifts = data?.pages.flatMap(page => page.brainlifts) ?? [];
+  const totalCount = data?.pages[0]?.pagination.total ?? 0;
+  const loadedCount = brainlifts.length;
+  const remainingCount = totalCount - loadedCount;
+
+  // Prefetch next page when user approaches bottom (Intersection Observer)
+  useEffect(() => {
+    if (!prefetchRef.current || !hasNextPage || isFetchingNextPage) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting) {
+          // Prefetch silently - data will be ready when they click Load More
+          fetchNextPage();
+        }
+      },
+      { rootMargin: '200px' } // Trigger 200px before element is visible
+    );
+
+    observer.observe(prefetchRef.current);
+    return () => observer.disconnect();
+  }, [hasNextPage, isFetchingNextPage, fetchNextPage]);
+
+  // Reset infinite query when toggling admin view
+  const handleAdminViewToggle = () => {
+    setAdminView(!adminView);
+  };
 
   const importMutation = useMutation({
     mutationFn: async () => {
@@ -189,6 +250,47 @@ export default function Home() {
           </p>
         </div>
         <div className="flex items-center gap-3">
+          {/* Admin View Toggle - Only visible to admins */}
+          {isAdmin && (
+            <button
+              onClick={handleAdminViewToggle}
+              className="flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium cursor-pointer transition-all duration-150"
+              style={{
+                backgroundColor: adminView ? tokens.primarySoft : 'transparent',
+                border: `1px solid ${adminView ? tokens.primary : tokens.border}`,
+                color: adminView ? tokens.primary : tokens.textSecondary,
+              }}
+              onMouseEnter={(e) => {
+                if (!adminView) {
+                  e.currentTarget.style.borderColor = tokens.primary;
+                  e.currentTarget.style.color = tokens.primary;
+                }
+              }}
+              onMouseLeave={(e) => {
+                if (!adminView) {
+                  e.currentTarget.style.borderColor = tokens.border;
+                  e.currentTarget.style.color = tokens.textSecondary;
+                }
+              }}
+            >
+              <Shield size={16} />
+              Admin View
+              <span
+                className="relative inline-flex items-center w-9 h-5 rounded-full transition-colors duration-200"
+                style={{
+                  backgroundColor: adminView ? tokens.primary : tokens.border,
+                }}
+              >
+                <span
+                  className="absolute w-4 h-4 bg-white rounded-full shadow transition-transform duration-200"
+                  style={{
+                    transform: adminView ? 'translateX(18px)' : 'translateX(2px)',
+                  }}
+                />
+              </span>
+            </button>
+          )}
+
           <button
             data-testid="button-add-brainlift"
             onClick={() => setShowModal(true)}
@@ -210,7 +312,7 @@ export default function Home() {
           <div className="flex justify-center p-10">
             <Loader2 size={32} className="animate-spin text-muted-foreground" />
           </div>
-        ) : !brainlifts || brainlifts.length === 0 ? (
+        ) : brainlifts.length === 0 ? (
           <div className="text-center py-[60px] px-6 bg-[#F9FAFB] rounded-xl border-2 border-dashed border-[#E5E7EB]">
             <Upload size={48} className="mb-4 mx-auto text-muted-foreground" />
             <h3 className="text-lg font-semibold text-primary m-0 mb-2">No brainlifts yet</h3>
@@ -219,8 +321,9 @@ export default function Home() {
             </p>
           </div>
         ) : (
+          <>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 items-stretch">
-            {brainlifts?.map((data) => {
+            {brainlifts.map((data) => {
               const isNotGradeable = data.classification === 'not_brainlift';
               const summary = data.summary || { meanScore: '0', totalFacts: 0, score5Count: 0, contradictionCount: 0 };
               const meanScore = parseFloat(summary.meanScore || '0');
@@ -416,6 +519,58 @@ export default function Home() {
               );
             })}
           </div>
+
+          {/* Prefetch sentinel - triggers prefetch 200px before visible */}
+          <div ref={prefetchRef} className="h-1" />
+
+          {/* Load More Button */}
+          {hasNextPage && (
+            <div className="flex justify-center mt-8">
+              <button
+                onClick={() => fetchNextPage()}
+                disabled={isFetchingNextPage}
+                className="flex items-center gap-2 px-6 py-3 rounded-lg text-sm font-medium transition-all duration-150"
+                style={{
+                  backgroundColor: isFetchingNextPage ? tokens.surfaceAlt : 'transparent',
+                  border: `1px solid ${tokens.border}`,
+                  color: tokens.textSecondary,
+                  cursor: isFetchingNextPage ? 'not-allowed' : 'pointer',
+                }}
+                onMouseEnter={(e) => {
+                  if (!isFetchingNextPage) {
+                    e.currentTarget.style.borderColor = tokens.primary;
+                    e.currentTarget.style.color = tokens.primary;
+                  }
+                }}
+                onMouseLeave={(e) => {
+                  if (!isFetchingNextPage) {
+                    e.currentTarget.style.borderColor = tokens.border;
+                    e.currentTarget.style.color = tokens.textSecondary;
+                  }
+                }}
+              >
+                {isFetchingNextPage ? (
+                  <>
+                    <Loader2 size={16} className="animate-spin" />
+                    Loading...
+                  </>
+                ) : (
+                  <>
+                    <ChevronDown size={16} />
+                    Load More ({remainingCount} remaining)
+                  </>
+                )}
+              </button>
+            </div>
+          )}
+
+          {/* End of list indicator */}
+          {!hasNextPage && brainlifts.length > 0 && (
+            <p className="text-center text-muted-foreground text-sm mt-8">
+              Showing all {totalCount} brainlifts
+            </p>
+          )}
+          </>
         )}
       </main>
 

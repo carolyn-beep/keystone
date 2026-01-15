@@ -1,5 +1,5 @@
 import { db } from "./db";
-import { 
+import {
   brainlifts, facts, contradictionClusters, readingListItems, readingListGrades, brainliftVersions, sourceFeedback, experts,
   factVerifications, factModelScores, llmFeedback, modelAccuracyStats, factRedundancyGroups, LLM_MODELS,
   type Brainlift, type BrainliftData, type InsertBrainlift,
@@ -7,9 +7,10 @@ import {
   type BrainliftVersion, type SourceFeedback, type InsertSourceFeedback, type Expert, type InsertExpert,
   type FactVerification, type InsertFactVerification, type FactModelScore, type InsertFactModelScore,
   type FactWithVerification, type LLMModel, type LlmFeedback, type ModelAccuracyStats,
-  type FactRedundancyGroup, type InsertFactRedundancyGroup, type RedundancyStatus
+  type FactRedundancyGroup, type InsertFactRedundancyGroup, type RedundancyStatus,
+  type AuthContext
 } from "@shared/schema";
-import { eq, inArray, desc, and } from "drizzle-orm";
+import { eq, inArray, desc, and, sql } from "drizzle-orm";
 
 export interface IStorage {
   getAllBrainlifts(): Promise<Brainlift[]>;
@@ -71,6 +72,14 @@ export interface IStorage {
   updateRedundancyGroupStatus(groupId: number, status: RedundancyStatus): Promise<FactRedundancyGroup>;
   deleteRedundancyGroups(brainliftId: number): Promise<void>;
   getFactsForBrainlift(brainliftId: number): Promise<Fact[]>;
+
+  // Authorization methods
+  getBrainliftsForUser(authContext: AuthContext): Promise<Brainlift[]>;
+  getBrainliftsForUserPaginated(authContext: AuthContext, offset: number, limit: number): Promise<{ brainlifts: Brainlift[]; total: number }>;
+  getAllBrainliftsPaginated(offset: number, limit: number): Promise<{ brainlifts: Brainlift[]; total: number }>;
+  getBrainliftById(id: number): Promise<Brainlift | undefined>;
+  canAccessBrainlift(brainlift: Brainlift, authContext: AuthContext): boolean;
+  canModifyBrainlift(brainlift: Brainlift, authContext: AuthContext): boolean;
 }
 
 import { isNull, or } from "drizzle-orm";
@@ -689,6 +698,79 @@ export class DatabaseStorage implements IStorage {
   
   async getFactsForBrainlift(brainliftId: number): Promise<Fact[]> {
     return await db.select().from(facts).where(eq(facts.brainliftId, brainliftId));
+  }
+
+  // === AUTHORIZATION METHODS ===
+
+  /**
+   * Get brainlifts for the current user (their own only).
+   * Admin can use getAllBrainlifts() via the Admin View toggle to see everything.
+   */
+  async getBrainliftsForUser(authContext: AuthContext): Promise<Brainlift[]> {
+    return await db.select().from(brainlifts)
+      .where(eq(brainlifts.createdByUserId, authContext.userId))
+      .orderBy(brainlifts.id);
+  }
+
+  /**
+   * Get brainlifts for the current user with pagination.
+   */
+  async getBrainliftsForUserPaginated(authContext: AuthContext, offset: number, limit: number): Promise<{ brainlifts: Brainlift[]; total: number }> {
+    const [countResult] = await db.select({ count: sql<number>`count(*)` })
+      .from(brainlifts)
+      .where(eq(brainlifts.createdByUserId, authContext.userId));
+
+    const items = await db.select().from(brainlifts)
+      .where(eq(brainlifts.createdByUserId, authContext.userId))
+      .orderBy(desc(brainlifts.id))
+      .limit(limit)
+      .offset(offset);
+
+    return { brainlifts: items, total: Number(countResult.count) };
+  }
+
+  /**
+   * Get all brainlifts with pagination (admin only).
+   */
+  async getAllBrainliftsPaginated(offset: number, limit: number): Promise<{ brainlifts: Brainlift[]; total: number }> {
+    const [countResult] = await db.select({ count: sql<number>`count(*)` })
+      .from(brainlifts);
+
+    const items = await db.select().from(brainlifts)
+      .orderBy(desc(brainlifts.id))
+      .limit(limit)
+      .offset(offset);
+
+    return { brainlifts: items, total: Number(countResult.count) };
+  }
+
+  /**
+   * Get a brainlift by ID (helper for delete operations)
+   */
+  async getBrainliftById(id: number): Promise<Brainlift | undefined> {
+    const [brainlift] = await db.select().from(brainlifts).where(eq(brainlifts.id, id));
+    return brainlift;
+  }
+
+  /**
+   * Check if user can access (read) a brainlift.
+   * - Admin: can access all
+   * - User: can only access their own (legacy brainlifts are admin-only)
+   */
+  canAccessBrainlift(brainlift: Brainlift, authContext: AuthContext): boolean {
+    if (authContext.isAdmin) return true;
+    if (brainlift.createdByUserId === null) return false; // Legacy = admin only
+    return brainlift.createdByUserId === authContext.userId;
+  }
+
+  /**
+   * Check if user can modify (update/delete) a brainlift.
+   * - Admin: can modify all
+   * - User: can only modify their own
+   */
+  canModifyBrainlift(brainlift: Brainlift, authContext: AuthContext): boolean {
+    if (authContext.isAdmin) return true;
+    return brainlift.createdByUserId === authContext.userId;
   }
 }
 

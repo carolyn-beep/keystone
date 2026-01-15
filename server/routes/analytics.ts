@@ -1,11 +1,12 @@
 import { Router } from 'express';
 import { storage } from '../storage';
 import { LLM_MODEL_NAMES } from '@shared/schema';
+import { requireAdmin } from '../middleware/auth';
 
 export const analyticsRouter = Router();
 
-// Model accuracy analytics - Shows which LLMs are most accurate vs human review
-analyticsRouter.get('/api/analytics/model-accuracy', async (req, res) => {
+// Model accuracy analytics - Shows which LLMs are most accurate vs human review (admin only)
+analyticsRouter.get('/api/analytics/model-accuracy', requireAdmin, async (req, res) => {
   try {
     const stats = await storage.getModelAccuracyStats();
     const feedback = await storage.getLlmFeedbackHistory(50);

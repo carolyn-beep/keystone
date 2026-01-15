@@ -3,15 +3,19 @@ import { storage } from '../storage';
 import { searchForResources, deepResearch } from '../ai/resourceResearcher';
 import { searchRelevantTweets } from '../ai/twitterService';
 import { z } from 'zod';
+import { requireAuth } from '../middleware/auth';
 
 export const researchRouter = Router();
 
 // Search for new resources using Perplexity
-researchRouter.post('/api/brainlifts/:slug/research', async (req, res) => {
+researchRouter.post('/api/brainlifts/:slug/research', requireAuth, async (req, res) => {
   try {
     const brainlift = await storage.getBrainliftBySlug(req.params.slug);
     if (!brainlift) {
       return res.status(404).json({ message: 'Brainlift not found' });
+    }
+    if (!storage.canModifyBrainlift(brainlift, req.authContext!)) {
+      return res.status(403).json({ message: 'Access denied' });
     }
 
     const { mode, query } = req.body;
@@ -100,11 +104,14 @@ researchRouter.post('/api/brainlifts/:slug/research', async (req, res) => {
 });
 
 // Add a resource from research to reading list
-researchRouter.post('/api/brainlifts/:slug/reading-list', async (req, res) => {
+researchRouter.post('/api/brainlifts/:slug/reading-list', requireAuth, async (req, res) => {
   try {
     const brainlift = await storage.getBrainliftBySlug(req.params.slug);
     if (!brainlift) {
       return res.status(404).json({ message: 'Brainlift not found' });
+    }
+    if (!storage.canModifyBrainlift(brainlift, req.authContext!)) {
+      return res.status(403).json({ message: 'Access denied' });
     }
 
     const { type, author, topic, time, facts, url } = req.body;
@@ -126,11 +133,14 @@ researchRouter.post('/api/brainlifts/:slug/reading-list', async (req, res) => {
 });
 
 // Search Twitter for relevant tweets
-researchRouter.post('/api/brainlifts/:slug/tweets', async (req, res) => {
+researchRouter.post('/api/brainlifts/:slug/tweets', requireAuth, async (req, res) => {
   try {
     const brainlift = await storage.getBrainliftBySlug(req.params.slug);
     if (!brainlift) {
       return res.status(404).json({ message: 'Brainlift not found' });
+    }
+    if (!storage.canModifyBrainlift(brainlift, req.authContext!)) {
+      return res.status(403).json({ message: 'Access denied' });
     }
 
     const facts = brainlift.facts.map(f => ({
@@ -256,11 +266,14 @@ researchRouter.post('/api/brainlifts/:slug/tweets', async (req, res) => {
 });
 
 // Get source feedback for a brainlift (tweets and research)
-researchRouter.get('/api/brainlifts/:slug/feedback', async (req, res) => {
+researchRouter.get('/api/brainlifts/:slug/feedback', requireAuth, async (req, res) => {
   try {
     const brainlift = await storage.getBrainliftBySlug(req.params.slug);
     if (!brainlift) {
       return res.status(404).json({ message: 'Brainlift not found' });
+    }
+    if (!storage.canAccessBrainlift(brainlift, req.authContext!)) {
+      return res.status(403).json({ message: 'Access denied' });
     }
 
     const sourceType = req.query.sourceType as string | undefined;
@@ -273,11 +286,14 @@ researchRouter.get('/api/brainlifts/:slug/feedback', async (req, res) => {
 });
 
 // Save source feedback (accept/reject) - unified endpoint for tweets and research
-researchRouter.post('/api/brainlifts/:slug/feedback', async (req, res) => {
+researchRouter.post('/api/brainlifts/:slug/feedback', requireAuth, async (req, res) => {
   try {
     const brainlift = await storage.getBrainliftBySlug(req.params.slug);
     if (!brainlift) {
       return res.status(404).json({ message: 'Brainlift not found' });
+    }
+    if (!storage.canModifyBrainlift(brainlift, req.authContext!)) {
+      return res.status(403).json({ message: 'Access denied' });
     }
 
     const feedbackSchema = z.object({
