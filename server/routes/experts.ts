@@ -2,7 +2,7 @@ import { Router } from 'express';
 import { storage } from '../storage';
 import { extractAndRankExperts, diagnoseExpertFormat } from '../ai/experts';
 import { requireAuth } from '../middleware/auth';
-import { asyncHandler, BadRequestError } from '../middleware/error-handler';
+import { asyncHandler, BadRequestError, NotFoundError } from '../middleware/error-handler';
 import { requireBrainliftAccess, requireBrainliftModify } from '../middleware/brainlift-auth';
 
 export const expertsRouter = Router();
@@ -73,7 +73,12 @@ expertsRouter.patch(
       throw new BadRequestError('isFollowing must be a boolean');
     }
 
-    const updated = await storage.updateExpertFollowing(expertId, isFollowing);
+    const updated = await storage.updateExpertFollowingForBrainlift(
+      expertId, req.brainlift!.id, isFollowing
+    );
+    if (!updated) {
+      throw new NotFoundError('Expert not found');
+    }
     res.json(updated);
   })
 );
@@ -85,7 +90,10 @@ expertsRouter.delete(
   requireBrainliftModify,
   asyncHandler(async (req, res) => {
     const expertId = parseInt(req.params.id);
-    await storage.deleteExpert(expertId);
+    const deleted = await storage.deleteExpertForBrainlift(expertId, req.brainlift!.id);
+    if (!deleted) {
+      throw new NotFoundError('Expert not found');
+    }
     res.json({ success: true });
   })
 );

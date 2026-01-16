@@ -33,8 +33,8 @@ verificationsRouter.post(
   asyncHandler(async (req, res) => {
     const factId = parseInt(req.params.factId);
 
-    // Get the fact directly from database (efficient lookup)
-    const targetFact = await storage.getFactById(factId);
+    // Get the fact with brainlift ownership verification
+    const targetFact = await storage.getFactByIdForBrainlift(factId, req.brainlift!.id);
 
     if (!targetFact) {
       throw new NotFoundError('Fact not found');
@@ -193,7 +193,10 @@ verificationsRouter.post(
       throw new BadRequestError('Score must be between 1 and 5');
     }
 
-    const updated = await storage.setHumanOverride(verificationId, score, notes || '');
+    // Verify ownership and set human override
+    const updated = await storage.setHumanOverrideForBrainlift(
+      verificationId, req.brainlift!.id, score, notes || ''
+    );
     res.json(updated);
   })
 );
@@ -211,9 +214,14 @@ verificationsRouter.post(
       throw new BadRequestError('Score must be between 1 and 5');
     }
 
-    // Get or create verification for this fact
-    let verification = await storage.getFactVerification(factId);
+    // Get or create verification for this fact (with brainlift ownership check)
+    let verification = await storage.getFactVerificationForBrainlift(factId, req.brainlift!.id);
     if (!verification) {
+      // Verify the fact belongs to this brainlift before creating verification
+      const fact = await storage.getFactByIdForBrainlift(factId, req.brainlift!.id);
+      if (!fact) {
+        throw new NotFoundError('Fact not found');
+      }
       verification = await storage.createFactVerification(factId) as any;
     }
 

@@ -1,9 +1,10 @@
 import {
-  db, eq, and,
+  db, eq, and, sql,
   facts, factVerifications, factModelScores, llmFeedback, modelAccuracyStats, LLM_MODELS,
   type Fact, type FactVerification, type InsertFactVerification, type FactModelScore,
   type FactWithVerification, type LLMModel, type LlmFeedback, type ModelAccuracyStats
 } from './base';
+import { NotFoundError } from '../middleware/error-handler';
 
 export async function getFactById(factId: number): Promise<Fact | null> {
   const [fact] = await db.select().from(facts).where(eq(facts.id, factId));
@@ -23,19 +24,52 @@ export async function getFactVerification(factId: number): Promise<(FactVerifica
 }
 
 export async function getFactsWithVerifications(brainliftId: number): Promise<FactWithVerification[]> {
+  // Fetch all facts for this brainlift
   const brainliftFacts = await db.select().from(facts).where(eq(facts.brainliftId, brainliftId));
 
-  const factsWithVerifications: FactWithVerification[] = [];
+  if (brainliftFacts.length === 0) {
+    return [];
+  }
 
-  for (const fact of brainliftFacts) {
-    const verification = await getFactVerification(fact.id);
-    factsWithVerifications.push({
-      ...fact,
-      verification: verification || undefined,
+  // Get all fact IDs
+  const factIds = brainliftFacts.map(f => f.id);
+
+  // Fetch all verifications for these facts in a single query
+  const verifications = await db.select().from(factVerifications)
+    .where(sql`${factVerifications.factId} IN (${sql.join(factIds.map(id => sql`${id}`), sql`, `)})`);
+
+  // Get all verification IDs
+  const verificationIds = verifications.map(v => v.id);
+
+  // Fetch all model scores for these verifications in a single query
+  let scores: FactModelScore[] = [];
+  if (verificationIds.length > 0) {
+    scores = await db.select().from(factModelScores)
+      .where(sql`${factModelScores.verificationId} IN (${sql.join(verificationIds.map(id => sql`${id}`), sql`, `)})`);
+  }
+
+  // Build a map of verificationId -> scores
+  const scoresByVerificationId = new Map<number, FactModelScore[]>();
+  for (const score of scores) {
+    const existing = scoresByVerificationId.get(score.verificationId) || [];
+    existing.push(score);
+    scoresByVerificationId.set(score.verificationId, existing);
+  }
+
+  // Build a map of factId -> verification with scores
+  const verificationByFactId = new Map<number, FactVerification & { modelScores: FactModelScore[] }>();
+  for (const v of verifications) {
+    verificationByFactId.set(v.factId, {
+      ...v,
+      modelScores: scoresByVerificationId.get(v.id) || [],
     });
   }
 
-  return factsWithVerifications;
+  // Combine facts with their verifications
+  return brainliftFacts.map(fact => ({
+    ...fact,
+    verification: verificationByFactId.get(fact.id) || undefined,
+  }));
 }
 
 export async function createFactVerification(factId: number): Promise<FactVerification> {
@@ -172,4 +206,57 @@ export async function setHumanOverride(verificationId: number, score: number, no
     .where(eq(factVerifications.id, verificationId))
     .returning();
   return updated;
+}
+
+/**
+ * Get fact by ID with brainlift ownership verification.
+ * Returns null if fact doesn't exist or doesn't belong to the brainlift.
+ */
+export async function getFactByIdForBrainlift(
+  factId: number,
+  brainliftId: number
+): Promise<Fact | null> {
+  const [fact] = await db.select().from(facts)
+    .where(and(eq(facts.id, factId), eq(facts.brainliftId, brainliftId)));
+  return fact || null;
+}
+
+/**
+ * Get fact verification with brainlift ownership verification.
+ * Returns null if fact doesn't exist or doesn't belong to the brainlift.
+ */
+export async function getFactVerificationForBrainlift(
+  factId: number,
+  brainliftId: number
+): Promise<(FactVerification & { modelScores: FactModelScore[] }) | null> {
+  const fact = await getFactByIdForBrainlift(factId, brainliftId);
+  if (!fact) return null;
+  return getFactVerification(factId);
+}
+
+/**
+ * Set human override with brainlift ownership verification.
+ * Throws NotFoundError if verification doesn't exist or its fact doesn't belong to the brainlift.
+ */
+export async function setHumanOverrideForBrainlift(
+  verificationId: number,
+  brainliftId: number,
+  score: number,
+  notes: string
+): Promise<FactVerification> {
+  // Join verification -> fact to verify brainlift ownership
+  const [verification] = await db
+    .select({ id: factVerifications.id })
+    .from(factVerifications)
+    .innerJoin(facts, eq(factVerifications.factId, facts.id))
+    .where(and(
+      eq(factVerifications.id, verificationId),
+      eq(facts.brainliftId, brainliftId)
+    ));
+
+  if (!verification) {
+    throw new NotFoundError('Verification not found');
+  }
+
+  return setHumanOverride(verificationId, score, notes);
 }

@@ -213,36 +213,39 @@ export async function updateBrainlift(
 }
 
 export async function deleteBrainlift(id: number): Promise<void> {
-  const items = await db.select().from(readingListItems).where(eq(readingListItems.brainliftId, id));
-  const itemIds = items.map(i => i.id);
+  // Use transaction to ensure all deletes succeed or none do
+  await db.transaction(async (tx) => {
+    const items = await tx.select().from(readingListItems).where(eq(readingListItems.brainliftId, id));
+    const itemIds = items.map(i => i.id);
 
-  if (itemIds.length > 0) {
-    await db.delete(readingListGrades).where(inArray(readingListGrades.readingListItemId, itemIds));
-  }
-
-  const factsList = await db.select().from(facts).where(eq(facts.brainliftId, id));
-  const factIds = factsList.map(f => f.id);
-
-  if (factIds.length > 0) {
-    const verifications = await db.select().from(factVerifications).where(inArray(factVerifications.factId, factIds));
-    const verificationIds = verifications.map(v => v.id);
-
-    if (verificationIds.length > 0) {
-      await db.delete(factModelScores).where(inArray(factModelScores.verificationId, verificationIds));
+    if (itemIds.length > 0) {
+      await tx.delete(readingListGrades).where(inArray(readingListGrades.readingListItemId, itemIds));
     }
 
-    await db.delete(llmFeedback).where(inArray(llmFeedback.factId, factIds));
-    await db.delete(factVerifications).where(inArray(factVerifications.factId, factIds));
-  }
+    const factsList = await tx.select().from(facts).where(eq(facts.brainliftId, id));
+    const factIds = factsList.map(f => f.id);
 
-  await db.delete(readingListItems).where(eq(readingListItems.brainliftId, id));
-  await db.delete(contradictionClusters).where(eq(contradictionClusters.brainliftId, id));
-  await db.delete(sourceFeedback).where(eq(sourceFeedback.brainliftId, id));
-  await db.delete(brainliftVersions).where(eq(brainliftVersions.brainliftId, id));
-  await db.delete(experts).where(eq(experts.brainliftId, id));
-  await db.delete(factRedundancyGroups).where(eq(factRedundancyGroups.brainliftId, id));
-  await db.delete(facts).where(eq(facts.brainliftId, id));
-  await db.delete(brainlifts).where(eq(brainlifts.id, id));
+    if (factIds.length > 0) {
+      const verifications = await tx.select().from(factVerifications).where(inArray(factVerifications.factId, factIds));
+      const verificationIds = verifications.map(v => v.id);
+
+      if (verificationIds.length > 0) {
+        await tx.delete(factModelScores).where(inArray(factModelScores.verificationId, verificationIds));
+      }
+
+      await tx.delete(llmFeedback).where(inArray(llmFeedback.factId, factIds));
+      await tx.delete(factVerifications).where(inArray(factVerifications.factId, factIds));
+    }
+
+    await tx.delete(readingListItems).where(eq(readingListItems.brainliftId, id));
+    await tx.delete(contradictionClusters).where(eq(contradictionClusters.brainliftId, id));
+    await tx.delete(sourceFeedback).where(eq(sourceFeedback.brainliftId, id));
+    await tx.delete(brainliftVersions).where(eq(brainliftVersions.brainliftId, id));
+    await tx.delete(experts).where(eq(experts.brainliftId, id));
+    await tx.delete(factRedundancyGroups).where(eq(factRedundancyGroups.brainliftId, id));
+    await tx.delete(facts).where(eq(facts.brainliftId, id));
+    await tx.delete(brainlifts).where(eq(brainlifts.id, id));
+  });
 }
 
 export async function updateBrainliftFields(id: number, fields: {

@@ -2,9 +2,9 @@ import { Router } from 'express';
 import { storage } from '../storage';
 import { db } from '../db';
 import { facts, factVerifications, factModelScores, llmFeedback, factRedundancyGroups } from '@shared/schema';
-import { eq, inArray } from 'drizzle-orm';
+import { eq, inArray, and } from 'drizzle-orm';
 import { requireAuth } from '../middleware/auth';
-import { asyncHandler, BadRequestError } from '../middleware/error-handler';
+import { asyncHandler, BadRequestError, NotFoundError } from '../middleware/error-handler';
 import { requireBrainliftAccess, requireBrainliftModify } from '../middleware/brainlift-auth';
 
 export const redundancyRouter = Router();
@@ -88,48 +88,61 @@ redundancyRouter.patch(
   requireBrainliftModify,
   asyncHandler(async (req, res) => {
     const groupId = parseInt(req.params.groupId);
+    const brainliftId = req.brainlift!.id;
     const { status, primaryFactId } = req.body;
 
     if (!['pending', 'kept', 'merged', 'dismissed'].includes(status)) {
       throw new BadRequestError('Invalid status');
     }
 
+    // Verify the group belongs to this brainlift
+    const group = await storage.getRedundancyGroupForBrainlift(groupId, brainliftId);
+    if (!group) {
+      throw new NotFoundError('Redundancy group not found');
+    }
+
     // If keeping with a primary fact, delete the redundant facts
-    if (status === 'kept' && primaryFactId) {
-      // Get the group to find all fact IDs
-      const groups = await db.select().from(factRedundancyGroups).where(eq(factRedundancyGroups.id, groupId));
-      const group = groups[0];
+    if (status === 'kept' && primaryFactId && group.factIds) {
+      // Delete all facts in the group EXCEPT the primary one
+      const factIdsToDelete = (group.factIds as number[]).filter(id => id !== primaryFactId);
 
-      if (group && group.factIds) {
-        // Delete all facts in the group EXCEPT the primary one
-        const factIdsToDelete = (group.factIds as number[]).filter(id => id !== primaryFactId);
+      if (factIdsToDelete.length > 0) {
+        // Verify ALL facts belong to this brainlift before deletion
+        const factsInBrainlift = await db.select({ id: facts.id })
+          .from(facts)
+          .where(and(
+            inArray(facts.id, factIdsToDelete),
+            eq(facts.brainliftId, brainliftId)
+          ));
 
-        if (factIdsToDelete.length > 0) {
-          // Delete related data first (foreign key constraints)
-          for (const factId of factIdsToDelete) {
-            // Get verification IDs for this fact
-            const verifications = await db.select({ id: factVerifications.id })
-              .from(factVerifications)
-              .where(eq(factVerifications.factId, factId));
-            const verificationIds = verifications.map(v => v.id);
+        if (factsInBrainlift.length !== factIdsToDelete.length) {
+          throw new NotFoundError('Some facts do not belong to this brainlift');
+        }
 
-            // Delete model scores if there are verifications
-            if (verificationIds.length > 0) {
-              await db.delete(factModelScores).where(inArray(factModelScores.verificationId, verificationIds));
-            }
+        // Delete related data first (foreign key constraints)
+        for (const factId of factIdsToDelete) {
+          // Get verification IDs for this fact
+          const verifications = await db.select({ id: factVerifications.id })
+            .from(factVerifications)
+            .where(eq(factVerifications.factId, factId));
+          const verificationIds = verifications.map(v => v.id);
 
-            // Delete verifications
-            await db.delete(factVerifications).where(eq(factVerifications.factId, factId));
-
-            // Delete LLM feedback
-            await db.delete(llmFeedback).where(eq(llmFeedback.factId, factId));
-
-            // Delete the fact itself
-            await db.delete(facts).where(eq(facts.id, factId));
+          // Delete model scores if there are verifications
+          if (verificationIds.length > 0) {
+            await db.delete(factModelScores).where(inArray(factModelScores.verificationId, verificationIds));
           }
 
-          console.log(`Deleted ${factIdsToDelete.length} redundant facts, kept fact ${primaryFactId}`);
+          // Delete verifications
+          await db.delete(factVerifications).where(eq(factVerifications.factId, factId));
+
+          // Delete LLM feedback
+          await db.delete(llmFeedback).where(eq(llmFeedback.factId, factId));
+
+          // Delete the fact itself
+          await db.delete(facts).where(eq(facts.id, factId));
         }
+
+        console.log(`Deleted ${factIdsToDelete.length} redundant facts, kept fact ${primaryFactId}`);
       }
 
       // Update the group's primaryFactId and factIds to only contain the kept fact
@@ -139,10 +152,16 @@ redundancyRouter.patch(
           primaryFactId,
           factIds: [primaryFactId]
         })
-        .where(eq(factRedundancyGroups.id, groupId));
+        .where(and(
+          eq(factRedundancyGroups.id, groupId),
+          eq(factRedundancyGroups.brainliftId, brainliftId)
+        ));
     }
 
-    const updated = await storage.updateRedundancyGroupStatus(groupId, status);
+    const updated = await storage.updateRedundancyGroupStatusForBrainlift(groupId, brainliftId, status);
+    if (!updated) {
+      throw new NotFoundError('Redundancy group not found');
+    }
     res.json(updated);
   })
 );

@@ -55,6 +55,9 @@ export const storage = {
   updateExpertFollowing: expertsStorage.updateExpertFollowing,
   getFollowedExperts: expertsStorage.getFollowedExperts,
   deleteExpert: expertsStorage.deleteExpert,
+  // Ownership-aware experts
+  updateExpertFollowingForBrainlift: expertsStorage.updateExpertFollowingForBrainlift,
+  deleteExpertForBrainlift: expertsStorage.deleteExpertForBrainlift,
 
   // Verifications
   getFactById: verificationsStorage.getFactById,
@@ -65,12 +68,19 @@ export const storage = {
   updateFactVerification: verificationsStorage.updateFactVerification,
   saveModelScore: verificationsStorage.saveModelScore,
   setHumanOverride: verificationsStorage.setHumanOverride,
+  // Ownership-aware verifications
+  getFactByIdForBrainlift: verificationsStorage.getFactByIdForBrainlift,
+  getFactVerificationForBrainlift: verificationsStorage.getFactVerificationForBrainlift,
+  setHumanOverrideForBrainlift: verificationsStorage.setHumanOverrideForBrainlift,
 
   // Redundancy
   getRedundancyGroups: redundancyStorage.getRedundancyGroups,
   saveRedundancyGroups: redundancyStorage.saveRedundancyGroups,
   updateRedundancyGroupStatus: redundancyStorage.updateRedundancyGroupStatus,
   deleteRedundancyGroups: redundancyStorage.deleteRedundancyGroups,
+  // Ownership-aware redundancy
+  getRedundancyGroupForBrainlift: redundancyStorage.getRedundancyGroupForBrainlift,
+  updateRedundancyGroupStatusForBrainlift: redundancyStorage.updateRedundancyGroupStatusForBrainlift,
 
   // Analytics
   getModelAccuracyStats: analyticsStorage.getModelAccuracyStats,
