@@ -1,6 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
 import { storage } from '../storage';
-import { NotFoundError, ForbiddenError } from './error-handler';
+import { NotFoundError, ForbiddenError, BadRequestError } from './error-handler';
 import type { BrainliftData } from '@shared/schema';
 
 // Extend Express Request to include brainlift
@@ -16,6 +16,7 @@ declare global {
  * Middleware that loads brainlift by slug and checks read access.
  * Sets req.brainlift for downstream use.
  *
+ * @throws BadRequestError if slug parameter is missing
  * @throws NotFoundError if brainlift doesn't exist
  * @throws ForbiddenError if user doesn't have read access
  */
@@ -27,7 +28,7 @@ export async function requireBrainliftAccess(
   try {
     const slug = req.params.slug;
     if (!slug) {
-      throw new NotFoundError('Brainlift slug is required');
+      throw new BadRequestError('Brainlift slug is required');
     }
 
     const brainlift = await storage.getBrainliftBySlug(slug);
@@ -50,6 +51,7 @@ export async function requireBrainliftAccess(
  * Middleware that loads brainlift by slug and checks write/modify access.
  * Sets req.brainlift for downstream use.
  *
+ * @throws BadRequestError if slug parameter is missing
  * @throws NotFoundError if brainlift doesn't exist
  * @throws ForbiddenError if user doesn't have write access
  */
@@ -61,7 +63,7 @@ export async function requireBrainliftModify(
   try {
     const slug = req.params.slug;
     if (!slug) {
-      throw new NotFoundError('Brainlift slug is required');
+      throw new BadRequestError('Brainlift slug is required');
     }
 
     const brainlift = await storage.getBrainliftBySlug(slug);
@@ -84,6 +86,10 @@ export async function requireBrainliftModify(
  * Middleware that loads brainlift by ID and checks read access.
  * Uses req.params.id instead of slug.
  * Sets req.brainlift for downstream use.
+ *
+ * @throws BadRequestError if ID parameter is invalid
+ * @throws NotFoundError if brainlift doesn't exist
+ * @throws ForbiddenError if user doesn't have read access
  */
 export async function requireBrainliftAccessById(
   req: Request,
@@ -93,7 +99,7 @@ export async function requireBrainliftAccessById(
   try {
     const id = parseInt(req.params.id, 10);
     if (isNaN(id)) {
-      throw new NotFoundError('Invalid brainlift ID');
+      throw new BadRequestError('Invalid brainlift ID');
     }
 
     const brainlift = await storage.getBrainliftById(id);
@@ -116,6 +122,10 @@ export async function requireBrainliftAccessById(
  * Middleware that loads brainlift by ID and checks write access.
  * Uses req.params.id instead of slug.
  * Sets req.brainlift for downstream use.
+ *
+ * @throws BadRequestError if ID parameter is invalid
+ * @throws NotFoundError if brainlift doesn't exist
+ * @throws ForbiddenError if user doesn't have write access
  */
 export async function requireBrainliftModifyById(
   req: Request,
@@ -125,7 +135,7 @@ export async function requireBrainliftModifyById(
   try {
     const id = parseInt(req.params.id, 10);
     if (isNaN(id)) {
-      throw new NotFoundError('Invalid brainlift ID');
+      throw new BadRequestError('Invalid brainlift ID');
     }
 
     const brainlift = await storage.getBrainliftById(id);

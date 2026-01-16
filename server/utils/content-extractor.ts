@@ -3,6 +3,9 @@ import { fetchWorkflowyContent, fetchGoogleDocsContent } from "./external-source
 
 export type SourceType = 'pdf' | 'docx' | 'html' | 'workflowy' | 'googledocs' | 'text';
 
+// Maximum content size: 5MB of text (roughly 5 million characters)
+const MAX_CONTENT_SIZE = 5 * 1024 * 1024;
+
 export interface ContentExtractionResult {
   content: string;
   sourceLabel: string;
@@ -26,6 +29,29 @@ export class ContentExtractionError extends Error {
 }
 
 /**
+ * Wrap extractor errors in ContentExtractionError for consistent error handling
+ */
+function wrapExtractorError(error: unknown, context: string): never {
+  if (error instanceof ContentExtractionError) {
+    throw error;
+  }
+  const message = error instanceof Error ? error.message : 'Unknown error';
+  throw new ContentExtractionError(`Failed to extract content from ${context}: ${message}`);
+}
+
+/**
+ * Validate content size is within limits
+ */
+function validateContentSize(content: string, sourceLabel: string): void {
+  if (content.length > MAX_CONTENT_SIZE) {
+    throw new ContentExtractionError(
+      `Content from ${sourceLabel} exceeds maximum size limit (${Math.round(MAX_CONTENT_SIZE / 1024 / 1024)}MB)`,
+      413 // Payload Too Large
+    );
+  }
+}
+
+/**
  * Extract content from various source types (PDF, DOCX, HTML, Workflowy, Google Docs, text)
  * @throws ContentExtractionError if source is invalid or content cannot be extracted
  */
@@ -40,40 +66,60 @@ export async function extractContent(input: ContentExtractionInput): Promise<Con
       if (!file) {
         throw new ContentExtractionError('No file uploaded');
       }
-      content = await extractTextFromPDF(file.buffer);
       sourceLabel = 'PDF document';
+      try {
+        content = await extractTextFromPDF(file.buffer);
+      } catch (error) {
+        wrapExtractorError(error, sourceLabel);
+      }
       break;
 
     case 'docx':
       if (!file) {
         throw new ContentExtractionError('No file uploaded');
       }
-      content = await extractTextFromDocx(file.buffer);
       sourceLabel = 'Word document';
+      try {
+        content = await extractTextFromDocx(file.buffer);
+      } catch (error) {
+        wrapExtractorError(error, sourceLabel);
+      }
       break;
 
     case 'html':
       if (!file) {
         throw new ContentExtractionError('No file uploaded');
       }
-      content = extractTextFromHTML(file.buffer.toString('utf-8'));
       sourceLabel = 'HTML file';
+      try {
+        content = extractTextFromHTML(file.buffer.toString('utf-8'));
+      } catch (error) {
+        wrapExtractorError(error, sourceLabel);
+      }
       break;
 
     case 'workflowy':
       if (!url) {
         throw new ContentExtractionError('No Workflowy URL provided');
       }
-      content = await fetchWorkflowyContent(url);
       sourceLabel = 'Workflowy';
+      try {
+        content = await fetchWorkflowyContent(url);
+      } catch (error) {
+        wrapExtractorError(error, sourceLabel);
+      }
       break;
 
     case 'googledocs':
       if (!url) {
         throw new ContentExtractionError('No Google Docs URL provided');
       }
-      content = await fetchGoogleDocsContent(url);
       sourceLabel = 'Google Docs';
+      try {
+        content = await fetchGoogleDocsContent(url);
+      } catch (error) {
+        wrapExtractorError(error, sourceLabel);
+      }
       break;
 
     case 'text':
@@ -87,6 +133,9 @@ export async function extractContent(input: ContentExtractionInput): Promise<Con
     default:
       throw new ContentExtractionError('Invalid source type');
   }
+
+  // Validate content size before returning
+  validateContentSize(content, sourceLabel);
 
   return { content, sourceLabel };
 }

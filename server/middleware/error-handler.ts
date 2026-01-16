@@ -55,10 +55,10 @@ export function errorHandler(
   res: Response,
   next: NextFunction
 ): void {
-  // Log error for debugging
+  // Log error for debugging (always log full details server-side)
   console.error(`[Error] ${req.method} ${req.path}:`, err);
 
-  // Handle AppError instances
+  // Handle AppError instances (safe to expose - these are intentional user-facing errors)
   if (err instanceof AppError) {
     res.status(err.statusCode).json({
       message: err.message,
@@ -67,7 +67,7 @@ export function errorHandler(
     return;
   }
 
-  // Handle Zod validation errors
+  // Handle Zod validation errors (safe to expose validation messages)
   if (err.name === 'ZodError') {
     const zodError = err as any;
     res.status(400).json({
@@ -78,9 +78,21 @@ export function errorHandler(
     return;
   }
 
+  // Handle ContentExtractionError (has statusCode property)
+  if (err.name === 'ContentExtractionError' && 'statusCode' in err) {
+    const extractionError = err as Error & { statusCode: number };
+    res.status(extractionError.statusCode).json({
+      message: extractionError.message,
+      code: 'CONTENT_EXTRACTION_ERROR',
+    });
+    return;
+  }
+
   // Default to 500 for unknown errors
+  // In production, don't expose internal error messages (could leak sensitive info)
+  const isProduction = process.env.NODE_ENV === 'production';
   res.status(500).json({
-    message: err.message || 'Internal server error',
+    message: isProduction ? 'Internal server error' : (err.message || 'Internal server error'),
     code: 'INTERNAL_ERROR',
   });
 }

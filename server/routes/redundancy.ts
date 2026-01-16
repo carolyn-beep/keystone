@@ -88,6 +88,9 @@ redundancyRouter.patch(
   requireBrainliftModify,
   asyncHandler(async (req, res) => {
     const groupId = parseInt(req.params.groupId);
+    if (isNaN(groupId)) {
+      throw new BadRequestError('Invalid group ID');
+    }
     const brainliftId = req.brainlift!.id;
     const { status, primaryFactId } = req.body;
 

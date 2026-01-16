@@ -32,6 +32,9 @@ verificationsRouter.post(
   requireBrainliftModify,
   asyncHandler(async (req, res) => {
     const factId = parseInt(req.params.factId);
+    if (isNaN(factId)) {
+      throw new BadRequestError('Invalid fact ID');
+    }
 
     // Get the fact with brainlift ownership verification
     const targetFact = await storage.getFactByIdForBrainlift(factId, req.brainlift!.id);
@@ -187,6 +190,9 @@ verificationsRouter.post(
   requireBrainliftModify,
   asyncHandler(async (req, res) => {
     const verificationId = parseInt(req.params.verificationId);
+    if (isNaN(verificationId)) {
+      throw new BadRequestError('Invalid verification ID');
+    }
     const { score, notes } = req.body;
 
     if (!score || score < 1 || score > 5) {
@@ -208,6 +214,9 @@ verificationsRouter.post(
   requireBrainliftModify,
   asyncHandler(async (req, res) => {
     const factId = parseInt(req.params.factId);
+    if (isNaN(factId)) {
+      throw new BadRequestError('Invalid fact ID');
+    }
     const { score, notes } = req.body;
 
     if (!score || score < 1 || score > 5) {

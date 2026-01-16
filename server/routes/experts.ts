@@ -67,6 +67,9 @@ expertsRouter.patch(
   requireBrainliftModify,
   asyncHandler(async (req, res) => {
     const expertId = parseInt(req.params.id);
+    if (isNaN(expertId)) {
+      throw new BadRequestError('Invalid expert ID');
+    }
     const { isFollowing } = req.body;
 
     if (typeof isFollowing !== 'boolean') {
@@ -90,6 +93,9 @@ expertsRouter.delete(
   requireBrainliftModify,
   asyncHandler(async (req, res) => {
     const expertId = parseInt(req.params.id);
+    if (isNaN(expertId)) {
+      throw new BadRequestError('Invalid expert ID');
+    }
     const deleted = await storage.deleteExpertForBrainlift(expertId, req.brainlift!.id);
     if (!deleted) {
       throw new NotFoundError('Expert not found');

@@ -4,9 +4,15 @@ import { api } from "@shared/routes";
 import { z } from "zod";
 import multer from "multer";
 import { extractBrainlift } from "../ai/brainliftExtractor";
-import { extractContent, validateContent, ContentExtractionError, type SourceType } from "../utils/content-extractor";
+import { extractContent, validateContent, type SourceType } from "../utils/content-extractor";
 import { saveBrainliftFromAI, runPostProcessingPipeline } from "../services/brainlift";
 import { requireAuth } from "../middleware/auth";
+import { asyncHandler, BadRequestError } from "../middleware/error-handler";
+import {
+  requireBrainliftAccess,
+  requireBrainliftModify,
+  requireBrainliftModifyById
+} from "../middleware/brainlift-auth";
 
 export const brainliftsRouter = Router();
 
@@ -19,41 +25,45 @@ const PAGE_SIZE = 9;
 
 // Get all brainlifts (filtered by user role, or all if admin with ?all=true)
 // Supports pagination via ?page=1 (1-indexed)
-brainliftsRouter.get(api.brainlifts.list.path, requireAuth, async (req, res) => {
-  const showAll = req.query.all === 'true' && req.authContext!.isAdmin;
-  const page = Math.max(1, parseInt(req.query.page as string) || 1);
-  const offset = (page - 1) * PAGE_SIZE;
+brainliftsRouter.get(
+  api.brainlifts.list.path,
+  requireAuth,
+  asyncHandler(async (req, res) => {
+    const showAll = req.query.all === 'true' && req.authContext!.isAdmin;
+    const page = Math.max(1, parseInt(req.query.page as string) || 1);
+    const offset = (page - 1) * PAGE_SIZE;
 
-  const { brainlifts, total } = showAll
-    ? await storage.getAllBrainliftsPaginated(offset, PAGE_SIZE)
-    : await storage.getBrainliftsForUserPaginated(req.authContext!, offset, PAGE_SIZE);
+    const { brainlifts, total } = showAll
+      ? await storage.getAllBrainliftsPaginated(offset, PAGE_SIZE)
+      : await storage.getBrainliftsForUserPaginated(req.authContext!, offset, PAGE_SIZE);
 
-  res.json({
-    brainlifts,
-    pagination: {
-      page,
-      pageSize: PAGE_SIZE,
-      total,
-      totalPages: Math.ceil(total / PAGE_SIZE),
-    },
-  });
-});
+    res.json({
+      brainlifts,
+      pagination: {
+        page,
+        pageSize: PAGE_SIZE,
+        total,
+        totalPages: Math.ceil(total / PAGE_SIZE),
+      },
+    });
+  })
+);
 
 // Get single brainlift by slug
-brainliftsRouter.get(api.brainlifts.get.path, requireAuth, async (req, res) => {
-  const brainlift = await storage.getBrainliftBySlug(req.params.slug);
-  if (!brainlift) {
-    return res.status(404).json({ message: "Brainlift not found" });
-  }
-  if (!storage.canAccessBrainlift(brainlift, req.authContext!)) {
-    return res.status(403).json({ message: "Access denied" });
-  }
-  res.json(brainlift);
-});
+brainliftsRouter.get(
+  api.brainlifts.get.path,
+  requireAuth,
+  requireBrainliftAccess,
+  asyncHandler(async (req, res) => {
+    res.json(req.brainlift);
+  })
+);
 
 // Create brainlift
-brainliftsRouter.post(api.brainlifts.create.path, requireAuth, async (req, res) => {
-  try {
+brainliftsRouter.post(
+  api.brainlifts.create.path,
+  requireAuth,
+  asyncHandler(async (req, res) => {
     const input = api.brainlifts.create.input.parse(req.body);
     const brainlift = await storage.createBrainlift(
       {
@@ -69,42 +79,26 @@ brainliftsRouter.post(api.brainlifts.create.path, requireAuth, async (req, res) 
       req.authContext!.userId
     );
     res.status(201).json(brainlift);
-  } catch (err) {
-    if (err instanceof z.ZodError) {
-      return res.status(400).json({
-        message: err.errors[0].message,
-        field: err.errors[0].path.join('.'),
-      });
-    }
-    throw err;
-  }
-});
+  })
+);
 
 // Delete brainlift
-brainliftsRouter.delete('/api/brainlifts/:id', requireAuth, async (req, res) => {
-  try {
-    const id = parseInt(req.params.id, 10);
-    if (isNaN(id)) {
-      return res.status(400).json({ message: "Invalid brainlift ID" });
-    }
-    const brainlift = await storage.getBrainliftById(id);
-    if (!brainlift) {
-      return res.status(404).json({ message: "Brainlift not found" });
-    }
-    if (!storage.canModifyBrainlift(brainlift, req.authContext!)) {
-      return res.status(403).json({ message: "Access denied" });
-    }
-    await storage.deleteBrainlift(id);
+brainliftsRouter.delete(
+  '/api/brainlifts/:id',
+  requireAuth,
+  requireBrainliftModifyById,
+  asyncHandler(async (req, res) => {
+    await storage.deleteBrainlift(req.brainlift!.id);
     res.json({ message: "Brainlift deleted successfully" });
-  } catch (err) {
-    console.error('Delete brainlift error:', err);
-    res.status(500).json({ message: "Failed to delete brainlift" });
-  }
-});
+  })
+);
 
 // Import brainlift from file or URL
-brainliftsRouter.post('/api/brainlifts/import', requireAuth, upload.single('file'), async (req, res) => {
-  try {
+brainliftsRouter.post(
+  '/api/brainlifts/import',
+  requireAuth,
+  upload.single('file'),
+  asyncHandler(async (req, res) => {
     const sourceType = req.body.sourceType as SourceType;
 
     const { content: rawContent, sourceLabel } = await extractContent({
@@ -122,31 +116,19 @@ brainliftsRouter.post('/api/brainlifts/import', requireAuth, upload.single('file
     const brainlift = await saveBrainliftFromAI(brainliftData, content, sourceType, req.authContext!.userId);
 
     res.status(201).json(brainlift);
-  } catch (err: any) {
-    console.error('Import error:', err);
-    if (err instanceof ContentExtractionError) {
-      return res.status(err.statusCode).json({ message: err.message });
-    }
-    res.status(500).json({ message: err.message || 'Failed to import brainlift' });
-  }
-});
+  })
+);
 
 // Get grades for a brainlift
-brainliftsRouter.get('/api/brainlifts/:slug/grades', requireAuth, async (req, res) => {
-  try {
-    const brainlift = await storage.getBrainliftBySlug(req.params.slug);
-    if (!brainlift) {
-      return res.status(404).json({ message: 'Brainlift not found' });
-    }
-    if (!storage.canAccessBrainlift(brainlift, req.authContext!)) {
-      return res.status(403).json({ message: 'Access denied' });
-    }
-    const grades = await storage.getGradesByBrainliftId(brainlift.id);
+brainliftsRouter.get(
+  '/api/brainlifts/:slug/grades',
+  requireAuth,
+  requireBrainliftAccess,
+  asyncHandler(async (req, res) => {
+    const grades = await storage.getGradesByBrainliftId(req.brainlift!.id);
     res.json(grades);
-  } catch (err: any) {
-    res.status(500).json({ message: err.message });
-  }
-});
+  })
+);
 
 // Save a grade for a reading list item
 const gradeSchema = z.object({
@@ -157,19 +139,14 @@ const gradeSchema = z.object({
   quality: z.number().min(1).max(5).nullable().optional(),
 });
 
-brainliftsRouter.post('/api/brainlifts/:slug/grades', requireAuth, async (req, res) => {
-  try {
-    const brainlift = await storage.getBrainliftBySlug(req.params.slug);
-    if (!brainlift) {
-      return res.status(404).json({ message: 'Brainlift not found' });
-    }
-    if (!storage.canModifyBrainlift(brainlift, req.authContext!)) {
-      return res.status(403).json({ message: 'Access denied' });
-    }
-
+brainliftsRouter.post(
+  '/api/brainlifts/:slug/grades',
+  requireAuth,
+  requireBrainliftModify,
+  asyncHandler(async (req, res) => {
     const parsed = gradeSchema.safeParse(req.body);
     if (!parsed.success) {
-      return res.status(400).json({ message: 'Invalid grade data', errors: parsed.error.errors });
+      throw new BadRequestError('Invalid grade data');
     }
     const { readingListItemId, aligns, contradicts, newInfo, quality } = parsed.data;
 
@@ -181,25 +158,17 @@ brainliftsRouter.post('/api/brainlifts/:slug/grades', requireAuth, async (req, r
       quality: quality ?? null,
     });
     res.json(grade);
-  } catch (err: any) {
-    res.status(500).json({ message: err.message });
-  }
-});
+  })
+);
 
 // Update brainlift (import new version)
-brainliftsRouter.patch('/api/brainlifts/:slug/update', requireAuth, upload.single('file'), async (req, res) => {
-  try {
+brainliftsRouter.patch(
+  '/api/brainlifts/:slug/update',
+  requireAuth,
+  requireBrainliftModify,
+  upload.single('file'),
+  asyncHandler(async (req, res) => {
     const { slug } = req.params;
-
-    // Check modify permission
-    const existingBrainlift = await storage.getBrainliftBySlug(slug);
-    if (!existingBrainlift) {
-      return res.status(404).json({ message: 'Brainlift not found' });
-    }
-    if (!storage.canModifyBrainlift(existingBrainlift, req.authContext!)) {
-      return res.status(403).json({ message: 'Access denied' });
-    }
-
     const sourceType = req.body.sourceType as SourceType;
 
     const { content: rawContent, sourceLabel } = await extractContent({
@@ -274,47 +243,28 @@ brainliftsRouter.patch('/api/brainlifts/:slug/update', requireAuth, upload.singl
     });
 
     res.json(await storage.getBrainliftBySlug(slug));
-  } catch (err: any) {
-    console.error('Update error:', err);
-    if (err instanceof ContentExtractionError) {
-      return res.status(err.statusCode).json({ message: err.message });
-    }
-    res.status(500).json({ message: err.message || 'Failed to update brainlift' });
-  }
-});
+  })
+);
 
 // Update brainlift author/owner
-brainliftsRouter.patch('/api/brainlifts/:slug/author', requireAuth, async (req, res) => {
-  try {
-    const brainlift = await storage.getBrainliftBySlug(req.params.slug);
-    if (!brainlift) {
-      return res.status(404).json({ message: 'Brainlift not found' });
-    }
-    if (!storage.canModifyBrainlift(brainlift, req.authContext!)) {
-      return res.status(403).json({ message: 'Access denied' });
-    }
+brainliftsRouter.patch(
+  '/api/brainlifts/:slug/author',
+  requireAuth,
+  requireBrainliftModify,
+  asyncHandler(async (req, res) => {
     const { author } = req.body;
-    await storage.updateBrainliftFields(brainlift.id, { author: author || null });
+    await storage.updateBrainliftFields(req.brainlift!.id, { author: author || null });
     res.json({ success: true, author });
-  } catch (err: any) {
-    console.error('Update author error:', err);
-    res.status(500).json({ message: err.message || 'Failed to update author' });
-  }
-});
+  })
+);
 
 // Get version history for a brainlift
-brainliftsRouter.get('/api/brainlifts/:slug/versions', requireAuth, async (req, res) => {
-  try {
-    const brainlift = await storage.getBrainliftBySlug(req.params.slug);
-    if (!brainlift) {
-      return res.status(404).json({ message: 'Brainlift not found' });
-    }
-    if (!storage.canAccessBrainlift(brainlift, req.authContext!)) {
-      return res.status(403).json({ message: 'Access denied' });
-    }
-    const versions = await storage.getVersionsByBrainliftId(brainlift.id);
+brainliftsRouter.get(
+  '/api/brainlifts/:slug/versions',
+  requireAuth,
+  requireBrainliftAccess,
+  asyncHandler(async (req, res) => {
+    const versions = await storage.getVersionsByBrainliftId(req.brainlift!.id);
     res.json(versions);
-  } catch (err: any) {
-    res.status(500).json({ message: err.message });
-  }
-});
+  })
+);
