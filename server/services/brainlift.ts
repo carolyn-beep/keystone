@@ -3,10 +3,71 @@ import { generateUniqueSlug } from "../utils/slug";
 import { summarizeFact } from "../ai/factSummarizer";
 import { verifyFactWithAllModels } from "../ai/factVerifier";
 import { fetchEvidenceForFact } from "../ai/evidenceFetcher";
-import { extractAndRankExperts, diagnoseExpertFormat } from "../ai/expertExtractor";
+import { extractAndRankExperts, diagnoseExpertFormat } from "../ai/experts";
+import { analyzeFactRedundancy } from "../ai/redundancyAnalyzer";
 import { type BrainliftOutput } from "../ai/brainliftExtractor";
 import { type BrainliftData } from "@shared/schema";
 import pLimit from "p-limit";
+
+export interface PostProcessingInput {
+  brainliftId: number;
+  title: string;
+  description: string;
+  author: string | null;
+  facts: Array<{ id?: number; fact: string; source?: string | null; note?: string | null; score?: number }>;
+  originalContent: string;
+  readingList: Array<{ author?: string; topic?: string }>;
+}
+
+/**
+ * Run post-processing pipeline (expert extraction + redundancy analysis) after brainlift creation/update.
+ * Both tasks run in parallel and errors are logged but don't fail the main operation.
+ */
+export async function runPostProcessingPipeline(input: PostProcessingInput): Promise<void> {
+  await Promise.all([
+    // Expert extraction
+    (async () => {
+      try {
+        const expertData = await extractAndRankExperts({
+          brainliftId: input.brainliftId,
+          title: input.title,
+          description: input.description,
+          author: input.author,
+          facts: input.facts as any[],
+          originalContent: input.originalContent,
+          readingList: input.readingList,
+        });
+
+        if (expertData.length > 0) {
+          await storage.saveExperts(input.brainliftId, expertData);
+        }
+      } catch (err) {
+        console.error("Expert extraction failed during post-processing:", err);
+      }
+    })(),
+
+    // Redundancy analysis
+    (async () => {
+      try {
+        const savedFacts = await storage.getFactsForBrainlift(input.brainliftId);
+        const redundancyResult = await analyzeFactRedundancy(savedFacts);
+
+        if (redundancyResult.redundancyGroups.length > 0) {
+          await storage.saveRedundancyGroups(input.brainliftId, redundancyResult.redundancyGroups.map(g => ({
+            groupName: g.groupName,
+            factIds: g.factIds,
+            primaryFactId: g.primaryFactId,
+            similarityScore: g.similarityScore,
+            reason: g.reason,
+            status: 'pending' as const,
+          })));
+        }
+      } catch (err) {
+        console.error("Redundancy analysis failed during post-processing:", err);
+      }
+    })(),
+  ]);
+}
 
 export async function saveBrainliftFromAI(data: BrainliftOutput, originalContent?: string, sourceType?: string, userId?: string, retryCount = 0): Promise<BrainliftData> {
   const MAX_RETRIES = 3;
@@ -199,50 +260,15 @@ export async function saveBrainliftFromAI(data: BrainliftOutput, originalContent
   }
 
   // Run expert extraction and redundancy analysis in parallel after save
-  await Promise.all([
-    // Expert extraction
-    (async () => {
-      try {
-        const expertData = await extractAndRankExperts({
-          brainliftId: brainlift.id,
-          title: data.title,
-          description: data.description,
-          author: data.owner || null,
-          facts: factsWithSummaries as any[],
-          originalContent: originalContent,
-          readingList: finalReadingList,
-        });
-
-        if (expertData.length > 0) {
-          await storage.saveExperts(brainlift.id, expertData);
-        }
-      } catch (err) {
-        console.error("Expert extraction failed during brainlift creation:", err);
-      }
-    })(),
-
-    // Redundancy analysis
-    (async () => {
-      try {
-        const { analyzeFactRedundancy } = await import('../ai/redundancyAnalyzer');
-        const savedFacts = await storage.getFactsForBrainlift(brainlift.id);
-        const redundancyResult = await analyzeFactRedundancy(savedFacts);
-
-        if (redundancyResult.redundancyGroups.length > 0) {
-          await storage.saveRedundancyGroups(brainlift.id, redundancyResult.redundancyGroups.map(g => ({
-            groupName: g.groupName,
-            factIds: g.factIds,
-            primaryFactId: g.primaryFactId,
-            similarityScore: g.similarityScore,
-            reason: g.reason,
-            status: 'pending' as const,
-          })));
-        }
-      } catch (err) {
-        console.error("Redundancy analysis failed during brainlift creation:", err);
-      }
-    })(),
-  ]);
+  await runPostProcessingPipeline({
+    brainliftId: brainlift.id,
+    title: data.title,
+    description: data.description,
+    author: data.owner || null,
+    facts: factsWithSummaries,
+    originalContent: originalContent || '',
+    readingList: finalReadingList,
+  });
 
   return storage.getBrainliftBySlug(slug) as Promise<BrainliftData>;
 }

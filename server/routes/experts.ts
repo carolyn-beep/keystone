@@ -1,39 +1,30 @@
 import { Router } from 'express';
 import { storage } from '../storage';
-import { extractAndRankExperts, diagnoseExpertFormat } from '../ai/expertExtractor';
+import { extractAndRankExperts, diagnoseExpertFormat } from '../ai/experts';
 import { requireAuth } from '../middleware/auth';
+import { asyncHandler, BadRequestError } from '../middleware/error-handler';
+import { requireBrainliftAccess, requireBrainliftModify } from '../middleware/brainlift-auth';
 
 export const expertsRouter = Router();
 
 // Get experts for a brainlift
-expertsRouter.get('/api/brainlifts/:slug/experts', requireAuth, async (req, res) => {
-  try {
-    const brainlift = await storage.getBrainliftBySlug(req.params.slug);
-    if (!brainlift) {
-      return res.status(404).json({ message: 'Brainlift not found' });
-    }
-    if (!storage.canAccessBrainlift(brainlift, req.authContext!)) {
-      return res.status(403).json({ message: 'Access denied' });
-    }
-
-    const expertsList = await storage.getExpertsByBrainliftId(brainlift.id);
+expertsRouter.get(
+  '/api/brainlifts/:slug/experts',
+  requireAuth,
+  requireBrainliftAccess,
+  asyncHandler(async (req, res) => {
+    const expertsList = await storage.getExpertsByBrainliftId(req.brainlift!.id);
     res.json(expertsList);
-  } catch (err: any) {
-    console.error('Get experts error:', err);
-    res.status(500).json({ message: err.message || 'Failed to get experts' });
-  }
-});
+  })
+);
 
 // Refresh/extract experts for a brainlift using AI
-expertsRouter.post('/api/brainlifts/:slug/experts/refresh', requireAuth, async (req, res) => {
-  try {
-    const brainlift = await storage.getBrainliftBySlug(req.params.slug);
-    if (!brainlift) {
-      return res.status(404).json({ message: 'Brainlift not found' });
-    }
-    if (!storage.canModifyBrainlift(brainlift, req.authContext!)) {
-      return res.status(403).json({ message: 'Access denied' });
-    }
+expertsRouter.post(
+  '/api/brainlifts/:slug/experts/refresh',
+  requireAuth,
+  requireBrainliftModify,
+  asyncHandler(async (req, res) => {
+    const brainlift = req.brainlift!;
 
     // Run expert extraction
     const expertsData = await extractAndRankExperts({
@@ -61,78 +52,51 @@ expertsRouter.post('/api/brainlifts/:slug/experts/refresh', requireAuth, async (
       console.log('[Expert Refresh] No originalContent for:', brainlift.slug);
     }
 
-    return res.json({
+    res.json({
       ...brainlift,
       experts: savedExperts,
       expertDiagnostics
     });
-  } catch (err: any) {
-    console.error('Refresh experts error:', err);
-    res.status(500).json({ message: err.message || 'Failed to refresh experts' });
-  }
-});
+  })
+);
 
 // Update expert following status (nested under brainlift for authorization)
-expertsRouter.patch('/api/brainlifts/:slug/experts/:id/follow', requireAuth, async (req, res) => {
-  try {
-    const brainlift = await storage.getBrainliftBySlug(req.params.slug);
-    if (!brainlift) {
-      return res.status(404).json({ message: 'Brainlift not found' });
-    }
-    if (!storage.canModifyBrainlift(brainlift, req.authContext!)) {
-      return res.status(403).json({ message: 'Access denied' });
-    }
-
+expertsRouter.patch(
+  '/api/brainlifts/:slug/experts/:id/follow',
+  requireAuth,
+  requireBrainliftModify,
+  asyncHandler(async (req, res) => {
     const expertId = parseInt(req.params.id);
     const { isFollowing } = req.body;
 
     if (typeof isFollowing !== 'boolean') {
-      return res.status(400).json({ message: 'isFollowing must be a boolean' });
+      throw new BadRequestError('isFollowing must be a boolean');
     }
 
     const updated = await storage.updateExpertFollowing(expertId, isFollowing);
     res.json(updated);
-  } catch (err: any) {
-    console.error('Update expert following error:', err);
-    res.status(500).json({ message: err.message || 'Failed to update expert' });
-  }
-});
+  })
+);
 
 // Delete an expert (nested under brainlift for authorization)
-expertsRouter.delete('/api/brainlifts/:slug/experts/:id', requireAuth, async (req, res) => {
-  try {
-    const brainlift = await storage.getBrainliftBySlug(req.params.slug);
-    if (!brainlift) {
-      return res.status(404).json({ message: 'Brainlift not found' });
-    }
-    if (!storage.canModifyBrainlift(brainlift, req.authContext!)) {
-      return res.status(403).json({ message: 'Access denied' });
-    }
-
+expertsRouter.delete(
+  '/api/brainlifts/:slug/experts/:id',
+  requireAuth,
+  requireBrainliftModify,
+  asyncHandler(async (req, res) => {
     const expertId = parseInt(req.params.id);
     await storage.deleteExpert(expertId);
     res.json({ success: true });
-  } catch (err: any) {
-    console.error('Delete expert error:', err);
-    res.status(500).json({ message: err.message || 'Failed to delete expert' });
-  }
-});
+  })
+);
 
 // Get followed experts for a brainlift (used by tweet search)
-expertsRouter.get('/api/brainlifts/:slug/experts/following', requireAuth, async (req, res) => {
-  try {
-    const brainlift = await storage.getBrainliftBySlug(req.params.slug);
-    if (!brainlift) {
-      return res.status(404).json({ message: 'Brainlift not found' });
-    }
-    if (!storage.canAccessBrainlift(brainlift, req.authContext!)) {
-      return res.status(403).json({ message: 'Access denied' });
-    }
-
-    const followedExperts = await storage.getFollowedExperts(brainlift.id);
+expertsRouter.get(
+  '/api/brainlifts/:slug/experts/following',
+  requireAuth,
+  requireBrainliftAccess,
+  asyncHandler(async (req, res) => {
+    const followedExperts = await storage.getFollowedExperts(req.brainlift!.id);
     res.json(followedExperts);
-  } catch (err: any) {
-    console.error('Get followed experts error:', err);
-    res.status(500).json({ message: err.message || 'Failed to get followed experts' });
-  }
-});
+  })
+);

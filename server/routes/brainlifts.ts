@@ -4,10 +4,8 @@ import { api } from "@shared/routes";
 import { z } from "zod";
 import multer from "multer";
 import { extractBrainlift } from "../ai/brainliftExtractor";
-import { extractTextFromPDF, extractTextFromDocx, extractTextFromHTML } from "../utils/file-extractors";
-import { fetchWorkflowyContent, fetchGoogleDocsContent } from "../utils/external-sources";
-import { saveBrainliftFromAI } from "../services/brainlift";
-import { extractAndRankExperts } from "../ai/expertExtractor";
+import { extractContent, validateContent, ContentExtractionError, type SourceType } from "../utils/content-extractor";
+import { saveBrainliftFromAI, runPostProcessingPipeline } from "../services/brainlift";
 import { requireAuth } from "../middleware/auth";
 
 export const brainliftsRouter = Router();
@@ -107,70 +105,16 @@ brainliftsRouter.delete('/api/brainlifts/:id', requireAuth, async (req, res) => 
 // Import brainlift from file or URL
 brainliftsRouter.post('/api/brainlifts/import', requireAuth, upload.single('file'), async (req, res) => {
   try {
-    const sourceType = req.body.sourceType as string;
-    let content: string;
-    let sourceLabel: string;
+    const sourceType = req.body.sourceType as SourceType;
 
-    switch (sourceType) {
-      case 'pdf':
-        if (!req.file) {
-          return res.status(400).json({ message: 'No file uploaded' });
-        }
-        content = await extractTextFromPDF(req.file.buffer);
-        sourceLabel = 'PDF document';
-        break;
+    const { content: rawContent, sourceLabel } = await extractContent({
+      sourceType,
+      file: req.file,
+      url: req.body.url,
+      textContent: req.body.content,
+    });
 
-      case 'docx':
-        if (!req.file) {
-          return res.status(400).json({ message: 'No file uploaded' });
-        }
-        content = await extractTextFromDocx(req.file.buffer);
-        sourceLabel = 'Word document';
-        break;
-
-      case 'html':
-        if (!req.file) {
-          return res.status(400).json({ message: 'No file uploaded' });
-        }
-        content = extractTextFromHTML(req.file.buffer.toString('utf-8'));
-        sourceLabel = 'HTML file';
-        break;
-
-      case 'workflowy':
-        const workflowyUrl = req.body.url as string;
-        if (!workflowyUrl) {
-          return res.status(400).json({ message: 'No Workflowy URL provided' });
-        }
-        content = await fetchWorkflowyContent(workflowyUrl);
-        sourceLabel = 'Workflowy';
-        break;
-
-      case 'googledocs':
-        const googleUrl = req.body.url as string;
-        if (!googleUrl) {
-          return res.status(400).json({ message: 'No Google Docs URL provided' });
-        }
-        content = await fetchGoogleDocsContent(googleUrl);
-        sourceLabel = 'Google Docs';
-        break;
-
-      case 'text':
-        const textContent = req.body.content as string;
-        if (!textContent) {
-          return res.status(400).json({ message: 'No text content provided' });
-        }
-        content = textContent;
-        sourceLabel = 'text content';
-        break;
-
-      default:
-        return res.status(400).json({ message: 'Invalid source type' });
-    }
-
-    content = content.trim();
-    if (!content || content.length < 100) {
-      return res.status(400).json({ message: 'Content is too short or empty. Please provide more detailed content (at least 100 characters).' });
-    }
+    const content = validateContent(rawContent);
 
     console.log(`Processing ${sourceLabel}, content length: ${content.length} chars`);
 
@@ -180,6 +124,9 @@ brainliftsRouter.post('/api/brainlifts/import', requireAuth, upload.single('file
     res.status(201).json(brainlift);
   } catch (err: any) {
     console.error('Import error:', err);
+    if (err instanceof ContentExtractionError) {
+      return res.status(err.statusCode).json({ message: err.message });
+    }
     res.status(500).json({ message: err.message || 'Failed to import brainlift' });
   }
 });
@@ -253,70 +200,16 @@ brainliftsRouter.patch('/api/brainlifts/:slug/update', requireAuth, upload.singl
       return res.status(403).json({ message: 'Access denied' });
     }
 
-    const sourceType = req.body.sourceType as string;
-    let content: string;
-    let sourceLabel: string;
+    const sourceType = req.body.sourceType as SourceType;
 
-    switch (sourceType) {
-      case 'pdf':
-        if (!req.file) {
-          return res.status(400).json({ message: 'No file uploaded' });
-        }
-        content = await extractTextFromPDF(req.file.buffer);
-        sourceLabel = 'PDF document';
-        break;
+    const { content: rawContent, sourceLabel } = await extractContent({
+      sourceType,
+      file: req.file,
+      url: req.body.url,
+      textContent: req.body.content,
+    });
 
-      case 'docx':
-        if (!req.file) {
-          return res.status(400).json({ message: 'No file uploaded' });
-        }
-        content = await extractTextFromDocx(req.file.buffer);
-        sourceLabel = 'Word document';
-        break;
-
-      case 'html':
-        if (!req.file) {
-          return res.status(400).json({ message: 'No file uploaded' });
-        }
-        content = extractTextFromHTML(req.file.buffer.toString('utf-8'));
-        sourceLabel = 'HTML file';
-        break;
-
-      case 'workflowy':
-        const workflowyUrl = req.body.url as string;
-        if (!workflowyUrl) {
-          return res.status(400).json({ message: 'No Workflowy URL provided' });
-        }
-        content = await fetchWorkflowyContent(workflowyUrl);
-        sourceLabel = 'Workflowy';
-        break;
-
-      case 'googledocs':
-        const googleUrl = req.body.url as string;
-        if (!googleUrl) {
-          return res.status(400).json({ message: 'No Google Docs URL provided' });
-        }
-        content = await fetchGoogleDocsContent(googleUrl);
-        sourceLabel = 'Google Docs';
-        break;
-
-      case 'text':
-        const textContent = req.body.content as string;
-        if (!textContent) {
-          return res.status(400).json({ message: 'No text content provided' });
-        }
-        content = textContent;
-        sourceLabel = 'text content';
-        break;
-
-      default:
-        return res.status(400).json({ message: 'Invalid source type' });
-    }
-
-    content = content.trim();
-    if (!content || content.length < 100) {
-      return res.status(400).json({ message: 'Content is too short or empty. Please provide more detailed content (at least 100 characters).' });
-    }
+    const content = validateContent(rawContent);
 
     console.log(`Updating ${slug} with ${sourceLabel}, content length: ${content.length} chars`);
 
@@ -370,54 +263,22 @@ brainliftsRouter.patch('/api/brainlifts/:slug/update', requireAuth, upload.singl
     );
 
     // Run expert extraction and redundancy analysis in parallel after update
-    await Promise.all([
-      // Expert extraction
-      (async () => {
-        try {
-          const expertData = await extractAndRankExperts({
-            brainliftId: updatedBrainlift.id,
-            title: brainliftData.title,
-            description: brainliftData.description,
-            author: (brainliftData as any).author || null,
-            facts: facts as any[],
-            originalContent: content,
-            readingList: readingList,
-          });
-
-          if (expertData.length > 0) {
-            await storage.saveExperts(updatedBrainlift.id, expertData);
-          }
-        } catch (err) {
-          console.error("Expert extraction failed during brainlift update:", err);
-        }
-      })(),
-
-      // Redundancy analysis
-      (async () => {
-        try {
-          const { analyzeFactRedundancy } = await import('../ai/redundancyAnalyzer');
-          const savedFacts = await storage.getFactsForBrainlift(updatedBrainlift.id);
-          const redundancyResult = await analyzeFactRedundancy(savedFacts);
-
-          if (redundancyResult.redundancyGroups.length > 0) {
-            await storage.saveRedundancyGroups(updatedBrainlift.id, redundancyResult.redundancyGroups.map(g => ({
-              groupName: g.groupName,
-              factIds: g.factIds,
-              primaryFactId: g.primaryFactId,
-              similarityScore: g.similarityScore,
-              reason: g.reason,
-              status: 'pending' as const,
-            })));
-          }
-        } catch (err) {
-          console.error("Redundancy analysis failed during brainlift update:", err);
-        }
-      })(),
-    ]);
+    await runPostProcessingPipeline({
+      brainliftId: updatedBrainlift.id,
+      title: brainliftData.title,
+      description: brainliftData.description,
+      author: (brainliftData as any).author || null,
+      facts: facts,
+      originalContent: content,
+      readingList: readingList,
+    });
 
     res.json(await storage.getBrainliftBySlug(slug));
   } catch (err: any) {
     console.error('Update error:', err);
+    if (err instanceof ContentExtractionError) {
+      return res.status(err.statusCode).json({ message: err.message });
+    }
     res.status(500).json({ message: err.message || 'Failed to update brainlift' });
   }
 });

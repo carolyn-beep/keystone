@@ -7,6 +7,7 @@ import { researchRouter } from "./routes/research";
 import { analyticsRouter } from "./routes/analytics";
 import { brainliftsRouter } from "./routes/brainlifts";
 import { devRouter } from "./routes/dev";
+import { errorHandler } from "./middleware/error-handler";
 import { seedDatabase, backfillOriginalContent } from "./seed";
 
 export async function registerRoutes(
@@ -21,6 +22,9 @@ export async function registerRoutes(
   app.use(analyticsRouter);
   app.use(brainliftsRouter);
   app.use(devRouter);
+
+  // Global error handler - must be after all routes
+  app.use(errorHandler);
 
   await seedDatabase();
 

@@ -4,24 +4,23 @@ import { db } from '../db';
 import { facts, factVerifications, factModelScores, llmFeedback, factRedundancyGroups } from '@shared/schema';
 import { eq, inArray } from 'drizzle-orm';
 import { requireAuth } from '../middleware/auth';
+import { asyncHandler, BadRequestError } from '../middleware/error-handler';
+import { requireBrainliftAccess, requireBrainliftModify } from '../middleware/brainlift-auth';
 
 export const redundancyRouter = Router();
 
 // Analyze facts for redundancy
-redundancyRouter.post('/api/brainlifts/:slug/analyze-redundancy', requireAuth, async (req, res) => {
-  try {
-    const brainlift = await storage.getBrainliftBySlug(req.params.slug);
-    if (!brainlift) {
-      return res.status(404).json({ message: 'Brainlift not found' });
-    }
-    if (!storage.canModifyBrainlift(brainlift, req.authContext!)) {
-      return res.status(403).json({ message: 'Access denied' });
-    }
+redundancyRouter.post(
+  '/api/brainlifts/:slug/analyze-redundancy',
+  requireAuth,
+  requireBrainliftModify,
+  asyncHandler(async (req, res) => {
+    const brainlift = req.brainlift!;
 
     const { analyzeFactRedundancy } = await import('../ai/redundancyAnalyzer');
-    const facts = await storage.getFactsForBrainlift(brainlift.id);
+    const factsData = await storage.getFactsForBrainlift(brainlift.id);
 
-    const result = await analyzeFactRedundancy(facts);
+    const result = await analyzeFactRedundancy(factsData);
 
     // Save redundancy groups to database
     if (result.redundancyGroups.length > 0) {
@@ -39,28 +38,22 @@ redundancyRouter.post('/api/brainlifts/:slug/analyze-redundancy', requireAuth, a
       ...result,
       message: `Found ${result.redundancyGroups.length} redundancy groups affecting ${result.redundantFactCount} facts`,
     });
-  } catch (err: any) {
-    console.error('Redundancy analysis error:', err);
-    res.status(500).json({ message: err.message || 'Failed to analyze redundancy' });
-  }
-});
+  })
+);
 
 // Get redundancy groups for a brainlift
-redundancyRouter.get('/api/brainlifts/:slug/redundancy', requireAuth, async (req, res) => {
-  try {
-    const brainlift = await storage.getBrainliftBySlug(req.params.slug);
-    if (!brainlift) {
-      return res.status(404).json({ message: 'Brainlift not found' });
-    }
-    if (!storage.canAccessBrainlift(brainlift, req.authContext!)) {
-      return res.status(403).json({ message: 'Access denied' });
-    }
+redundancyRouter.get(
+  '/api/brainlifts/:slug/redundancy',
+  requireAuth,
+  requireBrainliftAccess,
+  asyncHandler(async (req, res) => {
+    const brainlift = req.brainlift!;
 
     const groups = await storage.getRedundancyGroups(brainlift.id);
-    const facts = await storage.getFactsForBrainlift(brainlift.id);
+    const factsData = await storage.getFactsForBrainlift(brainlift.id);
 
     // Build a fact lookup map
-    const factMap = new Map(facts.map(f => [f.id, f]));
+    const factMap = new Map(factsData.map(f => [f.id, f]));
 
     // Calculate stats
     const allRedundantFactIds = new Set<number>();
@@ -69,7 +62,7 @@ redundancyRouter.get('/api/brainlifts/:slug/redundancy', requireAuth, async (req
     });
 
     const pendingGroups = groups.filter(g => g.status === 'pending');
-    const uniqueFactCount = facts.length - allRedundantFactIds.size + pendingGroups.length;
+    const uniqueFactCount = factsData.length - allRedundantFactIds.size + pendingGroups.length;
 
     res.json({
       groups: groups.map(g => ({
@@ -78,35 +71,27 @@ redundancyRouter.get('/api/brainlifts/:slug/redundancy', requireAuth, async (req
         primaryFact: factMap.get(g.primaryFactId || 0),
       })),
       stats: {
-        totalFacts: facts.length,
+        totalFacts: factsData.length,
         uniqueFactCount,
         redundantFactCount: allRedundantFactIds.size - pendingGroups.length,
         pendingReview: pendingGroups.length,
       },
     });
-  } catch (err: any) {
-    console.error('Get redundancy error:', err);
-    res.status(500).json({ message: err.message || 'Failed to get redundancy data' });
-  }
-});
+  })
+);
 
 // Update redundancy group status (keep, dismiss, merge)
 // When status='kept' and primaryFactId is provided, deletes other facts in the group
-redundancyRouter.patch('/api/brainlifts/:slug/redundancy-groups/:groupId', requireAuth, async (req, res) => {
-  try {
-    const brainlift = await storage.getBrainliftBySlug(req.params.slug);
-    if (!brainlift) {
-      return res.status(404).json({ message: 'Brainlift not found' });
-    }
-    if (!storage.canModifyBrainlift(brainlift, req.authContext!)) {
-      return res.status(403).json({ message: 'Access denied' });
-    }
-
+redundancyRouter.patch(
+  '/api/brainlifts/:slug/redundancy-groups/:groupId',
+  requireAuth,
+  requireBrainliftModify,
+  asyncHandler(async (req, res) => {
     const groupId = parseInt(req.params.groupId);
     const { status, primaryFactId } = req.body;
 
     if (!['pending', 'kept', 'merged', 'dismissed'].includes(status)) {
-      return res.status(400).json({ message: 'Invalid status' });
+      throw new BadRequestError('Invalid status');
     }
 
     // If keeping with a primary fact, delete the redundant facts
@@ -159,8 +144,5 @@ redundancyRouter.patch('/api/brainlifts/:slug/redundancy-groups/:groupId', requi
 
     const updated = await storage.updateRedundancyGroupStatus(groupId, status);
     res.json(updated);
-  } catch (err: any) {
-    console.error('Update redundancy group error:', err);
-    res.status(500).json({ message: err.message || 'Failed to update redundancy group' });
-  }
-});
+  })
+);

@@ -1,56 +1,43 @@
 import { Router } from 'express';
 import { storage } from '../storage';
-import { db } from '../db';
-import { facts, factVerifications, factModelScores, llmFeedback } from '@shared/schema';
-import { eq, inArray } from 'drizzle-orm';
 import { LLM_MODEL_NAMES } from '@shared/schema';
 import { verifyFactWithAllModels } from '../ai/factVerifier';
 import { fetchEvidenceForFact } from '../ai/evidenceFetcher';
 import { requireAuth } from '../middleware/auth';
+import { asyncHandler, BadRequestError, NotFoundError } from '../middleware/error-handler';
+import { requireBrainliftAccess, requireBrainliftModify } from '../middleware/brainlift-auth';
 
 export const verificationsRouter = Router();
 
 // Get all facts with their verification status for a brainlift
-verificationsRouter.get('/api/brainlifts/:slug/verifications', requireAuth, async (req, res) => {
-  try {
-    const brainlift = await storage.getBrainliftBySlug(req.params.slug);
-    if (!brainlift) {
-      return res.status(404).json({ message: 'Brainlift not found' });
-    }
-    if (!storage.canAccessBrainlift(brainlift, req.authContext!)) {
-      return res.status(403).json({ message: 'Access denied' });
-    }
-
+verificationsRouter.get(
+  '/api/brainlifts/:slug/verifications',
+  requireAuth,
+  requireBrainliftAccess,
+  asyncHandler(async (req, res) => {
+    const brainlift = req.brainlift!;
     const factsWithVerifications = await storage.getFactsWithVerifications(brainlift.id);
     res.json({
       brainliftId: brainlift.id,
       facts: factsWithVerifications,
       models: LLM_MODEL_NAMES,
     });
-  } catch (err: any) {
-    console.error('Get verifications error:', err);
-    res.status(500).json({ message: err.message || 'Failed to get verifications' });
-  }
-});
+  })
+);
 
 // Start verification for a single fact (nested under brainlift for authorization)
-verificationsRouter.post('/api/brainlifts/:slug/facts/:factId/verify', requireAuth, async (req, res) => {
-  try {
-    const brainlift = await storage.getBrainliftBySlug(req.params.slug);
-    if (!brainlift) {
-      return res.status(404).json({ message: 'Brainlift not found' });
-    }
-    if (!storage.canModifyBrainlift(brainlift, req.authContext!)) {
-      return res.status(403).json({ message: 'Access denied' });
-    }
-
+verificationsRouter.post(
+  '/api/brainlifts/:slug/facts/:factId/verify',
+  requireAuth,
+  requireBrainliftModify,
+  asyncHandler(async (req, res) => {
     const factId = parseInt(req.params.factId);
 
     // Get the fact directly from database (efficient lookup)
     const targetFact = await storage.getFactById(factId);
 
     if (!targetFact) {
-      return res.status(404).json({ message: 'Fact not found' });
+      throw new NotFoundError('Fact not found');
     }
 
     // Create or get existing verification record
@@ -113,22 +100,16 @@ verificationsRouter.post('/api/brainlifts/:slug/facts/:factId/verify', requireAu
     // Return updated verification
     const updatedVerification = await storage.getFactVerification(factId);
     res.json(updatedVerification);
-  } catch (err: any) {
-    console.error('Verify fact error:', err);
-    res.status(500).json({ message: err.message || 'Failed to verify fact' });
-  }
-});
+  })
+);
 
 // Start verification for all facts in a brainlift
-verificationsRouter.post('/api/brainlifts/:slug/verify-all', requireAuth, async (req, res) => {
-  try {
-    const brainlift = await storage.getBrainliftBySlug(req.params.slug);
-    if (!brainlift) {
-      return res.status(404).json({ message: 'Brainlift not found' });
-    }
-    if (!storage.canModifyBrainlift(brainlift, req.authContext!)) {
-      return res.status(403).json({ message: 'Access denied' });
-    }
+verificationsRouter.post(
+  '/api/brainlifts/:slug/verify-all',
+  requireAuth,
+  requireBrainliftModify,
+  asyncHandler(async (req, res) => {
+    const brainlift = req.brainlift!;
 
     // Return immediately, process in background
     res.json({
@@ -196,54 +177,38 @@ verificationsRouter.post('/api/brainlifts/:slug/verify-all', requireAuth, async 
       }
       console.log(`Verification complete for brainlift: ${brainlift.slug}`);
     })();
-  } catch (err: any) {
-    console.error('Verify all facts error:', err);
-    res.status(500).json({ message: err.message || 'Failed to start verification' });
-  }
-});
+  })
+);
 
 // Human override for a fact verification (nested under brainlift for authorization)
-verificationsRouter.post('/api/brainlifts/:slug/verifications/:verificationId/override', requireAuth, async (req, res) => {
-  try {
-    const brainlift = await storage.getBrainliftBySlug(req.params.slug);
-    if (!brainlift) {
-      return res.status(404).json({ message: 'Brainlift not found' });
-    }
-    if (!storage.canModifyBrainlift(brainlift, req.authContext!)) {
-      return res.status(403).json({ message: 'Access denied' });
-    }
-
+verificationsRouter.post(
+  '/api/brainlifts/:slug/verifications/:verificationId/override',
+  requireAuth,
+  requireBrainliftModify,
+  asyncHandler(async (req, res) => {
     const verificationId = parseInt(req.params.verificationId);
     const { score, notes } = req.body;
 
     if (!score || score < 1 || score > 5) {
-      return res.status(400).json({ message: 'Score must be between 1 and 5' });
+      throw new BadRequestError('Score must be between 1 and 5');
     }
 
     const updated = await storage.setHumanOverride(verificationId, score, notes || '');
     res.json(updated);
-  } catch (err: any) {
-    console.error('Human override error:', err);
-    res.status(500).json({ message: err.message || 'Failed to set human override' });
-  }
-});
+  })
+);
 
 // Human grade for a fact (creates verification if needed, sets human override)
-verificationsRouter.post('/api/brainlifts/:slug/facts/:factId/human-grade', requireAuth, async (req, res) => {
-  try {
-    const brainlift = await storage.getBrainliftBySlug(req.params.slug);
-    if (!brainlift) {
-      return res.status(404).json({ message: 'Brainlift not found' });
-    }
-    if (!storage.canModifyBrainlift(brainlift, req.authContext!)) {
-      return res.status(403).json({ message: 'Access denied' });
-    }
-
+verificationsRouter.post(
+  '/api/brainlifts/:slug/facts/:factId/human-grade',
+  requireAuth,
+  requireBrainliftModify,
+  asyncHandler(async (req, res) => {
     const factId = parseInt(req.params.factId);
     const { score, notes } = req.body;
 
     if (!score || score < 1 || score > 5) {
-      return res.status(400).json({ message: 'Score must be between 1 and 5' });
+      throw new BadRequestError('Score must be between 1 and 5');
     }
 
     // Get or create verification for this fact
@@ -255,24 +220,16 @@ verificationsRouter.post('/api/brainlifts/:slug/facts/:factId/human-grade', requ
     // Set human override
     const updated = await storage.setHumanOverride(verification.id, score, notes || '');
     res.json(updated);
-  } catch (err: any) {
-    console.error('Human grade error:', err);
-    res.status(500).json({ message: err.message || 'Failed to set human grade' });
-  }
-});
+  })
+);
 
 // Get human grades for all facts in a brainlift
-verificationsRouter.get('/api/brainlifts/:slug/human-grades', requireAuth, async (req, res) => {
-  try {
-    const brainlift = await storage.getBrainliftBySlug(req.params.slug);
-    if (!brainlift) {
-      return res.status(404).json({ message: 'Brainlift not found' });
-    }
-    if (!storage.canAccessBrainlift(brainlift, req.authContext!)) {
-      return res.status(403).json({ message: 'Access denied' });
-    }
-
-    const factsWithVerifications = await storage.getFactsWithVerifications(brainlift.id);
+verificationsRouter.get(
+  '/api/brainlifts/:slug/human-grades',
+  requireAuth,
+  requireBrainliftAccess,
+  asyncHandler(async (req, res) => {
+    const factsWithVerifications = await storage.getFactsWithVerifications(req.brainlift!.id);
 
     // Return map of factId -> human grade info
     const grades: Record<number, { score: number | null; notes: string | null }> = {};
@@ -286,24 +243,16 @@ verificationsRouter.get('/api/brainlifts/:slug/human-grades', requireAuth, async
     }
 
     res.json(grades);
-  } catch (err: any) {
-    console.error('Get human grades error:', err);
-    res.status(500).json({ message: err.message || 'Failed to get human grades' });
-  }
-});
+  })
+);
 
 // Get verification status summary for a brainlift
-verificationsRouter.get('/api/brainlifts/:slug/verification-summary', requireAuth, async (req, res) => {
-  try {
-    const brainlift = await storage.getBrainliftBySlug(req.params.slug);
-    if (!brainlift) {
-      return res.status(404).json({ message: 'Brainlift not found' });
-    }
-    if (!storage.canAccessBrainlift(brainlift, req.authContext!)) {
-      return res.status(403).json({ message: 'Access denied' });
-    }
-
-    const factsWithVerifications = await storage.getFactsWithVerifications(brainlift.id);
+verificationsRouter.get(
+  '/api/brainlifts/:slug/verification-summary',
+  requireAuth,
+  requireBrainliftAccess,
+  asyncHandler(async (req, res) => {
+    const factsWithVerifications = await storage.getFactsWithVerifications(req.brainlift!.id);
 
     const summary = {
       totalFacts: factsWithVerifications.length,
@@ -346,8 +295,5 @@ verificationsRouter.get('/api/brainlifts/:slug/verification-summary', requireAut
     summary.averageConsensus = summary.verified > 0 ? Math.round((totalScores / summary.verified) * 10) / 10 : 0;
 
     res.json(summary);
-  } catch (err: any) {
-    console.error('Verification summary error:', err);
-    res.status(500).json({ message: err.message || 'Failed to get verification summary' });
-  }
-});
+  })
+);

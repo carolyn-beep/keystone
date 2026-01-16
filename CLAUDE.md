@@ -102,6 +102,46 @@ app.use(verificationsRouter);
 - Services are framework-agnostic - no `req`/`res`
 - Validate with `npm run build` after changes
 
+### Database Migrations
+
+**⚠️ NEVER merge/push code with new migrations to main until those migrations are applied to Neon prod.**
+
+Deploying code that expects schema changes before the DB has them = broken prod.
+
+**Workflow:**
+1. Generate migration: `npx drizzle-kit generate`
+2. Test locally against Docker Postgres
+3. Apply to Neon prod **before** merging to main:
+   - Use `mcp__Neon__prepare_database_migration` (creates temp branch, tests migration)
+   - Verify with `mcp__Neon__describe_table_schema`
+   - Apply with `mcp__Neon__complete_database_migration`
+4. Then merge/push to main
+
+**Neon prod config:**
+- Project: `dok1grader` (ID: `restless-pine-13558418`)
+- Database: `neondb`
+- Migrations dir: `migrations/`
+
+### Authentication & Authorization
+
+All routes require `requireAuth` middleware (except dev routes). Admin-only routes use `requireAdmin`.
+
+```typescript
+// Standard auth pattern
+router.get('/api/brainlifts/:slug/...', requireAuth, async (req, res) => {
+  const brainlift = await storage.getBrainliftBySlug(req.params.slug);
+  if (!storage.canAccessBrainlift(brainlift, req.authContext!)) {
+    return res.status(403).json({ message: 'Access denied' });
+  }
+  // ...
+});
+```
+
+**Key points:**
+- Child resources nest under `/api/brainlifts/:slug/...` for authorization context
+- Use `canAccessBrainlift()` for reads, `canModifyBrainlift()` for writes
+- `req.authContext` contains `userId`, `role`, `isAdmin`
+
 ---
 
 ## Styling Guidelines

@@ -20,7 +20,7 @@ import {
   type DocumentExtractionResult,
   type ParserType,
   type FormatDiagnosticsResult,
-} from '../ai/expertExtractor';
+} from '../ai/experts';
 
 export const devRouter = Router();
 
