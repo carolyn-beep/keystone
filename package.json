@@ -42,6 +42,7 @@
     "@radix-ui/react-toggle-group": "^1.1.3",
     "@radix-ui/react-tooltip": "^1.2.8",
     "@tanstack/react-query": "^5.90.16",
+    "@tanstack/react-virtual": "^3.13.18",
     "@types/bcryptjs": "^2.4.6",
     "@types/jspdf": "^1.3.3",
     "@types/memoizee": "^0.4.12",

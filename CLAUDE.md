@@ -61,6 +61,8 @@ Express + TypeScript backend in `server/`. Uses Drizzle ORM, domain-based routin
 - `server/services/` - Business logic (e.g., `saveBrainliftFromAI`)
 - `server/utils/` - Pure utilities (file extraction, slug generation)
 - `server/ai/` - AI service integrations (verification, extraction, research)
+- `server/middleware/` - Auth, error handling, brainlift authorization
+- `server/storage/` - Modular storage layer (domain-based files)
 - `server/seed.ts` - Database seeding logic
 
 ### Route Organization
@@ -87,7 +89,8 @@ app.use(verificationsRouter);
 | Business logic | `services/{domain}.ts` | `saveBrainliftFromAI` |
 | Pure utilities | `utils/{name}.ts` | `extractTextFromPDF` |
 | AI integrations | `ai/{service}.ts` | `verifyFactWithAllModels` |
-| DB operations | `storage.ts` | All Drizzle queries |
+| DB operations | `storage/{domain}.ts` | Domain-split queries with `storage/index.ts` facade |
+| Middleware | `middleware/{name}.ts` | `asyncHandler`, `requireBrainliftAccess` |
 
 ### Adding New Features
 
@@ -124,23 +127,51 @@ Deploying code that expects schema changes before the DB has them = broken prod.
 
 ### Authentication & Authorization
 
-All routes require `requireAuth` middleware (except dev routes). Admin-only routes use `requireAdmin`.
+All routes require `requireAuth` middleware (except dev routes). Use brainlift middleware for resource authorization.
 
 ```typescript
-// Standard auth pattern
-router.get('/api/brainlifts/:slug/...', requireAuth, async (req, res) => {
-  const brainlift = await storage.getBrainliftBySlug(req.params.slug);
-  if (!storage.canAccessBrainlift(brainlift, req.authContext!)) {
-    return res.status(403).json({ message: 'Access denied' });
-  }
-  // ...
-});
+// Standard pattern: use middleware chain
+router.get(
+  '/api/brainlifts/:slug/experts',
+  requireAuth,              // Validates session, sets req.authContext
+  requireBrainliftAccess,   // Loads brainlift, checks read access, sets req.brainlift
+  asyncHandler(async (req, res) => {
+    // req.brainlift is guaranteed to exist and be accessible
+    const experts = await storage.getExpertsByBrainliftId(req.brainlift!.id);
+    res.json(experts);
+  })
+);
 ```
+
+**Middleware options:**
+| Middleware | Use Case |
+|------------|----------|
+| `requireBrainliftAccess` | Read operations (GET) |
+| `requireBrainliftModify` | Write operations (POST/PATCH/DELETE by slug) |
+| `requireBrainliftModifyById` | Write operations (DELETE by numeric ID) |
 
 **Key points:**
 - Child resources nest under `/api/brainlifts/:slug/...` for authorization context
-- Use `canAccessBrainlift()` for reads, `canModifyBrainlift()` for writes
-- `req.authContext` contains `userId`, `role`, `isAdmin`
+- Middleware sets `req.brainlift` - don't fetch manually in handlers
+- Always wrap async handlers with `asyncHandler()` for error handling
+- Use custom error classes (`NotFoundError`, `BadRequestError`, `ForbiddenError`) instead of manual `res.status().json()`
+
+### Error Handling
+
+- Wrap async handlers with `asyncHandler()` from `middleware/error-handler.ts`
+- Throw `BadRequestError` (400) for invalid input, `NotFoundError` (404) for missing resources
+- Always validate `parseInt()` results: `if (isNaN(id)) throw new BadRequestError('Invalid ID')`
+
+### IDOR Prevention
+
+Child resources (experts, facts, groups) accessed by ID must verify ownership:
+- Use `*ForBrainlift` storage functions (e.g., `updateExpertFollowingForBrainlift(expertId, brainliftId, ...)`)
+- These include `brainliftId` in the WHERE clause - single query, no extra round-trips
+- Return `null`/`false` for missing OR unauthorized - throw `NotFoundError` (prevents enumeration)
+
+### Storage Layer
+
+Split by domain in `server/storage/`. Import via facade: `import { storage } from '../storage'`
 
 ---
 

@@ -1,5 +1,6 @@
 import { useState, useMemo } from 'react';
 import { useMutation } from '@tanstack/react-query';
+import { useWindowVirtualizer } from '@tanstack/react-virtual';
 import { AlertTriangle, RefreshCw } from 'lucide-react';
 import { tokens } from '@/lib/colors';
 import { queryClient } from '@/lib/queryClient';
@@ -186,6 +187,13 @@ export function FactGradingPanel({
 
   const nonGradeableFacts = facts.filter(f => !f.isGradeable);
 
+  // Virtualization for the main facts list (uses window scrolling)
+  const virtualizer = useWindowVirtualizer({
+    count: groupedFacts.allFactsSorted.length,
+    estimateSize: () => 130, // base row height estimate
+    overscan: 5, // render 5 extra rows above/below viewport
+  });
+
   return (
     <div className="max-w-[1200px] mx-auto">
       {/* Panel Header */}
@@ -329,47 +337,62 @@ export function FactGradingPanel({
         </RedundancyGroupCard>
       ))}
 
-      {/* Individual Facts Section (Stack Ranked) */}
+      {/* Individual Facts Section (Stack Ranked) - Virtualized */}
       {groupedFacts.allFactsSorted.length > 0 && (
         <div>
           <h3 className="text-base font-semibold text-foreground mb-4 pt-2">
             Individual Facts (Stack Ranked)
           </h3>
-          <div className="flex flex-col gap-0">
-            {groupedFacts.allFactsSorted.map((fact) => (
-              <FactRow
-                key={fact.id}
-                fact={fact}
-                isExpanded={expandedFactIds.has(fact.id)}
-                onToggle={() => toggleFactExpanded(fact.id)}
-                humanGrade={humanGrades[fact.id]}
-                isGrading={gradingFactId === fact.id}
-                gradingScore={gradingScore}
-                gradingNotes={gradingNotes}
-                onGradingScoreChange={setGradingScore}
-                onGradingNotesChange={setGradingNotes}
-                onStartGrading={() => {
-                  setGradingFactId(fact.id);
-                  setGradingScore(humanGrades[fact.id]?.score || 3);
-                  setGradingNotes(humanGrades[fact.id]?.notes || '');
-                }}
-                onSaveGrade={(score) => {
-                  setHumanGradeMutation.mutate({
-                    factId: fact.id,
-                    score: score ?? gradingScore,
-                    notes: gradingNotes,
-                  });
-                }}
-                onCancelGrading={() => {
-                  setGradingFactId(null);
-                  setGradingScore(3);
-                  setGradingNotes('');
-                }}
-                isSavingGrade={setHumanGradeMutation.isPending}
-                onViewFullText={() => onViewFactFullText(fact)}
-                isRedundant={factsInRedundancyGroups.has(fact.id)}
-              />
-            ))}
+          <div style={{ height: virtualizer.getTotalSize(), position: 'relative' }}>
+            {virtualizer.getVirtualItems().map((virtualRow) => {
+              const fact = groupedFacts.allFactsSorted[virtualRow.index];
+              return (
+                <div
+                  key={fact.id}
+                  data-index={virtualRow.index}
+                  ref={virtualizer.measureElement}
+                  style={{
+                    position: 'absolute',
+                    top: 0,
+                    left: 0,
+                    width: '100%',
+                    transform: `translateY(${virtualRow.start}px)`,
+                  }}
+                >
+                    <FactRow
+                      fact={fact}
+                      isExpanded={expandedFactIds.has(fact.id)}
+                      onToggle={() => toggleFactExpanded(fact.id)}
+                      humanGrade={humanGrades[fact.id]}
+                      isGrading={gradingFactId === fact.id}
+                      gradingScore={gradingScore}
+                      gradingNotes={gradingNotes}
+                      onGradingScoreChange={setGradingScore}
+                      onGradingNotesChange={setGradingNotes}
+                      onStartGrading={() => {
+                        setGradingFactId(fact.id);
+                        setGradingScore(humanGrades[fact.id]?.score || 3);
+                        setGradingNotes(humanGrades[fact.id]?.notes || '');
+                      }}
+                      onSaveGrade={(score) => {
+                        setHumanGradeMutation.mutate({
+                          factId: fact.id,
+                          score: score ?? gradingScore,
+                          notes: gradingNotes,
+                        });
+                      }}
+                      onCancelGrading={() => {
+                        setGradingFactId(null);
+                        setGradingScore(3);
+                        setGradingNotes('');
+                      }}
+                      isSavingGrade={setHumanGradeMutation.isPending}
+                      onViewFullText={() => onViewFactFullText(fact)}
+                      isRedundant={factsInRedundancyGroups.has(fact.id)}
+                    />
+                  </div>
+                );
+              })}
           </div>
         </div>
       )}
