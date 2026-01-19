@@ -7,6 +7,8 @@ import { authClient } from '@/lib/auth-client';
 import { tokens } from '@/lib/colors';
 import { Plus, X, Upload, FileText, Link as LinkIcon, File, Loader2, Check, Clock, AlertTriangle, Trash2, Shield, ChevronDown } from 'lucide-react';
 import { ConfirmationModal } from '@/components/ui/confirmation-modal';
+import { useImportWithProgress } from '@/hooks/useImportWithProgress';
+import { ImportProgress } from '@/components/ImportProgress';
 
 type SourceType = 'pdf' | 'docx' | 'html' | 'workflowy' | 'googledocs' | 'text';
 
@@ -121,51 +123,7 @@ export default function Home() {
     setAdminView(!adminView);
   };
 
-  const importMutation = useMutation({
-    mutationFn: async () => {
-      const formData = new FormData();
-      formData.append('sourceType', activeTab);
-
-      if (activeTab === 'pdf' || activeTab === 'docx' || activeTab === 'html') {
-        if (!selectedFile) throw new Error('Please select a file');
-        formData.append('file', selectedFile);
-      } else if (activeTab === 'workflowy' || activeTab === 'googledocs') {
-        if (!url.trim()) throw new Error('Please enter a URL');
-        formData.append('url', url);
-      } else if (activeTab === 'text') {
-        if (!textContent.trim()) throw new Error('Please enter some content');
-        formData.append('content', textContent);
-      }
-
-      const res = await fetch('/api/brainlifts/import', {
-        method: 'POST',
-        body: formData,
-      });
-
-      if (!res.ok) {
-        let errorMessage = 'Import failed';
-        try {
-          const data = await res.json();
-          errorMessage = data.message || 'Import failed';
-        } catch {
-          errorMessage = `Server error: ${res.status} ${res.statusText}`;
-        }
-        throw new Error(errorMessage);
-      }
-
-      return res.json();
-    },
-    onSuccess: (data: Brainlift) => {
-      queryClient.invalidateQueries({ queryKey: ['brainlifts'] });
-      closeModal();
-      if (data?.slug) {
-        setLocation(`/grading/${data.slug}`);
-      }
-    },
-    onError: (err: any) => {
-      setError(err.message || 'Failed to import');
-    }
-  });
+  const importWithProgress = useImportWithProgress();
 
   const deleteMutation = useMutation({
     mutationFn: async (id: number) => {
@@ -235,6 +193,10 @@ export default function Home() {
   };
 
   const closeModal = () => {
+    if (importWithProgress.isImporting) {
+      importWithProgress.cancel();
+    }
+    importWithProgress.reset();
     setShowModal(false);
     setActiveTab('pdf');
     setUrl('');
@@ -251,9 +213,37 @@ export default function Home() {
     }
   };
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     setError('');
-    importMutation.mutate();
+
+    const formData = new FormData();
+    formData.append('sourceType', activeTab);
+
+    if (activeTab === 'pdf' || activeTab === 'docx' || activeTab === 'html') {
+      if (!selectedFile) {
+        setError('Please select a file');
+        return;
+      }
+      formData.append('file', selectedFile);
+    } else if (activeTab === 'workflowy' || activeTab === 'googledocs') {
+      if (!url.trim()) {
+        setError('Please enter a URL');
+        return;
+      }
+      formData.append('url', url);
+    } else if (activeTab === 'text') {
+      if (!textContent.trim()) {
+        setError('Please enter some content');
+        return;
+      }
+      formData.append('content', textContent);
+    }
+
+    const slug = await importWithProgress.importBrainlift(formData);
+    if (slug) {
+      closeModal();
+      setLocation(`/grading/${slug}`);
+    }
   };
 
   return (
@@ -727,64 +717,58 @@ export default function Home() {
               )}
             </div>
 
-            {error && (
+            {/* Show local error or import error */}
+            {(error || importWithProgress.error) && !importWithProgress.isImporting && (
               <p className="text-destructive text-sm mt-3">
-                {error}
+                {error || importWithProgress.error}
               </p>
             )}
 
+            {/* Progress display - always rendered, animated in/out */}
+            <ImportProgress
+              currentStage={importWithProgress.currentStage}
+              stageLabel={importWithProgress.stageLabel}
+              progress={importWithProgress.progress}
+              gradingProgress={importWithProgress.gradingProgress}
+              error={importWithProgress.error}
+              isVisible={importWithProgress.isImporting}
+            />
+
             <div className="flex gap-3 mt-5 justify-end">
-              {/* Ghost button */}
+              {/* Cancel/Close button */}
               <button
                 data-testid="button-cancel"
                 onClick={closeModal}
-                disabled={importMutation.isPending}
                 className="px-5 py-2.5 rounded-lg border bg-transparent text-muted-foreground text-sm"
                 style={{
-                  borderColor: tokens.border,
-                  cursor: importMutation.isPending ? 'not-allowed' : 'pointer',
-                  opacity: importMutation.isPending ? 0.5 : 1,
+                  borderColor: importWithProgress.isImporting ? tokens.danger : tokens.border,
+                  color: importWithProgress.isImporting ? tokens.danger : tokens.textSecondary,
+                  cursor: 'pointer',
                 }}
               >
-                Cancel
+                {importWithProgress.isImporting ? 'Cancel Import' : 'Cancel'}
               </button>
               {/* Primary button */}
-              <button
-                data-testid="button-submit-import"
-                onClick={handleSubmit}
-                disabled={importMutation.isPending}
-                className="flex items-center gap-2 px-5 py-2.5 rounded-lg border-none text-primary-foreground text-sm font-medium"
-                style={{
-                  backgroundColor: importMutation.isPending ? tokens.textMuted : tokens.primary,
-                  cursor: importMutation.isPending ? 'not-allowed' : 'pointer',
-                }}
-                onMouseEnter={(e) => {
-                  if (!importMutation.isPending) {
+              {!importWithProgress.isImporting && (
+                <button
+                  data-testid="button-submit-import"
+                  onClick={handleSubmit}
+                  className="flex items-center gap-2 px-5 py-2.5 rounded-lg border-none text-primary-foreground text-sm font-medium"
+                  style={{
+                    backgroundColor: tokens.primary,
+                    cursor: 'pointer',
+                  }}
+                  onMouseEnter={(e) => {
                     e.currentTarget.style.backgroundColor = tokens.primaryHover;
-                  }
-                }}
-                onMouseLeave={(e) => {
-                  if (!importMutation.isPending) {
+                  }}
+                  onMouseLeave={(e) => {
                     e.currentTarget.style.backgroundColor = tokens.primary;
-                  }
-                }}
-              >
-                {importMutation.isPending ? (
-                  <>
-                    <Loader2 size={16} className="animate-spin" />
-                    Analyzing...
-                  </>
-                ) : (
-                  'Import & Analyze'
-                )}
-              </button>
+                  }}
+                >
+                  Import & Analyze
+                </button>
+              )}
             </div>
-
-            {importMutation.isPending && (
-              <p className="text-center text-muted-foreground text-[13px] mt-4">
-                AI is analyzing your content. This may take 30-60 seconds...
-              </p>
-            )}
           </div>
         </div>
       )}

@@ -13,6 +13,8 @@ import {
   requireBrainliftModify,
   requireBrainliftModifyById
 } from "../middleware/brainlift-auth";
+import { createSSEResponse } from "../utils/sse";
+import { STAGE_LABELS } from "@shared/import-progress";
 
 export const brainliftsRouter = Router();
 
@@ -117,6 +119,57 @@ brainliftsRouter.post(
 
     res.status(201).json(brainlift);
   })
+);
+
+// Import brainlift with SSE progress streaming
+brainliftsRouter.post(
+  '/api/brainlifts/import-stream',
+  requireAuth,
+  upload.single('file'),
+  async (req, res) => {
+    const sse = createSSEResponse(res);
+
+    try {
+      const sourceType = req.body.sourceType as SourceType;
+
+      // Emit extracting progress
+      sse.send({ stage: 'extracting', message: STAGE_LABELS.extracting });
+
+      const { content: rawContent, sourceLabel } = await extractContent({
+        sourceType,
+        file: req.file,
+        url: req.body.url,
+        textContent: req.body.content,
+      });
+
+      const content = validateContent(rawContent);
+
+      console.log(`[SSE Import] Processing ${sourceLabel}, content length: ${content.length} chars`);
+
+      const brainliftData = await extractBrainlift(content, sourceLabel);
+
+      const brainlift = await saveBrainliftFromAI(
+        brainliftData,
+        content,
+        sourceType,
+        req.authContext!.userId,
+        0,
+        sse.send
+      );
+
+      // Emit complete with slug
+      sse.send({
+        stage: 'complete',
+        message: STAGE_LABELS.complete,
+        slug: brainlift.slug,
+      });
+
+      sse.close();
+    } catch (err: any) {
+      console.error('[SSE Import] Error:', err);
+      sse.error(err.message || 'Import failed');
+    }
+  }
 );
 
 // Get grades for a brainlift

@@ -7,6 +7,7 @@ import { extractAndRankExperts, diagnoseExpertFormat } from "../ai/experts";
 import { analyzeFactRedundancy } from "../ai/redundancyAnalyzer";
 import { type BrainliftOutput } from "../ai/brainliftExtractor";
 import { type BrainliftData } from "@shared/schema";
+import { type ImportProgress, STAGE_LABELS } from "@shared/import-progress";
 import pLimit from "p-limit";
 
 export interface PostProcessingInput {
@@ -19,15 +20,21 @@ export interface PostProcessingInput {
   readingList: Array<{ author?: string; topic?: string }>;
 }
 
+export type ProgressCallback = (event: ImportProgress) => void;
+
 /**
  * Run post-processing pipeline (expert extraction + redundancy analysis) after brainlift creation/update.
  * Both tasks run in parallel and errors are logged but don't fail the main operation.
  */
-export async function runPostProcessingPipeline(input: PostProcessingInput): Promise<void> {
+export async function runPostProcessingPipeline(
+  input: PostProcessingInput,
+  onProgress?: ProgressCallback
+): Promise<void> {
   await Promise.all([
     // Expert extraction
     (async () => {
       try {
+        onProgress?.({ stage: 'experts', message: STAGE_LABELS.experts });
         const expertData = await extractAndRankExperts({
           brainliftId: input.brainliftId,
           title: input.title,
@@ -49,6 +56,7 @@ export async function runPostProcessingPipeline(input: PostProcessingInput): Pro
     // Redundancy analysis
     (async () => {
       try {
+        onProgress?.({ stage: 'redundancy', message: STAGE_LABELS.redundancy });
         const savedFacts = await storage.getFactsForBrainlift(input.brainliftId);
         const redundancyResult = await analyzeFactRedundancy(savedFacts);
 
@@ -69,7 +77,14 @@ export async function runPostProcessingPipeline(input: PostProcessingInput): Pro
   ]);
 }
 
-export async function saveBrainliftFromAI(data: BrainliftOutput, originalContent?: string, sourceType?: string, userId?: string, retryCount = 0): Promise<BrainliftData> {
+export async function saveBrainliftFromAI(
+  data: BrainliftOutput,
+  originalContent?: string,
+  sourceType?: string,
+  userId?: string,
+  retryCount = 0,
+  onProgress?: ProgressCallback
+): Promise<BrainliftData> {
   const MAX_RETRIES = 3;
   const slug = await generateUniqueSlug(data.title, retryCount);
 
@@ -81,6 +96,15 @@ export async function saveBrainliftFromAI(data: BrainliftOutput, originalContent
 
   const limit = pLimit(60);
   let completedCount = 0;
+  const totalFacts = data.facts.length;
+
+  // Emit initial grading progress
+  onProgress?.({
+    stage: 'grading',
+    message: STAGE_LABELS.grading,
+    completed: 0,
+    total: totalFacts,
+  });
 
   // Cache failed URLs to avoid retrying the same 403/404 errors
   const failedUrlCache = new Map<string, string>();
@@ -160,6 +184,12 @@ export async function saveBrainliftFromAI(data: BrainliftOutput, originalContent
         finalNote = `${rationale}\n\n${sourceHyperlink}`;
 
         completedCount++;
+        onProgress?.({
+          stage: 'grading',
+          message: STAGE_LABELS.grading,
+          completed: completedCount,
+          total: totalFacts,
+        });
         const factElapsed = ((Date.now() - factStart) / 1000).toFixed(1);
         console.log(`[Auto-Grade] DONE fact ${fact.id} in ${factElapsed}s - score: ${finalScore}/5 (${completedCount}/${data.facts.length})`);
 
@@ -177,6 +207,12 @@ export async function saveBrainliftFromAI(data: BrainliftOutput, originalContent
         };
       } catch (err) {
         completedCount++;
+        onProgress?.({
+          stage: 'grading',
+          message: STAGE_LABELS.grading,
+          completed: completedCount,
+          total: totalFacts,
+        });
         const factElapsed = ((Date.now() - factStart) / 1000).toFixed(1);
         console.error(`[Auto-Grade] FAILED fact ${fact.id} in ${factElapsed}s:`, err);
         return {
@@ -205,6 +241,12 @@ export async function saveBrainliftFromAI(data: BrainliftOutput, originalContent
     })()
   ]);
 
+  // Emit contradictions progress (already completed in parallel)
+  onProgress?.({ stage: 'contradictions', message: STAGE_LABELS.contradictions });
+
+  // Emit reading list progress (already completed in parallel)
+  onProgress?.({ stage: 'readingList', message: STAGE_LABELS.readingList });
+
   const batchElapsed = ((Date.now() - batchStart) / 1000).toFixed(1);
   const memEnd = process.memoryUsage();
   const heapDelta = Math.round((memEnd.heapUsed - memStart.heapUsed) / 1024 / 1024);
@@ -212,7 +254,7 @@ export async function saveBrainliftFromAI(data: BrainliftOutput, originalContent
   console.log(`[Auto-Grade] Memory at end: ${Math.round(memEnd.heapUsed / 1024 / 1024)}MB heap (+${heapDelta}MB), ${Math.round(memEnd.rss / 1024 / 1024)}MB RSS`);
 
   // Calculate dynamic summary stats
-  const totalFacts = factsWithSummaries.length;
+  const totalFactsProcessed = factsWithSummaries.length;
   const gradeableFacts = factsWithSummaries.filter(f => f.isGradeable);
   const sumScores = gradeableFacts.reduce((sum, f) => sum + f.score, 0);
   const meanScore = gradeableFacts.length > 0 ? (sumScores / gradeableFacts.length).toFixed(2) : "0";
@@ -227,7 +269,7 @@ export async function saveBrainliftFromAI(data: BrainliftOutput, originalContent
   }));
 
   const dynamicSummary = {
-    totalFacts,
+    totalFacts: totalFactsProcessed,
     meanScore,
     score5Count,
     contradictionCount: factsWithSummaries.filter(f => f.contradicts).length || clusters.length
@@ -245,6 +287,9 @@ export async function saveBrainliftFromAI(data: BrainliftOutput, originalContent
 
   // Run expert format diagnostics on the original content
   const expertDiagnostics = originalContent ? diagnoseExpertFormat(originalContent) : null;
+
+  // Emit saving progress
+  onProgress?.({ stage: 'saving', message: STAGE_LABELS.saving });
 
   let brainlift;
   try {
@@ -273,7 +318,7 @@ export async function saveBrainliftFromAI(data: BrainliftOutput, originalContent
     // Handle duplicate slug error with retry
     if (err.code === '23505' && err.constraint === 'brainlifts_slug_unique' && retryCount < MAX_RETRIES) {
       console.log(`[Auto-Grade] Duplicate slug detected, retrying with retry count: ${retryCount + 1}`);
-      return saveBrainliftFromAI(data, originalContent, sourceType, userId, retryCount + 1);
+      return saveBrainliftFromAI(data, originalContent, sourceType, userId, retryCount + 1, onProgress);
     }
     throw err;
   }
@@ -287,7 +332,7 @@ export async function saveBrainliftFromAI(data: BrainliftOutput, originalContent
     facts: factsWithSummaries,
     originalContent: originalContent || '',
     readingList: finalReadingList,
-  });
+  }, onProgress);
 
   return storage.getBrainliftBySlug(slug) as Promise<BrainliftData>;
 }
