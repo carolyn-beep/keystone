@@ -3,7 +3,6 @@ import { Link, useSearch } from 'wouter';
 import { Check, AlertTriangle, RefreshCw, Download, Share2, History } from 'lucide-react';
 import { BrainliftData, BrainliftVersion } from '@shared/schema';
 import { tokens } from '@/lib/colors';
-import type { UseMutationResult } from '@tanstack/react-query';
 
 interface DashboardHeaderProps {
   data: BrainliftData;
@@ -16,7 +15,7 @@ interface DashboardHeaderProps {
   setEditingAuthor: (editing: boolean) => void;
   authorInput: string;
   setAuthorInput: (input: string) => void;
-  updateAuthorMutation: UseMutationResult<any, Error, string>;
+  onUpdateAuthor: (author: string) => void;
   setShowUpdateModal: (show: boolean) => void;
   setShowHistoryModal: (show: boolean) => void;
   handleDownloadPDF: () => void;
@@ -33,7 +32,7 @@ export function DashboardHeader({
   setEditingAuthor,
   authorInput,
   setAuthorInput,
-  updateAuthorMutation,
+  onUpdateAuthor,
   setShowUpdateModal,
   setShowHistoryModal,
   handleDownloadPDF,
@@ -94,13 +93,13 @@ export function DashboardHeader({
             onChange={(e) => setAuthorInput(e.target.value)}
             onKeyDown={(e) => {
               if (e.key === 'Enter' && authorInput.trim()) {
-                updateAuthorMutation.mutate(authorInput.trim());
+                onUpdateAuthor(authorInput.trim());
               }
               if (e.key === 'Escape') setEditingAuthor(false);
             }}
             onBlur={() => {
               if (authorInput.trim()) {
-                updateAuthorMutation.mutate(authorInput.trim());
+                onUpdateAuthor(authorInput.trim());
               } else {
                 setEditingAuthor(false);
               }

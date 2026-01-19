@@ -10,7 +10,6 @@ import { useBrainlift } from '@/hooks/useBrainlift';
 import { useExperts } from '@/hooks/useExperts';
 import { useRedundancy } from '@/hooks/useRedundancy';
 import { useResearch } from '@/hooks/useResearch';
-import { VerificationPanel } from '@/components/VerificationPanel';
 import { ModelAccuracyPanel } from '@/components/ModelAccuracyPanel';
 import { FactGradingPanel } from '@/components/fact-grading';
 import { DashboardHeader } from '@/components/DashboardHeader';
@@ -75,7 +74,6 @@ const { toast } = useToast();
     isLoading,
     error,
     updateAuthor,
-    isUpdatingAuthor,
     update: updateBrainlift,
     isUpdating,
     updateError,
@@ -103,12 +101,8 @@ const { downloadBrainliftPDF } = usePDFExport();
     },
   });
 
-  const updateAuthorMutation = {
-    mutateAsync: async (author: string) => {
-      await updateAuthor(author);
-      setEditingAuthor(false);
-    },
-    isPending: isUpdatingAuthor,
+  const handleUpdateAuthor = (author: string) => {
+    updateAuthor(author).then(() => setEditingAuthor(false));
   };
 
   const isNotBrainlift = data?.classification === 'not_brainlift';
@@ -207,7 +201,7 @@ const { downloadBrainliftPDF } = usePDFExport();
         setEditingAuthor={setEditingAuthor}
         authorInput={authorInput}
         setAuthorInput={setAuthorInput}
-        updateAuthorMutation={updateAuthorMutation}
+        onUpdateAuthor={handleUpdateAuthor}
         setShowUpdateModal={setShowUpdateModal}
         setShowHistoryModal={setShowHistoryModal}
         handleDownloadPDF={handleDownloadPDF}
@@ -274,13 +268,6 @@ const { downloadBrainliftPDF } = usePDFExport();
               isAnalyzingRedundancy={isAnalyzingRedundancy}
               onViewFactFullText={(fact) => setSelectedFactForModal(fact)}
             />
-          </div>
-        )}
-
-        {/* AI Verification Tab - Multi-LLM Fact Verification */}
-        {!isNotBrainlift && activeTab === 'verification' && (
-          <div className="max-w-[1200px] mx-auto">
-            <VerificationPanel slug={slug} />
           </div>
         )}
 

@@ -105,6 +105,10 @@ Grade this claim based on available evidence OR your knowledge of educational re
     });
 
     if (!response.ok) {
+      if (response.status === 429) {
+        console.error(`[RATE-LIMIT] 429 from ${model} - too many requests`);
+        throw new Error(`RATE_LIMIT: ${model}`);
+      }
       throw new Error(`API error: ${response.status}`);
     }
 

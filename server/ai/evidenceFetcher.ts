@@ -101,6 +101,10 @@ async function callEvidenceSearchModel(model: string, prompt: string): Promise<s
   });
 
   if (!response.ok) {
+    if (response.status === 429) {
+      console.error(`[RATE-LIMIT] 429 from ${model} - too many requests`);
+      throw new Error(`RATE_LIMIT: ${model}`);
+    }
     throw new Error(`API error: ${response.status}`);
   }
 
@@ -177,7 +181,8 @@ Provide a substantive evidence summary (max 500 words) with specific references 
 
 export async function fetchEvidenceForFact(
   fact: string,
-  source: string
+  source: string,
+  failedUrlCache?: Map<string, string>
 ): Promise<EvidenceResult> {
   const fetchedAt = new Date();
 
@@ -189,20 +194,28 @@ export async function fetchEvidenceForFact(
   let fetchError: string | null = null;
 
   if (url) {
-    console.log(`[Evidence] Extracted URL: ${url}`);
-    const webResult = await fetchWebContent(url);
-
-    if (webResult.content && webResult.content.length > 100) {
-      console.log(`[Evidence] SUCCESS: Got ${webResult.content.length} chars from URL`);
-      return {
-        url,
-        content: webResult.content,
-        error: null,
-        fetchedAt,
-      };
+    // Check if this URL already failed in this batch
+    if (failedUrlCache?.has(url)) {
+      fetchError = failedUrlCache.get(url)!;
+      console.log(`[Evidence] Skipping URL (cached failure): ${url} - ${fetchError}`);
     } else {
-      fetchError = webResult.error || 'No content returned';
-      console.log(`[Evidence] URL fetch failed: ${fetchError}`);
+      console.log(`[Evidence] Extracted URL: ${url}`);
+      const webResult = await fetchWebContent(url);
+
+      if (webResult.content && webResult.content.length > 100) {
+        console.log(`[Evidence] SUCCESS: Got ${webResult.content.length} chars from URL`);
+        return {
+          url,
+          content: webResult.content,
+          error: null,
+          fetchedAt,
+        };
+      } else {
+        fetchError = webResult.error || 'No content returned';
+        console.log(`[Evidence] URL fetch failed: ${fetchError}`);
+        // Cache the failure for other facts with the same URL
+        failedUrlCache?.set(url, fetchError);
+      }
     }
   } else {
     console.log(`[Evidence] No URL found in source, will use AI search`);

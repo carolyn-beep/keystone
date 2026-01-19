@@ -73,16 +73,23 @@ export async function saveBrainliftFromAI(data: BrainliftOutput, originalContent
   const MAX_RETRIES = 3;
   const slug = await generateUniqueSlug(data.title, retryCount);
 
+  const batchStart = Date.now();
+  const memStart = process.memoryUsage();
   console.log(`[Auto-Grade] === Starting saveBrainliftFromAI ===`);
   console.log(`[Auto-Grade] Title: "${data.title}", Facts count: ${data.facts.length}`);
+  console.log(`[Auto-Grade] Memory at start: ${Math.round(memStart.heapUsed / 1024 / 1024)}MB heap, ${Math.round(memStart.rss / 1024 / 1024)}MB RSS`);
 
-  const limit = pLimit(5); // Process 5 facts concurrently
+  const limit = pLimit(60);
+  let completedCount = 0;
+
+  // Cache failed URLs to avoid retrying the same 403/404 errors
+  const failedUrlCache = new Map<string, string>();
 
   // Run fact processing, contradiction detection, and reading list extraction in parallel
   const [factsWithSummaries, contradictionClusters, extractedReadingList] = await Promise.all([
     Promise.all(data.facts.map(fact => limit(async () => {
-      console.log(`[Auto-Grade] Processing fact ${fact.id}: "${fact.fact.substring(0, 50)}..."`);
-      console.log(`[Auto-Grade] Fact ${fact.id} aiNotes: "${fact.aiNotes?.substring(0, 100) || 'NULL'}..."`);
+      const factStart = Date.now();
+      console.log(`[Auto-Grade] START fact ${fact.id} (${completedCount}/${data.facts.length} done)`);
 
       const summary = await summarizeFact(fact.fact);
 
@@ -101,7 +108,7 @@ export async function saveBrainliftFromAI(data: BrainliftOutput, originalContent
         console.log(`[Auto-Grade] Fact ${fact.id} extracted source: "${sourceUrl?.substring(0, 80)}..."`);
         if (sourceUrl) {
           try {
-            const evidence = await fetchEvidenceForFact(fact.fact, sourceUrl);
+            const evidence = await fetchEvidenceForFact(fact.fact, sourceUrl, failedUrlCache);
             evidenceContent = evidence.content || "";
 
             // Clear logging about what happened
@@ -152,6 +159,10 @@ export async function saveBrainliftFromAI(data: BrainliftOutput, originalContent
 
         finalNote = `${rationale}\n\n${sourceHyperlink}`;
 
+        completedCount++;
+        const factElapsed = ((Date.now() - factStart) / 1000).toFixed(1);
+        console.log(`[Auto-Grade] DONE fact ${fact.id} in ${factElapsed}s - score: ${finalScore}/5 (${completedCount}/${data.facts.length})`);
+
         return {
           originalId: fact.id,
           category: fact.category,
@@ -165,7 +176,9 @@ export async function saveBrainliftFromAI(data: BrainliftOutput, originalContent
           isGradeable,
         };
       } catch (err) {
-        console.error(`Verification failed for fact: ${fact.id}`, err);
+        completedCount++;
+        const factElapsed = ((Date.now() - factStart) / 1000).toFixed(1);
+        console.error(`[Auto-Grade] FAILED fact ${fact.id} in ${factElapsed}s:`, err);
         return {
           originalId: fact.id,
           category: fact.category,
@@ -191,6 +204,12 @@ export async function saveBrainliftFromAI(data: BrainliftOutput, originalContent
       return extractReadingList(data.title, data.description, data.facts);
     })()
   ]);
+
+  const batchElapsed = ((Date.now() - batchStart) / 1000).toFixed(1);
+  const memEnd = process.memoryUsage();
+  const heapDelta = Math.round((memEnd.heapUsed - memStart.heapUsed) / 1024 / 1024);
+  console.log(`[Auto-Grade] COMPLETE: ${data.facts.length} facts in ${batchElapsed}s`);
+  console.log(`[Auto-Grade] Memory at end: ${Math.round(memEnd.heapUsed / 1024 / 1024)}MB heap (+${heapDelta}MB), ${Math.round(memEnd.rss / 1024 / 1024)}MB RSS`);
 
   // Calculate dynamic summary stats
   const totalFacts = factsWithSummaries.length;
