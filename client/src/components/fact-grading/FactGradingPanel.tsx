@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useRef, useLayoutEffect } from 'react';
 import { useMutation } from '@tanstack/react-query';
 import { useWindowVirtualizer } from '@tanstack/react-virtual';
 import { AlertTriangle, RefreshCw } from 'lucide-react';
@@ -188,10 +188,23 @@ export function FactGradingPanel({
   const nonGradeableFacts = facts.filter(f => !f.isGradeable);
 
   // Virtualization for the main facts list (uses window scrolling)
+  const listContainerRef = useRef<HTMLDivElement>(null);
+  const [scrollMargin, setScrollMargin] = useState(0);
+
+  // Measure offset from top of document to the list container
+  useLayoutEffect(() => {
+    if (listContainerRef.current) {
+      const rect = listContainerRef.current.getBoundingClientRect();
+      const scrollTop = window.scrollY || document.documentElement.scrollTop;
+      setScrollMargin(rect.top + scrollTop);
+    }
+  }, [groupedFacts.groups.size]); // Re-measure when redundancy groups change
+
   const virtualizer = useWindowVirtualizer({
     count: groupedFacts.allFactsSorted.length,
     estimateSize: () => 130, // base row height estimate
     overscan: 5, // render 5 extra rows above/below viewport
+    scrollMargin,
   });
 
   return (
@@ -343,7 +356,7 @@ export function FactGradingPanel({
           <h3 className="text-base font-semibold text-foreground mb-4 pt-2">
             Individual Facts (Stack Ranked)
           </h3>
-          <div style={{ height: virtualizer.getTotalSize(), position: 'relative' }}>
+          <div ref={listContainerRef} style={{ height: virtualizer.getTotalSize(), position: 'relative' }}>
             {virtualizer.getVirtualItems().map((virtualRow) => {
               const fact = groupedFacts.allFactsSorted[virtualRow.index];
               return (
@@ -356,7 +369,7 @@ export function FactGradingPanel({
                     top: 0,
                     left: 0,
                     width: '100%',
-                    transform: `translateY(${virtualRow.start}px)`,
+                    transform: `translateY(${virtualRow.start - scrollMargin}px)`,
                   }}
                 >
                     <FactRow
