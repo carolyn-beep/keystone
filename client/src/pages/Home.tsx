@@ -1,34 +1,22 @@
-import { useState, useRef, useEffect, useCallback, useMemo } from 'react';
+import { useState, useRef, useEffect, useMemo } from 'react';
 import { useInfiniteQuery, useMutation } from '@tanstack/react-query';
-import { Link, useLocation, useSearch } from 'wouter';
+import { useLocation, useSearch } from 'wouter';
 import { Brainlift } from '@shared/schema';
 import { queryClient } from '@/lib/queryClient';
 import { authClient } from '@/lib/auth-client';
-import { tokens } from '@/lib/colors';
-import { Plus, X, Upload, FileText, Link as LinkIcon, File, Loader2, Check, Clock, AlertTriangle, Trash2, Shield, ChevronDown } from 'lucide-react';
+import { Loader2 } from 'lucide-react';
 import { ConfirmationModal } from '@/components/ui/confirmation-modal';
-import { useImportWithProgress } from '@/hooks/useImportWithProgress';
-import { ImportProgress } from '@/components/ImportProgress';
-
-type SourceType = 'html' | 'workflowy' | 'googledocs';
-
-const tabs: { id: SourceType; label: string; icon: typeof FileText }[] = [
-  { id: 'workflowy', label: 'Workflowy', icon: LinkIcon },
-  { id: 'html', label: 'HTML', icon: FileText },
-  { id: 'googledocs', label: 'Google Docs', icon: LinkIcon },
-];
+import { HomeHeader } from '@/components/home/HomeHeader';
+import { EmptyState } from '@/components/home/EmptyState';
+import { BrainliftCard } from '@/components/home/BrainliftCard';
+import { LoadMoreButton } from '@/components/home/LoadMoreButton';
+import { AddBrainliftModal } from '@/components/home/AddBrainliftModal';
 
 export default function Home() {
   const [, setLocation] = useLocation();
   const [showModal, setShowModal] = useState(false);
-  const [activeTab, setActiveTab] = useState<SourceType>('workflowy');
-  const [url, setUrl] = useState('');
-  const [selectedFile, setSelectedFile] = useState<File | null>(null);
-  const [error, setError] = useState('');
-  const fileInputRef = useRef<HTMLInputElement>(null);
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
   const [brainliftToDelete, setBrainliftToDelete] = useState<{ id: number; title: string } | null>(null);
-  const loadMoreRef = useRef<HTMLDivElement>(null);
   const prefetchRef = useRef<HTMLDivElement>(null);
 
   // Get session to check if user is admin
@@ -41,19 +29,6 @@ export default function Home() {
     const params = new URLSearchParams(searchString);
     return params.get('admin') === 'true' && isAdmin;
   }, [searchString, isAdmin]);
-
-  const setAdminView = useCallback((enabled: boolean) => {
-    const params = new URLSearchParams(window.location.search);
-    if (enabled) {
-      params.set('admin', 'true');
-    } else {
-      params.delete('admin');
-    }
-    const newSearch = params.toString();
-    const newUrl = newSearch ? `?${newSearch}` : window.location.pathname;
-    window.history.replaceState(null, '', newUrl);
-    window.dispatchEvent(new PopStateEvent('popstate'));
-  }, []);
 
   interface PaginatedResponse {
     brainlifts: Brainlift[];
@@ -71,15 +46,15 @@ export default function Home() {
     fetchNextPage,
     hasNextPage,
     isFetchingNextPage,
-  } = useInfiniteQuery<PaginatedResponse>({
-    queryKey: ['/api/brainlifts', adminView],
-    queryFn: async ({ pageParam = 1 }) => {
+  } = useInfiniteQuery({
+    queryKey: ['/api/brainlifts', adminView] as const,
+    queryFn: async ({ pageParam }) => {
       const params = new URLSearchParams();
       if (adminView) params.set('all', 'true');
-      params.set('page', pageParam.toString());
+      params.set('page', String(pageParam));
       const res = await fetch(`/api/brainlifts?${params}`);
       if (!res.ok) throw new Error('Failed to fetch');
-      return res.json();
+      return res.json() as Promise<PaginatedResponse>;
     },
     getNextPageParam: (lastPage) => {
       const { page, totalPages } = lastPage.pagination;
@@ -114,13 +89,6 @@ export default function Home() {
     return () => observer.disconnect();
   }, [hasNextPage, isFetchingNextPage, fetchNextPage]);
 
-  // Reset infinite query when toggling admin view
-  const handleAdminViewToggle = () => {
-    setAdminView(!adminView);
-  };
-
-  const importWithProgress = useImportWithProgress();
-
   const deleteMutation = useMutation({
     mutationFn: async (id: number) => {
       const res = await fetch(`/api/brainlifts/${id}`, {
@@ -139,42 +107,6 @@ export default function Home() {
     },
   });
 
-  // Author editing state
-  const [editingAuthorSlug, setEditingAuthorSlug] = useState<string | null>(null);
-  const [authorInput, setAuthorInput] = useState('');
-
-  const updateAuthorMutation = useMutation({
-    mutationFn: async ({ slug, author }: { slug: string; author: string }) => {
-      const res = await fetch(`/api/brainlifts/${slug}/author`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ author }),
-      });
-      if (!res.ok) throw new Error('Failed to update author');
-      return res.json();
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['/api/brainlifts'] });
-      setEditingAuthorSlug(null);
-      setAuthorInput('');
-    },
-  });
-
-  const handleAuthorClick = (e: React.MouseEvent, slug: string, currentAuthor: string | null) => {
-    e.preventDefault();
-    e.stopPropagation();
-    setEditingAuthorSlug(slug);
-    setAuthorInput(currentAuthor || '');
-  };
-
-  const handleAuthorSubmit = (slug: string) => {
-    if (authorInput.trim()) {
-      updateAuthorMutation.mutate({ slug, author: authorInput.trim() });
-    } else {
-      setEditingAuthorSlug(null);
-    }
-  };
-
   const handleDelete = (e: React.MouseEvent, brainlift: { id: number; title: string }) => {
     e.preventDefault();
     e.stopPropagation();
@@ -188,119 +120,16 @@ export default function Home() {
     }
   };
 
-  const closeModal = () => {
-    if (importWithProgress.isImporting) {
-      importWithProgress.cancel();
-    }
-    importWithProgress.reset();
-    setShowModal(false);
-    setActiveTab('workflowy');
-    setUrl('');
-    setSelectedFile(null);
-    setError('');
-  };
-
-  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      setSelectedFile(file);
-      setError('');
-    }
-  };
-
-  const handleSubmit = async () => {
-    setError('');
-
-    const formData = new FormData();
-    formData.append('sourceType', activeTab);
-
-    if (activeTab === 'html') {
-      if (!selectedFile) {
-        setError('Please select a file');
-        return;
-      }
-      formData.append('file', selectedFile);
-    } else if (activeTab === 'workflowy' || activeTab === 'googledocs') {
-      if (!url.trim()) {
-        setError('Please enter a URL');
-        return;
-      }
-      formData.append('url', url);
-    }
-
-    const slug = await importWithProgress.importBrainlift(formData);
-    if (slug) {
-      closeModal();
-      setLocation(`/grading/${slug}`);
-    }
+  const handleBrainliftImportSuccess = (slug: string) => {
+    setLocation(`/grading/${slug}`);
   };
 
   return (
     <div className="min-h-screen bg-background font-['Inter',-apple-system,sans-serif]">
-      {/* Header - surface bg with border */}
-      <header
-        className="flex justify-between items-center flex-wrap gap-3 px-4 py-4 sm:px-8 md:px-12 bg-card border-b border-border"
-      >
-        <div>
-          <h1 className="text-[28px] font-bold text-foreground m-0">DOK1 GRADING</h1>
-          <p className="text-muted-foreground text-sm mt-1">
-            Grade and manage your educational brainlifts
-          </p>
-        </div>
-        <div className="flex items-center gap-3">
-          {/* Admin View Toggle - Only visible to admins */}
-          {isAdmin && (
-            <button
-              onClick={handleAdminViewToggle}
-              className="flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium cursor-pointer transition-all duration-150"
-              style={{
-                backgroundColor: adminView ? tokens.primarySoft : 'transparent',
-                border: `1px solid ${adminView ? tokens.primary : tokens.border}`,
-                color: adminView ? tokens.primary : tokens.textSecondary,
-              }}
-              onMouseEnter={(e) => {
-                if (!adminView) {
-                  e.currentTarget.style.borderColor = tokens.primary;
-                  e.currentTarget.style.color = tokens.primary;
-                }
-              }}
-              onMouseLeave={(e) => {
-                if (!adminView) {
-                  e.currentTarget.style.borderColor = tokens.border;
-                  e.currentTarget.style.color = tokens.textSecondary;
-                }
-              }}
-            >
-              <Shield size={16} />
-              Admin View
-              <span
-                className="relative inline-flex items-center w-9 h-5 rounded-full transition-colors duration-200"
-                style={{
-                  backgroundColor: adminView ? tokens.primary : tokens.border,
-                }}
-              >
-                <span
-                  className="absolute w-4 h-4 bg-white rounded-full shadow transition-transform duration-200"
-                  style={{
-                    transform: adminView ? 'translateX(18px)' : 'translateX(2px)',
-                  }}
-                />
-              </span>
-            </button>
-          )}
-
-          <button
-            data-testid="button-add-brainlift"
-            onClick={() => setShowModal(true)}
-            className="flex items-center gap-2 bg-primary text-primary-foreground border-none rounded-lg px-5 py-2.5 text-sm font-medium cursor-pointer transition-colors duration-150"
-            onMouseEnter={(e) => e.currentTarget.style.backgroundColor = tokens.primaryHover}
-            onMouseLeave={(e) => e.currentTarget.style.backgroundColor = tokens.primary}
-          >
-            <Plus size={18} />
-            Add Brainlift
-          </button>
-        </div>
-      </header>
+      <HomeHeader
+        adminView={adminView}
+        onAddBrainlift={() => setShowModal(true)}
+      />
 
       {/* Thin primary indicator line */}
       <div className="h-0.5 bg-primary" />
@@ -311,439 +140,47 @@ export default function Home() {
             <Loader2 size={32} className="animate-spin text-muted-foreground" />
           </div>
         ) : brainlifts.length === 0 ? (
-          <div className="text-center py-[60px] px-6 bg-[#F9FAFB] rounded-xl border-2 border-dashed border-[#E5E7EB]">
-            <Upload size={48} className="mb-4 mx-auto text-muted-foreground" />
-            <h3 className="text-lg font-semibold text-primary m-0 mb-2">No brainlifts yet</h3>
-            <p className="text-sm text-muted-foreground m-0 mb-5">
-              Click "Add Brainlift" to upload your first one.
-            </p>
-          </div>
+          <EmptyState />
         ) : (
           <>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 items-stretch">
-            {brainlifts.map((data) => {
-              const isNotGradeable = data.classification === 'not_brainlift';
-              const summary = data.summary || { meanScore: '0', totalFacts: 0, score5Count: 0, contradictionCount: 0 };
-              const meanScore = parseFloat(summary.meanScore || '0');
-              const hasContradictions = (summary.contradictionCount || 0) > 0;
-              const authorInitials = data.author 
-                ? data.author.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()
-                : '??';
-              
-              const getScoreColor = () => {
-                if (meanScore >= 4.5) return '#10B981';
-                if (meanScore >= 4.0) return '#0D9488';
-                if (meanScore >= 3.0) return '#EAB308';
-                return '#EF4444';
-              };
-              
-              const getStatus = () => {
-                if (isNotGradeable) return { label: 'Not a Brainlift', bg: '#FEF3C7', color: '#B45309', border: '#F59E0B', icon: AlertTriangle };
-                if ((summary.totalFacts || 0) > 0) return { label: 'Graded', bg: '#ECFDF5', color: '#059669', border: '#10B981', icon: Check };
-                return { label: 'Pending', bg: '#FEF3C7', color: '#B45309', border: '#F59E0B', icon: Clock };
-              };
-              
-              const status = getStatus();
-              const StatusIcon = status.icon;
-              
-              return (
-                <Link
-                  key={data.slug}
-                  href={`/grading/${data.slug}${adminView ? '?admin=true' : ''}`}
-                  data-testid={`card-brainlift-${data.slug}`}
-                  className="rounded-xl p-5 pr-6 no-underline flex flex-col relative transition-all duration-200 cursor-pointer h-full box-border"
-                  style={{
-                    backgroundColor: isNotGradeable ? '#F9FAFB' : 'white',
-                    border: isNotGradeable ? '1px dashed #D1D5DB' : '1px solid #E5E7EB',
-                    color: 'inherit',
-                    opacity: isNotGradeable ? 0.7 : 1,
-                  }}
-                  onMouseEnter={(e) => {
-                    if (!isNotGradeable) {
-                      e.currentTarget.style.borderColor = '#0D9488';
-                      e.currentTarget.style.boxShadow = '0 4px 16px rgba(13, 148, 136, 0.12)';
-                      e.currentTarget.style.transform = 'translateY(-2px)';
-                    } else {
-                      e.currentTarget.style.opacity = '0.85';
-                      e.currentTarget.style.borderColor = '#9CA3AF';
-                    }
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.borderColor = isNotGradeable ? '#D1D5DB' : '#E5E7EB';
-                    e.currentTarget.style.boxShadow = 'none';
-                    e.currentTarget.style.transform = 'none';
-                    e.currentTarget.style.opacity = isNotGradeable ? '0.7' : '1';
-                  }}
-                >
-                  {/* Top Right Actions */}
-                  <div className="absolute top-4 right-4 flex items-center gap-2 z-[2]">
-                    {/* Delete Button */}
-                    <button
-                      data-testid={`button-delete-${data.id}`}
-                      onClick={(e) => handleDelete(e, { id: data.id, title: data.title })}
-                      className="flex items-center justify-center w-7 h-7 rounded-md border border-[#E5E7EB] bg-white text-[#9CA3AF] cursor-pointer transition-all duration-150 p-0"
-                      onMouseEnter={(e) => {
-                        e.currentTarget.style.backgroundColor = '#FEE2E2';
-                        e.currentTarget.style.borderColor = '#FCA5A5';
-                        e.currentTarget.style.color = '#DC2626';
-                      }}
-                      onMouseLeave={(e) => {
-                        e.currentTarget.style.backgroundColor = 'white';
-                        e.currentTarget.style.borderColor = '#E5E7EB';
-                        e.currentTarget.style.color = '#9CA3AF';
-                      }}
-                    >
-                      <Trash2 size={14} />
-                    </button>
-
-                    {/* Status Badge */}
-                    <span
-                      className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-[10px] font-semibold uppercase tracking-wide whitespace-nowrap"
-                      style={{
-                        backgroundColor: status.bg,
-                        color: status.color,
-                        border: `1px solid ${status.border}`,
-                      }}
-                    >
-                      <StatusIcon size={10} />
-                      {status.label}
-                    </span>
-                  </div>
-                  
-                  {/* Card Header */}
-                  <div className="mb-3 pr-[145px]">
-                    <h3 className="text-[17px] font-semibold text-[#111827] m-0 mb-1.5 leading-[1.3] break-words">
-                      {data.title}
-                    </h3>
-                    <p className="text-sm text-[#6B7280] m-0 leading-normal overflow-hidden line-clamp-2">
-                      {data.description}
-                    </p>
-                  </div>
-                  
-                  {/* Author & Date */}
-                  <div className="flex items-center gap-3 mb-4 text-[13px] text-[#6B7280]">
-                    <div
-                      className="flex items-center gap-1.5"
-                      style={{
-                        cursor: editingAuthorSlug === data.slug ? 'text' : 'pointer',
-                      }}
-                      onClick={(e) => {
-                        if (editingAuthorSlug !== data.slug) {
-                          handleAuthorClick(e, data.slug, data.author);
-                        }
-                      }}
-                      title={editingAuthorSlug === data.slug ? undefined : "Click to set owner name"}
-                    >
-                      {/* Avatar circle - always visible */}
-                      <span className="w-6 h-6 rounded-full bg-[#E5E7EB] flex items-center justify-center text-[11px] font-semibold text-[#6B7280] shrink-0">
-                        {authorInitials}
-                      </span>
-
-                      {/* Name or input */}
-                      {editingAuthorSlug === data.slug ? (
-                        <input
-                          type="text"
-                          value={authorInput}
-                          onChange={(e) => setAuthorInput(e.target.value)}
-                          onKeyDown={(e) => {
-                            if (e.key === 'Enter') handleAuthorSubmit(data.slug);
-                            if (e.key === 'Escape') setEditingAuthorSlug(null);
-                          }}
-                          onBlur={() => handleAuthorSubmit(data.slug)}
-                          autoFocus
-                          placeholder="Enter owner name..."
-                          className="border-0 border-b border-[#D1D5DB] bg-transparent py-0.5 px-0 text-[13px] w-[130px] outline-none text-[#374151]"
-                          onClick={(e) => e.stopPropagation()}
-                        />
-                      ) : (
-                        <span
-                          className="owner-name-hover transition-all duration-150"
-                          style={{
-                            color: data.author ? '#6B7280' : '#9CA3AF',
-                            fontStyle: data.author ? 'normal' : 'italic',
-                            borderBottom: data.author ? 'none' : '1px dashed #D1D5DB',
-                            paddingBottom: data.author ? 0 : '1px',
-                          }}
-                        >
-                          {data.author || 'Set Owner Name...'}
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                  
-                  {/* Stats Row */}
-                  <div className="flex items-center gap-2 pt-4 border-t border-[#F3F4F6] mt-auto flex-wrap">
-                    {/* Facts Badge */}
-                    <span
-                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[13px] font-medium"
-                      style={{
-                        backgroundColor: isNotGradeable && (summary.totalFacts || 0) === 0 ? '#FEE2E2' : '#F0FDFA',
-                        color: isNotGradeable && (summary.totalFacts || 0) === 0 ? '#DC2626' : '#0D9488',
-                      }}
-                    >
-                      <span className="font-bold">{summary.totalFacts || 0}</span> facts
-                    </span>
-
-                    {/* Contradictions Badge */}
-                    <span
-                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[13px] font-medium"
-                      style={{
-                        backgroundColor: hasContradictions ? '#FFF7ED' : '#F3F4F6',
-                        color: hasContradictions ? '#EA580C' : '#6B7280',
-                      }}
-                    >
-                      {hasContradictions && <AlertTriangle size={12} />}
-                      {summary.contradictionCount || 0} {hasContradictions ? 'contradictions' : 'contradictions'}
-                    </span>
-
-                    {/* Score Preview */}
-                    <div className="ml-auto flex items-center gap-2">
-                      <div className="text-[11px] text-[#6B7280] text-right leading-[1.3]">
-                        Mean<br/>Score
-                      </div>
-                      <div
-                        className="w-10 h-10 rounded-full flex items-center justify-center font-bold"
-                        style={{
-                          fontSize: isNotGradeable || (summary.totalFacts || 0) === 0 ? '12px' : '14px',
-                          color: isNotGradeable || (summary.totalFacts || 0) === 0 ? '#6B7280' : 'white',
-                          backgroundColor: isNotGradeable || (summary.totalFacts || 0) === 0 ? '#E5E7EB' : getScoreColor(),
-                        }}
-                      >
-                        {isNotGradeable || (summary.totalFacts || 0) === 0 ? 'N/A' : meanScore.toFixed(1)}
-                      </div>
-                    </div>
-                  </div>
-                </Link>
-              );
-            })}
-          </div>
-
-          {/* Prefetch sentinel - triggers prefetch 200px before visible */}
-          <div ref={prefetchRef} className="h-1" />
-
-          {/* Load More Button */}
-          {hasNextPage && (
-            <div className="flex justify-center mt-8">
-              <button
-                onClick={() => fetchNextPage()}
-                disabled={isFetchingNextPage}
-                className="flex items-center gap-2 px-6 py-3 rounded-lg text-sm font-medium transition-all duration-150"
-                style={{
-                  backgroundColor: isFetchingNextPage ? tokens.surfaceAlt : 'transparent',
-                  border: `1px solid ${tokens.border}`,
-                  color: tokens.textSecondary,
-                  cursor: isFetchingNextPage ? 'not-allowed' : 'pointer',
-                }}
-                onMouseEnter={(e) => {
-                  if (!isFetchingNextPage) {
-                    e.currentTarget.style.borderColor = tokens.primary;
-                    e.currentTarget.style.color = tokens.primary;
-                  }
-                }}
-                onMouseLeave={(e) => {
-                  if (!isFetchingNextPage) {
-                    e.currentTarget.style.borderColor = tokens.border;
-                    e.currentTarget.style.color = tokens.textSecondary;
-                  }
-                }}
-              >
-                {isFetchingNextPage ? (
-                  <>
-                    <Loader2 size={16} className="animate-spin" />
-                    Loading...
-                  </>
-                ) : (
-                  <>
-                    <ChevronDown size={16} />
-                    Load More ({remainingCount} remaining)
-                  </>
-                )}
-              </button>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 items-stretch">
+              {brainlifts.map((brainlift) => (
+                <BrainliftCard
+                  key={brainlift.slug}
+                  brainlift={brainlift}
+                  adminView={adminView}
+                  onDelete={handleDelete}
+                />
+              ))}
             </div>
-          )}
 
-          {/* End of list indicator */}
-          {!hasNextPage && brainlifts.length > 0 && (
-            <p className="text-center text-muted-foreground text-sm mt-8">
-              Showing all {totalCount} brainlifts
-            </p>
-          )}
+            {/* Prefetch sentinel - triggers prefetch 200px before visible */}
+            <div ref={prefetchRef} className="h-1" />
+
+            {/* Load More Button */}
+            {hasNextPage && (
+              <LoadMoreButton
+                onClick={() => fetchNextPage()}
+                isLoading={isFetchingNextPage}
+                remainingCount={remainingCount}
+              />
+            )}
+
+            {/* End of list indicator */}
+            {!hasNextPage && brainlifts.length > 0 && (
+              <p className="text-center text-muted-foreground text-sm mt-8">
+                Showing all {totalCount} brainlifts
+              </p>
+            )}
           </>
         )}
       </main>
 
-      {showModal && (
-        <div
-          className="fixed inset-0 flex items-center justify-center z-[1000] p-5"
-          style={{ backgroundColor: tokens.overlay }}
-          onClick={closeModal}
-        >
-          <div
-            className="p-4 sm:p-6 w-full max-w-[600px] max-h-[90vh] overflow-auto rounded-xl bg-card"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="flex justify-between items-center mb-5">
-              <h2 className="text-xl font-semibold text-foreground m-0">
-                Add New Brainlift
-              </h2>
-              <button
-                data-testid="button-close-modal"
-                onClick={closeModal}
-                className="bg-transparent border-none cursor-pointer text-muted-foreground"
-              >
-                <X size={24} />
-              </button>
-            </div>
-
-            <p className="text-muted-foreground text-sm mb-5">
-              Add New Brainlift to Grade DOK1 facts and create a curated reading list.
-            </p>
-
-            {/* Secondary/ghost tabs */}
-            <div className="flex gap-1 mb-5 flex-wrap">
-              {tabs.map((tab) => (
-                <button
-                  key={tab.id}
-                  data-testid={`tab-${tab.id}`}
-                  onClick={() => {
-                    setActiveTab(tab.id);
-                    setError('');
-                    setSelectedFile(null);
-                    setUrl('');
-                  }}
-                  className="flex items-center gap-1.5 px-4 py-2 rounded-md text-[13px] font-medium cursor-pointer transition-all duration-150"
-                  style={{
-                    border: `1px solid ${activeTab === tab.id ? tokens.primary : tokens.border}`,
-                    backgroundColor: activeTab === tab.id ? tokens.primarySoft : 'transparent',
-                    color: activeTab === tab.id ? tokens.primary : tokens.textSecondary,
-                  }}
-                >
-                  <tab.icon size={14} />
-                  {tab.label}
-                </button>
-              ))}
-            </div>
-
-            <div className="min-h-[150px]">
-              {activeTab === 'html' && (
-                <div>
-                  <input
-                    ref={fileInputRef}
-                    type="file"
-                    accept=".html,.htm"
-                    onChange={handleFileSelect}
-                    className="hidden"
-                    data-testid="input-file"
-                  />
-                  <div
-                    onClick={() => fileInputRef.current?.click()}
-                    className="border-2 border-dashed rounded-lg py-10 px-5 text-center cursor-pointer"
-                    style={{
-                      borderColor: tokens.border,
-                      backgroundColor: selectedFile ? tokens.surfaceAlt : 'transparent',
-                    }}
-                  >
-                    {selectedFile ? (
-                      <>
-                        <File size={32} color={tokens.secondary} className="mb-2 mx-auto" />
-                        <p className="m-0 text-foreground font-medium">{selectedFile.name}</p>
-                        <p className="mt-1 mb-0 text-muted-foreground text-[13px]">
-                          {(selectedFile.size / 1024 / 1024).toFixed(2)} MB
-                        </p>
-                      </>
-                    ) : (
-                      <>
-                        <Upload size={32} color={tokens.textMuted} className="mb-2 mx-auto" />
-                        <p className="m-0 text-muted-foreground">
-                          Click to upload an HTML file (or saved Workflowy page)
-                        </p>
-                        <p className="mt-1 mb-0 text-muted-foreground text-[13px]">
-                          Max file size: 10MB
-                        </p>
-                      </>
-                    )}
-                  </div>
-                </div>
-              )}
-
-              {(activeTab === 'workflowy' || activeTab === 'googledocs') && (
-                <div>
-                  <label className="block mb-2 text-foreground text-sm font-medium">
-                    {activeTab === 'workflowy' ? 'Workflowy Share Link' : 'Google Docs URL'}
-                  </label>
-                  <input
-                    type="url"
-                    data-testid="input-url"
-                    value={url}
-                    onChange={(e) => setUrl(e.target.value)}
-                    placeholder={activeTab === 'workflowy' ? 'https://workflowy.com/s/...' : 'https://docs.google.com/document/d/...'}
-                    className="w-full p-3 rounded-lg border text-sm box-border"
-                    style={{ borderColor: tokens.border }}
-                  />
-                  <p className="mt-2 text-muted-foreground text-[13px]">
-                    {activeTab === 'workflowy'
-                      ? 'Must be a secret link (contains /s/ in URL). Link must point directly to your brainlift\'s root node — no parent nodes, notes, or other content should be visible.'
-                      : 'Make sure your Google Doc has link sharing enabled (anyone with the link can view).'}
-                  </p>
-                </div>
-              )}
-            </div>
-
-            {/* Show local error or import error */}
-            {(error || importWithProgress.error) && !importWithProgress.isImporting && (
-              <p className="text-destructive text-sm mt-3">
-                {error || importWithProgress.error}
-              </p>
-            )}
-
-            {/* Progress display - always rendered, animated in/out */}
-            <ImportProgress
-              currentStage={importWithProgress.currentStage}
-              stageLabel={importWithProgress.stageLabel}
-              progress={importWithProgress.progress}
-              gradingProgress={importWithProgress.gradingProgress}
-              error={importWithProgress.error}
-              isVisible={importWithProgress.isImporting}
-            />
-
-            <div className="flex gap-3 mt-5 justify-end">
-              {/* Cancel/Close button */}
-              <button
-                data-testid="button-cancel"
-                onClick={closeModal}
-                className="px-5 py-2.5 rounded-lg border bg-transparent text-muted-foreground text-sm"
-                style={{
-                  borderColor: importWithProgress.isImporting ? tokens.danger : tokens.border,
-                  color: importWithProgress.isImporting ? tokens.danger : tokens.textSecondary,
-                  cursor: 'pointer',
-                }}
-              >
-                {importWithProgress.isImporting ? 'Cancel Import' : 'Cancel'}
-              </button>
-              {/* Primary button */}
-              {!importWithProgress.isImporting && (
-                <button
-                  data-testid="button-submit-import"
-                  onClick={handleSubmit}
-                  className="flex items-center gap-2 px-5 py-2.5 rounded-lg border-none text-primary-foreground text-sm font-medium"
-                  style={{
-                    backgroundColor: tokens.primary,
-                    cursor: 'pointer',
-                  }}
-                  onMouseEnter={(e) => {
-                    e.currentTarget.style.backgroundColor = tokens.primaryHover;
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.backgroundColor = tokens.primary;
-                  }}
-                >
-                  Import & Analyze
-                </button>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
+      <AddBrainliftModal
+        show={showModal}
+        onClose={() => setShowModal(false)}
+        onSuccess={handleBrainliftImportSuccess}
+      />
 
       <ConfirmationModal
         open={deleteModalOpen}
@@ -759,13 +196,6 @@ export default function Home() {
         variant="destructive"
         isLoading={deleteMutation.isPending}
       />
-
-      <style>{`
-        @keyframes spin {
-          from { transform: rotate(0deg); }
-          to { transform: rotate(360deg); }
-        }
-      `}</style>
     </div>
   );
 }
