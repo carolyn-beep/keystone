@@ -23,7 +23,7 @@ export async function getBrainliftBySlug(slug: string): Promise<BrainliftData | 
     facts: brainliftFacts,
     contradictionClusters: clusters,
     readingList: readingList,
-    experts: brainliftExperts.sort((a, b) => b.rankScore - a.rankScore)
+    experts: brainliftExperts.sort((a, b) => (b.rankScore ?? 0) - (a.rankScore ?? 0))
   };
 }
 
@@ -40,7 +40,7 @@ export async function createBrainlift(
   userId?: string
 ): Promise<BrainliftData> {
   const dataWithUser = userId ? { ...brainliftData, createdByUserId: userId } : brainliftData;
-  const [brainlift] = await db.insert(brainlifts).values(dataWithUser).returning();
+  const [brainlift] = await db.insert(brainlifts).values(dataWithUser as any).returning();
 
   if (factsData.length > 0) {
     await db.insert(facts).values(factsData.map(f => ({

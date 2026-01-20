@@ -18,7 +18,7 @@ export async function saveRedundancyGroups(
   await db.delete(factRedundancyGroups).where(eq(factRedundancyGroups.brainliftId, brainliftId));
 
   const inserted = await db.insert(factRedundancyGroups)
-    .values(groups.map(g => ({ ...g, brainliftId })))
+    .values(groups.map(g => ({ ...g, brainliftId })) as any)
     .returning();
 
   return inserted;

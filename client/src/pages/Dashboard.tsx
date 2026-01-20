@@ -162,7 +162,6 @@ const { downloadBrainliftPDF } = usePDFExport();
           setShowUpdateModal(false);
           setUpdateFile(null);
           setUpdateUrl('');
-          setUpdateText('');
         }
       });
     },
@@ -342,7 +341,7 @@ const { downloadBrainliftPDF } = usePDFExport();
       <RedundancyModal
         show={showRedundancyModal}
         onClose={() => setShowRedundancyModal(false)}
-        data={redundancyData}
+        data={redundancyData ?? null}
         selectedPrimaryFacts={selectedPrimaryFacts}
         onSelectPrimaryFact={(groupId, factId) => setSelectedPrimaryFacts(prev => ({ ...prev, [groupId]: factId }))}
         onKeep={(groupId, primaryFactId) => updateRedundancyStatus({ groupId, status: 'kept', primaryFactId })}

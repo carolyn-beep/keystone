@@ -152,13 +152,13 @@ if (!isDev) {
         success: true,
         data: {
           title: parsed.title,
-          owner: parsed.owner,
+          owner: parsed.owner ?? null,
           classification: parsed.classification,
           factsCount: parsed.facts.length,
           facts: parsed.facts.map(f => ({
             fact: f.fact,
-            source: f.source,
-            note: f.note,
+            source: f.source ?? null,
+            note: f.aiNotes ?? null,
           })),
           rawContent: content,
         },
@@ -204,13 +204,13 @@ if (!isDev) {
         success: true,
         data: {
           title: parsed.title,
-          owner: parsed.owner,
+          owner: parsed.owner ?? null,
           classification: parsed.classification,
           factsCount: parsed.facts.length,
           facts: parsed.facts.map(f => ({
             fact: f.fact,
-            source: f.source,
-            note: f.note,
+            source: f.source ?? null,
+            note: f.aiNotes ?? null,
           })),
           rawContent: content,
         },

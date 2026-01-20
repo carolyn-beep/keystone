@@ -54,11 +54,11 @@ verificationsRouter.post(
       if (!fact) {
         throw new NotFoundError('Fact not found');
       }
-      verification = await storage.createFactVerification(factId) as any;
+      verification = await storage.createFactVerification(factId) as NonNullable<typeof verification>;
     }
 
     // Set human override
-    const updated = await storage.setHumanOverride(verification.id, score, notes || '');
+    const updated = await storage.setHumanOverride(verification!.id, score, notes || '');
     res.json(updated);
   })
 );

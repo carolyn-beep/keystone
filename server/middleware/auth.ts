@@ -46,7 +46,7 @@ export async function requireAuth(
       return res.status(401).json({ error: "Unauthorized" });
     }
 
-    req.session = session;
+    req.session = session as typeof req.session;
     req.authContext = buildAuthContext(session.user as User);
     next();
   } catch (error) {
@@ -79,7 +79,7 @@ export async function requireAdmin(
       return res.status(403).json({ error: "Forbidden: Admin access required" });
     }
 
-    req.session = session;
+    req.session = session as typeof req.session;
     req.authContext = authContext;
     next();
   } catch (error) {

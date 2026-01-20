@@ -11,17 +11,19 @@ interface RedundancyGroup {
   reason: string;
   facts: Array<{
     id: number;
-    originalId: number;
+    originalId: string;
     fact: string;
-    summary: string | null;
+    summary?: string;
     score: number;
   }>;
+  primaryFact?: { id: number; originalId: string; fact: string; score: number; summary?: string };
 }
 
 interface RedundancyData {
   stats: {
     totalFacts: number;
     uniqueFactCount: number;
+    redundantFactCount: number;
     pendingReview: number;
   };
   groups: RedundancyGroup[];

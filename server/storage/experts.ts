@@ -18,7 +18,7 @@ export async function saveExperts(brainliftId: number, expertsData: InsertExpert
     if (expertsData.length === 0) return [];
 
     const inserted = await tx.insert(experts).values(expertsData).returning();
-    return inserted.sort((a, b) => b.rankScore - a.rankScore);
+    return inserted.sort((a, b) => (b.rankScore ?? 0) - (a.rankScore ?? 0));
   });
 }
 

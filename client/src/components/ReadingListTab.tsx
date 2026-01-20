@@ -906,7 +906,7 @@ export function ReadingListTab({
                       const pillSelected = 'py-1.5 px-3.5 bg-[#0D9488] border border-[#0D9488] rounded-full text-[13px] font-medium text-white cursor-pointer';
 
                       const getQualityPillStyle = (val: number, selected: boolean) => {
-                        if (!selected) return pillBase;
+                        if (!selected) return undefined;
                         const colors: Record<number, string> = {
                           5: '#10B981', 4: '#0D9488', 3: '#EAB308', 2: '#F97316', 1: '#EF4444'
                         };

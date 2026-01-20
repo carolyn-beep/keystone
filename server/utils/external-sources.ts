@@ -117,7 +117,7 @@ export async function fetchWorkflowyContent(nodeIdOrUrl: string): Promise<string
       console.log('projectTreeData keys:', Object.keys(projectTreeData).join(', '));
 
       // Helper function to strip HTML tags from text, preserving links as markdown
-      function stripHtml(html: string): string {
+      const stripHtml = (html: string): string => {
         return html
           // Convert <a href="url">text</a> to [text](url) markdown format FIRST
           .replace(/<a[^>]+href=["']([^"']+)["'][^>]*>([^<]*)<\/a>/gi, '[$2]($1)')
@@ -130,13 +130,13 @@ export async function fetchWorkflowyContent(nodeIdOrUrl: string): Promise<string
           .replace(/&quot;/g, '"')
           .replace(/&#39;/g, "'")
           .trim();
-      }
+      };
 
       // Recursively extract text from node tree
       // nm = name (the bullet text, can contain HTML)
       // no = notes (additional text under a bullet)
       // ch = children (nested bullets)
-      function nodeToText(node: any, indent: number = 0): string {
+      const nodeToText = (node: any, indent: number = 0): string => {
         const name = stripHtml(node.nm || node.name || '');
         const note = stripHtml(node.no || node.note || '');
 
@@ -164,7 +164,7 @@ export async function fetchWorkflowyContent(nodeIdOrUrl: string): Promise<string
         }
 
         return text;
-      }
+      };
 
       const lines: string[] = [];
 

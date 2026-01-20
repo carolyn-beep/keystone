@@ -111,7 +111,7 @@ export async function requireBrainliftModifyById(
       throw new ForbiddenError('Access denied');
     }
 
-    req.brainlift = brainlift;
+    req.brainlift = brainlift as BrainliftData;
     next();
   } catch (err) {
     next(err);
