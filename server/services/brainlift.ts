@@ -10,7 +10,7 @@ import { type BrainliftData } from "@shared/schema";
 import { type ImportProgress, STAGE_LABELS } from "@shared/import-progress";
 import pLimit from "p-limit";
 
-export interface PostProcessingInput {
+interface PostProcessingInput {
   brainliftId: number;
   title: string;
   description: string;
@@ -20,7 +20,7 @@ export interface PostProcessingInput {
   readingList: Array<{ author?: string; topic?: string }>;
 }
 
-export type ProgressCallback = (event: ImportProgress) => void;
+type ProgressCallback = (event: ImportProgress) => void;
 
 /**
  * Run post-processing pipeline (expert extraction + redundancy analysis) after brainlift creation/update.

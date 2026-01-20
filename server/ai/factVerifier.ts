@@ -185,7 +185,7 @@ Grade this claim based on available evidence OR your knowledge of educational re
   }
 }
 
-export type ModelWeights = Record<LLMModel, number>;
+type ModelWeights = Record<LLMModel, number>;
 
 function calculateWeightedMedian(scores: number[], weights: number[]): number {
   if (scores.length === 0) return 0;

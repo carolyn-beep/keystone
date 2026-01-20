@@ -83,42 +83,6 @@ export async function requireBrainliftModify(
 }
 
 /**
- * Middleware that loads brainlift by ID and checks read access.
- * Uses req.params.id instead of slug.
- * Sets req.brainlift for downstream use.
- *
- * @throws BadRequestError if ID parameter is invalid
- * @throws NotFoundError if brainlift doesn't exist
- * @throws ForbiddenError if user doesn't have read access
- */
-export async function requireBrainliftAccessById(
-  req: Request,
-  res: Response,
-  next: NextFunction
-): Promise<void> {
-  try {
-    const id = parseInt(req.params.id, 10);
-    if (isNaN(id)) {
-      throw new BadRequestError('Invalid brainlift ID');
-    }
-
-    const brainlift = await storage.getBrainliftById(id);
-    if (!brainlift) {
-      throw new NotFoundError('Brainlift not found');
-    }
-
-    if (!storage.canAccessBrainlift(brainlift, req.authContext!)) {
-      throw new ForbiddenError('Access denied');
-    }
-
-    req.brainlift = brainlift;
-    next();
-  } catch (err) {
-    next(err);
-  }
-}
-
-/**
  * Middleware that loads brainlift by ID and checks write access.
  * Uses req.params.id instead of slug.
  * Sets req.brainlift for downstream use.

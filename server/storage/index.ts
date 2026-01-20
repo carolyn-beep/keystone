@@ -25,9 +25,6 @@ export type {
  */
 export const storage = {
   // Brainlifts
-  getAllBrainlifts: brainliftsStorage.getAllBrainlifts,
-  getBrainliftsByUser: brainliftsStorage.getBrainliftsByUser,
-  getPublicBrainlifts: brainliftsStorage.getPublicBrainlifts,
   getBrainliftBySlug: brainliftsStorage.getBrainliftBySlug,
   getBrainliftById: brainliftsStorage.getBrainliftById,
   createBrainlift: brainliftsStorage.createBrainlift,
@@ -35,7 +32,6 @@ export const storage = {
   deleteBrainlift: brainliftsStorage.deleteBrainlift,
   updateBrainliftFields: brainliftsStorage.updateBrainliftFields,
   getVersionsByBrainliftId: brainliftsStorage.getVersionsByBrainliftId,
-  getBrainliftsForUser: brainliftsStorage.getBrainliftsForUser,
   getBrainliftsForUserPaginated: brainliftsStorage.getBrainliftsForUserPaginated,
   getAllBrainliftsPaginated: brainliftsStorage.getAllBrainliftsPaginated,
   canAccessBrainlift: brainliftsStorage.canAccessBrainlift,
@@ -52,23 +48,15 @@ export const storage = {
   // Experts
   getExpertsByBrainliftId: expertsStorage.getExpertsByBrainliftId,
   saveExperts: expertsStorage.saveExperts,
-  updateExpertFollowing: expertsStorage.updateExpertFollowing,
   getFollowedExperts: expertsStorage.getFollowedExperts,
-  deleteExpert: expertsStorage.deleteExpert,
-  // Ownership-aware experts
   updateExpertFollowingForBrainlift: expertsStorage.updateExpertFollowingForBrainlift,
   deleteExpertForBrainlift: expertsStorage.deleteExpertForBrainlift,
 
   // Verifications
-  getFactById: verificationsStorage.getFactById,
   getFactsForBrainlift: verificationsStorage.getFactsForBrainlift,
-  getFactVerification: verificationsStorage.getFactVerification,
   getFactsWithVerifications: verificationsStorage.getFactsWithVerifications,
   createFactVerification: verificationsStorage.createFactVerification,
-  updateFactVerification: verificationsStorage.updateFactVerification,
-  saveModelScore: verificationsStorage.saveModelScore,
   setHumanOverride: verificationsStorage.setHumanOverride,
-  // Ownership-aware verifications
   getFactByIdForBrainlift: verificationsStorage.getFactByIdForBrainlift,
   getFactVerificationForBrainlift: verificationsStorage.getFactVerificationForBrainlift,
   setHumanOverrideForBrainlift: verificationsStorage.setHumanOverrideForBrainlift,
@@ -76,9 +64,6 @@ export const storage = {
   // Redundancy
   getRedundancyGroups: redundancyStorage.getRedundancyGroups,
   saveRedundancyGroups: redundancyStorage.saveRedundancyGroups,
-  updateRedundancyGroupStatus: redundancyStorage.updateRedundancyGroupStatus,
-  deleteRedundancyGroups: redundancyStorage.deleteRedundancyGroups,
-  // Ownership-aware redundancy
   getRedundancyGroupForBrainlift: redundancyStorage.getRedundancyGroupForBrainlift,
   updateRedundancyGroupStatusForBrainlift: redundancyStorage.updateRedundancyGroupStatusForBrainlift,
 

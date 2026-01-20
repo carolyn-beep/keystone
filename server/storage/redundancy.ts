@@ -24,18 +24,6 @@ export async function saveRedundancyGroups(
   return inserted;
 }
 
-export async function updateRedundancyGroupStatus(groupId: number, status: RedundancyStatus): Promise<FactRedundancyGroup> {
-  const [updated] = await db.update(factRedundancyGroups)
-    .set({ status })
-    .where(eq(factRedundancyGroups.id, groupId))
-    .returning();
-  return updated;
-}
-
-export async function deleteRedundancyGroups(brainliftId: number): Promise<void> {
-  await db.delete(factRedundancyGroups).where(eq(factRedundancyGroups.brainliftId, brainliftId));
-}
-
 /**
  * Get redundancy group by ID with brainlift ownership verification.
  * Returns null if group doesn't exist or doesn't belong to the brainlift.

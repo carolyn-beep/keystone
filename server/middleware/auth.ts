@@ -87,28 +87,3 @@ export async function requireAdmin(
     return res.status(401).json({ error: "Unauthorized" });
   }
 }
-
-/**
- * Middleware that optionally attaches session to request.
- * Does not block unauthenticated requests.
- */
-export async function optionalAuth(
-  req: Request,
-  res: Response,
-  next: NextFunction
-) {
-  try {
-    const session = await auth.api.getSession({
-      headers: req.headers as any,
-    });
-
-    req.session = session;
-    req.authContext = session ? buildAuthContext(session.user as User) : undefined;
-    next();
-  } catch (error) {
-    // Don't fail on auth errors for optional auth
-    req.session = null;
-    req.authContext = undefined;
-    next();
-  }
-}

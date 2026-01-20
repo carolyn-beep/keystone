@@ -1,6 +1,6 @@
 import { storage } from "../storage";
 
-export function generateSlug(title: string): string {
+function generateSlug(title: string): string {
   return title
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, '-')

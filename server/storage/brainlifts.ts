@@ -7,18 +7,6 @@ import {
   type BrainliftVersion, type AuthContext
 } from './base';
 
-export async function getAllBrainlifts(): Promise<Brainlift[]> {
-  return await db.select().from(brainlifts).orderBy(brainlifts.id);
-}
-
-export async function getBrainliftsByUser(userId: string): Promise<Brainlift[]> {
-  return await db.select().from(brainlifts).where(eq(brainlifts.createdByUserId, userId)).orderBy(brainlifts.id);
-}
-
-export async function getPublicBrainlifts(): Promise<Brainlift[]> {
-  return await db.select().from(brainlifts).where(isNull(brainlifts.createdByUserId)).orderBy(brainlifts.id);
-}
-
 export async function getBrainliftBySlug(slug: string): Promise<BrainliftData | undefined> {
   const [brainlift] = await db.select().from(brainlifts).where(eq(brainlifts.slug, slug));
 
@@ -266,12 +254,6 @@ export async function getVersionsByBrainliftId(brainliftId: number): Promise<Bra
 }
 
 // Authorization methods
-export async function getBrainliftsForUser(authContext: AuthContext): Promise<Brainlift[]> {
-  return await db.select().from(brainlifts)
-    .where(eq(brainlifts.createdByUserId, authContext.userId))
-    .orderBy(brainlifts.id);
-}
-
 export async function getBrainliftsForUserPaginated(
   authContext: AuthContext,
   offset: number,

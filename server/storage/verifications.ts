@@ -6,16 +6,11 @@ import {
 } from './base';
 import { NotFoundError } from '../middleware/error-handler';
 
-export async function getFactById(factId: number): Promise<Fact | null> {
-  const [fact] = await db.select().from(facts).where(eq(facts.id, factId));
-  return fact || null;
-}
-
 export async function getFactsForBrainlift(brainliftId: number): Promise<Fact[]> {
   return await db.select().from(facts).where(eq(facts.brainliftId, brainliftId));
 }
 
-export async function getFactVerification(factId: number): Promise<(FactVerification & { modelScores: FactModelScore[] }) | null> {
+async function getFactVerification(factId: number): Promise<(FactVerification & { modelScores: FactModelScore[] }) | null> {
   const [verification] = await db.select().from(factVerifications).where(eq(factVerifications.factId, factId));
   if (!verification) return null;
 
@@ -83,51 +78,6 @@ export async function createFactVerification(factId: number): Promise<FactVerifi
     status: 'pending',
   }).returning();
   return verification;
-}
-
-export async function updateFactVerification(verificationId: number, data: Partial<InsertFactVerification>): Promise<FactVerification> {
-  const updateData: any = { ...data, updatedAt: new Date() };
-  const [updated] = await db.update(factVerifications)
-    .set(updateData)
-    .where(eq(factVerifications.id, verificationId))
-    .returning();
-  return updated;
-}
-
-export async function saveModelScore(
-  verificationId: number,
-  data: { model: LLMModel; score: number | null; rationale: string | null; status: string; error: string | null }
-): Promise<FactModelScore> {
-  const existing = await db.select().from(factModelScores)
-    .where(and(
-      eq(factModelScores.verificationId, verificationId),
-      eq(factModelScores.model, data.model)
-    ));
-
-  if (existing.length > 0) {
-    const [updated] = await db.update(factModelScores)
-      .set({
-        score: data.score,
-        rationale: data.rationale,
-        status: data.status as any,
-        error: data.error,
-        completedAt: data.status === 'completed' ? new Date() : null,
-      })
-      .where(eq(factModelScores.id, existing[0].id))
-      .returning();
-    return updated;
-  }
-
-  const [inserted] = await db.insert(factModelScores).values({
-    verificationId,
-    model: data.model,
-    score: data.score,
-    rationale: data.rationale,
-    status: data.status as any,
-    error: data.error,
-    completedAt: data.status === 'completed' ? new Date() : null,
-  }).returning();
-  return inserted;
 }
 
 async function updateModelAccuracyStatsInternal(model: LLMModel, scoreDifference: number): Promise<void> {

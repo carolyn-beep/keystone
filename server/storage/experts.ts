@@ -22,14 +22,6 @@ export async function saveExperts(brainliftId: number, expertsData: InsertExpert
   });
 }
 
-export async function updateExpertFollowing(expertId: number, isFollowing: boolean): Promise<Expert> {
-  const [updated] = await db.update(experts)
-    .set({ isFollowing })
-    .where(eq(experts.id, expertId))
-    .returning();
-  return updated;
-}
-
 export async function getFollowedExperts(brainliftId: number): Promise<Expert[]> {
   return await db.select().from(experts)
     .where(and(
@@ -37,10 +29,6 @@ export async function getFollowedExperts(brainliftId: number): Promise<Expert[]>
       eq(experts.isFollowing, true)
     ))
     .orderBy(desc(experts.rankScore));
-}
-
-export async function deleteExpert(expertId: number): Promise<void> {
-  await db.delete(experts).where(eq(experts.id, expertId));
 }
 
 /**

@@ -17,13 +17,11 @@ export type {
 export { expertExtractionSchema } from './types';
 
 // Main extraction and ranking
-export { extractAndRankExperts, cleanupExpertNames } from './ranker';
+export { extractAndRankExperts } from './ranker';
 
 // Parsing utilities
 export {
   findExpertsSection,
-  parseH2HeaderFormat,
-  parseNumberedFormat,
   extractExpertsFromDocumentWithMetadata,
   extractExpertsFromDocument,
 } from './parsers';
