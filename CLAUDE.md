@@ -87,7 +87,7 @@ app.use(verificationsRouter);
 |------|----------|---------|
 | Route handlers | `routes/{domain}.ts` | HTTP request/response |
 | Business logic | `services/{domain}.ts` | `saveBrainliftFromAI` |
-| Pure utilities | `utils/{name}.ts` | `extractTextFromPDF` |
+| Pure utilities | `utils/{name}.ts` | `extractTextFromHTML` |
 | AI integrations | `ai/{service}.ts` | `verifyFactWithAllModels` |
 | DB operations | `storage/{domain}.ts` | Domain-split queries with `storage/index.ts` facade |
 | Middleware | `middleware/{name}.ts` | `asyncHandler`, `requireBrainliftAccess` |

@@ -1,7 +1,32 @@
-import { extractTextFromPDF, extractTextFromDocx, extractTextFromHTML } from "./file-extractors";
+import { extractTextFromHTML } from "./file-extractors";
 import { fetchWorkflowyContent, fetchGoogleDocsContent } from "./external-sources";
 
-export type SourceType = 'pdf' | 'docx' | 'html' | 'workflowy' | 'googledocs' | 'text';
+export type SourceType = 'html' | 'workflowy' | 'googledocs';
+
+/**
+ * Detect if HTML content is a saved WorkFlowy page and extract the share URL.
+ * Saved WorkFlowy pages contain data-url attribute with the original share link.
+ *
+ * @returns The WorkFlowy share URL if detected, null otherwise
+ */
+function extractWorkflowyUrlFromHTML(htmlContent: string): string | null {
+  // Quick check for WorkFlowy markers
+  if (!htmlContent.includes('workflowy.com')) {
+    return null;
+  }
+
+  // Extract share URL from data-url attribute on body
+  // Format: data-url="https://workflowy.com/s/name/ID#/hash"
+  const dataUrlMatch = htmlContent.match(/data-url=["']([^"']*workflowy\.com\/s\/[^"']+)["']/);
+  if (dataUrlMatch) {
+    // Remove hash fragment - we want the full document, not a specific node
+    const url = dataUrlMatch[1].split('#')[0];
+    console.log(`Detected saved WorkFlowy HTML, extracted share URL: ${url}`);
+    return url;
+  }
+
+  return null;
+}
 
 // Maximum content size: 5MB of text (roughly 5 million characters)
 const MAX_CONTENT_SIZE = 5 * 1024 * 1024;
@@ -15,7 +40,6 @@ export interface ContentExtractionInput {
   sourceType: SourceType;
   file?: Express.Multer.File;
   url?: string;
-  textContent?: string;
 }
 
 export class ContentExtractionError extends Error {
@@ -52,51 +76,41 @@ function validateContentSize(content: string, sourceLabel: string): void {
 }
 
 /**
- * Extract content from various source types (PDF, DOCX, HTML, Workflowy, Google Docs, text)
+ * Extract content from various source types (HTML, Workflowy, Google Docs)
  * @throws ContentExtractionError if source is invalid or content cannot be extracted
  */
 export async function extractContent(input: ContentExtractionInput): Promise<ContentExtractionResult> {
-  const { sourceType, file, url, textContent } = input;
+  const { sourceType, file, url } = input;
 
   let content: string;
   let sourceLabel: string;
 
   switch (sourceType) {
-    case 'pdf':
+    case 'html': {
       if (!file) {
         throw new ContentExtractionError('No file uploaded');
       }
-      sourceLabel = 'PDF document';
-      try {
-        content = await extractTextFromPDF(file.buffer);
-      } catch (error) {
-        wrapExtractorError(error, sourceLabel);
-      }
-      break;
+      const htmlContent = file.buffer.toString('utf-8');
 
-    case 'docx':
-      if (!file) {
-        throw new ContentExtractionError('No file uploaded');
-      }
-      sourceLabel = 'Word document';
-      try {
-        content = await extractTextFromDocx(file.buffer);
-      } catch (error) {
-        wrapExtractorError(error, sourceLabel);
-      }
-      break;
-
-    case 'html':
-      if (!file) {
-        throw new ContentExtractionError('No file uploaded');
-      }
-      sourceLabel = 'HTML file';
-      try {
-        content = extractTextFromHTML(file.buffer.toString('utf-8'));
-      } catch (error) {
-        wrapExtractorError(error, sourceLabel);
+      // Check if this is a saved WorkFlowy page - if so, fetch via API for full content
+      const workflowyUrl = extractWorkflowyUrlFromHTML(htmlContent);
+      if (workflowyUrl) {
+        sourceLabel = 'Workflowy (from saved HTML)';
+        try {
+          content = await fetchWorkflowyContent(workflowyUrl);
+        } catch (error) {
+          wrapExtractorError(error, sourceLabel);
+        }
+      } else {
+        sourceLabel = 'HTML file';
+        try {
+          content = extractTextFromHTML(htmlContent);
+        } catch (error) {
+          wrapExtractorError(error, sourceLabel);
+        }
       }
       break;
+    }
 
     case 'workflowy':
       if (!url) {
@@ -120,14 +134,6 @@ export async function extractContent(input: ContentExtractionInput): Promise<Con
       } catch (error) {
         wrapExtractorError(error, sourceLabel);
       }
-      break;
-
-    case 'text':
-      if (!textContent) {
-        throw new ContentExtractionError('No text content provided');
-      }
-      content = textContent;
-      sourceLabel = 'text content';
       break;
 
     default:

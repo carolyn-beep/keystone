@@ -10,23 +10,19 @@ import { ConfirmationModal } from '@/components/ui/confirmation-modal';
 import { useImportWithProgress } from '@/hooks/useImportWithProgress';
 import { ImportProgress } from '@/components/ImportProgress';
 
-type SourceType = 'pdf' | 'docx' | 'html' | 'workflowy' | 'googledocs' | 'text';
+type SourceType = 'html' | 'workflowy' | 'googledocs';
 
 const tabs: { id: SourceType; label: string; icon: typeof FileText }[] = [
-  { id: 'pdf', label: 'PDF', icon: FileText },
-  { id: 'docx', label: 'Word', icon: File },
-  { id: 'html', label: 'HTML', icon: FileText },
   { id: 'workflowy', label: 'Workflowy', icon: LinkIcon },
+  { id: 'html', label: 'HTML', icon: FileText },
   { id: 'googledocs', label: 'Google Docs', icon: LinkIcon },
-  { id: 'text', label: 'Paste Text', icon: FileText },
 ];
 
 export default function Home() {
   const [, setLocation] = useLocation();
   const [showModal, setShowModal] = useState(false);
-  const [activeTab, setActiveTab] = useState<SourceType>('pdf');
+  const [activeTab, setActiveTab] = useState<SourceType>('workflowy');
   const [url, setUrl] = useState('');
-  const [textContent, setTextContent] = useState('');
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [error, setError] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -198,9 +194,8 @@ export default function Home() {
     }
     importWithProgress.reset();
     setShowModal(false);
-    setActiveTab('pdf');
+    setActiveTab('workflowy');
     setUrl('');
-    setTextContent('');
     setSelectedFile(null);
     setError('');
   };
@@ -219,7 +214,7 @@ export default function Home() {
     const formData = new FormData();
     formData.append('sourceType', activeTab);
 
-    if (activeTab === 'pdf' || activeTab === 'docx' || activeTab === 'html') {
+    if (activeTab === 'html') {
       if (!selectedFile) {
         setError('Please select a file');
         return;
@@ -231,12 +226,6 @@ export default function Home() {
         return;
       }
       formData.append('url', url);
-    } else if (activeTab === 'text') {
-      if (!textContent.trim()) {
-        setError('Please enter some content');
-        return;
-      }
-      formData.append('content', textContent);
     }
 
     const slug = await importWithProgress.importBrainlift(formData);
@@ -621,7 +610,6 @@ export default function Home() {
                     setError('');
                     setSelectedFile(null);
                     setUrl('');
-                    setTextContent('');
                   }}
                   className="flex items-center gap-1.5 px-4 py-2 rounded-md text-[13px] font-medium cursor-pointer transition-all duration-150"
                   style={{
@@ -637,12 +625,12 @@ export default function Home() {
             </div>
 
             <div className="min-h-[150px]">
-              {(activeTab === 'pdf' || activeTab === 'docx' || activeTab === 'html') && (
+              {activeTab === 'html' && (
                 <div>
                   <input
                     ref={fileInputRef}
                     type="file"
-                    accept={activeTab === 'pdf' ? '.pdf' : activeTab === 'docx' ? '.docx,.doc' : '.html,.htm'}
+                    accept=".html,.htm"
                     onChange={handleFileSelect}
                     className="hidden"
                     data-testid="input-file"
@@ -667,7 +655,7 @@ export default function Home() {
                       <>
                         <Upload size={32} color={tokens.textMuted} className="mb-2 mx-auto" />
                         <p className="m-0 text-muted-foreground">
-                          Click to upload {activeTab === 'pdf' ? 'a PDF' : activeTab === 'docx' ? 'a Word' : 'an HTML'} file
+                          Click to upload an HTML file (or saved Workflowy page)
                         </p>
                         <p className="mt-1 mb-0 text-muted-foreground text-[13px]">
                           Max file size: 10MB
@@ -688,31 +676,15 @@ export default function Home() {
                     data-testid="input-url"
                     value={url}
                     onChange={(e) => setUrl(e.target.value)}
-                    placeholder={activeTab === 'workflowy' ? 'https://workflowy.com/#/...' : 'https://docs.google.com/document/d/...'}
+                    placeholder={activeTab === 'workflowy' ? 'https://workflowy.com/s/...' : 'https://docs.google.com/document/d/...'}
                     className="w-full p-3 rounded-lg border text-sm box-border"
                     style={{ borderColor: tokens.border }}
                   />
                   <p className="mt-2 text-muted-foreground text-[13px]">
                     {activeTab === 'workflowy'
-                      ? 'Enter a Workflowy URL (e.g., https://workflowy.com/#/abc123) or node ID. Uses your connected Workflowy account.'
+                      ? 'Must be a secret link (contains /s/ in URL). Link must point directly to your brainlift\'s root node — no parent nodes, notes, or other content should be visible.'
                       : 'Make sure your Google Doc has link sharing enabled (anyone with the link can view).'}
                   </p>
-                </div>
-              )}
-
-              {activeTab === 'text' && (
-                <div>
-                  <label className="block mb-2 text-foreground text-sm font-medium">
-                    Paste your content
-                  </label>
-                  <textarea
-                    data-testid="input-text"
-                    value={textContent}
-                    onChange={(e) => setTextContent(e.target.value)}
-                    placeholder="Paste your educational content here. Include facts, claims, and any source references..."
-                    className="w-full h-[200px] p-3 rounded-lg border text-sm resize-y box-border font-[inherit]"
-                    style={{ borderColor: tokens.border }}
-                  />
                 </div>
               )}
             </div>

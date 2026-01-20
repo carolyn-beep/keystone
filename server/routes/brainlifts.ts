@@ -107,7 +107,6 @@ brainliftsRouter.post(
       sourceType,
       file: req.file,
       url: req.body.url,
-      textContent: req.body.content,
     });
 
     const content = validateContent(rawContent);
@@ -139,7 +138,6 @@ brainliftsRouter.post(
         sourceType,
         file: req.file,
         url: req.body.url,
-        textContent: req.body.content,
       });
 
       const content = validateContent(rawContent);
@@ -228,7 +226,6 @@ brainliftsRouter.patch(
       sourceType,
       file: req.file,
       url: req.body.url,
-      textContent: req.body.content,
     });
 
     const content = validateContent(rawContent);

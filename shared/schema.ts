@@ -199,7 +199,7 @@ export const brainliftVersions = pgTable("brainlift_versions", {
   brainliftId: integer("brainlift_id").notNull().references(() => brainlifts.id),
   versionNumber: integer("version_number").notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
-  sourceType: text("source_type").notNull(), // "pdf", "docx", "text", "workflowy", "gdocs"
+  sourceType: text("source_type").notNull(), // "html", "workflowy", "googledocs"
   snapshot: jsonb("snapshot").$type<{
     title: string;
     description: string;

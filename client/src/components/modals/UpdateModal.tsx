@@ -1,17 +1,17 @@
-import { X, Upload, Loader2 } from 'lucide-react';
+import { X, Upload } from 'lucide-react';
 import { tokens } from '@/lib/colors';
+
+type SourceType = 'html' | 'workflowy' | 'googledocs';
 
 interface UpdateModalProps {
   show: boolean;
   onClose: () => void;
-  sourceType: 'pdf' | 'docx' | 'html' | 'text' | 'workflowy' | 'googledocs';
-  onSourceTypeChange: (type: 'pdf' | 'docx' | 'html' | 'text' | 'workflowy' | 'googledocs') => void;
+  sourceType: SourceType;
+  onSourceTypeChange: (type: SourceType) => void;
   file: File | null;
   onFileChange: (file: File | null) => void;
   url: string;
   onUrlChange: (url: string) => void;
-  text: string;
-  onTextChange: (text: string) => void;
   onSubmit: (formData: FormData) => void;
   isSubmitting: boolean;
   error?: string;
@@ -26,37 +26,29 @@ export function UpdateModal({
   onFileChange,
   url,
   onUrlChange,
-  text,
-  onTextChange,
   onSubmit,
   isSubmitting,
   error,
 }: UpdateModalProps) {
   if (!show) return null;
 
-  // Compute canSubmit based on current state
   const canSubmit = (() => {
-    if (sourceType === 'pdf' || sourceType === 'docx') {
+    if (sourceType === 'html') {
       return !!file;
     } else if (sourceType === 'workflowy' || sourceType === 'googledocs') {
       return !!url.trim();
-    } else if (sourceType === 'text') {
-      return text.trim().length >= 100;
     }
     return false;
   })();
 
-  // Build FormData and submit
   const handleSubmit = () => {
     if (!canSubmit) return;
     const formData = new FormData();
     formData.append('sourceType', sourceType);
-    if (sourceType === 'pdf' || sourceType === 'docx') {
+    if (sourceType === 'html') {
       if (file) formData.append('file', file);
     } else if (sourceType === 'workflowy' || sourceType === 'googledocs') {
       formData.append('url', url);
-    } else if (sourceType === 'text') {
-      formData.append('content', text);
     }
     onSubmit(formData);
   };
@@ -83,21 +75,17 @@ export function UpdateModal({
 
         <div className="flex gap-1 mb-5 flex-wrap">
           {[
-            { id: 'pdf', label: 'PDF' },
-            { id: 'docx', label: 'Word' },
-            { id: 'html', label: 'HTML' },
-            { id: 'text', label: 'Text' },
-            { id: 'workflowy', label: 'Workflowy' },
-            { id: 'googledocs', label: 'Google Docs' },
+            { id: 'workflowy' as const, label: 'Workflowy' },
+            { id: 'html' as const, label: 'HTML' },
+            { id: 'googledocs' as const, label: 'Google Docs' },
           ].map((tab) => (
             <button
               key={tab.id}
               data-testid={`update-tab-${tab.id}`}
               onClick={() => {
-                onSourceTypeChange(tab.id as any);
+                onSourceTypeChange(tab.id);
                 onFileChange(null);
                 onUrlChange('');
-                onTextChange('');
               }}
               className="flex items-center gap-1.5 px-4 py-2 rounded-md text-[13px] font-medium cursor-pointer transition-all duration-150"
               style={{
@@ -111,7 +99,7 @@ export function UpdateModal({
           ))}
         </div>
 
-        {(sourceType === 'pdf' || sourceType === 'docx' || sourceType === 'html') && (
+        {sourceType === 'html' && (
           <div className="mb-5">
             <label className="block mb-2 font-medium text-sm">Upload File</label>
             <div
@@ -121,13 +109,13 @@ export function UpdateModal({
             >
               <Upload size={24} className="mb-2 text-muted-foreground" />
               <p className="m-0 text-sm text-muted-foreground">
-                {file ? file.name : `Click to upload ${sourceType === 'html' ? 'an HTML' : sourceType === 'pdf' ? 'a PDF' : 'a Word'} file`}
+                {file ? file.name : 'Click to upload an HTML file (or saved Workflowy page)'}
               </p>
               <input
                 type="file"
                 id="update-file-input"
                 data-testid="input-update-file"
-                accept={sourceType === 'pdf' ? '.pdf' : sourceType === 'docx' ? '.docx' : '.html,.htm'}
+                accept=".html,.htm"
                 onChange={(e) => onFileChange(e.target.files?.[0] || null)}
                 className="hidden"
               />
@@ -138,31 +126,22 @@ export function UpdateModal({
         {(sourceType === 'workflowy' || sourceType === 'googledocs') && (
           <div className="mb-5">
             <label className="block mb-2 font-medium text-sm">
-              {sourceType === 'workflowy' ? 'Workflowy URL' : 'Google Docs URL'}
+              {sourceType === 'workflowy' ? 'Workflowy Secret Link' : 'Google Docs URL'}
             </label>
             <input
               type="text"
               data-testid="input-update-url"
               value={url}
               onChange={(e) => onUrlChange(e.target.value)}
-              placeholder={sourceType === 'workflowy' ? 'https://workflowy.com/#/...' : 'https://docs.google.com/...'}
+              placeholder={sourceType === 'workflowy' ? 'https://workflowy.com/s/...' : 'https://docs.google.com/...'}
               className="w-full px-3 py-2.5 rounded-md text-sm box-border"
               style={{ border: `1px solid ${tokens.border}` }}
             />
-          </div>
-        )}
-
-        {sourceType === 'text' && (
-          <div className="mb-5">
-            <label className="block mb-2 font-medium text-sm">Content</label>
-            <textarea
-              data-testid="input-update-text"
-              value={text}
-              onChange={(e) => onTextChange(e.target.value)}
-              placeholder="Paste your educational content here..."
-              className="w-full min-h-[150px] px-3 py-2.5 rounded-md text-sm resize-y box-border"
-              style={{ border: `1px solid ${tokens.border}` }}
-            />
+            <p className="mt-2 text-muted-foreground text-[13px]">
+              {sourceType === 'workflowy'
+                ? 'Must be a secret link (contains /s/ in URL). Link must point directly to your brainlift\'s root node.'
+                : 'Make sure your Google Doc has link sharing enabled (anyone with the link can view).'}
+            </p>
           </div>
         )}
 
