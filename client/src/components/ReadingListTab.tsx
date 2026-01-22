@@ -367,7 +367,7 @@ export function ReadingListTab({
             </span>
             {/* Expert Diagnostics Indicator */}
             {(() => {
-              if (!expertDiagnostics || expertDiagnostics.diagnostics.length === 0) return null;
+              if (!expertDiagnostics || !expertDiagnostics.diagnostics || expertDiagnostics.diagnostics.length === 0) return null;
 
               // Filter out redundant "X/X experts lack structured fields" when all experts lack them
               // (the "No experts have structured fields" diagnostic already covers this case)

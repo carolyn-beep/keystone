@@ -43,7 +43,7 @@ expertsRouter.post(
     let expertDiagnostics = null;
     if (brainlift.originalContent) {
       console.log('[Expert Refresh] Running diagnostics for:', brainlift.slug);
-      expertDiagnostics = diagnoseExpertFormat(brainlift.originalContent);
+      expertDiagnostics = await diagnoseExpertFormat(brainlift.originalContent);
       console.log('[Expert Refresh] Diagnostics result:', JSON.stringify(expertDiagnostics, null, 2));
 
       // Save diagnostics to brainlift

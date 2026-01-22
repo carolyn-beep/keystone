@@ -83,11 +83,15 @@ export function parseH2HeaderFormat(expertSection: string): ExtractedExpert[] {
       // Clean any remaining leading dash/bullet
       name = name.replace(/^[-–—]\s*/, '');
     }
-    // Handle "Expert N" format (no name in header) - look for name in "- Who:" field
+    // Handle "Expert N" format (no name in header) - look for name in "- Who:" or "- Name:" field
     else if (/^Expert\s+\d+$/i.test(name)) {
       const whoMatch = block.match(/- Who:\s*([^\n]+)/i);
+      const nameMatch = block.match(/- Name:\s*([^\n]+)/i);
       if (whoMatch) {
         name = whoMatch[1].trim();
+        nameFromWhoField = true;
+      } else if (nameMatch) {
+        name = nameMatch[1].trim();
         nameFromWhoField = true;
       } else {
         // Can't find a name for this expert, skip it
