@@ -103,7 +103,7 @@ brainliftsRouter.post(
   asyncHandler(async (req, res) => {
     const sourceType = req.body.sourceType as SourceType;
 
-    const { content: rawContent, sourceLabel } = await extractContent({
+    const { content: rawContent, sourceLabel, hierarchy } = await extractContent({
       sourceType,
       file: req.file,
       url: req.body.url,
@@ -112,8 +112,11 @@ brainliftsRouter.post(
     const content = validateContent(rawContent);
 
     console.log(`Processing ${sourceLabel}, content length: ${content.length} chars`);
+    if (hierarchy) {
+      console.log(`Hierarchy available: ${hierarchy.length} roots`);
+    }
 
-    const brainliftData = await extractBrainlift(content, sourceLabel);
+    const brainliftData = await extractBrainlift(content, sourceLabel, hierarchy);
     const brainlift = await saveBrainliftFromAI(brainliftData, content, sourceType, req.authContext!.userId);
 
     res.status(201).json(brainlift);
@@ -134,7 +137,7 @@ brainliftsRouter.post(
       // Emit extracting progress
       sse.send({ stage: 'extracting', message: STAGE_LABELS.extracting });
 
-      const { content: rawContent, sourceLabel } = await extractContent({
+      const { content: rawContent, sourceLabel, hierarchy } = await extractContent({
         sourceType,
         file: req.file,
         url: req.body.url,
@@ -143,8 +146,11 @@ brainliftsRouter.post(
       const content = validateContent(rawContent);
 
       console.log(`[SSE Import] Processing ${sourceLabel}, content length: ${content.length} chars`);
+      if (hierarchy) {
+        console.log(`[SSE Import] Hierarchy available: ${hierarchy.length} roots`);
+      }
 
-      const brainliftData = await extractBrainlift(content, sourceLabel);
+      const brainliftData = await extractBrainlift(content, sourceLabel, hierarchy);
 
       const brainlift = await saveBrainliftFromAI(
         brainliftData,
@@ -222,7 +228,7 @@ brainliftsRouter.patch(
     const { slug } = req.params;
     const sourceType = req.body.sourceType as SourceType;
 
-    const { content: rawContent, sourceLabel } = await extractContent({
+    const { content: rawContent, sourceLabel, hierarchy } = await extractContent({
       sourceType,
       file: req.file,
       url: req.body.url,
@@ -231,8 +237,11 @@ brainliftsRouter.patch(
     const content = validateContent(rawContent);
 
     console.log(`Updating ${slug} with ${sourceLabel}, content length: ${content.length} chars`);
+    if (hierarchy) {
+      console.log(`Hierarchy available: ${hierarchy.length} roots`);
+    }
 
-    const brainliftData = await extractBrainlift(content, sourceLabel);
+    const brainliftData = await extractBrainlift(content, sourceLabel, hierarchy);
 
     const facts = brainliftData.facts.map((f) => ({
       originalId: f.id,

@@ -4,7 +4,18 @@
  * Functions for fetching content from external sources like Workflowy and Google Docs.
  */
 
-export async function fetchWorkflowyContent(nodeIdOrUrl: string): Promise<string> {
+import type { HierarchyNode, WorkflowyFetchResult } from '@shared/hierarchy-types';
+
+// Regex patterns for detecting markers in hierarchy nodes
+const DOK1_PATTERN = /DOK\s*1\b/i;
+const SOURCE_PATTERN = /^Source\s*\d*/i;
+const CATEGORY_PATTERN = /^Category\s*\d*/i;
+const URL_PATTERN = /https?:\/\/[^\s\]\)]+/;
+
+/**
+ * Fetch Workflowy content and return both markdown (backward compat) and hierarchy tree
+ */
+export async function fetchWorkflowyContent(nodeIdOrUrl: string): Promise<WorkflowyFetchResult> {
   // Workflowy share link extraction - reverse-engineers their internal API
   // Step 1: Fetch share page HTML to get cookies and internal share_id
   // Step 2: Call /get_initialization_data with cookies to get complete tree
@@ -166,7 +177,44 @@ export async function fetchWorkflowyContent(nodeIdOrUrl: string): Promise<string
         return text;
       };
 
+      // Generate unique ID for hierarchy nodes
+      let nodeIdCounter = 0;
+      const generateNodeId = () => `node_${++nodeIdCounter}`;
+
+      // Build hierarchy tree from Workflowy nodes
+      const buildHierarchy = (node: any, depth: number = 0): HierarchyNode => {
+        const name = stripHtml(node.nm || node.name || '');
+        const note = stripHtml(node.no || node.note || '') || null;
+
+        // Detect markers
+        const isDOK1Marker = DOK1_PATTERN.test(name);
+        const isSourceMarker = SOURCE_PATTERN.test(name);
+        const isCategoryMarker = CATEGORY_PATTERN.test(name);
+
+        // Extract URL from name or note
+        const urlMatch = (name + ' ' + (note || '')).match(URL_PATTERN);
+        const extractedUrl = urlMatch ? urlMatch[0] : null;
+
+        const children = node.ch || node.children || [];
+        const childNodes: HierarchyNode[] = Array.isArray(children)
+          ? children.map((child: any) => buildHierarchy(child, depth + 1))
+          : [];
+
+        return {
+          id: node.id || generateNodeId(),
+          name,
+          note,
+          depth,
+          children: childNodes,
+          isDOK1Marker,
+          isSourceMarker,
+          isCategoryMarker,
+          extractedUrl,
+        };
+      };
+
       const lines: string[] = [];
+      const hierarchyRoots: HierarchyNode[] = [];
 
       // Check mainProjectTreeInfo first
       const mainInfo = projectTreeData.mainProjectTreeInfo;
@@ -175,12 +223,14 @@ export async function fetchWorkflowyContent(nodeIdOrUrl: string): Promise<string
 
         if (mainInfo.rootProject) {
           lines.push(nodeToText(mainInfo.rootProject, 0));
+          hierarchyRoots.push(buildHierarchy(mainInfo.rootProject, 0));
         }
 
         if (mainInfo.rootProjectChildren && Array.isArray(mainInfo.rootProjectChildren)) {
           console.log(`Found ${mainInfo.rootProjectChildren.length} root children`);
           for (const child of mainInfo.rootProjectChildren) {
             lines.push(nodeToText(child, 0));
+            hierarchyRoots.push(buildHierarchy(child, 0));
           }
         }
       }
@@ -192,20 +242,22 @@ export async function fetchWorkflowyContent(nodeIdOrUrl: string): Promise<string
         for (const aux of auxInfos) {
           if (aux.rootProject) {
             lines.push(nodeToText(aux.rootProject, 0));
+            hierarchyRoots.push(buildHierarchy(aux.rootProject, 0));
           }
           if (aux.rootProjectChildren && Array.isArray(aux.rootProjectChildren)) {
             for (const child of aux.rootProjectChildren) {
               lines.push(nodeToText(child, 0));
+              hierarchyRoots.push(buildHierarchy(child, 0));
             }
           }
         }
       }
 
       const content = lines.join('\n');
-      console.log(`Workflowy extraction complete: ${content.length} chars`);
+      console.log(`Workflowy extraction complete: ${content.length} chars, ${hierarchyRoots.length} hierarchy roots`);
 
       if (content.length > 100) {
-        return content;
+        return { markdown: content, hierarchy: hierarchyRoots };
       } else {
         throw new Error('Extracted content too short - may be private or expired share link');
       }

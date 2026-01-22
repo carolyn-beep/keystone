@@ -21,6 +21,7 @@ import {
   type ParserType,
   type FormatDiagnosticsResult,
 } from '../ai/experts';
+import type { HierarchyNode } from '@shared/hierarchy-types';
 
 export const devRouter = Router();
 
@@ -103,14 +104,14 @@ if (!isDev) {
 
     try {
       // Fetch raw content from Workflowy - NO extraction
-      const content = await fetchWorkflowyContent(url);
+      const result = await fetchWorkflowyContent(url);
 
       res.json({
         success: true,
-        data: { rawContent: content },
+        data: { rawContent: result.markdown },
         diagnostics: {
           timing: { total: Date.now() - startTime },
-          metadata: { contentLength: content.length },
+          metadata: { contentLength: result.markdown.length },
         },
       });
     } catch (err: unknown) {
@@ -119,6 +120,71 @@ if (!isDev) {
         success: false,
         error,
         diagnostics: { timing: { total: Date.now() - startTime }, metadata: { contentLength: 0 } },
+      });
+    }
+  });
+
+  /**
+   * POST /dev/fetch-workflowy-hierarchy
+   *
+   * Fetch Workflowy content and return the hierarchy tree for debugging.
+   * Returns both markdown and hierarchy structure with marker detection.
+   */
+  devRouter.post('/dev/fetch-workflowy-hierarchy', async (req, res) => {
+    const startTime = Date.now();
+    const { url } = req.body;
+
+    if (!url || typeof url !== 'string') {
+      return res.status(400).json({
+        success: false,
+        error: 'Missing or invalid "url" parameter',
+        diagnostics: { timing: { total: Date.now() - startTime } },
+      });
+    }
+
+    try {
+      const result = await fetchWorkflowyContent(url);
+
+      // Count hierarchy statistics
+      const countNodes = (nodes: HierarchyNode[]): { total: number; dok1: number; sources: number; categories: number } => {
+        let total = 0, dok1 = 0, sources = 0, categories = 0;
+        const traverse = (node: HierarchyNode) => {
+          total++;
+          if (node.isDOK1Marker) dok1++;
+          if (node.isSourceMarker) sources++;
+          if (node.isCategoryMarker) categories++;
+          node.children.forEach(traverse);
+        };
+        nodes.forEach(traverse);
+        return { total, dok1, sources, categories };
+      };
+
+      const stats = countNodes(result.hierarchy);
+
+      res.json({
+        success: true,
+        data: {
+          markdown: result.markdown,
+          hierarchy: result.hierarchy,
+        },
+        diagnostics: {
+          timing: { total: Date.now() - startTime },
+          metadata: {
+            markdownLength: result.markdown.length,
+            hierarchyRoots: result.hierarchy.length,
+            totalNodes: stats.total,
+            dok1Markers: stats.dok1,
+            sourceMarkers: stats.sources,
+            categoryMarkers: stats.categories,
+          },
+        },
+      });
+    } catch (err: unknown) {
+      const error = err instanceof Error ? err.message : 'Unknown error';
+      res.status(500).json({
+        success: false,
+        error,
+        diagnostics: { timing: { total: Date.now() - startTime } },
       });
     }
   });
@@ -143,7 +209,8 @@ if (!isDev) {
 
     try {
       // Fetch raw content from Workflowy
-      const content = await fetchWorkflowyContent(url);
+      const result = await fetchWorkflowyContent(url);
+      const content = result.markdown;
 
       // Parse using brainlift extractor (without saving)
       const parsed = await extractBrainlift(content, 'Workflowy');
@@ -197,7 +264,8 @@ if (!isDev) {
     }
 
     try {
-      const content = await fetchWorkflowyContent(url);
+      const result = await fetchWorkflowyContent(url);
+      const content = result.markdown;
       const parsed = await extractBrainlift(content, 'Workflowy');
 
       const response: ParseWorkflowyResponse = {

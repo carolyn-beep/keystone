@@ -1,5 +1,6 @@
 import { extractTextFromHTML } from "./file-extractors";
 import { fetchWorkflowyContent, fetchGoogleDocsContent } from "./external-sources";
+import type { HierarchyNode } from "@shared/hierarchy-types";
 
 export type SourceType = 'html' | 'workflowy' | 'googledocs';
 
@@ -34,6 +35,7 @@ const MAX_CONTENT_SIZE = 5 * 1024 * 1024;
 export interface ContentExtractionResult {
   content: string;
   sourceLabel: string;
+  hierarchy?: HierarchyNode[];  // Only present for Workflowy sources
 }
 
 export interface ContentExtractionInput {
@@ -84,6 +86,7 @@ export async function extractContent(input: ContentExtractionInput): Promise<Con
 
   let content: string;
   let sourceLabel: string;
+  let hierarchy: HierarchyNode[] | undefined;
 
   switch (sourceType) {
     case 'html': {
@@ -97,7 +100,9 @@ export async function extractContent(input: ContentExtractionInput): Promise<Con
       if (workflowyUrl) {
         sourceLabel = 'Workflowy (from saved HTML)';
         try {
-          content = await fetchWorkflowyContent(workflowyUrl);
+          const result = await fetchWorkflowyContent(workflowyUrl);
+          content = result.markdown;
+          hierarchy = result.hierarchy;
         } catch (error) {
           wrapExtractorError(error, sourceLabel);
         }
@@ -118,7 +123,9 @@ export async function extractContent(input: ContentExtractionInput): Promise<Con
       }
       sourceLabel = 'Workflowy';
       try {
-        content = await fetchWorkflowyContent(url);
+        const result = await fetchWorkflowyContent(url);
+        content = result.markdown;
+        hierarchy = result.hierarchy;
       } catch (error) {
         wrapExtractorError(error, sourceLabel);
       }
@@ -143,7 +150,7 @@ export async function extractContent(input: ContentExtractionInput): Promise<Con
   // Validate content size before returning
   validateContentSize(content, sourceLabel);
 
-  return { content, sourceLabel };
+  return { content, sourceLabel, hierarchy };
 }
 
 /**

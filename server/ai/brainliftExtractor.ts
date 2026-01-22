@@ -1,6 +1,11 @@
 import { z } from 'zod';
 import { CLASSIFICATION } from '@shared/schema';
 import OpenAI from 'openai';
+import type { HierarchyNode } from '@shared/hierarchy-types';
+import { extractFactsFromHierarchy, convertToExtractorFormat } from './hierarchyExtractor';
+
+// Feature flag for hierarchy-based extraction
+const USE_HIERARCHY_EXTRACTION = process.env.USE_HIERARCHY_EXTRACTION === 'true';
 
 const openai = new OpenAI({
   apiKey: process.env.OPENROUTER_API_KEY,
@@ -162,12 +167,70 @@ function extractUrl(line: string): string | null {
   return urlMatch ? urlMatch[0] : null;
 }
 
-export async function extractBrainlift(markdownContent: string, sourceType: string): Promise<BrainliftOutput> {
+export async function extractBrainlift(
+  markdownContent: string,
+  sourceType: string,
+  hierarchy?: HierarchyNode[]
+): Promise<BrainliftOutput> {
   console.log('[DOK1 Extractor] Starting extraction from', sourceType);
   console.log('[DOK1 Extractor] Content length:', markdownContent.length, 'chars');
+  console.log('[DOK1 Extractor] Hierarchy provided:', hierarchy ? `${hierarchy.length} roots` : 'no');
+  console.log('[DOK1 Extractor] USE_HIERARCHY_EXTRACTION:', USE_HIERARCHY_EXTRACTION);
 
+  // Try hierarchy-based extraction first if enabled and hierarchy is available
+  let hierarchyFacts: any[] = [];
+  if (USE_HIERARCHY_EXTRACTION && hierarchy && hierarchy.length > 0) {
+    console.log('[DOK1 Extractor] Attempting hierarchy-based extraction...');
+    const hierarchyResult = extractFactsFromHierarchy(hierarchy);
+    if (hierarchyResult.facts.length > 0) {
+      hierarchyFacts = convertToExtractorFormat(hierarchyResult.facts);
+      console.log(`[DOK1 Extractor] Hierarchy extraction succeeded: ${hierarchyFacts.length} facts`);
+      console.log(`[DOK1 Extractor] Hierarchy metadata: DOK1 nodes=${hierarchyResult.metadata.dok1NodesFound}, sources=${hierarchyResult.metadata.sourcesAttributed}`);
+    } else {
+      console.log('[DOK1 Extractor] Hierarchy extraction found 0 facts, falling back to regex');
+    }
+  }
+
+  // Parse lines for title/owner extraction (always needed)
   const lines = markdownContent.split('\n');
+
+  // Title extraction
+  let title = "Extracted Brainlift";
+  const h1Match = lines.find(l => l.trim().startsWith('# '));
+  if (h1Match) {
+    title = cleanHeader(h1Match);
+  } else {
+    const firstLine = lines.find(l => l.trim());
+    if (firstLine) title = firstLine.trim().substring(0, 100);
+  }
+
+  // Owner extraction - look for "Owner" header in any format, followed by the name on next line
+  let owner: string | null = null;
+  for (let i = 0; i < Math.min(lines.length, 50); i++) {
+    const line = lines[i];
+    const trimmed = line.trim();
+    const isOwnerHeader = /^(?:#+\s*|[-•*]\s*|\*\*)?Owner\*?\*?:?\s*$/i.test(trimmed);
+    if (isOwnerHeader && i + 1 < lines.length) {
+      const nextTrimmed = lines[i + 1].trim();
+      const nameLine = nextTrimmed
+        .replace(/^#+\s*/, '')
+        .replace(/^[-•*]\s*/, '')
+        .replace(/^\*\*|\*\*$/g, '')
+        .trim();
+      if (nameLine && nameLine.length > 0 && nameLine.length < 100) {
+        owner = nameLine;
+      }
+      break;
+    }
+  }
+
+  // Skip regex extraction entirely if hierarchy extraction already succeeded
+  // This avoids duplicate work
   const facts: any[] = [];
+
+  if (hierarchyFacts.length === 0) {
+    console.log('[DOK1 Extractor] No hierarchy facts, running regex extraction...');
+
   let factIdCounter = 1;
 
   let inDOK1Section = false;
@@ -308,65 +371,6 @@ export async function extractBrainlift(markdownContent: string, sourceType: stri
     pendingFacts = [];
   };
 
-  // Knowledge Tree gate removed - DOK1 sections captured wherever they appear
-  console.log('[DOK1 Extractor] Knowledge Tree gate disabled - scanning all content');
-
-  // Title extraction
-  let title = "Extracted Brainlift";
-  const h1Match = lines.find(l => l.trim().startsWith('# '));
-  if (h1Match) {
-    title = cleanHeader(h1Match);
-  } else {
-    const firstLine = lines.find(l => l.trim());
-    if (firstLine) title = firstLine.trim().substring(0, 100);
-  }
-
-  // Owner extraction - look for "Owner" header in any format, followed by the name on next line
-  let owner: string | null = null;
-  console.log(`[NameExtractor] Scanning first 50 lines for owner...`);
-  for (let i = 0; i < Math.min(lines.length, 50); i++) {
-    const line = lines[i];
-    const trimmed = line.trim();
-
-    // Match "Owner" as a standalone header in any format:
-    // - # Owner, ## Owner (markdown headers)
-    // - - Owner, * Owner, • Owner (bullet points)
-    // - **Owner**, Owner: (bold or with colon)
-    // - Just "Owner" on its own line
-    const isOwnerHeader = /^(?:#+\s*|[-•*]\s*|\*\*)?Owner\*?\*?:?\s*$/i.test(trimmed);
-
-    // Log lines that contain "owner" for debugging
-    if (trimmed.toLowerCase().includes('owner')) {
-      console.log(`[NameExtractor] Line ${i}: "${trimmed}"`);
-      console.log(`[NameExtractor] isOwnerHeader: ${isOwnerHeader}`);
-    }
-
-    if (isOwnerHeader) {
-      console.log(`[NameExtractor] Found Owner header at line ${i}`);
-      // Look at next line for the name
-      if (i + 1 < lines.length) {
-        const nextLine = lines[i + 1];
-        const nextTrimmed = nextLine.trim();
-        console.log(`[NameExtractor] Next line: "${nextTrimmed}"`);
-        // Remove bullet points, markdown headers, bold markers
-        const nameLine = nextTrimmed
-          .replace(/^#+\s*/, '')      // Remove # headers
-          .replace(/^[-•*]\s*/, '')   // Remove bullet points
-          .replace(/^\*\*|\*\*$/g, '') // Remove bold markers
-          .trim();
-        console.log(`[NameExtractor] After cleanup: "${nameLine}"`);
-        if (nameLine && nameLine.length > 0 && nameLine.length < 100) {
-          owner = nameLine;
-          console.log(`[NameExtractor] SUCCESS: Found owner "${owner}"`);
-        }
-      }
-      break;
-    }
-  }
-  if (!owner) {
-    console.log(`[NameExtractor] No owner found in first 50 lines`);
-  }
-
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
     const trimmed = line.trim();
@@ -472,19 +476,29 @@ export async function extractBrainlift(markdownContent: string, sourceType: stri
 
   console.log(`[DOK1 Extractor] Rule-based extraction: ${facts.length} facts`);
 
-  // FALLBACK: If rule-based parser found 0 facts, use LLM
-  let finalFacts = facts;
-  if (facts.length === 0) {
-    console.log('[DOK1 Extractor] Rule-based extraction failed, trying LLM fallback...');
+  } else {
+    // Hierarchy succeeded - skip regex entirely
+    console.log(`[DOK1 Extractor] Skipping regex extraction - hierarchy already found ${hierarchyFacts.length} facts`);
+  }
+
+  // Determine final facts with fallback chain:
+  // 1. Hierarchy extraction (if enabled and successful)
+  // 2. Rule-based regex extraction
+  // 3. LLM fallback
+  let finalFacts = hierarchyFacts.length > 0 ? hierarchyFacts : facts;
+
+  // FALLBACK: If both hierarchy and rule-based parser found 0 facts, use LLM
+  if (finalFacts.length === 0) {
+    console.log('[DOK1 Extractor] Both hierarchy and regex extraction failed, trying LLM fallback...');
     const llmFacts = await extractFactsWithLLM(markdownContent, title);
     if (llmFacts.length > 0) {
       finalFacts = llmFacts;
       console.log(`[DOK1 Extractor] LLM fallback succeeded: ${llmFacts.length} facts`);
     } else {
-      console.log('[DOK1 Extractor] WARNING: Both rule-based and LLM extraction failed!');
+      console.log('[DOK1 Extractor] WARNING: All extraction methods failed!');
     }
   } else {
-    console.log(`[DOK1 Extractor] First fact: "${facts[0]?.fact?.substring(0, 100)}..."`);
+    console.log(`[DOK1 Extractor] First fact: "${finalFacts[0]?.fact?.substring(0, 100)}..."`);
   }
 
   const finalResult = {
