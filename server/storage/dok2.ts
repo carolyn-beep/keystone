@@ -10,6 +10,7 @@ import {
   dok2Summaries, dok2Points, dok2FactRelations,
 } from './base';
 import type { DOK2SummaryGroup } from '@shared/hierarchy-types';
+import type { DOK2FailReason } from '@shared/schema';
 
 /**
  * Shape of DOK2 summary with points and related facts, for API responses
@@ -27,18 +28,35 @@ export interface DOK2SummaryWithPoints {
     sortOrder: number;
   }>;
   relatedFactIds: number[];
+  // DOK2 Grading fields
+  grade: number | null;
+  diagnosis: string | null;
+  feedback: string | null;
+  failReason: DOK2FailReason | null;
+  sourceVerified: boolean | null;
+}
+
+/**
+ * Extended DOK2SummaryGroup with grading fields for saving
+ */
+export interface DOK2SummaryGroupWithGrading extends DOK2SummaryGroup {
+  grade?: number;
+  diagnosis?: string;
+  feedback?: string;
+  failReason?: DOK2FailReason | null;
+  sourceVerified?: boolean;
 }
 
 /**
  * Save DOK2 summaries with fact ID mapping
  *
  * @param brainliftId - The brainlift to save summaries for
- * @param summaries - Array of DOK2 summary groups from extraction
+ * @param summaries - Array of DOK2 summary groups from extraction (with optional grading)
  * @param factIdMap - Map from original fact ID (string) to database fact ID (number)
  */
 export async function saveDOK2Summaries(
   brainliftId: number,
-  summaries: DOK2SummaryGroup[],
+  summaries: DOK2SummaryGroupWithGrading[],
   factIdMap: Map<string, number>
 ): Promise<void> {
   if (summaries.length === 0) return;
@@ -46,7 +64,7 @@ export async function saveDOK2Summaries(
   console.log(`[DOK2 Storage] Saving ${summaries.length} DOK2 summaries for brainlift ${brainliftId}`);
 
   for (const summary of summaries) {
-    // Insert the summary group
+    // Insert the summary group with grading fields
     const [insertedSummary] = await db.insert(dok2Summaries).values({
       brainliftId,
       category: summary.category,
@@ -54,6 +72,13 @@ export async function saveDOK2Summaries(
       sourceUrl: summary.sourceUrl,
       workflowyNodeId: summary.workflowyNodeId,
       sourceWorkflowyNodeId: summary.sourceWorkflowyNodeId,
+      // Grading fields (optional, will be null if not graded)
+      grade: summary.grade ?? null,
+      diagnosis: summary.diagnosis ?? null,
+      feedback: summary.feedback ?? null,
+      gradedAt: summary.grade !== undefined ? new Date() : null,
+      failReason: summary.failReason ?? null,
+      sourceVerified: summary.sourceVerified ?? null,
     }).returning();
 
     // Insert summary points
@@ -105,7 +130,7 @@ export async function getDOK2Summaries(brainliftId: number): Promise<DOK2Summary
   const factRelations = await db.select().from(dok2FactRelations)
     .where(inArray(dok2FactRelations.summaryId, summaryIds));
 
-  // Build the result with nested points and related fact IDs
+  // Build the result with nested points, related fact IDs, and grading fields
   return summaries.map(summary => ({
     id: summary.id,
     category: summary.category,
@@ -124,6 +149,12 @@ export async function getDOK2Summaries(brainliftId: number): Promise<DOK2Summary
     relatedFactIds: factRelations
       .filter(r => r.summaryId === summary.id)
       .map(r => r.factId),
+    // DOK2 Grading fields
+    grade: summary.grade,
+    diagnosis: summary.diagnosis,
+    feedback: summary.feedback,
+    failReason: summary.failReason as DOK2FailReason | null,
+    sourceVerified: summary.sourceVerified,
   }));
 }
 

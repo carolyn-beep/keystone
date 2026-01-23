@@ -5,6 +5,7 @@ import { verifyFactWithAllModels } from "../ai/factVerifier";
 import { fetchEvidenceForFact } from "../ai/evidenceFetcher";
 import { extractAndRankExperts, diagnoseExpertFormat } from "../ai/experts";
 import { analyzeFactRedundancy } from "../ai/redundancyAnalyzer";
+import { gradeDOK2Summary, type DOK2GradeResult } from "../ai/dok2Grader";
 import { type BrainliftOutput } from "../ai/brainliftExtractor";
 import { type BrainliftData } from "@shared/schema";
 import { type ImportProgress, STAGE_LABELS } from "@shared/import-progress";
@@ -338,14 +339,86 @@ export async function saveBrainliftFromAI(
       userId
     );
 
-    // Save DOK2 summaries if present
+    // Save DOK2 summaries if present (with grading)
     if (data.dok2Summaries && data.dok2Summaries.length > 0) {
-      console.log(`[Auto-Grade] Saving ${data.dok2Summaries.length} DOK2 summaries...`);
+      console.log(`[Auto-Grade] Grading and saving ${data.dok2Summaries.length} DOK2 summaries...`);
+
       // Build fact ID map: originalId -> database ID
       const savedFacts = await storage.getFactsForBrainlift(brainlift.id);
       const factIdMap = new Map(savedFacts.map(f => [f.originalId, f.id]));
-      await storage.saveDOK2Summaries(brainlift.id, data.dok2Summaries, factIdMap);
-      console.log(`[Auto-Grade] DOK2 summaries saved successfully`);
+
+      // Get brainlift purpose for grading context
+      const brainliftPurpose = data.description || data.title;
+
+      // Cache failed URLs to avoid retrying the same errors
+      const dok2FailedUrlCache = new Map<string, string>();
+
+      // Grade DOK2 summaries in parallel (with concurrency limit)
+      const dok2Limit = pLimit(10); // More conservative limit for DOK2 grading
+      let dok2CompletedCount = 0;
+      const totalDOK2 = data.dok2Summaries.length;
+
+      // Emit initial DOK2 grading progress
+      onProgress?.({
+        stage: 'grading_dok2',
+        message: STAGE_LABELS.grading_dok2,
+        completed: 0,
+        total: totalDOK2,
+      });
+
+      const gradedDOK2Summaries = await Promise.all(data.dok2Summaries.map(summary => dok2Limit(async () => {
+        // Get related DOK1 facts for this summary
+        type FactType = typeof data.facts[number];
+        const relatedDOK1s = summary.relatedDOK1Ids
+          .map((id: string) => data.facts.find((f: FactType) => f.id === id))
+          .filter((f: FactType | undefined): f is FactType => f !== undefined)
+          .map((f: FactType) => ({ fact: f.fact, source: f.source }));
+
+        // Get summary point texts
+        const summaryPoints = summary.points.map((p: { text: string }) => p.text);
+
+        let gradeResult: DOK2GradeResult;
+        try {
+          gradeResult = await gradeDOK2Summary(
+            summaryPoints,
+            relatedDOK1s,
+            brainliftPurpose,
+            summary.sourceUrl,
+            dok2FailedUrlCache
+          );
+        } catch (err: any) {
+          console.error(`[Auto-Grade] DOK2 grading failed for "${summary.sourceName}":`, err.message);
+          gradeResult = {
+            score: 3,
+            diagnosis: 'Grading failed due to a system error.',
+            feedback: 'Please try re-importing this BrainLift.',
+            failReason: null,
+            sourceVerified: false,
+          };
+        }
+
+        dok2CompletedCount++;
+        onProgress?.({
+          stage: 'grading_dok2',
+          message: STAGE_LABELS.grading_dok2,
+          completed: dok2CompletedCount,
+          total: totalDOK2,
+        });
+
+        console.log(`[Auto-Grade] DOK2 graded "${summary.sourceName}": score=${gradeResult.score} (${dok2CompletedCount}/${totalDOK2})`);
+
+        return {
+          ...summary,
+          grade: gradeResult.score,
+          diagnosis: gradeResult.diagnosis,
+          feedback: gradeResult.feedback,
+          failReason: gradeResult.failReason,
+          sourceVerified: gradeResult.sourceVerified,
+        };
+      })));
+
+      await storage.saveDOK2Summaries(brainlift.id, gradedDOK2Summaries, factIdMap);
+      console.log(`[Auto-Grade] DOK2 summaries saved successfully with grades`);
     }
   } catch (err: any) {
     // Handle duplicate slug error with retry

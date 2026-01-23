@@ -2,9 +2,9 @@
 
 ## Overview
 
-- **Total Endpoints:** 35
+- **Total Endpoints:** 36
 - **Production Endpoints:** 31
-- **Development-Only Endpoints:** 4
+- **Development-Only Endpoints:** 5
 - **Domain Routers:** 7
 
 ---
@@ -147,9 +147,86 @@ All routes nested under `/api/brainlifts/:slug` for authorization context.
 | Method | Endpoint | Auth | Description |
 |--------|----------|------|-------------|
 | POST | `/dev/fetch-workflowy` | None | Fetch raw Workflowy content |
+| POST | `/dev/fetch-workflowy-hierarchy` | None | Fetch Workflowy with hierarchy tree and marker stats |
 | POST | `/dev/parse-workflowy` | None | Parse Workflowy to brainlift |
 | GET | `/dev/parse-workflowy` | None | Parse via query param |
 | POST | `/dev/extract-experts` | None | Extract experts with diagnostics |
+| POST | `/dev/extract-dok2` | None | Extract DOK1 + DOK2 summaries with relationships |
+
+### POST `/dev/fetch-workflowy-hierarchy`
+
+Returns hierarchy tree with marker detection stats (DOK1, DOK2, Source, Category markers).
+
+**Response:**
+```json
+{
+  "success": true,
+  "data": {
+    "markdown": "...",
+    "hierarchy": [...]
+  },
+  "diagnostics": {
+    "timing": { "total": 1234 },
+    "metadata": {
+      "markdownLength": 50000,
+      "hierarchyRoots": 3,
+      "totalNodes": 500,
+      "dok1Markers": 25,
+      "dok2Markers": 20,
+      "sourceMarkers": 30,
+      "categoryMarkers": 10
+    }
+  }
+}
+```
+
+### POST `/dev/extract-dok2`
+
+Extracts DOK1 facts and DOK2 summary groups from a Workflowy hierarchy.
+
+**Request:**
+```json
+{
+  "url": "https://workflowy.com/s/example/ABC123"
+}
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "data": {
+    "dok1Facts": [...],
+    "dok1FactsTotal": 150,
+    "dok2Summaries": [
+      {
+        "id": "1",
+        "sourceName": "Academic Article on NIL",
+        "sourceUrl": "https://example.com/article",
+        "sourceWorkflowyNodeId": "node_123",
+        "category": "Amateurism",
+        "points": [
+          { "id": "1.1", "text": "Summary point 1" },
+          { "id": "1.2", "text": "Summary point 2" }
+        ],
+        "relatedDOK1Ids": ["1", "2", "3"],
+        "workflowyNodeId": "node_456"
+      }
+    ]
+  },
+  "diagnostics": {
+    "timing": { "total": 2500 },
+    "metadata": {
+      "dok1NodesFound": 25,
+      "dok2NodesFound": 20,
+      "totalFactsExtracted": 150,
+      "totalDOK2PointsExtracted": 80,
+      "sourcesAttributed": 145,
+      "categoriesFound": ["Amateurism", "NIL Policy", "NCAA Rules"]
+    }
+  }
+}
+```
 
 ---
 

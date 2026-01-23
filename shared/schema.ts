@@ -430,6 +430,16 @@ export const factRedundancyGroupsRelations = relations(factRedundancyGroups, ({ 
   }),
 }));
 
+// DOK2 Grading - Fail reasons for auto-fail conditions
+export const DOK2_FAIL_REASON = {
+  COPY_PASTE: 'copy_paste',
+  NO_PURPOSE_RELATION: 'no_purpose_relation',
+  FACTUAL_MISREPRESENTATION: 'factual_misrepresentation',
+  FACT_MANIPULATION: 'fact_manipulation',
+} as const;
+
+export type DOK2FailReason = typeof DOK2_FAIL_REASON[keyof typeof DOK2_FAIL_REASON];
+
 // DOK2 Summary Storage - Owner's interpretation/synthesis of sources
 // One summary group per source, containing multiple summary points
 export const dok2Summaries = pgTable("dok2_summaries", {
@@ -441,6 +451,13 @@ export const dok2Summaries = pgTable("dok2_summaries", {
   workflowyNodeId: text("workflowy_node_id"), // Original DOK2 marker node ID
   sourceWorkflowyNodeId: text("source_workflowy_node_id"), // Source node ID
   createdAt: timestamp("created_at").defaultNow().notNull(),
+  // DOK2 Grading fields
+  grade: integer("grade"), // 1-5 grading scale
+  diagnosis: text("diagnosis"), // Why this score was given
+  feedback: text("feedback"), // How to improve
+  gradedAt: timestamp("graded_at"),
+  failReason: text("fail_reason").$type<DOK2FailReason>(), // Auto-fail reason if grade=1
+  sourceVerified: boolean("source_verified"), // Was the source URL successfully fetched?
 });
 
 // Individual summary points within a DOK2 group
@@ -578,6 +595,12 @@ export interface BrainliftData extends Brainlift {
     sourceUrl: string | null;
     points: Array<{ id: number; text: string; sortOrder: number }>;
     relatedFactIds: number[];
+    // DOK2 Grading fields
+    grade: number | null;
+    diagnosis: string | null;
+    feedback: string | null;
+    failReason: DOK2FailReason | null;
+    sourceVerified: boolean | null;
   }>;
 }
 
