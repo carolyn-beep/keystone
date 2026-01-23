@@ -206,6 +206,7 @@ export function AddBrainliftModal({ show, onClose, onSuccess }: AddBrainliftModa
           stageLabel={importWithProgress.stageLabel}
           progress={importWithProgress.progress}
           gradingProgress={importWithProgress.gradingProgress}
+          gradingDok2Progress={importWithProgress.gradingDok2Progress}
           error={importWithProgress.error}
           isVisible={importWithProgress.isImporting}
         />

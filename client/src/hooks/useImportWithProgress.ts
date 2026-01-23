@@ -18,6 +18,7 @@ export interface ImportState {
   stageLabel: string;
   progress: number;
   gradingProgress: GradingProgress | null;
+  gradingDok2Progress: GradingProgress | null;
   error: string | null;
   slug: string | null;
 }
@@ -29,6 +30,7 @@ export function useImportWithProgress() {
     stageLabel: '',
     progress: 0,
     gradingProgress: null,
+    gradingDok2Progress: null,
     error: null,
     slug: null,
   });
@@ -42,6 +44,7 @@ export function useImportWithProgress() {
       stageLabel: '',
       progress: 0,
       gradingProgress: null,
+      gradingDok2Progress: null,
       error: null,
       slug: null,
     });
@@ -65,6 +68,7 @@ export function useImportWithProgress() {
       stageLabel: 'Starting import...',
       progress: 0,
       gradingProgress: null,
+      gradingDok2Progress: null,
       error: null,
       slug: null,
     });
@@ -134,6 +138,10 @@ export function useImportWithProgress() {
                   event.stage === 'grading' && 'completed' in event && 'total' in event
                     ? { completed: event.completed, total: event.total }
                     : prev.gradingProgress,
+                gradingDok2Progress:
+                  event.stage === 'grading_dok2' && 'completed' in event && 'total' in event
+                    ? { completed: event.completed, total: event.total }
+                    : prev.gradingDok2Progress,
                 error: event.stage === 'error' && 'error' in event ? event.error : null,
                 slug: event.stage === 'complete' && 'slug' in event ? event.slug : prev.slug,
               }));

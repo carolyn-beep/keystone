@@ -8,6 +8,7 @@ interface ImportProgressProps {
   stageLabel: string;
   progress: number;
   gradingProgress: GradingProgress | null;
+  gradingDok2Progress: GradingProgress | null;
   error: string | null;
   isVisible: boolean;
 }
@@ -15,6 +16,7 @@ interface ImportProgressProps {
 const ORDERED_STAGES: Exclude<ImportStage, 'complete' | 'error'>[] = [
   'extracting',
   'grading',
+  'grading_dok2',
   'contradictions',
   'readingList',
   'saving',
@@ -32,6 +34,7 @@ export function ImportProgress({
   stageLabel,
   progress,
   gradingProgress,
+  gradingDok2Progress,
   error,
   isVisible,
 }: ImportProgressProps) {
@@ -67,7 +70,7 @@ export function ImportProgress({
               <Progress value={progress} className="h-2" />
             </div>
 
-            {/* Grading counter with smooth number transition */}
+            {/* DOK1 Grading counter with smooth number transition */}
             <div
               className="grid transition-all duration-300 ease-out"
               style={{
@@ -85,6 +88,28 @@ export function ImportProgress({
                     {gradingProgress?.total ?? 0}
                   </span>
                   {' '}facts graded
+                </div>
+              </div>
+            </div>
+
+            {/* DOK2 Grading counter with smooth number transition */}
+            <div
+              className="grid transition-all duration-300 ease-out"
+              style={{
+                gridTemplateRows: currentStage === 'grading_dok2' && gradingDok2Progress ? '1fr' : '0fr',
+                opacity: currentStage === 'grading_dok2' && gradingDok2Progress ? 1 : 0,
+              }}
+            >
+              <div className="overflow-hidden">
+                <div className="text-center text-sm text-muted-foreground py-1">
+                  <span className="tabular-nums font-medium text-foreground">
+                    {gradingDok2Progress?.completed ?? 0}
+                  </span>
+                  {' '}of{' '}
+                  <span className="tabular-nums font-medium text-foreground">
+                    {gradingDok2Progress?.total ?? 0}
+                  </span>
+                  {' '}summaries graded
                 </div>
               </div>
             </div>
@@ -132,6 +157,11 @@ export function ImportProgress({
                     {stage === 'grading' && isCurrentStage && gradingProgress && (
                       <span className="text-primary text-xs ml-auto tabular-nums font-medium">
                         {gradingProgress.completed}/{gradingProgress.total}
+                      </span>
+                    )}
+                    {stage === 'grading_dok2' && isCurrentStage && gradingDok2Progress && (
+                      <span className="text-primary text-xs ml-auto tabular-nums font-medium">
+                        {gradingDok2Progress.completed}/{gradingDok2Progress.total}
                       </span>
                     )}
                   </div>
