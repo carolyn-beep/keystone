@@ -1,6 +1,6 @@
 {
-  "id": "5e987b22-e290-4aff-95f6-54d5320127bc",
-  "prevId": "f1920066-6b74-4b66-b622-0a98ff70ca0a",
+  "id": "51b5a860-b14b-4841-8ee4-93ab4201bb68",
+  "prevId": "5e987b22-e290-4aff-95f6-54d5320127bc",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -391,6 +391,192 @@
         "contradiction_clusters_brainlift_id_brainlifts_id_fk": {
           "name": "contradiction_clusters_brainlift_id_brainlifts_id_fk",
           "tableFrom": "contradiction_clusters",
+          "tableTo": "brainlifts",
+          "columnsFrom": [
+            "brainlift_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.dok2_fact_relations": {
+      "name": "dok2_fact_relations",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "serial",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "summary_id": {
+          "name": "summary_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "fact_id": {
+          "name": "fact_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "dok2_fact_relations_summary_id_dok2_summaries_id_fk": {
+          "name": "dok2_fact_relations_summary_id_dok2_summaries_id_fk",
+          "tableFrom": "dok2_fact_relations",
+          "tableTo": "dok2_summaries",
+          "columnsFrom": [
+            "summary_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "dok2_fact_relations_fact_id_facts_id_fk": {
+          "name": "dok2_fact_relations_fact_id_facts_id_fk",
+          "tableFrom": "dok2_fact_relations",
+          "tableTo": "facts",
+          "columnsFrom": [
+            "fact_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.dok2_points": {
+      "name": "dok2_points",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "serial",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "summary_id": {
+          "name": "summary_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "text": {
+          "name": "text",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "sort_order": {
+          "name": "sort_order",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "default": 0
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "dok2_points_summary_id_dok2_summaries_id_fk": {
+          "name": "dok2_points_summary_id_dok2_summaries_id_fk",
+          "tableFrom": "dok2_points",
+          "tableTo": "dok2_summaries",
+          "columnsFrom": [
+            "summary_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.dok2_summaries": {
+      "name": "dok2_summaries",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "serial",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "brainlift_id": {
+          "name": "brainlift_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "category": {
+          "name": "category",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "source_name": {
+          "name": "source_name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "source_url": {
+          "name": "source_url",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "workflowy_node_id": {
+          "name": "workflowy_node_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "source_workflowy_node_id": {
+          "name": "source_workflowy_node_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "dok2_summaries_brainlift_id_brainlifts_id_fk": {
+          "name": "dok2_summaries_brainlift_id_brainlifts_id_fk",
+          "tableFrom": "dok2_summaries",
           "tableTo": "brainlifts",
           "columnsFrom": [
             "brainlift_id"

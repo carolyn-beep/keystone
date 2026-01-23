@@ -10,6 +10,7 @@
 import { Router } from 'express';
 import { fetchWorkflowyContent } from '../utils/external-sources';
 import { extractBrainlift } from '../ai/brainliftExtractor';
+import { extractAllFromHierarchy } from '../ai/hierarchyExtractor';
 import {
   findExpertsSection,
   extractExpertsFromDocumentWithMetadata,
@@ -145,18 +146,19 @@ if (!isDev) {
     try {
       const result = await fetchWorkflowyContent(url);
 
-      // Count hierarchy statistics
-      const countNodes = (nodes: HierarchyNode[]): { total: number; dok1: number; sources: number; categories: number } => {
-        let total = 0, dok1 = 0, sources = 0, categories = 0;
+      // Count hierarchy statistics (including DOK2)
+      const countNodes = (nodes: HierarchyNode[]): { total: number; dok1: number; dok2: number; sources: number; categories: number } => {
+        let total = 0, dok1 = 0, dok2 = 0, sources = 0, categories = 0;
         const traverse = (node: HierarchyNode) => {
           total++;
           if (node.isDOK1Marker) dok1++;
+          if (node.isDOK2Marker) dok2++;  // NEW: DOK2 marker counting
           if (node.isSourceMarker) sources++;
           if (node.isCategoryMarker) categories++;
           node.children.forEach(traverse);
         };
         nodes.forEach(traverse);
-        return { total, dok1, sources, categories };
+        return { total, dok1, dok2, sources, categories };
       };
 
       const stats = countNodes(result.hierarchy);
@@ -174,6 +176,7 @@ if (!isDev) {
             hierarchyRoots: result.hierarchy.length,
             totalNodes: stats.total,
             dok1Markers: stats.dok1,
+            dok2Markers: stats.dok2,  // NEW
             sourceMarkers: stats.sources,
             categoryMarkers: stats.categories,
           },
@@ -443,5 +446,54 @@ if (!isDev) {
     };
 
     res.json(response);
+  });
+
+  /**
+   * POST /dev/extract-dok2
+   *
+   * Fetch Workflowy content and run combined DOK1 + DOK2 extraction.
+   * Returns both facts and DOK2 summaries with their relationships.
+   */
+  devRouter.post('/dev/extract-dok2', async (req, res) => {
+    const startTime = Date.now();
+    const { url } = req.body;
+
+    if (!url || typeof url !== 'string') {
+      return res.status(400).json({
+        success: false,
+        error: 'Missing or invalid "url" parameter',
+        diagnostics: { timing: { total: Date.now() - startTime } },
+      });
+    }
+
+    try {
+      // Fetch Workflowy hierarchy
+      const result = await fetchWorkflowyContent(url);
+
+      // Run combined DOK1 + DOK2 extraction
+      const extraction = extractAllFromHierarchy(result.hierarchy);
+
+      res.json({
+        success: true,
+        data: {
+          // Sample of DOK1 facts (first 10 for brevity)
+          dok1Facts: extraction.facts.slice(0, 10),
+          dok1FactsTotal: extraction.facts.length,
+          // Full DOK2 summaries
+          dok2Summaries: extraction.dok2Summaries,
+        },
+        diagnostics: {
+          timing: { total: Date.now() - startTime },
+          metadata: extraction.metadata,
+        },
+      });
+    } catch (err: unknown) {
+      const error = err instanceof Error ? err.message : 'Unknown error';
+      res.status(500).json({
+        success: false,
+        error,
+        diagnostics: { timing: { total: Date.now() - startTime } },
+      });
+    }
   });
 }

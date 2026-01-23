@@ -8,6 +8,7 @@ import type { HierarchyNode, WorkflowyFetchResult } from '@shared/hierarchy-type
 
 // Regex patterns for detecting markers in hierarchy nodes
 const DOK1_PATTERN = /DOK\s*1\b/i;
+const DOK2_PATTERN = /^DOK\s*2\b/i;  // Must start with "DOK2" (e.g., "DOK2 Summary")
 const SOURCE_PATTERN = /^Source\s*\d*/i;
 const CATEGORY_PATTERN = /^Category\s*\d*/i;
 const URL_PATTERN = /https?:\/\/[^\s\]\)]+/;
@@ -188,6 +189,7 @@ export async function fetchWorkflowyContent(nodeIdOrUrl: string): Promise<Workfl
 
         // Detect markers
         const isDOK1Marker = DOK1_PATTERN.test(name);
+        const isDOK2Marker = DOK2_PATTERN.test(name);  // NEW: DOK2 marker detection
         const isSourceMarker = SOURCE_PATTERN.test(name);
         const isCategoryMarker = CATEGORY_PATTERN.test(name);
 
@@ -207,6 +209,7 @@ export async function fetchWorkflowyContent(nodeIdOrUrl: string): Promise<Workfl
           depth,
           children: childNodes,
           isDOK1Marker,
+          isDOK2Marker,
           isSourceMarker,
           isCategoryMarker,
           extractedUrl,

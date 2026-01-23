@@ -7,6 +7,7 @@ import * as expertsStorage from './experts';
 import * as verificationsStorage from './verifications';
 import * as redundancyStorage from './redundancy';
 import * as analyticsStorage from './analytics';
+import * as dok2Storage from './dok2';
 
 // Re-export types from base
 export type {
@@ -70,7 +71,12 @@ export const storage = {
   // Analytics
   getModelAccuracyStats: analyticsStorage.getModelAccuracyStats,
   getLlmFeedbackHistory: analyticsStorage.getLlmFeedbackHistory,
+
+  // DOK2 Summaries
+  saveDOK2Summaries: dok2Storage.saveDOK2Summaries,
+  getDOK2Summaries: dok2Storage.getDOK2Summaries,
+  deleteDOK2Summaries: dok2Storage.deleteDOK2Summaries,
 };
 
 // Export individual modules for direct access if needed
-export { brainliftsStorage, readingListStorage, expertsStorage, verificationsStorage, redundancyStorage, analyticsStorage };
+export { brainliftsStorage, readingListStorage, expertsStorage, verificationsStorage, redundancyStorage, analyticsStorage, dok2Storage };

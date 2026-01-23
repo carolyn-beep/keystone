@@ -18,6 +18,7 @@ import { ReadingListTab } from '@/components/ReadingListTab';
 import { UpdateModal, FactDetailModal, HistoryModal, RedundancyModal, ResearchModal, AddResourceModal } from '@/components/modals';
 import { NotBrainliftView } from '@/components/NotBrainliftView';
 import { BrainliftTab } from '@/components/BrainliftTab';
+import { SummariesTab } from '@/components/SummariesTab';
 import { usePDFExport } from '@/hooks/usePDFExport';
 
 interface DashboardProps {
@@ -25,7 +26,7 @@ interface DashboardProps {
   isSharedView?: boolean;
 }
 
-const VALID_TABS = ['brainlift', 'grading', 'contradictions', 'reading'] as const;
+const VALID_TABS = ['brainlift', 'grading', 'contradictions', 'reading', 'summaries'] as const;
 type TabKey = typeof VALID_TABS[number];
 
 export default function Dashboard({ slug, isSharedView = false }: DashboardProps) {
@@ -267,6 +268,15 @@ const { downloadBrainliftPDF } = usePDFExport();
               onViewFactFullText={(fact) => setSelectedFactForModal(fact)}
             />
           </div>
+        )}
+
+        {/* Summaries Tab - DOK2 owner interpretations */}
+        {!isNotBrainlift && activeTab === 'summaries' && (
+          <SummariesTab
+            summaries={data.dok2Summaries ?? []}
+            facts={facts}
+            setActiveTab={setActiveTab}
+          />
         )}
 
         {/* Model Accuracy Analytics Tab */}

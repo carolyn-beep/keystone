@@ -15,7 +15,8 @@ export type {
 export {
   brainlifts, facts, contradictionClusters, readingListItems, readingListGrades,
   brainliftVersions, sourceFeedback, experts, factVerifications, factModelScores,
-  llmFeedback, modelAccuracyStats, factRedundancyGroups, LLM_MODELS
+  llmFeedback, modelAccuracyStats, factRedundancyGroups, LLM_MODELS,
+  dok2Summaries, dok2Points, dok2FactRelations
 } from "@shared/schema";
 
 export { eq, inArray, desc, and, sql, isNull, or } from "drizzle-orm";

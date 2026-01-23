@@ -33,6 +33,35 @@ export interface FactRowProps {
   isRedundant?: boolean;
 }
 
+// Parse source string to extract text and URL, returning a clickable link
+function parseSourceWithLink(source: string): React.ReactNode {
+  // Match URLs starting with http:// or https://
+  const urlPattern = /(https?:\/\/[^\s]+)/;
+  const match = source.match(urlPattern);
+
+  if (match) {
+    const url = match[1];
+    // Get the text portion (everything before the URL, trimmed)
+    const text = source.substring(0, match.index).trim();
+
+    return (
+      <a
+        href={url}
+        target="_blank"
+        rel="noopener noreferrer"
+        onClick={(e) => e.stopPropagation()}
+        className="text-muted-foreground hover:text-primary transition-colors inline-flex items-center gap-1"
+      >
+        {text || url}
+        <ExternalLink size={11} className="opacity-60" />
+      </a>
+    );
+  }
+
+  // No URL found, return text as-is
+  return source;
+}
+
 // Parse AI analysis text and convert source references to links
 function parseAnalysisWithLinks(
   text: string,
@@ -194,7 +223,7 @@ export function FactRow({
           </p>
           {fact.source && (
             <span className="text-xs text-muted-foreground italic">
-              Source: {fact.source}
+              Source: {parseSourceWithLink(fact.source)}
             </span>
           )}
           {fact.summary && onViewFullText && (

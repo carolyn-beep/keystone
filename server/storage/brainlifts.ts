@@ -2,10 +2,11 @@ import {
   db, eq, inArray, desc, and, sql, isNull,
   brainlifts, facts, contradictionClusters, readingListItems, readingListGrades,
   brainliftVersions, sourceFeedback, experts, factVerifications, factModelScores,
-  llmFeedback, factRedundancyGroups,
+  llmFeedback, factRedundancyGroups, dok2Summaries, dok2Points, dok2FactRelations,
   type Brainlift, type BrainliftData, type InsertBrainlift,
   type BrainliftVersion, type AuthContext
 } from './base';
+import { getDOK2Summaries, deleteDOK2Summaries } from './dok2';
 
 export async function getBrainliftBySlug(slug: string): Promise<BrainliftData | undefined> {
   const [brainlift] = await db.select().from(brainlifts).where(eq(brainlifts.slug, slug));
@@ -16,6 +17,7 @@ export async function getBrainliftBySlug(slug: string): Promise<BrainliftData | 
   const clusters = await db.select().from(contradictionClusters).where(eq(contradictionClusters.brainliftId, brainlift.id));
   const readingList = await db.select().from(readingListItems).where(eq(readingListItems.brainliftId, brainlift.id));
   const brainliftExperts = await db.select().from(experts).where(eq(experts.brainliftId, brainlift.id));
+  const dok2SummariesData = await getDOK2Summaries(brainlift.id);
 
   return {
     ...brainlift,
@@ -23,7 +25,8 @@ export async function getBrainliftBySlug(slug: string): Promise<BrainliftData | 
     facts: brainliftFacts,
     contradictionClusters: clusters,
     readingList: readingList,
-    experts: brainliftExperts.sort((a, b) => (b.rankScore ?? 0) - (a.rankScore ?? 0))
+    experts: brainliftExperts.sort((a, b) => (b.rankScore ?? 0) - (a.rankScore ?? 0)),
+    dok2Summaries: dok2SummariesData.length > 0 ? dok2SummariesData : undefined,
   };
 }
 
@@ -148,6 +151,10 @@ export async function updateBrainlift(
   }
   await db.delete(readingListItems).where(eq(readingListItems.brainliftId, existing.id));
   await db.delete(contradictionClusters).where(eq(contradictionClusters.brainliftId, existing.id));
+
+  // Delete DOK2 data before facts (dok2_fact_relations has FK to facts)
+  await deleteDOK2Summaries(existing.id);
+
   await db.delete(facts).where(eq(facts.brainliftId, existing.id));
 
   await db.update(brainlifts)
@@ -224,6 +231,15 @@ export async function deleteBrainlift(id: number): Promise<void> {
       await tx.delete(llmFeedback).where(inArray(llmFeedback.factId, factIds));
       await tx.delete(factVerifications).where(inArray(factVerifications.factId, factIds));
     }
+
+    // Delete DOK2 data before facts (dok2_fact_relations has FK to facts)
+    const dok2SummariesList = await tx.select({ id: dok2Summaries.id }).from(dok2Summaries).where(eq(dok2Summaries.brainliftId, id));
+    const dok2SummaryIds = dok2SummariesList.map(s => s.id);
+    if (dok2SummaryIds.length > 0) {
+      await tx.delete(dok2FactRelations).where(inArray(dok2FactRelations.summaryId, dok2SummaryIds));
+      await tx.delete(dok2Points).where(inArray(dok2Points.summaryId, dok2SummaryIds));
+    }
+    await tx.delete(dok2Summaries).where(eq(dok2Summaries.brainliftId, id));
 
     await tx.delete(readingListItems).where(eq(readingListItems.brainliftId, id));
     await tx.delete(contradictionClusters).where(eq(contradictionClusters.brainliftId, id));

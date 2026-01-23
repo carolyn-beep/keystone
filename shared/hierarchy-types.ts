@@ -22,6 +22,7 @@ export interface HierarchyNode {
   children: HierarchyNode[];
   // Derived markers for extraction
   isDOK1Marker: boolean;
+  isDOK2Marker: boolean;  // NEW: DOK2 summary marker detection
   isSourceMarker: boolean;
   isCategoryMarker: boolean;
   extractedUrl: string | null;
@@ -50,12 +51,57 @@ export interface HierarchyExtractedFact {
   depth: number;
 }
 
-/** Result from hierarchy-based extraction */
+/**
+ * DOK2 summary point (individual item within a DOK2 group)
+ */
+export interface DOK2SummaryPoint {
+  id: string;
+  text: string;
+  // Future: stance detection (supports/contradicts SPOV)
+}
+
+/**
+ * DOK2 summary group (one per source)
+ *
+ * CRITICAL: DOK2 groups MUST reference their SOURCE - this is the primary relationship.
+ * relatedDOK1Ids is secondary (for grading: "do these summaries capture these facts?")
+ */
+export interface DOK2SummaryGroup {
+  id: string;
+  // PRIMARY: Source reference (what this DOK2 summarizes)
+  sourceName: string;              // e.g., "Academic Article on NIL"
+  sourceUrl: string | null;        // URL to the source material
+  sourceWorkflowyNodeId: string;   // Workflowy node ID of the source
+  // Context
+  category: string;                // Category this source belongs to
+  // Content
+  points: DOK2SummaryPoint[];      // The summary points (grouped together)
+  // SECONDARY: Related DOK1s (for future grading)
+  relatedDOK1Ids: string[];        // DOK1 fact IDs from same source
+  // Metadata
+  workflowyNodeId: string;         // Original DOK2 marker node ID
+}
+
+/** Result from hierarchy-based extraction (DOK1 only) */
 export interface HierarchyExtractionResult {
   facts: HierarchyExtractedFact[];
   metadata: {
     dok1NodesFound: number;
     totalFactsExtracted: number;
+    sourcesAttributed: number;
+    categoriesFound: string[];
+  };
+}
+
+/** Result from combined DOK1 + DOK2 extraction */
+export interface FullHierarchyExtractionResult {
+  facts: HierarchyExtractedFact[];
+  dok2Summaries: DOK2SummaryGroup[];
+  metadata: {
+    dok1NodesFound: number;
+    dok2NodesFound: number;
+    totalFactsExtracted: number;
+    totalDOK2PointsExtracted: number;
     sourcesAttributed: number;
     categoriesFound: string[];
   };

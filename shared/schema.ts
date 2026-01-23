@@ -430,6 +430,61 @@ export const factRedundancyGroupsRelations = relations(factRedundancyGroups, ({ 
   }),
 }));
 
+// DOK2 Summary Storage - Owner's interpretation/synthesis of sources
+// One summary group per source, containing multiple summary points
+export const dok2Summaries = pgTable("dok2_summaries", {
+  id: serial("id").primaryKey(),
+  brainliftId: integer("brainlift_id").notNull().references(() => brainlifts.id),
+  category: text("category").notNull(),
+  sourceName: text("source_name").notNull(),
+  sourceUrl: text("source_url"),
+  workflowyNodeId: text("workflowy_node_id"), // Original DOK2 marker node ID
+  sourceWorkflowyNodeId: text("source_workflowy_node_id"), // Source node ID
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+// Individual summary points within a DOK2 group
+export const dok2Points = pgTable("dok2_points", {
+  id: serial("id").primaryKey(),
+  summaryId: integer("summary_id").notNull().references(() => dok2Summaries.id),
+  text: text("text").notNull(),
+  sortOrder: integer("sort_order").default(0),
+});
+
+// Link DOK2 summaries to related DOK1 facts (for grading: "do summaries capture these facts?")
+export const dok2FactRelations = pgTable("dok2_fact_relations", {
+  id: serial("id").primaryKey(),
+  summaryId: integer("summary_id").notNull().references(() => dok2Summaries.id),
+  factId: integer("fact_id").notNull().references(() => facts.id),
+});
+
+export const dok2SummariesRelations = relations(dok2Summaries, ({ one, many }) => ({
+  brainlift: one(brainlifts, {
+    fields: [dok2Summaries.brainliftId],
+    references: [brainlifts.id],
+  }),
+  points: many(dok2Points),
+  factRelations: many(dok2FactRelations),
+}));
+
+export const dok2PointsRelations = relations(dok2Points, ({ one }) => ({
+  summary: one(dok2Summaries, {
+    fields: [dok2Points.summaryId],
+    references: [dok2Summaries.id],
+  }),
+}));
+
+export const dok2FactRelationsRelations = relations(dok2FactRelations, ({ one }) => ({
+  summary: one(dok2Summaries, {
+    fields: [dok2FactRelations.summaryId],
+    references: [dok2Summaries.id],
+  }),
+  fact: one(facts, {
+    fields: [dok2FactRelations.factId],
+    references: [facts.id],
+  }),
+}));
+
 export const contradictionClustersRelations = relations(contradictionClusters, ({ one }) => ({
   brainlift: one(brainlifts, {
     fields: [contradictionClusters.brainliftId],
@@ -467,6 +522,9 @@ export const insertFactModelScoreSchema = createInsertSchema(factModelScores).om
 export const insertLlmFeedbackSchema = createInsertSchema(llmFeedback).omit({ id: true, createdAt: true });
 export const insertModelAccuracyStatsSchema = createInsertSchema(modelAccuracyStats).omit({ id: true, lastUpdated: true });
 export const insertFactRedundancyGroupSchema = createInsertSchema(factRedundancyGroups).omit({ id: true, createdAt: true });
+export const insertDok2SummarySchema = createInsertSchema(dok2Summaries).omit({ id: true, createdAt: true });
+export const insertDok2PointSchema = createInsertSchema(dok2Points).omit({ id: true });
+export const insertDok2FactRelationSchema = createInsertSchema(dok2FactRelations).omit({ id: true });
 
 // === TYPES ===
 
@@ -500,6 +558,12 @@ export type ModelAccuracyStats = typeof modelAccuracyStats.$inferSelect;
 export type InsertModelAccuracyStats = z.infer<typeof insertModelAccuracyStatsSchema>;
 export type FactRedundancyGroup = typeof factRedundancyGroups.$inferSelect;
 export type InsertFactRedundancyGroup = z.infer<typeof insertFactRedundancyGroupSchema>;
+export type Dok2Summary = typeof dok2Summaries.$inferSelect;
+export type InsertDok2Summary = z.infer<typeof insertDok2SummarySchema>;
+export type Dok2Point = typeof dok2Points.$inferSelect;
+export type InsertDok2Point = z.infer<typeof insertDok2PointSchema>;
+export type Dok2FactRelation = typeof dok2FactRelations.$inferSelect;
+export type InsertDok2FactRelation = z.infer<typeof insertDok2FactRelationSchema>;
 
 // Full brainlift data with nested relations (for API response)
 export interface BrainliftData extends Brainlift {
@@ -507,6 +571,14 @@ export interface BrainliftData extends Brainlift {
   contradictionClusters: ContradictionCluster[];
   readingList: ReadingListItem[];
   experts: Expert[];
+  dok2Summaries?: Array<{
+    id: number;
+    category: string;
+    sourceName: string;
+    sourceUrl: string | null;
+    points: Array<{ id: number; text: string; sortOrder: number }>;
+    relatedFactIds: number[];
+  }>;
 }
 
 // Fact with verification data for API response

@@ -97,11 +97,16 @@ export async function saveBrainliftFromAI(
   const limit = pLimit(60);
   let completedCount = 0;
   const totalFacts = data.facts.length;
+  const skipGrading = process.env.SKIP_GRADING === 'true';
+
+  if (skipGrading) {
+    console.log(`[Auto-Grade] SKIP_GRADING=true - skipping evidence fetch and LLM verification`);
+  }
 
   // Emit initial grading progress
   onProgress?.({
     stage: 'grading',
-    message: STAGE_LABELS.grading,
+    message: skipGrading ? 'Skipping grading (SKIP_GRADING=true)' : STAGE_LABELS.grading,
     completed: 0,
     total: totalFacts,
   });
@@ -112,6 +117,24 @@ export async function saveBrainliftFromAI(
   // Run fact processing, contradiction detection, and reading list extraction in parallel
   const [factsWithSummaries, contradictionClusters, extractedReadingList] = await Promise.all([
     Promise.all(data.facts.map(fact => limit(async () => {
+      // Fast path: skip grading entirely
+      if (skipGrading) {
+        completedCount++;
+        onProgress?.({ stage: 'grading', message: 'Skipping grading', completed: completedCount, total: totalFacts });
+        return {
+          originalId: fact.id,
+          category: fact.category,
+          source: fact.source || null,
+          fact: fact.fact,
+          summary: fact.fact.substring(0, 100),
+          score: 0,
+          contradicts: fact.contradicts,
+          note: fact.aiNotes || 'Grading skipped',
+          flags: fact.flags || [],
+          isGradeable: false,
+        };
+      }
+
       const factStart = Date.now();
       console.log(`[Auto-Grade] START fact ${fact.id} (${completedCount}/${data.facts.length} done)`);
 
@@ -314,6 +337,16 @@ export async function saveBrainliftFromAI(
       finalReadingList,
       userId
     );
+
+    // Save DOK2 summaries if present
+    if (data.dok2Summaries && data.dok2Summaries.length > 0) {
+      console.log(`[Auto-Grade] Saving ${data.dok2Summaries.length} DOK2 summaries...`);
+      // Build fact ID map: originalId -> database ID
+      const savedFacts = await storage.getFactsForBrainlift(brainlift.id);
+      const factIdMap = new Map(savedFacts.map(f => [f.originalId, f.id]));
+      await storage.saveDOK2Summaries(brainlift.id, data.dok2Summaries, factIdMap);
+      console.log(`[Auto-Grade] DOK2 summaries saved successfully`);
+    }
   } catch (err: any) {
     // Handle duplicate slug error with retry
     if (err.code === '23505' && err.constraint === 'brainlifts_slug_unique' && retryCount < MAX_RETRIES) {

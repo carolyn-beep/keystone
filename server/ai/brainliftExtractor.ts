@@ -1,8 +1,8 @@
 import { z } from 'zod';
 import { CLASSIFICATION } from '@shared/schema';
 import OpenAI from 'openai';
-import type { HierarchyNode } from '@shared/hierarchy-types';
-import { extractFactsFromHierarchy, convertToExtractorFormat } from './hierarchyExtractor';
+import type { HierarchyNode, DOK2SummaryGroup } from '@shared/hierarchy-types';
+import { extractAllFromHierarchy, convertToExtractorFormat } from './hierarchyExtractor';
 
 // Feature flag for hierarchy-based extraction
 const USE_HIERARCHY_EXTRACTION = process.env.USE_HIERARCHY_EXTRACTION === 'true';
@@ -52,9 +52,12 @@ const brainliftOutputSchema = z.object({
     facts: z.string(),
     url: z.string(),
   })),
+  dok2Summaries: z.array(z.any()).optional(), // DOK2 summaries pass-through
 });
 
-export type BrainliftOutput = z.infer<typeof brainliftOutputSchema>;
+export type BrainliftOutput = z.infer<typeof brainliftOutputSchema> & {
+  dok2Summaries?: DOK2SummaryGroup[];
+};
 
 // LLM fallback for extracting facts when rule-based parser fails
 async function extractFactsWithLLM(content: string, title: string): Promise<any[]> {
@@ -179,13 +182,15 @@ export async function extractBrainlift(
 
   // Try hierarchy-based extraction first if enabled and hierarchy is available
   let hierarchyFacts: any[] = [];
+  let dok2Summaries: DOK2SummaryGroup[] = [];
   if (USE_HIERARCHY_EXTRACTION && hierarchy && hierarchy.length > 0) {
     console.log('[DOK1 Extractor] Attempting hierarchy-based extraction...');
-    const hierarchyResult = extractFactsFromHierarchy(hierarchy);
-    if (hierarchyResult.facts.length > 0) {
-      hierarchyFacts = convertToExtractorFormat(hierarchyResult.facts);
-      console.log(`[DOK1 Extractor] Hierarchy extraction succeeded: ${hierarchyFacts.length} facts`);
-      console.log(`[DOK1 Extractor] Hierarchy metadata: DOK1 nodes=${hierarchyResult.metadata.dok1NodesFound}, sources=${hierarchyResult.metadata.sourcesAttributed}`);
+    const fullResult = extractAllFromHierarchy(hierarchy);
+    if (fullResult.facts.length > 0) {
+      hierarchyFacts = convertToExtractorFormat(fullResult.facts);
+      dok2Summaries = fullResult.dok2Summaries;
+      console.log(`[DOK1 Extractor] Hierarchy extraction succeeded: ${hierarchyFacts.length} facts, ${dok2Summaries.length} DOK2 summaries`);
+      console.log(`[DOK1 Extractor] Hierarchy metadata: DOK1 nodes=${fullResult.metadata.dok1NodesFound}, DOK2 nodes=${fullResult.metadata.dok2NodesFound}, sources=${fullResult.metadata.sourcesAttributed}`);
     } else {
       console.log('[DOK1 Extractor] Hierarchy extraction found 0 facts, falling back to regex');
     }
@@ -514,10 +519,11 @@ export async function extractBrainlift(
     },
     facts: finalFacts,
     contradictionClusters: [], // Will be filled later in parallel
-    readingList: []
+    readingList: [],
+    dok2Summaries: dok2Summaries.length > 0 ? dok2Summaries : undefined,
   };
 
-  return brainliftOutputSchema.parse(finalResult);
+  return brainliftOutputSchema.parse(finalResult) as BrainliftOutput;
 }
 
 export async function findContradictions(facts: any[]): Promise<any[]> {
