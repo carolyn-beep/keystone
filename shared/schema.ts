@@ -101,6 +101,7 @@ export const brainlifts = pgTable("brainlifts", {
   slug: text("slug").notNull().unique(),
   title: text("title").notNull(),
   description: text("description").notNull(),
+  displayPurpose: text("display_purpose"),  // Short UI-friendly summary of purpose
   author: text("author"),
   createdByUserId: text("created_by_user_id").references(() => user.id), // Nullable for legacy/public brainlifts
   classification: text("classification").$type<Classification>().default('brainlift').notNull(),
@@ -448,6 +449,7 @@ export const dok2Summaries = pgTable("dok2_summaries", {
   category: text("category").notNull(),
   sourceName: text("source_name").notNull(),
   sourceUrl: text("source_url"),
+  displayTitle: text("display_title"),  // AI-generated insight title (e.g., "Key findings on athlete compensation")
   workflowyNodeId: text("workflowy_node_id"), // Original DOK2 marker node ID
   sourceWorkflowyNodeId: text("source_workflowy_node_id"), // Source node ID
   createdAt: timestamp("created_at").defaultNow().notNull(),

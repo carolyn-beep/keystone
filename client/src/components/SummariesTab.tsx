@@ -1,15 +1,51 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, ReactNode } from 'react';
 import {
-  FileText,
   ChevronDown,
   ChevronUp,
   ExternalLink,
   BookOpen,
-  Layers,
   AlertTriangle,
   ArrowUpDown,
 } from 'lucide-react';
+import { AiOutlineFileSearch } from 'react-icons/ai';
+import { FaArrowUpRightDots } from 'react-icons/fa6';
 import type { Fact, DOK2FailReason } from '@shared/schema';
+
+/**
+ * Render text with markdown links [text](url) as clickable <a> tags
+ */
+function renderWithLinks(text: string): ReactNode {
+  const linkRegex = /\[([^\]]+)\]\(([^)]+)\)/g;
+  const parts: ReactNode[] = [];
+  let lastIndex = 0;
+  let match;
+
+  while ((match = linkRegex.exec(text)) !== null) {
+    if (match.index > lastIndex) {
+      parts.push(text.slice(lastIndex, match.index));
+    }
+    const [, linkText, url] = match;
+    parts.push(
+      <a
+        key={match.index}
+        href={url}
+        target="_blank"
+        rel="noopener noreferrer"
+        onClick={(e) => e.stopPropagation()}
+        className="text-teal-600 hover:text-teal-700 dark:text-teal-400 dark:hover:text-teal-300 underline"
+      >
+        {linkText}
+      </a>
+    );
+    lastIndex = match.index + match[0].length;
+  }
+
+  if (lastIndex < text.length) {
+    parts.push(text.slice(lastIndex));
+  }
+
+  return parts.length > 0 ? parts : text;
+}
 
 interface DOK2Point {
   id: number;
@@ -22,6 +58,7 @@ interface DOK2Summary {
   category: string;
   sourceName: string;
   sourceUrl: string | null;
+  displayTitle: string | null;  // AI-generated insight title
   points: DOK2Point[];
   relatedFactIds: number[];
   // DOK2 Grading fields
@@ -126,19 +163,6 @@ export function SummariesTab({ summaries, facts, setActiveTab }: SummariesTabPro
     });
   }, [summaries]);
 
-  // Calculate stats
-  const totalPoints = useMemo(() =>
-    summaries.reduce((sum, s) => sum + s.points.length, 0),
-    [summaries]
-  );
-
-  const avgGrade = useMemo(() => {
-    const graded = summaries.filter(s => s.grade !== null);
-    if (graded.length === 0) return null;
-    const sum = graded.reduce((acc, s) => acc + (s.grade || 0), 0);
-    return (sum / graded.length).toFixed(1);
-  }, [summaries]);
-
   // Get fact by ID helper
   const getFactById = (factId: number) => facts.find(f => f.id === factId);
 
@@ -200,18 +224,16 @@ export function SummariesTab({ summaries, facts, setActiveTab }: SummariesTabPro
               {/* Grade Badge */}
               <GradeBadge grade={summary.grade} failReason={summary.failReason} />
               <div className="min-w-0 flex-1">
-                <h4 className="text-base font-semibold text-foreground m-0 truncate">
-                  {summary.sourceName}
+                <h4 className="text-base font-semibold text-foreground m-0">
+                  {summary.displayTitle || renderWithLinks(summary.sourceName)}
                 </h4>
                 <div className="flex items-center gap-2 mt-0.5 flex-wrap">
                   <span className="text-xs text-muted-foreground">
                     {summary.points.length} point{summary.points.length !== 1 ? 's' : ''}
                   </span>
-                  {sortMode === 'grade' && (
-                    <span className="text-xs text-muted-foreground">
-                      • {summary.category}
-                    </span>
-                  )}
+                  <span className="text-xs text-muted-foreground">
+                    • {summary.category}
+                  </span>
                   {summary.sourceUrl && (
                     <a
                       href={summary.sourceUrl}
@@ -243,49 +265,66 @@ export function SummariesTab({ summaries, facts, setActiveTab }: SummariesTabPro
         {/* Expanded Content */}
         {isExpanded && (
           <div className="px-5 pb-5 space-y-4">
-            {/* Diagnosis Section */}
-            {summary.diagnosis && (
+            {/* Diagnosis & Feedback Grid */}
+            {(summary.diagnosis || summary.feedback) && (
               <div className="border-t border-border pt-4">
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    toggleDiagnosis(summary.id);
-                  }}
-                  className="flex items-center gap-2 text-sm font-medium text-foreground hover:text-primary transition-colors bg-transparent border-none cursor-pointer p-0 w-full text-left"
-                >
-                  {diagnosisExpanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
-                  <span>Diagnosis</span>
-                </button>
-                {diagnosisExpanded && (
-                  <div className="mt-2 p-3 bg-sidebar rounded-lg">
-                    <p className="text-sm text-foreground m-0 whitespace-pre-wrap">
-                      {summary.diagnosis}
-                    </p>
-                  </div>
-                )}
-              </div>
-            )}
+                <div className="flex flex-col gap-4">
+                  {/* Summary Analysis Card */}
+                  {summary.diagnosis && (
+                    <div className="rounded-lg bg-amber-50/70 dark:bg-amber-950/30 overflow-hidden">
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          toggleDiagnosis(summary.id);
+                        }}
+                        className="flex items-center gap-2.5 w-full text-left px-4 py-3 hover:bg-amber-100/50 dark:hover:bg-amber-900/30 transition-colors cursor-pointer"
+                      >
+                        <div className="p-1.5 rounded-md bg-amber-500/20">
+                          <AiOutlineFileSearch size={16} className="text-amber-600 dark:text-amber-400" />
+                        </div>
+                        <span className="text-sm font-semibold text-amber-800 dark:text-amber-300">Summary Analysis</span>
+                        <span className="ml-auto text-amber-600/70 dark:text-amber-400/70">
+                          {diagnosisExpanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+                        </span>
+                      </button>
+                      {diagnosisExpanded && (
+                        <div className="px-4 pb-4 pt-1">
+                          <p className="text-sm text-foreground m-0 whitespace-pre-wrap leading-relaxed">
+                            {summary.diagnosis}
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                  )}
 
-            {/* Feedback Section */}
-            {summary.feedback && (
-              <div className="border-t border-border pt-4">
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    toggleFeedback(summary.id);
-                  }}
-                  className="flex items-center gap-2 text-sm font-medium text-foreground hover:text-primary transition-colors bg-transparent border-none cursor-pointer p-0 w-full text-left"
-                >
-                  {feedbackExpanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
-                  <span>How to Improve</span>
-                </button>
-                {feedbackExpanded && (
-                  <div className="mt-2 p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800">
-                    <p className="text-sm text-foreground m-0 whitespace-pre-wrap">
-                      {summary.feedback}
-                    </p>
-                  </div>
-                )}
+                  {/* How to Improve Card */}
+                  {summary.feedback && (
+                    <div className="rounded-lg bg-teal-50/70 dark:bg-teal-950/30 overflow-hidden">
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          toggleFeedback(summary.id);
+                        }}
+                        className="flex items-center gap-2.5 w-full text-left px-4 py-3 hover:bg-teal-100/50 dark:hover:bg-teal-900/30 transition-colors cursor-pointer"
+                      >
+                        <div className="p-1.5 rounded-md bg-teal-500/20">
+                          <FaArrowUpRightDots size={16} className="text-teal-600 dark:text-teal-400" />
+                        </div>
+                        <span className="text-sm font-semibold text-teal-800 dark:text-teal-300">How to Improve</span>
+                        <span className="ml-auto text-teal-600/70 dark:text-teal-400/70">
+                          {feedbackExpanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+                        </span>
+                      </button>
+                      {feedbackExpanded && (
+                        <div className="px-4 pb-4 pt-1">
+                          <p className="text-sm text-foreground m-0 whitespace-pre-wrap leading-relaxed">
+                            {summary.feedback}
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
               </div>
             )}
 
@@ -412,24 +451,45 @@ export function SummariesTab({ summaries, facts, setActiveTab }: SummariesTabPro
         </div>
       </div>
 
-      {/* Summary Stats */}
-      <div className="flex gap-6 px-5 py-4 bg-sidebar rounded-lg mb-8 flex-wrap">
-        <div className="flex items-center gap-2">
-          <Layers size={18} className="text-primary" />
-          <span className="text-[13px] text-muted-foreground">Total summaries:</span>
-          <span className="text-[15px] font-semibold text-foreground">{summaries.length}</span>
-        </div>
-        <div className="flex items-center gap-2">
-          <FileText size={18} className="text-primary" />
-          <span className="text-[13px] text-muted-foreground">Total points:</span>
-          <span className="text-[15px] font-semibold text-foreground">{totalPoints}</span>
-        </div>
-        {avgGrade && (
-          <div className="flex items-center gap-2">
-            <span className="text-[13px] text-muted-foreground">Avg grade:</span>
-            <span className="text-[15px] font-semibold text-foreground">{avgGrade}/5</span>
+      {/* Stats Summary */}
+      <div className="grid grid-cols-4 gap-3 mb-6">
+        {(() => {
+          const gradedSummaries = summaries.filter(s => s.grade !== null);
+          const avgGradeNum = gradedSummaries.length > 0
+            ? gradedSummaries.reduce((sum, s) => sum + (s.grade || 0), 0) / gradedSummaries.length
+            : 0;
+
+          // Color based on avg grade
+          const getAvgGradeColor = (score: number) => {
+            if (score >= 4.5) return '#10b981'; // emerald-500
+            if (score >= 3.5) return '#3b82f6'; // blue-500
+            if (score >= 2.5) return '#f59e0b'; // amber-500
+            if (score > 0) return '#ef4444'; // red-500
+            return '#6b7280'; // gray-500
+          };
+
+          const highQuality = summaries.filter(s => s.grade !== null && s.grade >= 4).length;
+          const lowQuality = summaries.filter(s => s.grade !== null && s.grade <= 2).length;
+
+          return [
+            { label: 'Total Summaries', value: summaries.length, color: '#8b5cf6' }, // primary
+            { label: 'Mean Grade', value: avgGradeNum > 0 ? avgGradeNum.toFixed(1) : '—', color: getAvgGradeColor(avgGradeNum) },
+            { label: 'High Quality (4-5)', value: highQuality, color: '#10b981' }, // green
+            { label: 'Needs Work (1-2)', value: lowQuality, color: lowQuality > 0 ? '#f59e0b' : '#6b7280' },
+          ];
+        })().map((stat, i) => (
+          <div
+            key={i}
+            className="p-4 bg-card rounded-lg border border-border text-center"
+          >
+            <div className="text-2xl font-bold mb-1" style={{ color: stat.color }}>
+              {stat.value}
+            </div>
+            <div className="text-xs text-muted-foreground uppercase tracking-wider">
+              {stat.label}
+            </div>
           </div>
-        )}
+        ))}
       </div>
 
       {/* Content - depends on sort mode */}

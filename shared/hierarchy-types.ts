@@ -22,9 +22,10 @@ export interface HierarchyNode {
   children: HierarchyNode[];
   // Derived markers for extraction
   isDOK1Marker: boolean;
-  isDOK2Marker: boolean;  // NEW: DOK2 summary marker detection
+  isDOK2Marker: boolean;  // DOK2 summary marker detection
   isSourceMarker: boolean;
   isCategoryMarker: boolean;
+  isPurposeMarker: boolean;  // Purpose section marker
   extractedUrl: string | null;
 }
 

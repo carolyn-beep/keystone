@@ -1,9 +1,48 @@
-import { useState } from 'react';
+import { useState, ReactNode } from 'react';
 import { Link } from 'wouter';
 import { useMutation } from '@tanstack/react-query';
 import { Brainlift } from '@shared/schema';
 import { queryClient } from '@/lib/queryClient';
 import { Check, Clock, AlertTriangle, Trash2 } from 'lucide-react';
+
+/**
+ * Render text with markdown links [text](url) as clickable <a> tags
+ */
+function renderWithLinks(text: string): ReactNode {
+  const linkRegex = /\[([^\]]+)\]\(([^)]+)\)/g;
+  const parts: ReactNode[] = [];
+  let lastIndex = 0;
+  let match;
+
+  while ((match = linkRegex.exec(text)) !== null) {
+    // Add text before the link
+    if (match.index > lastIndex) {
+      parts.push(text.slice(lastIndex, match.index));
+    }
+    // Add the link
+    const [, linkText, url] = match;
+    parts.push(
+      <a
+        key={match.index}
+        href={url}
+        target="_blank"
+        rel="noopener noreferrer"
+        onClick={(e) => e.stopPropagation()}
+        className="text-teal-600 hover:text-teal-700 underline"
+      >
+        {linkText}
+      </a>
+    );
+    lastIndex = match.index + match[0].length;
+  }
+
+  // Add remaining text
+  if (lastIndex < text.length) {
+    parts.push(text.slice(lastIndex));
+  }
+
+  return parts.length > 0 ? parts : text;
+}
 
 interface BrainliftCardProps {
   brainlift: Brainlift;
@@ -140,7 +179,7 @@ export function BrainliftCard({ brainlift, adminView, onDelete }: BrainliftCardP
           {brainlift.title}
         </h3>
         <p className="text-sm text-[#6B7280] m-0 leading-normal overflow-hidden line-clamp-2">
-          {brainlift.description}
+          {renderWithLinks(brainlift.displayPurpose || brainlift.description)}
         </p>
       </div>
 

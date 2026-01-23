@@ -341,6 +341,94 @@ export function convertToExtractorFormat(facts: HierarchyExtractedFact[]): Array
 }
 
 // ============================================================================
+// PURPOSE EXTRACTION
+// ============================================================================
+
+/**
+ * Result from purpose extraction
+ */
+export interface ExtractedPurpose {
+  mainPurpose: string;  // First meaningful child (not In-scope/Out-of-scope)
+  fullText: string;     // Combined text for description field
+}
+
+/**
+ * Extract purpose from hierarchy by finding the Purpose marker node
+ * and extracting its first meaningful child.
+ *
+ * Expected structure:
+ * - Purpose (depth 0, isPurposeMarker: true)
+ *   - Main purpose text (depth 1) ← extract this
+ *   - In-scope (depth 1) [optional]
+ *   - Out-of-scope (depth 1) [optional]
+ */
+export function extractPurposeFromHierarchy(roots: HierarchyNode[]): ExtractedPurpose | null {
+  // Find the Purpose marker node
+  let purposeNode: HierarchyNode | null = null;
+
+  function findPurposeNode(node: HierarchyNode): boolean {
+    if (node.isPurposeMarker) {
+      purposeNode = node;
+      return true;
+    }
+    for (const child of node.children) {
+      if (findPurposeNode(child)) return true;
+    }
+    return false;
+  }
+
+  for (const root of roots) {
+    if (findPurposeNode(root)) break;
+  }
+
+  if (!purposeNode) {
+    console.log('[PurposeExtractor] No Purpose marker node found');
+    return null;
+  }
+
+  console.log(`[PurposeExtractor] Found Purpose node with ${purposeNode.children.length} children`);
+
+  // Find the first meaningful child (not In-scope/Out-of-scope headers)
+  const scopePattern = /^(In-scope|Out-of-scope)\s*$/i;
+  let mainPurpose: string | null = null;
+  const purposeParts: string[] = [];
+
+  for (const child of purposeNode.children) {
+    const text = child.name.trim();
+
+    // Skip scope headers
+    if (scopePattern.test(text)) {
+      continue;
+    }
+
+    // Skip very short content (likely structural)
+    if (text.length < 20) {
+      continue;
+    }
+
+    // First meaningful child is the main purpose
+    if (!mainPurpose) {
+      mainPurpose = text;
+    }
+
+    // Collect all meaningful children for fullText
+    purposeParts.push(text);
+  }
+
+  if (!mainPurpose) {
+    console.log('[PurposeExtractor] No meaningful purpose content found');
+    return null;
+  }
+
+  console.log(`[PurposeExtractor] Extracted purpose: "${mainPurpose.substring(0, 80)}..."`);
+
+  return {
+    mainPurpose,
+    fullText: purposeParts.join(' '),
+  };
+}
+
+// ============================================================================
 // DOK2 EXTRACTION
 // ============================================================================
 

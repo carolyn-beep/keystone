@@ -322,6 +322,7 @@ export async function saveBrainliftFromAI(
         slug,
         title: data.title,
         description: data.description,
+        displayPurpose: data.displayPurpose || null,  // Short UI-friendly summary
         author: data.owner || null,
         summary: dynamicSummary,
         classification: data.classification,
@@ -389,6 +390,7 @@ export async function saveBrainliftFromAI(
         } catch (err: any) {
           console.error(`[Auto-Grade] DOK2 grading failed for "${summary.sourceName}":`, err.message);
           gradeResult = {
+            displayTitle: null,
             score: 3,
             diagnosis: 'Grading failed due to a system error.',
             feedback: 'Please try re-importing this BrainLift.',
@@ -405,10 +407,11 @@ export async function saveBrainliftFromAI(
           total: totalDOK2,
         });
 
-        console.log(`[Auto-Grade] DOK2 graded "${summary.sourceName}": score=${gradeResult.score} (${dok2CompletedCount}/${totalDOK2})`);
+        console.log(`[Auto-Grade] DOK2 graded "${summary.sourceName}": score=${gradeResult.score}, title="${gradeResult.displayTitle}" (${dok2CompletedCount}/${totalDOK2})`);
 
         return {
           ...summary,
+          displayTitle: gradeResult.displayTitle,
           grade: gradeResult.score,
           diagnosis: gradeResult.diagnosis,
           feedback: gradeResult.feedback,

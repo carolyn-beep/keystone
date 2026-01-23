@@ -19,6 +19,7 @@ const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY;
 
 // Zod schema for validating LLM response
 const dok2GradeSchema = z.object({
+  displayTitle: z.string().optional(),
   score: z.number().min(1).max(5),
   diagnosis: z.string(),
   feedback: z.string(),
@@ -26,6 +27,7 @@ const dok2GradeSchema = z.object({
 });
 
 export interface DOK2GradeResult {
+  displayTitle: string | null;
   score: 1 | 2 | 3 | 4 | 5;
   diagnosis: string;
   feedback: string;
@@ -45,7 +47,7 @@ async function callGradingModel(
   model: LLMModel,
   systemPrompt: string,
   userPrompt: string
-): Promise<{ score: number; diagnosis: string; feedback: string; failReason: DOK2FailReason | null }> {
+): Promise<{ displayTitle: string | null; score: number; diagnosis: string; feedback: string; failReason: DOK2FailReason | null }> {
   if (!OPENROUTER_API_KEY) {
     throw new Error('OpenRouter API key not configured');
   }
@@ -105,9 +107,11 @@ async function callGradingModel(
       const diagnosisMatch = cleanContent.match(/"diagnosis"\s*:\s*"([^"]+)"/);
       const feedbackMatch = cleanContent.match(/"feedback"\s*:\s*"([^"]+)"/);
       const failReasonMatch = cleanContent.match(/"failReason"\s*:\s*(?:null|"([^"]+)")/);
+      const displayTitleMatch = cleanContent.match(/"displayTitle"\s*:\s*"([^"]+)"/);
 
       if (scoreMatch) {
         parsed = {
+          displayTitle: displayTitleMatch ? displayTitleMatch[1] : null,
           score: parseInt(scoreMatch[1]),
           diagnosis: diagnosisMatch ? diagnosisMatch[1] : 'Unable to parse diagnosis',
           feedback: feedbackMatch ? feedbackMatch[1] : 'Unable to parse feedback',
@@ -122,6 +126,7 @@ async function callGradingModel(
     const validated = dok2GradeSchema.parse(parsed);
 
     return {
+      displayTitle: validated.displayTitle || null,
       score: validated.score,
       diagnosis: validated.diagnosis,
       feedback: validated.feedback,
@@ -168,7 +173,7 @@ function buildUserPrompt(
  * - Source unfetchable but searched: note in diagnosis, no penalty
  */
 function applySourceLinkPenalty(
-  result: { score: number; diagnosis: string; feedback: string; failReason: DOK2FailReason | null },
+  result: { displayTitle: string | null; score: number; diagnosis: string; feedback: string; failReason: DOK2FailReason | null },
   hasSourceUrl: boolean,
   sourceVerified: boolean
 ): DOK2GradeResult {
@@ -187,6 +192,7 @@ function applySourceLinkPenalty(
   }
 
   return {
+    displayTitle: result.displayTitle,
     score: finalScore,
     diagnosis,
     feedback: result.feedback,
@@ -258,6 +264,7 @@ export async function gradeDOK2Summary(
       console.error(`[DOK2-Grade] Both models failed. Gemini: ${geminiError.message}, Qwen: ${qwenError.message}`);
       // Return a default grade if both models fail
       return {
+        displayTitle: null,
         score: 3,
         diagnosis: 'Unable to grade this summary due to a system error. Both grading models failed.',
         feedback: 'Please try re-importing this BrainLift or contact support if the issue persists.',

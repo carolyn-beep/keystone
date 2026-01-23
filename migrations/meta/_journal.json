@@ -29,6 +29,20 @@
       "when": 1769174928889,
       "tag": "0003_glossy_wallow",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1769186615298,
+      "tag": "0004_lethal_mantis",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1769188711719,
+      "tag": "0005_smiling_makkari",
+      "breakpoints": true
     }
   ]
 }

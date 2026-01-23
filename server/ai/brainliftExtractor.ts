@@ -2,7 +2,7 @@ import { z } from 'zod';
 import { CLASSIFICATION } from '@shared/schema';
 import OpenAI from 'openai';
 import type { HierarchyNode, DOK2SummaryGroup } from '@shared/hierarchy-types';
-import { extractAllFromHierarchy, convertToExtractorFormat } from './hierarchyExtractor';
+import { extractAllFromHierarchy, convertToExtractorFormat, extractPurposeFromHierarchy } from './hierarchyExtractor';
 
 // Feature flag for hierarchy-based extraction
 const USE_HIERARCHY_EXTRACTION = process.env.USE_HIERARCHY_EXTRACTION === 'true';
@@ -20,6 +20,7 @@ const brainliftOutputSchema = z.object({
   rejectionRecommendation: z.string().nullable().optional(),
   title: z.string(),
   description: z.string(),
+  displayPurpose: z.string().nullable().optional(),  // Short UI-friendly summary of purpose
   owner: z.string().nullable().optional(),
   summary: z.object({
     totalFacts: z.number(),
@@ -121,6 +122,96 @@ If no DOK1 facts found, return empty array: []`
   }
 }
 
+// Threshold: only summarize purposes longer than this
+const PURPOSE_SUMMARY_THRESHOLD = 200;
+
+/**
+ * Summarize a long purpose into a concise UI-friendly display string.
+ * Uses Qwen for speed. Only called when purpose exceeds threshold.
+ */
+async function summarizePurposeForDisplay(fullPurpose: string, title: string): Promise<string | null> {
+  if (fullPurpose.length <= PURPOSE_SUMMARY_THRESHOLD) {
+    // Short enough already - use as-is
+    return fullPurpose;
+  }
+
+  console.log(`[Purpose Summarizer] Summarizing ${fullPurpose.length} char purpose...`);
+
+  try {
+    const response = await openai.chat.completions.create({
+      model: "google/gemini-2.0-flash-001",
+      messages: [
+        {
+          role: "system",
+          content: `Compress a purpose statement into ONE punchy sentence (50-120 chars).
+
+FORMAT: "[Topic]: [key question or goal]"
+
+EXAMPLES:
+- "NCAA athlete compensation: examining the $8B revenue gap and pay equity arguments."
+- "Knowledge-rich curriculum design: research-backed methods for deeper learning outcomes."
+- "AI in education: balancing automation benefits against student skill development."
+
+RULES:
+- Start with the TOPIC, not "This brainlift"
+- Be specific - name the actual subject
+- Include the core question or tension being explored
+- No fluff, no preamble, no meta-commentary
+- Output ONLY the summary line`
+        },
+        {
+          role: "user",
+          content: `Title: "${title}"
+
+Purpose text:
+${fullPurpose.substring(0, 1500)}
+
+One-line summary:`
+        }
+      ],
+      temperature: 0.2,
+      max_tokens: 80,
+    });
+
+    const summary = response.choices[0].message.content?.trim() || '';
+
+    console.log(`[Purpose Summarizer] Raw LLM response (${summary.length} chars): "${summary.substring(0, 200)}"`);
+
+    if (summary && summary.length >= 20 && summary.length <= 200) {
+      console.log(`[Purpose Summarizer] ✓ Generated: "${summary}"`);
+      return summary;
+    }
+
+    // Fallback: truncate intelligently at sentence boundary
+    console.log(`[Purpose Summarizer] ✗ Invalid response (len=${summary.length}), using truncation`);
+    return truncatePurpose(fullPurpose);
+  } catch (err) {
+    console.error('[Purpose Summarizer] LLM failed:', err);
+    return truncatePurpose(fullPurpose);
+  }
+}
+
+/**
+ * Truncate purpose at a sentence boundary, with ellipsis if needed.
+ */
+function truncatePurpose(text: string, maxLength: number = 150): string {
+  if (text.length <= maxLength) return text;
+
+  // Try to cut at sentence boundary
+  const truncated = text.substring(0, maxLength);
+  const lastPeriod = truncated.lastIndexOf('.');
+  const lastQuestion = truncated.lastIndexOf('?');
+  const lastSentenceEnd = Math.max(lastPeriod, lastQuestion);
+
+  if (lastSentenceEnd > maxLength * 0.5) {
+    return text.substring(0, lastSentenceEnd + 1);
+  }
+
+  // Cut at word boundary with ellipsis
+  const lastSpace = truncated.lastIndexOf(' ');
+  return text.substring(0, lastSpace > 0 ? lastSpace : maxLength) + '...';
+}
+
 export async function extractReadingList(title: string, description: string, facts: any[]): Promise<any[]> {
   try {
     const response = await openai.chat.completions.create({
@@ -183,6 +274,8 @@ export async function extractBrainlift(
   // Try hierarchy-based extraction first if enabled and hierarchy is available
   let hierarchyFacts: any[] = [];
   let dok2Summaries: DOK2SummaryGroup[] = [];
+  let extractedPurpose: string | null = null;
+
   if (USE_HIERARCHY_EXTRACTION && hierarchy && hierarchy.length > 0) {
     console.log('[DOK1 Extractor] Attempting hierarchy-based extraction...');
     const fullResult = extractAllFromHierarchy(hierarchy);
@@ -193,6 +286,13 @@ export async function extractBrainlift(
       console.log(`[DOK1 Extractor] Hierarchy metadata: DOK1 nodes=${fullResult.metadata.dok1NodesFound}, DOK2 nodes=${fullResult.metadata.dok2NodesFound}, sources=${fullResult.metadata.sourcesAttributed}`);
     } else {
       console.log('[DOK1 Extractor] Hierarchy extraction found 0 facts, falling back to regex');
+    }
+
+    // Extract purpose from hierarchy (independent of fact extraction success)
+    const purposeResult = extractPurposeFromHierarchy(hierarchy);
+    if (purposeResult) {
+      extractedPurpose = purposeResult.fullText;
+      console.log(`[DOK1 Extractor] Purpose extracted from hierarchy: "${extractedPurpose.substring(0, 80)}..."`);
     }
   }
 
@@ -226,6 +326,29 @@ export async function extractBrainlift(
         owner = nameLine;
       }
       break;
+    }
+  }
+
+  // Purpose extraction fallback - regex-based when hierarchy extraction didn't find it
+  if (!extractedPurpose) {
+    for (let i = 0; i < Math.min(lines.length, 100); i++) {
+      const trimmed = lines[i].trim();
+      const isPurposeHeader = /^(?:#+\s*|[-•*]\s*)?Purpose\s*$/i.test(trimmed);
+      if (isPurposeHeader && i + 1 < lines.length) {
+        // Get next meaningful line (skip In-scope/Out-of-scope headers)
+        for (let j = i + 1; j < lines.length; j++) {
+          const content = lines[j].trim().replace(/^[-•*#]\s*/, '');
+          // Stop if we hit another section header
+          if (/^(In-scope|Out-of-scope|Owner|Experts|DOK)/i.test(content)) break;
+          // Accept lines longer than 20 chars as the purpose
+          if (content.length > 20) {
+            extractedPurpose = content;
+            console.log(`[DOK1 Extractor] Purpose extracted via regex: "${extractedPurpose.substring(0, 80)}..."`);
+            break;
+          }
+        }
+        break;
+      }
     }
   }
 
@@ -506,10 +629,17 @@ export async function extractBrainlift(
     console.log(`[DOK1 Extractor] First fact: "${finalFacts[0]?.fact?.substring(0, 100)}..."`);
   }
 
+  // Generate displayPurpose for UI (summarized if long, null if no purpose)
+  let displayPurpose: string | null = null;
+  if (extractedPurpose) {
+    displayPurpose = await summarizePurposeForDisplay(extractedPurpose, title);
+  }
+
   const finalResult = {
     classification: 'brainlift' as const,
     title,
-    description: `Section-based DOK1 extraction from ${sourceType}`,
+    description: extractedPurpose || `Section-based DOK1 extraction from ${sourceType}`,
+    displayPurpose,  // Short UI-friendly version (null if no purpose extracted)
     owner,
     summary: {
       totalFacts: finalFacts.length,

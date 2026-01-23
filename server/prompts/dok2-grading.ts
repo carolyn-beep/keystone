@@ -115,6 +115,7 @@ You will be given:
 4. The DOK2 SUMMARY POINTS to evaluate
 
 Grade the DOK2 summary and provide:
+- A displayTitle: A punchy 60-100 char phrase capturing the key insight (e.g., "Research methods for measuring curriculum effectiveness")
 - A score (1-5)
 - A diagnosis explaining why this score
 - Actionable feedback on how to improve (grounded in the criteria above)
@@ -122,6 +123,7 @@ Grade the DOK2 summary and provide:
 
 OUTPUT FORMAT (JSON):
 {
+  "displayTitle": "Key insight in 60-100 chars - what the student learned, not just the source name",
   "score": 1-5,
   "diagnosis": "Explanation of why this score was given...",
   "feedback": "To improve to the next level, consider...",

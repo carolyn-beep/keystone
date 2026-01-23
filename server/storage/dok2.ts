@@ -20,6 +20,7 @@ export interface DOK2SummaryWithPoints {
   category: string;
   sourceName: string;
   sourceUrl: string | null;
+  displayTitle: string | null;  // AI-generated insight title
   workflowyNodeId: string | null;
   sourceWorkflowyNodeId: string | null;
   points: Array<{
@@ -40,6 +41,7 @@ export interface DOK2SummaryWithPoints {
  * Extended DOK2SummaryGroup with grading fields for saving
  */
 export interface DOK2SummaryGroupWithGrading extends DOK2SummaryGroup {
+  displayTitle?: string | null;
   grade?: number;
   diagnosis?: string;
   feedback?: string;
@@ -70,6 +72,7 @@ export async function saveDOK2Summaries(
       category: summary.category,
       sourceName: summary.sourceName,
       sourceUrl: summary.sourceUrl,
+      displayTitle: summary.displayTitle ?? null,
       workflowyNodeId: summary.workflowyNodeId,
       sourceWorkflowyNodeId: summary.sourceWorkflowyNodeId,
       // Grading fields (optional, will be null if not graded)
@@ -136,6 +139,7 @@ export async function getDOK2Summaries(brainliftId: number): Promise<DOK2Summary
     category: summary.category,
     sourceName: summary.sourceName,
     sourceUrl: summary.sourceUrl,
+    displayTitle: summary.displayTitle,
     workflowyNodeId: summary.workflowyNodeId,
     sourceWorkflowyNodeId: summary.sourceWorkflowyNodeId,
     points: points

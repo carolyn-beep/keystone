@@ -1,8 +1,43 @@
-import { useState } from 'react';
+import { useState, ReactNode } from 'react';
 import { Link, useSearch } from 'wouter';
 import { Check, AlertTriangle, RefreshCw, Download, Share2, History } from 'lucide-react';
 import { BrainliftData, BrainliftVersion } from '@shared/schema';
 import { tokens } from '@/lib/colors';
+
+/**
+ * Render text with markdown links [text](url) as clickable <a> tags
+ */
+function renderWithLinks(text: string): ReactNode {
+  const linkRegex = /\[([^\]]+)\]\(([^)]+)\)/g;
+  const parts: ReactNode[] = [];
+  let lastIndex = 0;
+  let match;
+
+  while ((match = linkRegex.exec(text)) !== null) {
+    if (match.index > lastIndex) {
+      parts.push(text.slice(lastIndex, match.index));
+    }
+    const [, linkText, url] = match;
+    parts.push(
+      <a
+        key={match.index}
+        href={url}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="text-teal-600 hover:text-teal-700 dark:text-teal-400 dark:hover:text-teal-300 underline"
+      >
+        {linkText}
+      </a>
+    );
+    lastIndex = match.index + match[0].length;
+  }
+
+  if (lastIndex < text.length) {
+    parts.push(text.slice(lastIndex));
+  }
+
+  return parts.length > 0 ? parts : text;
+}
 
 interface DashboardHeaderProps {
   data: BrainliftData;
@@ -38,7 +73,7 @@ export function DashboardHeader({
   handleDownloadPDF,
 }: DashboardHeaderProps) {
   const [copied, setCopied] = useState(false);
-  const { title, description, slug } = data;
+  const { title, description, displayPurpose, slug } = data;
 
   // Preserve admin param when navigating back
   const searchString = useSearch();
@@ -68,7 +103,7 @@ export function DashboardHeader({
 
       {/* Row 3: Subtitle */}
       <p className="text-muted-foreground text-sm mt-1.5 mb-0">
-        {description}
+        {renderWithLinks(displayPurpose || description)}
       </p>
 
       {/* Row 4: Author */}
