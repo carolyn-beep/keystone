@@ -27,6 +27,7 @@ const PAGE_SIZE = 9;
 
 // Get all brainlifts (filtered by user role, or all if admin with ?all=true)
 // Supports pagination via ?page=1 (1-indexed)
+// Supports filtering via ?filter=all|owned|shared
 brainliftsRouter.get(
   api.brainlifts.list.path,
   requireAuth,
@@ -35,9 +36,15 @@ brainliftsRouter.get(
     const page = Math.max(1, parseInt(req.query.page as string) || 1);
     const offset = (page - 1) * PAGE_SIZE;
 
+    // Filter parameter: all (default), owned, or shared
+    const filter = (req.query.filter as 'all' | 'owned' | 'shared') || 'all';
+    if (!['all', 'owned', 'shared'].includes(filter)) {
+      throw new BadRequestError('Invalid filter parameter');
+    }
+
     const { brainlifts, total } = showAll
       ? await storage.getAllBrainliftsPaginated(offset, PAGE_SIZE)
-      : await storage.getBrainliftsForUserPaginated(req.authContext!, offset, PAGE_SIZE);
+      : await storage.getBrainliftsForUserPaginated(req.authContext!, offset, PAGE_SIZE, filter);
 
     res.json({
       brainlifts,
@@ -57,7 +64,25 @@ brainliftsRouter.get(
   requireAuth,
   requireBrainliftAccess,
   asyncHandler(async (req, res) => {
-    res.json(req.brainlift);
+    const brainlift = req.brainlift!;
+    const authContext = req.authContext!;
+
+    // Determine user's permission level for this brainlift
+    let userPermission: 'owner' | 'editor' | 'viewer' | null = null;
+
+    if (storage.isOwner(brainlift, authContext)) {
+      userPermission = 'owner';
+    } else if (!authContext.isAdmin) {
+      // Only check share permissions for non-admins (admins have implicit access)
+      const sharePermission = await storage.getUserSharePermission(brainlift.id, authContext.userId);
+      userPermission = sharePermission;
+    }
+
+    // Enrich response with user's permission
+    res.json({
+      ...brainlift,
+      userPermission,
+    });
   })
 );
 
@@ -84,13 +109,20 @@ brainliftsRouter.post(
   })
 );
 
-// Delete brainlift
+// Delete brainlift (owner only - editors cannot delete)
 brainliftsRouter.delete(
   '/api/brainlifts/:id',
   requireAuth,
   requireBrainliftModifyById,
   asyncHandler(async (req, res) => {
-    await storage.deleteBrainlift(req.brainlift!.id);
+    const brainlift = req.brainlift!;
+
+    // Only owner can delete (not editors)
+    if (!storage.isOwner(brainlift, req.authContext!)) {
+      throw new BadRequestError('Only the owner can delete this brainlift');
+    }
+
+    await storage.deleteBrainlift(brainlift.id);
     res.json({ message: "Brainlift deleted successfully" });
   })
 );

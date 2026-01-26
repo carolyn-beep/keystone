@@ -28,6 +28,7 @@ export interface FactGradingPanelProps {
   onAnalyzeRedundancy: () => void;
   isAnalyzingRedundancy: boolean;
   onViewFactFullText: (fact: Fact) => void;
+  canModify?: boolean;
 }
 
 export function FactGradingPanel({
@@ -39,6 +40,7 @@ export function FactGradingPanel({
   onAnalyzeRedundancy,
   isAnalyzingRedundancy,
   onViewFactFullText,
+  canModify = true,
 }: FactGradingPanelProps) {
   const { toast } = useToast();
 
@@ -345,6 +347,7 @@ export function FactGradingPanel({
               }}
               isSavingGrade={setHumanGradeMutation.isPending}
               onViewFullText={() => onViewFactFullText(fact)}
+              canModify={canModify}
             />
           ))}
         </RedundancyGroupCard>
@@ -402,6 +405,7 @@ export function FactGradingPanel({
                       isSavingGrade={setHumanGradeMutation.isPending}
                       onViewFullText={() => onViewFactFullText(fact)}
                       isRedundant={factsInRedundancyGroups.has(fact.id)}
+                      canModify={canModify}
                     />
                   </div>
                 );

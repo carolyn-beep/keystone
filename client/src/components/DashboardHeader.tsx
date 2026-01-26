@@ -1,6 +1,6 @@
-import { useState, ReactNode } from 'react';
+import { ReactNode } from 'react';
 import { Link, useSearch } from 'wouter';
-import { Check, AlertTriangle, RefreshCw, Download, Share2, History } from 'lucide-react';
+import { RefreshCw, Download, Users, History } from 'lucide-react';
 import { BrainliftData, BrainliftVersion } from '@shared/schema';
 import { tokens } from '@/lib/colors';
 
@@ -54,6 +54,9 @@ interface DashboardHeaderProps {
   setShowUpdateModal: (show: boolean) => void;
   setShowHistoryModal: (show: boolean) => void;
   handleDownloadPDF: () => void;
+  isOwner?: boolean;
+  setShowShareModal?: (show: boolean) => void;
+  canModify?: boolean;
 }
 
 export function DashboardHeader({
@@ -71,21 +74,16 @@ export function DashboardHeader({
   setShowUpdateModal,
   setShowHistoryModal,
   handleDownloadPDF,
+  isOwner,
+  setShowShareModal,
+  canModify = true, // Default to true for backwards compatibility
 }: DashboardHeaderProps) {
-  const [copied, setCopied] = useState(false);
   const { title, description, displayPurpose, slug } = data;
 
   // Preserve admin param when navigating back
   const searchString = useSearch();
   const isAdminView = new URLSearchParams(searchString).get('admin') === 'true';
   const backLink = isAdminView ? '/?admin=true' : '/';
-
-  const handleCopyLink = () => {
-    const shareUrl = `${window.location.origin}/view/${slug}`;
-    navigator.clipboard.writeText(shareUrl);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
-  };
 
   return (
     <header
@@ -159,27 +157,7 @@ export function DashboardHeader({
         )}
       </div>
 
-      {/* Row 5: Status Rail - Classification badge with checkmark */}
-      <div className="mt-3">
-            {data.classification === 'brainlift' ? (
-              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-success-soft text-success rounded text-xs font-semibold">
-                <Check size={14} />
-                Brainlift · DOK1 Graded
-              </span>
-            ) : data.classification === 'partial' ? (
-              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-warning-soft text-warning rounded text-xs font-semibold">
-                <AlertTriangle size={14} />
-                Partial Brainlift
-              </span>
-            ) : (
-              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-warning-soft text-warning rounded text-xs font-semibold">
-                <AlertTriangle size={14} />
-                Not a Brainlift
-              </span>
-            )}
-      </div>
-
-      {/* Row 6: Navigation Tabs (left) + Actions (right) */}
+      {/* Row 5: Navigation Tabs (left) + Actions (right) */}
       <div
         className="flex flex-col sm:flex-row sm:justify-between sm:items-end gap-2 sm:gap-0 mt-4 border-b border-border"
       >
@@ -220,7 +198,7 @@ export function DashboardHeader({
         {/* Action Cluster - Right aligned */}
         <div className="flex gap-2 items-center pb-2 flex-wrap">
           {/* Primary Action: Update */}
-          {!isSharedView && !isNotBrainlift && (
+          {canModify && !isSharedView && !isNotBrainlift && (
             <button
               data-testid="button-update-brainlift"
               onClick={() => setShowUpdateModal(true)}
@@ -246,23 +224,22 @@ export function DashboardHeader({
             </button>
           )}
 
-          <button
-            data-testid="button-copy-link"
-            onClick={handleCopyLink}
-            className="flex items-center justify-center gap-1.5 px-4 py-2 rounded-md border-none cursor-pointer text-[13px] font-medium transition-all duration-150"
-            style={{
-              backgroundColor: copied ? tokens.success : 'transparent',
-              color: copied ? tokens.surface : tokens.textSecondary,
-            }}
-            onMouseEnter={(e) => { if (!copied) e.currentTarget.style.color = tokens.textPrimary; }}
-            onMouseLeave={(e) => { if (!copied) e.currentTarget.style.color = tokens.textSecondary; }}
-          >
-            {copied ? <Check size={14} /> : <Share2 size={14} />}
-            {copied ? 'Copied!' : 'Share'}
-          </button>
+          {isOwner && (
+            <button
+              data-testid="button-share"
+              onClick={() => setShowShareModal?.(true)}
+              className="flex items-center justify-center gap-1.5 px-4 py-2 rounded-md border-none bg-transparent cursor-pointer text-[13px] font-medium"
+              style={{ color: tokens.textSecondary }}
+              onMouseEnter={(e) => e.currentTarget.style.color = tokens.textPrimary}
+              onMouseLeave={(e) => e.currentTarget.style.color = tokens.textSecondary}
+            >
+              <Users size={14} />
+              Share
+            </button>
+          )}
 
           {/* History button */}
-          {!isSharedView && !isNotBrainlift && versions.length > 0 && (
+          {canModify && !isSharedView && !isNotBrainlift && versions.length > 0 && (
             <button
               data-testid="button-view-history"
               onClick={() => setShowHistoryModal(true)}

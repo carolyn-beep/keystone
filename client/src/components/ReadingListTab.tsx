@@ -103,6 +103,7 @@ interface ReadingListTabProps {
   refreshExpertsMutation: UseMutationResult<any, Error, void, unknown>;
   toggleExpertFollowMutation: UseMutationResult<any, Error, { expertId: number; isFollowing: boolean }, unknown>;
   deleteExpertMutation: UseMutationResult<any, Error, number, unknown>;
+  canModify?: boolean;
 }
 
 export function ReadingListTab({
@@ -123,6 +124,7 @@ export function ReadingListTab({
   refreshExpertsMutation,
   toggleExpertFollowMutation,
   deleteExpertMutation,
+  canModify = true,
 }: ReadingListTabProps) {
   const { toast } = useToast();
 
@@ -524,16 +526,29 @@ export function ReadingListTab({
                       <div className="flex gap-1.5">
                         <button
                           data-testid={`button-follow-expert-${expert.id}`}
-                          onClick={() => toggleExpertFollowMutation.mutate({
-                            expertId: expert.id,
-                            isFollowing: !expert.isFollowing
-                          })}
-                          className="flex-1 px-3 py-1.5 rounded-md text-xs font-medium cursor-pointer flex items-center justify-center gap-1.5"
+                          onClick={() => {
+                            if (!canModify) {
+                              toast({
+                                title: 'Permission denied',
+                                description: "You don't have permission to modify experts. Ask the owner for Editor access.",
+                                variant: 'destructive',
+                              });
+                              return;
+                            }
+                            toggleExpertFollowMutation.mutate({
+                              expertId: expert.id,
+                              isFollowing: !expert.isFollowing
+                            });
+                          }}
+                          className="flex-1 px-3 py-1.5 rounded-md text-xs font-medium flex items-center justify-center gap-1.5"
                           style={{
                             backgroundColor: expert.isFollowing ? tokens.primary : tokens.surfaceAlt,
                             color: expert.isFollowing ? tokens.onPrimary : tokens.textSecondary,
                             border: expert.isFollowing ? 'none' : `1px solid ${tokens.border}`,
+                            cursor: canModify ? 'pointer' : 'not-allowed',
+                            opacity: canModify ? 1 : 0.7,
                           }}
+                          title={canModify ? undefined : "View-only access"}
                         >
                           {expert.isFollowing ? (
                             <>
@@ -567,13 +582,25 @@ export function ReadingListTab({
                         <button
                           data-testid={`button-delete-expert-${expert.id}`}
                           onClick={() => {
+                            if (!canModify) {
+                              toast({
+                                title: 'Permission denied',
+                                description: "You don't have permission to modify experts. Ask the owner for Editor access.",
+                                variant: 'destructive',
+                              });
+                              return;
+                            }
                             if (confirm(`Remove ${expert.name} from expert list?`)) {
                               deleteExpertMutation.mutate(expert.id);
                             }
                           }}
-                          className="px-2.5 py-1.5 bg-sidebar text-destructive rounded-md text-xs cursor-pointer flex items-center justify-center"
-                          style={{ border: `1px solid ${tokens.border}` }}
-                          title="Remove expert"
+                          className="px-2.5 py-1.5 bg-sidebar text-destructive rounded-md text-xs flex items-center justify-center"
+                          style={{
+                            border: `1px solid ${tokens.border}`,
+                            cursor: canModify ? 'pointer' : 'not-allowed',
+                            opacity: canModify ? 1 : 0.5,
+                          }}
+                          title={canModify ? "Remove expert" : "View-only access"}
                         >
                           <Trash2 size={12} />
                         </button>
@@ -882,16 +909,29 @@ export function ReadingListTab({
                         >
                           Open source <ExternalLink size={12} />
                         </a>
-                        {!isSharedView && (
-                          <button
-                            onClick={() => toggleExpand(item.id)}
-                            data-testid={`button-grade-toggle-${item.id}`}
-                            className="inline-flex items-center gap-1.5 px-4 py-2 bg-white text-[#374151] rounded-lg text-[13px] font-medium cursor-pointer"
-                            style={{ border: `1px solid ${tokens.border}` }}
-                          >
-                            Grade {isExpanded ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
-                          </button>
-                        )}
+                        <button
+                          onClick={() => {
+                            if (!canModify) {
+                              toast({
+                                title: 'Permission denied',
+                                description: "You don't have permission to grade sources. Ask the owner for Editor access.",
+                                variant: 'destructive',
+                              });
+                              return;
+                            }
+                            toggleExpand(item.id);
+                          }}
+                          data-testid={`button-grade-toggle-${item.id}`}
+                          className="inline-flex items-center gap-1.5 px-4 py-2 bg-white text-[#374151] rounded-lg text-[13px] font-medium"
+                          style={{
+                            border: `1px solid ${tokens.border}`,
+                            cursor: canModify ? 'pointer' : 'not-allowed',
+                            opacity: canModify ? 1 : 0.6,
+                          }}
+                          title={canModify ? undefined : "View-only access"}
+                        >
+                          Grade {isExpanded ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
+                        </button>
                       </div>
                     </div>
 
@@ -989,11 +1029,24 @@ export function ReadingListTab({
 
                           {/* Save Button */}
                           <button
-                            onClick={() => handleSaveGrade(item.id)}
+                            onClick={() => {
+                              if (!canModify) {
+                                toast({
+                                  title: 'Permission denied',
+                                  description: "You don't have permission to grade sources. Ask the owner for Editor access.",
+                                  variant: 'destructive',
+                                });
+                                return;
+                              }
+                              handleSaveGrade(item.id);
+                            }}
                             data-testid={`button-save-grade-${item.id}`}
-                            disabled={saveGradeMutation.isPending}
-                            className="w-full px-6 py-2.5 bg-[#0D9488] text-white border-none rounded-lg cursor-pointer text-sm font-semibold"
-                            style={{ opacity: saveGradeMutation.isPending ? 0.7 : 1 }}
+                            disabled={saveGradeMutation.isPending || !canModify}
+                            className="w-full px-6 py-2.5 bg-[#0D9488] text-white border-none rounded-lg text-sm font-semibold"
+                            style={{
+                              opacity: (saveGradeMutation.isPending || !canModify) ? 0.7 : 1,
+                              cursor: (saveGradeMutation.isPending || !canModify) ? 'not-allowed' : 'pointer',
+                            }}
                           >
                             {saveGradeMutation.isPending ? 'Saving...' : 'Save Grade'}
                           </button>

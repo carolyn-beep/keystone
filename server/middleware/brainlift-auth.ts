@@ -36,7 +36,7 @@ export async function requireBrainliftAccess(
       throw new NotFoundError('Brainlift not found');
     }
 
-    if (!storage.canAccessBrainlift(brainlift, req.authContext!)) {
+    if (!(await storage.canAccessBrainlift(brainlift, req.authContext!))) {
       throw new ForbiddenError('Access denied');
     }
 
@@ -71,7 +71,7 @@ export async function requireBrainliftModify(
       throw new NotFoundError('Brainlift not found');
     }
 
-    if (!storage.canModifyBrainlift(brainlift, req.authContext!)) {
+    if (!(await storage.canModifyBrainlift(brainlift, req.authContext!))) {
       throw new ForbiddenError('Access denied');
     }
 
@@ -107,7 +107,7 @@ export async function requireBrainliftModifyById(
       throw new NotFoundError('Brainlift not found');
     }
 
-    if (!storage.canModifyBrainlift(brainlift, req.authContext!)) {
+    if (!(await storage.canModifyBrainlift(brainlift, req.authContext!))) {
       throw new ForbiddenError('Access denied');
     }
 

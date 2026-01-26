@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import { AlertTriangle, Check, Loader2, Brain, X, ExternalLink } from 'lucide-react';
 import { tokens, getScoreChipColors } from '@/lib/colors';
 import { cn } from '@/lib/utils';
+import { useToast } from '@/hooks/use-toast';
 import type { Fact } from '@shared/schema';
 
 export interface HumanGrade {
@@ -31,6 +32,7 @@ export interface FactRowProps {
   onViewFullText?: () => void;
   sourceUrls?: Record<string, string>;
   isRedundant?: boolean;
+  canModify?: boolean;
 }
 
 // Parse source string to extract text and URL, returning a clickable link
@@ -125,7 +127,9 @@ export function FactRow({
   onViewFullText,
   sourceUrls,
   isRedundant = false,
+  canModify = true,
 }: FactRowProps) {
+  const { toast } = useToast();
   const [showAIAnalysis, setShowAIAnalysis] = useState(false);
   const [showQuickGrade, setShowQuickGrade] = useState(false);
   const [showNotesPanel, setShowNotesPanel] = useState(false);
@@ -174,8 +178,29 @@ export function FactRow({
   }, [showQuickGrade]);
 
   const handleQuickGrade = (score: number) => {
+    if (!canModify) {
+      toast({
+        title: 'Permission denied',
+        description: "You don't have permission to grade facts. Ask the owner for Editor access.",
+        variant: 'destructive',
+      });
+      setShowQuickGrade(false);
+      return;
+    }
     onSaveGrade(score);  // Pass score directly - no state timing issues
     setShowQuickGrade(false);
+  };
+
+  const handleGradeButtonClick = () => {
+    if (!canModify) {
+      toast({
+        title: 'Permission denied',
+        description: "You don't have permission to grade facts. Ask the owner for Editor access.",
+        variant: 'destructive',
+      });
+      return;
+    }
+    setShowQuickGrade(!showQuickGrade);
   };
 
   return (
@@ -283,7 +308,7 @@ export function FactRow({
                   ref={gradeButtonRef}
                   onClick={(e) => {
                     e.stopPropagation();
-                    setShowQuickGrade(!showQuickGrade);
+                    handleGradeButtonClick();
                   }}
                   className="flex items-center justify-center gap-1.5 px-3 py-2 rounded-full font-bold text-sm min-w-[70px] cursor-pointer transition-all duration-150"
                   style={{
@@ -299,7 +324,7 @@ export function FactRow({
                   ref={gradeButtonRef}
                   onClick={(e) => {
                     e.stopPropagation();
-                    setShowQuickGrade(!showQuickGrade);
+                    handleGradeButtonClick();
                   }}
                   className="flex items-center justify-center gap-1 px-3 py-2 rounded-full bg-accent text-primary text-sm font-bold min-w-[70px] cursor-pointer transition-all duration-150"
                   style={{
@@ -378,6 +403,15 @@ export function FactRow({
                     <button
                       onClick={(e) => {
                         e.stopPropagation();
+                        if (!canModify) {
+                          toast({
+                            title: 'Permission denied',
+                            description: "You don't have permission to grade facts. Ask the owner for Editor access.",
+                            variant: 'destructive',
+                          });
+                          setShowQuickGrade(false);
+                          return;
+                        }
                         setShowQuickGrade(false);
                         setShowNotesPanel(true);
                         onStartGrading();

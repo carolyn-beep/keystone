@@ -8,6 +8,7 @@ import * as verificationsStorage from './verifications';
 import * as redundancyStorage from './redundancy';
 import * as analyticsStorage from './analytics';
 import * as dok2Storage from './dok2';
+import * as sharesStorage from './shares';
 
 // Re-export types from base
 export type {
@@ -28,6 +29,7 @@ export const storage = {
   // Brainlifts
   getBrainliftBySlug: brainliftsStorage.getBrainliftBySlug,
   getBrainliftById: brainliftsStorage.getBrainliftById,
+  getBrainliftsByOwnerId: brainliftsStorage.getBrainliftsByOwnerId,
   createBrainlift: brainliftsStorage.createBrainlift,
   updateBrainlift: brainliftsStorage.updateBrainlift,
   deleteBrainlift: brainliftsStorage.deleteBrainlift,
@@ -37,6 +39,19 @@ export const storage = {
   getAllBrainliftsPaginated: brainliftsStorage.getAllBrainliftsPaginated,
   canAccessBrainlift: brainliftsStorage.canAccessBrainlift,
   canModifyBrainlift: brainliftsStorage.canModifyBrainlift,
+  isOwner: brainliftsStorage.isOwner,
+
+  // Shares
+  getUserSharePermission: sharesStorage.getUserSharePermission,
+  getBrainliftShares: sharesStorage.getBrainliftShares,
+  createUserShare: sharesStorage.createUserShare,
+  updateShare: sharesStorage.updateShare,
+  deleteShare: sharesStorage.deleteShare,
+  getOrCreateShareToken: sharesStorage.getOrCreateShareToken,
+  getShareByToken: sharesStorage.getShareByToken,
+  getUserByEmailOrUsername: sharesStorage.getUserByEmailOrUsername,
+  getSharedBrainlifts: sharesStorage.getSharedBrainlifts,
+  transferOwnershipToFirstEditor: sharesStorage.transferOwnershipToFirstEditor,
 
   // Reading List
   getGradesByBrainliftId: readingListStorage.getGradesByBrainliftId,
@@ -79,4 +94,4 @@ export const storage = {
 };
 
 // Export individual modules for direct access if needed
-export { brainliftsStorage, readingListStorage, expertsStorage, verificationsStorage, redundancyStorage, analyticsStorage, dok2Storage };
+export { brainliftsStorage, readingListStorage, expertsStorage, verificationsStorage, redundancyStorage, analyticsStorage, dok2Storage, sharesStorage };

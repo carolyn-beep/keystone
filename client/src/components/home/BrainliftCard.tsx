@@ -3,7 +3,8 @@ import { Link } from 'wouter';
 import { useMutation } from '@tanstack/react-query';
 import { Brainlift } from '@shared/schema';
 import { queryClient } from '@/lib/queryClient';
-import { Check, Clock, AlertTriangle, Trash2 } from 'lucide-react';
+import { Check, Clock, AlertTriangle, Trash2, Eye, Edit3, Users } from 'lucide-react';
+import { tokens } from '@/lib/colors';
 
 /**
  * Render text with markdown links [text](url) as clickable <a> tags
@@ -45,7 +46,12 @@ function renderWithLinks(text: string): ReactNode {
 }
 
 interface BrainliftCardProps {
-  brainlift: Brainlift;
+  brainlift: Brainlift & {
+    shareInfo?: {
+      permission?: 'viewer' | 'editor';
+      sharedWithCount?: number;
+    };
+  };
   adminView: boolean;
   onDelete: (e: React.MouseEvent, brainlift: { id: number; title: string }) => void;
 }
@@ -258,6 +264,39 @@ export function BrainliftCard({ brainlift, adminView, onDelete }: BrainliftCardP
           {hasContradictions && <AlertTriangle size={12} />}
           {summary.contradictionCount || 0} contradictions
         </span>
+
+        {/* Viewer Badge */}
+        {brainlift.shareInfo?.permission === 'viewer' && (
+          <span
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[13px] font-medium"
+            style={{ backgroundColor: tokens.infoSoft, color: tokens.info }}
+          >
+            <Eye size={12} />
+            Viewer
+          </span>
+        )}
+
+        {/* Editor Badge */}
+        {brainlift.shareInfo?.permission === 'editor' && (
+          <span
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[13px] font-medium"
+            style={{ backgroundColor: tokens.successSoft, color: tokens.success }}
+          >
+            <Edit3 size={12} />
+            Editor
+          </span>
+        )}
+
+        {/* Shared with count */}
+        {brainlift.shareInfo?.sharedWithCount !== undefined && brainlift.shareInfo.sharedWithCount > 0 && (
+          <span
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[13px] font-medium"
+            style={{ backgroundColor: tokens.primarySoft, color: tokens.primary }}
+          >
+            <Users size={12} />
+            Shared with {brainlift.shareInfo.sharedWithCount}
+          </span>
+        )}
 
         {/* Score Preview */}
         <div className="ml-auto flex items-center gap-2">

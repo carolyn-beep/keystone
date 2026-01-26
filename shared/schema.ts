@@ -1,7 +1,7 @@
-import { pgTable, text, serial, integer, jsonb, boolean, timestamp, varchar, index } from "drizzle-orm/pg-core";
+import { pgTable, text, serial, integer, jsonb, boolean, timestamp, varchar, index, unique, check } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
-import { relations } from "drizzle-orm";
+import { relations, sql } from "drizzle-orm";
 
 
 // === AUTH TABLES (Better Auth) ===
@@ -224,6 +224,34 @@ export const experts = pgTable("experts", {
   isFollowing: boolean("is_following").notNull().default(true), // Auto-follow if rank > 5
 });
 
+// Brainlift Sharing - User-specific and token-based access control
+export const brainliftShares = pgTable("brainlift_shares", {
+  id: serial("id").primaryKey(),
+  brainliftId: integer("brainlift_id").notNull().references(() => brainlifts.id, { onDelete: "cascade" }),
+  type: text("type").notNull().$type<'user' | 'token'>(),
+  permission: text("permission").notNull().$type<'viewer' | 'editor'>(),
+  userId: text("user_id").references(() => user.id, { onDelete: "cascade" }),
+  token: text("token").unique(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  createdByUserId: text("created_by_user_id").notNull().references(() => user.id, { onDelete: "cascade" }),
+}, (table) => [
+  // Indexes
+  index("idx_brainlift_shares_brainlift_id").on(table.brainliftId),
+  index("idx_brainlift_shares_user_id").on(table.userId).where(sql`${table.userId} IS NOT NULL`),
+  index("idx_brainlift_shares_token").on(table.token).where(sql`${table.token} IS NOT NULL`),
+
+  // Constraints
+  unique("unique_user_share").on(table.brainliftId, table.userId),
+
+  // CHECK constraints
+  check("valid_type", sql`${table.type} IN ('user', 'token')`),
+  check("valid_permission", sql`${table.permission} IN ('viewer', 'editor')`),
+  check("user_share_has_user_id", sql`
+    (${table.type} = 'user' AND ${table.userId} IS NOT NULL AND ${table.token} IS NULL) OR
+    (${table.type} = 'token' AND ${table.token} IS NOT NULL AND ${table.userId} IS NULL)
+  `),
+]);
+
 // LLM Models for Fact Verification - Gemini primary, Qwen fallback
 export const LLM_MODELS = {
   GEMINI_FLASH: 'google/gemini-2.0-flash-001',
@@ -320,6 +348,22 @@ export const brainliftsRelations = relations(brainlifts, ({ one, many }) => ({
   versions: many(brainliftVersions),
   sourceFeedback: many(sourceFeedback),
   experts: many(experts),
+  shares: many(brainliftShares),
+}));
+
+export const brainliftSharesRelations = relations(brainliftShares, ({ one }) => ({
+  brainlift: one(brainlifts, {
+    fields: [brainliftShares.brainliftId],
+    references: [brainlifts.id],
+  }),
+  user: one(user, {
+    fields: [brainliftShares.userId],
+    references: [user.id],
+  }),
+  createdBy: one(user, {
+    fields: [brainliftShares.createdByUserId],
+    references: [user.id],
+  }),
 }));
 
 export const expertsRelations = relations(experts, ({ one }) => ({
@@ -544,6 +588,7 @@ export const insertFactRedundancyGroupSchema = createInsertSchema(factRedundancy
 export const insertDok2SummarySchema = createInsertSchema(dok2Summaries).omit({ id: true, createdAt: true });
 export const insertDok2PointSchema = createInsertSchema(dok2Points).omit({ id: true });
 export const insertDok2FactRelationSchema = createInsertSchema(dok2FactRelations).omit({ id: true });
+export const insertBrainliftShareSchema = createInsertSchema(brainliftShares).omit({ id: true, createdAt: true });
 
 // === TYPES ===
 
@@ -583,6 +628,8 @@ export type Dok2Point = typeof dok2Points.$inferSelect;
 export type InsertDok2Point = z.infer<typeof insertDok2PointSchema>;
 export type Dok2FactRelation = typeof dok2FactRelations.$inferSelect;
 export type InsertDok2FactRelation = z.infer<typeof insertDok2FactRelationSchema>;
+export type BrainliftShare = typeof brainliftShares.$inferSelect;
+export type InsertBrainliftShare = z.infer<typeof insertBrainliftShareSchema>;
 
 // Full brainlift data with nested relations (for API response)
 export interface BrainliftData extends Brainlift {

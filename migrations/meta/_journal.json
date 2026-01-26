@@ -43,6 +43,13 @@
       "when": 1769188711719,
       "tag": "0005_smiling_makkari",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1769442190484,
+      "tag": "0006_absent_cassandra_nova",
+      "breakpoints": true
     }
   ]
 }

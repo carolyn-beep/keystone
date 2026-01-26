@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useMemo } from 'react';
+import { useState, useRef, useEffect, useMemo, useCallback } from 'react';
 import { useInfiniteQuery, useMutation } from '@tanstack/react-query';
 import { useLocation, useSearch } from 'wouter';
 import { Brainlift } from '@shared/schema';
@@ -11,6 +11,7 @@ import { EmptyState } from '@/components/home/EmptyState';
 import { BrainliftCard } from '@/components/home/BrainliftCard';
 import { LoadMoreButton } from '@/components/home/LoadMoreButton';
 import { AddBrainliftModal } from '@/components/home/AddBrainliftModal';
+import { FilterTabs } from '@/components/home/FilterTabs';
 
 export default function Home() {
   const [, setLocation] = useLocation();
@@ -24,11 +25,18 @@ export default function Home() {
   const isAdmin = session?.user?.role === 'admin';
 
   // Admin view state from URL query param (?admin=true)
+  // Filter state from URL query param (?filter=owned|shared)
   const searchString = useSearch();
   const adminView = useMemo(() => {
     const params = new URLSearchParams(searchString);
     return params.get('admin') === 'true' && isAdmin;
   }, [searchString, isAdmin]);
+
+  const filter = useMemo(() => {
+    const params = new URLSearchParams(searchString);
+    const filterParam = params.get('filter');
+    return (filterParam === 'owned' || filterParam === 'shared') ? filterParam : 'all';
+  }, [searchString]);
 
   interface PaginatedResponse {
     brainlifts: Brainlift[];
@@ -47,10 +55,11 @@ export default function Home() {
     hasNextPage,
     isFetchingNextPage,
   } = useInfiniteQuery({
-    queryKey: ['/api/brainlifts', adminView] as const,
+    queryKey: ['/api/brainlifts', adminView, filter] as const,
     queryFn: async ({ pageParam }) => {
       const params = new URLSearchParams();
       if (adminView) params.set('all', 'true');
+      if (filter !== 'all') params.set('filter', filter);
       params.set('page', String(pageParam));
       const res = await fetch(`/api/brainlifts?${params}`);
       if (!res.ok) throw new Error('Failed to fetch');
@@ -124,6 +133,17 @@ export default function Home() {
     setLocation(`/grading/${slug}`);
   };
 
+  const handleFilterChange = useCallback((newFilter: 'all' | 'owned' | 'shared') => {
+    const params = new URLSearchParams(window.location.search);
+    if (newFilter === 'all') {
+      params.delete('filter');
+    } else {
+      params.set('filter', newFilter);
+    }
+    const newSearch = params.toString();
+    setLocation(newSearch ? `/?${newSearch}` : '/');
+  }, [setLocation]);
+
   return (
     <div className="min-h-screen bg-background font-['Inter',-apple-system,sans-serif]">
       <HomeHeader
@@ -135,6 +155,12 @@ export default function Home() {
       <div className="h-0.5 bg-primary" />
 
       <main className="px-4 sm:px-6 md:px-8 py-4 max-w-[1200px] mx-auto">
+        {/* Filter Tabs */}
+        <FilterTabs
+          activeFilter={filter}
+          onFilterChange={handleFilterChange}
+        />
+
         {isLoading ? (
           <div className="flex justify-center p-10">
             <Loader2 size={32} className="animate-spin text-muted-foreground" />

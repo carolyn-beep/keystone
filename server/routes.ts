@@ -6,6 +6,7 @@ import { redundancyRouter } from "./routes/redundancy";
 import { researchRouter } from "./routes/research";
 import { analyticsRouter } from "./routes/analytics";
 import { brainliftsRouter } from "./routes/brainlifts";
+import { sharesRouter } from "./routes/shares";
 import { devRouter } from "./routes/dev";
 import { errorHandler } from "./middleware/error-handler";
 import { seedDatabase, backfillOriginalContent } from "./seed";
@@ -21,6 +22,7 @@ export async function registerRoutes(
   app.use(researchRouter);
   app.use(analyticsRouter);
   app.use(brainliftsRouter);
+  app.use(sharesRouter);
   app.use(devRouter);
 
   // Global error handler - must be after all routes

@@ -1,6 +1,7 @@
 import { useState, useMemo, useCallback } from 'react';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { Link, useSearch } from 'wouter';
+import { authClient } from '@/lib/auth-client';
 import { BrainliftData, ReadingListGrade, BrainliftVersion, CLASSIFICATION, type Expert, type Fact } from '@shared/schema';
 import { ChevronUp, ExternalLink, Download, RefreshCw, History, X, Upload, Search, Plus, Loader2, AlertTriangle, FileText, Clock, ThumbsUp, ThumbsDown, Users, User, Trash2, CheckCircle } from 'lucide-react';
 import { SiX } from 'react-icons/si';
@@ -15,11 +16,12 @@ import { FactGradingPanel } from '@/components/fact-grading';
 import { DashboardHeader } from '@/components/DashboardHeader';
 import { ContradictionsTab } from '@/components/ContradictionsTab';
 import { ReadingListTab } from '@/components/ReadingListTab';
-import { UpdateModal, FactDetailModal, HistoryModal, RedundancyModal, ResearchModal, AddResourceModal } from '@/components/modals';
+import { UpdateModal, FactDetailModal, HistoryModal, RedundancyModal, ResearchModal, AddResourceModal, ShareModal } from '@/components/modals';
 import { NotBrainliftView } from '@/components/NotBrainliftView';
 import { BrainliftTab } from '@/components/BrainliftTab';
 import { SummariesTab } from '@/components/SummariesTab';
 import { usePDFExport } from '@/hooks/usePDFExport';
+import { useShareToken } from '@/hooks/useShareToken';
 
 interface DashboardProps {
   slug: string;
@@ -30,6 +32,9 @@ const VALID_TABS = ['brainlift', 'grading', 'contradictions', 'reading', 'summar
 type TabKey = typeof VALID_TABS[number];
 
 export default function Dashboard({ slug, isSharedView = false }: DashboardProps) {
+  // Handle share token redemption if ?share=TOKEN is present
+  const { isRedeeming } = useShareToken();
+
   // URL-synced tab state using query params (?tab=grading)
   const searchString = useSearch();
   const activeTab = useMemo(() => {
@@ -55,6 +60,7 @@ export default function Dashboard({ slug, isSharedView = false }: DashboardProps
   const [expandedFacts, setExpandedFacts] = useState<number[]>([]);
   const [showUpdateModal, setShowUpdateModal] = useState(false);
   const [showHistoryModal, setShowHistoryModal] = useState(false);
+  const [showShareModal, setShowShareModal] = useState(false);
   const [updateSourceType, setUpdateSourceType] = useState<'html' | 'workflowy' | 'googledocs'>('workflowy');
   const [updateFile, setUpdateFile] = useState<File | null>(null);
   const [updateUrl, setUpdateUrl] = useState('');
@@ -78,6 +84,12 @@ const { toast } = useToast();
     isUpdating,
     updateError,
   } = useBrainlift(slug, isSharedView);
+
+  // Get user permission from backend-enriched data
+  const userPermission = data?.userPermission ?? null;
+  const isOwner = userPermission === 'owner';
+  const canModify = userPermission === 'owner' || userPermission === 'editor';
+  const canDelete = userPermission === 'owner';
 
 const { downloadBrainliftPDF } = usePDFExport();
 
@@ -176,6 +188,15 @@ const { downloadBrainliftPDF } = usePDFExport();
     downloadBrainliftPDF(data, grades);
   };
 
+  // Show loading while redeeming share token
+  if (isRedeeming) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <Loader2 className="animate-spin" size={32} />
+      </div>
+    );
+  }
+
   if (isLoading) return <div className="p-12 text-center">Loading...</div>;
   if (error || !data) return (
     <div className="p-12 text-center">
@@ -204,6 +225,9 @@ const { downloadBrainliftPDF } = usePDFExport();
         setShowUpdateModal={setShowUpdateModal}
         setShowHistoryModal={setShowHistoryModal}
         handleDownloadPDF={handleDownloadPDF}
+        isOwner={isOwner}
+        setShowShareModal={setShowShareModal}
+        canModify={canModify}
       />
 
       {/* Main Content */}
@@ -266,6 +290,7 @@ const { downloadBrainliftPDF } = usePDFExport();
               onAnalyzeRedundancy={() => analyzeRedundancy()}
               isAnalyzingRedundancy={isAnalyzingRedundancy}
               onViewFactFullText={(fact) => setSelectedFactForModal(fact)}
+              canModify={canModify}
             />
           </div>
         )}
@@ -314,6 +339,7 @@ const { downloadBrainliftPDF } = usePDFExport();
             refreshExpertsMutation={refreshExpertsMutation}
             toggleExpertFollowMutation={toggleExpertFollowMutation}
             deleteExpertMutation={deleteExpertMutation}
+            canModify={canModify}
           />
         )}
 
@@ -371,6 +397,14 @@ const { downloadBrainliftPDF } = usePDFExport();
         show={showAddResourceModal}
         onClose={() => setShowAddResourceModal(false)}
         slug={slug}
+      />
+
+      {/* Share Modal */}
+      <ShareModal
+        show={showShareModal}
+        onClose={() => setShowShareModal(false)}
+        slug={slug}
+        isOwner={isOwner}
       />
     </div>
   );

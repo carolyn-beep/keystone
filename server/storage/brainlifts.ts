@@ -7,6 +7,7 @@ import {
   type BrainliftVersion, type AuthContext
 } from './base';
 import { getDOK2Summaries, deleteDOK2Summaries } from './dok2';
+import { getSharedBrainlifts } from './shares';
 
 export async function getBrainliftBySlug(slug: string): Promise<BrainliftData | undefined> {
   const [brainlift] = await db.select().from(brainlifts).where(eq(brainlifts.slug, slug));
@@ -33,6 +34,13 @@ export async function getBrainliftBySlug(slug: string): Promise<BrainliftData | 
 export async function getBrainliftById(id: number): Promise<Brainlift | undefined> {
   const [brainlift] = await db.select().from(brainlifts).where(eq(brainlifts.id, id));
   return brainlift;
+}
+
+/**
+ * Get all brainlifts owned by a specific user
+ */
+export async function getBrainliftsByOwnerId(userId: string): Promise<Brainlift[]> {
+  return await db.select().from(brainlifts).where(eq(brainlifts.createdByUserId, userId));
 }
 
 export async function createBrainlift(
@@ -273,19 +281,73 @@ export async function getVersionsByBrainliftId(brainliftId: number): Promise<Bra
 export async function getBrainliftsForUserPaginated(
   authContext: AuthContext,
   offset: number,
-  limit: number
+  limit: number,
+  filter: 'all' | 'owned' | 'shared' = 'all'
 ): Promise<{ brainlifts: Brainlift[]; total: number }> {
-  const [countResult] = await db.select({ count: sql<number>`count(*)` })
-    .from(brainlifts)
-    .where(eq(brainlifts.createdByUserId, authContext.userId));
+  const { getUserSharePermission } = await import('./shares');
 
-  const items = await db.select().from(brainlifts)
+  if (filter === 'shared') {
+    // Get brainlifts shared with user via shares table
+    const { getSharedBrainlifts } = await import('./shares');
+    const sharedBrainlifts = await getSharedBrainlifts(authContext.userId, offset, limit);
+
+    // Get total count for pagination
+    const [countResult] = await db.select({ count: sql<number>`count(*)` })
+      .from(brainlifts)
+      .innerJoin(
+        sql`(SELECT DISTINCT brainlift_id FROM brainlift_shares WHERE user_id = ${authContext.userId} AND type = 'user')`,
+        sql`brainlifts.id = brainlift_id`
+      );
+
+    return { brainlifts: sharedBrainlifts, total: Number(countResult.count) };
+  }
+
+  if (filter === 'owned') {
+    // Only brainlifts owned by user
+    const [countResult] = await db.select({ count: sql<number>`count(*)` })
+      .from(brainlifts)
+      .where(eq(brainlifts.createdByUserId, authContext.userId));
+
+    const items = await db.select().from(brainlifts)
+      .where(eq(brainlifts.createdByUserId, authContext.userId))
+      .orderBy(desc(brainlifts.id))
+      .limit(limit)
+      .offset(offset);
+
+    return { brainlifts: items, total: Number(countResult.count) };
+  }
+
+  // filter === 'all': Both owned and shared
+  const ownedBrainlifts = await db.select().from(brainlifts)
     .where(eq(brainlifts.createdByUserId, authContext.userId))
     .orderBy(desc(brainlifts.id))
     .limit(limit)
     .offset(offset);
 
-  return { brainlifts: items, total: Number(countResult.count) };
+  const sharedBrainlifts = await getSharedBrainlifts(authContext.userId, offset, limit);
+
+  // Combine and deduplicate (shouldn't happen but just in case)
+  const allBrainlifts = [...ownedBrainlifts, ...sharedBrainlifts];
+  const uniqueBrainlifts = Array.from(
+    new Map(allBrainlifts.map(b => [b.id, b])).values()
+  ).sort((a, b) => b.id - a.id);
+
+  // Get total count
+  const [ownedCount] = await db.select({ count: sql<number>`count(*)` })
+    .from(brainlifts)
+    .where(eq(brainlifts.createdByUserId, authContext.userId));
+
+  const [sharedCount] = await db.select({ count: sql<number>`count(*)` })
+    .from(brainlifts)
+    .innerJoin(
+      sql`(SELECT DISTINCT brainlift_id FROM brainlift_shares WHERE user_id = ${authContext.userId} AND type = 'user')`,
+      sql`brainlifts.id = brainlift_id`
+    );
+
+  return {
+    brainlifts: uniqueBrainlifts.slice(0, limit),
+    total: Number(ownedCount.count) + Number(sharedCount.count)
+  };
 }
 
 export async function getAllBrainliftsPaginated(
@@ -303,13 +365,47 @@ export async function getAllBrainliftsPaginated(
   return { brainlifts: items, total: Number(countResult.count) };
 }
 
-export function canAccessBrainlift(brainlift: Brainlift, authContext: AuthContext): boolean {
+/**
+ * Check if user can access a brainlift (read operations)
+ * Now async to check shares table
+ */
+export async function canAccessBrainlift(brainlift: Brainlift, authContext: AuthContext): Promise<boolean> {
+  // Admins can access everything
   if (authContext.isAdmin) return true;
+
+  // Legacy brainlifts (no owner) are admin-only
   if (brainlift.createdByUserId === null) return false;
-  return brainlift.createdByUserId === authContext.userId;
+
+  // Owner can access
+  if (brainlift.createdByUserId === authContext.userId) return true;
+
+  // Check if user has any share (viewer or editor)
+  const { getUserSharePermission } = await import('./shares');
+  const permission = await getUserSharePermission(brainlift.id, authContext.userId);
+  return permission !== null;
 }
 
-export function canModifyBrainlift(brainlift: Brainlift, authContext: AuthContext): boolean {
+/**
+ * Check if user can modify a brainlift (write operations)
+ * Now async to check shares table for editor permission
+ */
+export async function canModifyBrainlift(brainlift: Brainlift, authContext: AuthContext): Promise<boolean> {
+  // Admins can modify everything
   if (authContext.isAdmin) return true;
+
+  // Owner can modify
+  if (brainlift.createdByUserId === authContext.userId) return true;
+
+  // Check if user has editor permission
+  const { getUserSharePermission } = await import('./shares');
+  const permission = await getUserSharePermission(brainlift.id, authContext.userId);
+  return permission === 'editor';
+}
+
+/**
+ * Check if user is the owner of a brainlift (for delete and share management)
+ * Admins are NOT considered owners for transparency
+ */
+export function isOwner(brainlift: Brainlift, authContext: AuthContext): boolean {
   return brainlift.createdByUserId === authContext.userId;
 }
