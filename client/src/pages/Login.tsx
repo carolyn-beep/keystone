@@ -6,19 +6,23 @@ import { Card } from "@/components/ui/card";
 export default function Login() {
   const [, setLocation] = useLocation();
 
+  // Get redirect URL from query params
+  const searchParams = new URLSearchParams(window.location.search);
+  const redirectTo = searchParams.get('redirect') || '/';
+
   const handleGoogleSignIn = async () => {
     await authClient.signIn.social({
       provider: "google",
-      callbackURL: "/",
+      callbackURL: redirectTo,
     });
   };
 
   // Check if already logged in
   const { data: session, isPending } = authClient.useSession();
 
-  // Redirect to home if already authenticated
+  // Redirect to intended destination if already authenticated
   if (session && !isPending) {
-    setLocation("/");
+    setLocation(redirectTo);
     return null;
   }
 

@@ -7,7 +7,7 @@ interface ProtectedRouteProps {
 }
 
 export function ProtectedRoute({ children }: ProtectedRouteProps) {
-  const [, setLocation] = useLocation();
+  const [location, setLocation] = useLocation();
   const { data: session, isPending } = authClient.useSession();
 
   // Show loading state while checking auth
@@ -22,9 +22,10 @@ export function ProtectedRoute({ children }: ProtectedRouteProps) {
     );
   }
 
-  // Redirect to login if not authenticated
+  // Redirect to login if not authenticated, preserving the current URL with query params
   if (!session) {
-    setLocation("/login");
+    const currentPath = window.location.pathname + window.location.search;
+    setLocation(`/login?redirect=${encodeURIComponent(currentPath)}`);
     return null;
   }
 
