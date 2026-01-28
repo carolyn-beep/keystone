@@ -422,6 +422,28 @@ export async function saveBrainliftFromAI(
 
       await storage.saveDOK2Summaries(brainlift.id, gradedDOK2Summaries, factIdMap);
       console.log(`[Auto-Grade] DOK2 summaries saved successfully with grades`);
+
+      // Recalculate mean score to include both DOK1 and DOK2
+      const dok2Grades = gradedDOK2Summaries.filter(s => s.grade && s.grade > 0);
+      const dok2Sum = dok2Grades.reduce((sum, s) => sum + (s.grade || 0), 0);
+
+      const dok1Sum = gradeableFacts.reduce((sum, f) => sum + f.score, 0);
+      const totalGraded = gradeableFacts.length + dok2Grades.length;
+
+      const combinedMeanScore = totalGraded > 0
+        ? ((dok1Sum + dok2Sum) / totalGraded).toFixed(2)
+        : "0";
+
+      // Update brainlift summary with combined mean score
+      await storage.updateBrainliftFields(brainlift.id, {
+        summary: {
+          ...dynamicSummary,
+          meanScore: combinedMeanScore,
+        },
+      });
+
+      const dok2Mean = dok2Grades.length > 0 ? (dok2Sum / dok2Grades.length).toFixed(2) : '0';
+      console.log(`[Auto-Grade] Updated mean score: DOK1=${meanScore} (${gradeableFacts.length} facts), DOK2=${dok2Mean} (${dok2Grades.length} summaries), Combined=${combinedMeanScore}`);
     }
   } catch (err: any) {
     // Handle duplicate slug error with retry
