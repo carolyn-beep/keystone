@@ -23,6 +23,7 @@ import {
   type FormatDiagnosticsResult,
 } from '../ai/experts';
 import type { HierarchyNode } from '@shared/hierarchy-types';
+import { withJob } from '../utils/withJob';
 
 export const devRouter = Router();
 
@@ -493,6 +494,35 @@ if (!isDev) {
         success: false,
         error,
         diagnostics: { timing: { total: Date.now() - startTime } },
+      });
+    }
+  });
+
+  /**
+   * POST /dev/test-job
+   *
+   * Test endpoint for queueing background jobs.
+   * Queues an example job with optional name and delay parameters.
+   */
+  devRouter.post('/dev/test-job', async (req, res) => {
+    const { name, delay } = req.body;
+
+    try {
+      const jobId = await withJob('example:hello')
+        .forPayload({
+          name: name || 'World',
+          delay: delay || 0,
+        })
+        .queue();
+
+      res.json({
+        message: 'Job queued successfully',
+        jobId,
+        statusUrl: `/api/jobs/${jobId}`,
+      });
+    } catch (error: any) {
+      res.status(500).json({
+        error: error.message || 'Failed to queue job',
       });
     }
   });

@@ -173,6 +173,52 @@ Child resources (experts, facts, groups) accessed by ID must verify ownership:
 
 Split by domain in `server/storage/`. Import via facade: `import { storage } from '../storage'`
 
+### Background Jobs
+
+**⚠️ MANDATORY: Follow these steps exactly. NO shortcuts. Type safety is non-negotiable.**
+
+**Adding a new job (3 steps):**
+
+1. **Create job file** `server/jobs/{name}Job.ts`:
+   ```typescript
+   import type { JobHelpers } from 'graphile-worker';
+
+   export async function myJob(
+     payload: { userId: number; data: string },  // Explicit inline type
+     helpers: JobHelpers
+   ) {
+     helpers.logger.info('Job started', { userId: payload.userId });
+     // Implementation
+     return { result: 'success' };
+   }
+   ```
+
+2. **Register in** `server/jobs/tasks.ts`:
+   ```typescript
+   import { myJob } from './myJob';
+
+   const tasks = {
+     'example:hello': exampleJob,
+     'my:job': myJob,
+   } as const;  // REQUIRED
+   ```
+
+3. **Queue anywhere**:
+   ```typescript
+   import { withJob } from '../utils/withJob';
+
+   await withJob('my:job')
+     .forPayload({ userId: 123, data: 'test' })
+     .queue();
+   ```
+
+**MANDATORY RULES:**
+- ✅ Explicit payload type inline with function signature
+- ✅ `as const` in tasks registry
+- ❌ NO `Task` type on job functions
+- ❌ NO `any` types in payload
+- ❌ NO type assertions (`as`) in payload
+
 ---
 
 ## Styling Guidelines

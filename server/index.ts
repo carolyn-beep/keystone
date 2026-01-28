@@ -8,6 +8,8 @@ import { createServer } from "http";
 import { seedProductionIfEmpty } from "./seedProduction";
 import { auth } from "./lib/auth";
 import { toNodeHandler } from "better-auth/node";
+import { startWorker, stopWorker } from "./jobs/worker";
+import { pool } from "./db";
 
 const app = express();
 const httpServer = createServer(app);
@@ -73,7 +75,7 @@ app.use((req, res, next) => {
 (async () => {
   // Seed production database if empty
   await seedProductionIfEmpty();
-  
+
   await registerRoutes(httpServer, app);
 
   app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
@@ -93,6 +95,47 @@ app.use((req, res, next) => {
     const { setupVite } = await import("./vite");
     await setupVite(httpServer, app);
   }
+
+  // Start Graphile Worker (Option 1: same process)
+  let worker = null;
+  try {
+    worker = await startWorker();
+    log('[Worker] Started successfully', 'server');
+  } catch (error) {
+    log(`[Worker] Failed to start: ${error}`, 'server');
+    // Don't crash server if worker fails - log and continue
+  }
+
+  // Graceful shutdown handler
+  const shutdown = async (signal: string) => {
+    log(`Received ${signal}, shutting down gracefully...`, 'server');
+
+    // Stop accepting new connections and wait for in-flight HTTP requests to complete
+    await new Promise<void>((resolve) => {
+      httpServer.close(() => {
+        log('HTTP server closed', 'server');
+        resolve();
+      });
+    });
+
+    // Stop worker (waits for in-flight jobs to complete)
+    // Note: The worker shares the pool with Express routes.
+    // Graphile Worker's stop() method does NOT close the pool automatically,
+    // so we must close it explicitly after the worker stops.
+    if (worker) {
+      await stopWorker();
+    }
+
+    // Close database pool after all work is done
+    // This ensures in-flight HTTP requests and jobs have completed
+    await pool.end();
+
+    log('Shutdown complete', 'server');
+    process.exit(0);
+  };
+
+  process.on('SIGTERM', () => shutdown('SIGTERM'));
+  process.on('SIGINT', () => shutdown('SIGINT'));
 
   // ALWAYS serve the app on the port specified in the environment variable PORT
   // Other ports are firewalled. Default to 5000 if not specified.
