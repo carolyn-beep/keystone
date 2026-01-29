@@ -29,7 +29,7 @@ export async function addLearningStreamItem(
     time: string;
     facts: string;
     url: string;
-    source: 'quick-search' | 'deep-research' | 'twitter';
+    source: 'quick-search' | 'deep-research' | 'twitter' | 'swarm-research';
     relevanceScore?: string | null;
     aiRationale?: string | null;
   }
@@ -195,4 +195,23 @@ export async function hasResearchJobPending(brainliftId: number): Promise<boolea
   );
 
   return result.rows.length > 0;
+}
+
+/**
+ * Check if a URL already exists in the learning stream for a brainlift.
+ * Used by the swarm to avoid duplicate research.
+ */
+export async function checkLearningStreamDuplicate(
+  brainliftId: number,
+  url: string
+): Promise<boolean> {
+  const [existing] = await db.select({ id: learningStreamItems.id })
+    .from(learningStreamItems)
+    .where(and(
+      eq(learningStreamItems.brainliftId, brainliftId),
+      eq(learningStreamItems.url, url)
+    ))
+    .limit(1);
+
+  return !!existing;
 }

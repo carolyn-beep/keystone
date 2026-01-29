@@ -493,7 +493,7 @@ export const learningStreamItems = pgTable("learning_stream_items", {
   status: text("status").$type<'pending' | 'bookmarked' | 'graded' | 'discarded'>()
     .default('pending')
     .notNull(),
-  source: text("source").$type<'quick-search' | 'deep-research' | 'twitter'>().notNull(),
+  source: text("source").$type<'quick-search' | 'deep-research' | 'twitter' | 'swarm-research'>().notNull(),
 
   // Grading fields (populated when status='graded')
   quality: integer("quality"), // 1-5 scale, nullable

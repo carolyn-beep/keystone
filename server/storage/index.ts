@@ -101,6 +101,7 @@ export const storage = {
   gradeLearningStreamItem: learningStreamStorage.gradeLearningStreamItem,
   getLearningStreamStats: learningStreamStorage.getLearningStreamStats,
   hasResearchJobPending: learningStreamStorage.hasResearchJobPending,
+  checkLearningStreamDuplicate: learningStreamStorage.checkLearningStreamDuplicate,
 };
 
 // Export individual modules for direct access if needed

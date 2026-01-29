@@ -12,6 +12,10 @@ vite.config.ts.*
 
 # Sample files
 Samples/
+docs/
+
+# Swarm logs
+logs/
 
 docs/why-we-need-to-kill-workflowy.md
 docs/brainlift-sharing-implementation-plan.md
