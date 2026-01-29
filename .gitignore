@@ -12,3 +12,6 @@ vite.config.ts.*
 
 # Sample files
 Samples/
+
+docs/why-we-need-to-kill-workflowy.md
+docs/brainlift-sharing-implementation-plan.md

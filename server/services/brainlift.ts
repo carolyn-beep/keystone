@@ -13,6 +13,7 @@ import pLimit from "p-limit";
 
 interface PostProcessingInput {
   brainliftId: number;
+  slug: string;
   title: string;
   description: string;
   author: string | null;
@@ -76,6 +77,23 @@ export async function runPostProcessingPipeline(
       }
     })(),
   ]);
+
+  // Queue learning stream research job (non-blocking)
+  // This runs AFTER experts are extracted and saved to database
+  try {
+    const { withJob } = await import('../utils/withJob');
+
+    await withJob('learning-stream:research')
+      .forPayload({
+        brainliftId: input.brainliftId,
+      })
+      .queue();
+
+    console.log(`[Learning Stream] Research job queued for brainlift ${input.slug}`);
+  } catch (jobErr) {
+    // Don't fail the import if job queuing fails
+    console.error('[Learning Stream] Failed to queue research job:', jobErr);
+  }
 }
 
 export async function saveBrainliftFromAI(
@@ -457,6 +475,7 @@ export async function saveBrainliftFromAI(
   // Run expert extraction and redundancy analysis in parallel after save
   await runPostProcessingPipeline({
     brainliftId: brainlift.id,
+    slug: slug,
     title: data.title,
     description: data.description,
     author: data.owner || null,

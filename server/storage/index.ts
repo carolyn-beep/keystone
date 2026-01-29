@@ -9,6 +9,7 @@ import * as redundancyStorage from './redundancy';
 import * as analyticsStorage from './analytics';
 import * as dok2Storage from './dok2';
 import * as sharesStorage from './shares';
+import * as learningStreamStorage from './learning-stream';
 
 // Re-export types from base
 export type {
@@ -91,7 +92,14 @@ export const storage = {
   saveDOK2Summaries: dok2Storage.saveDOK2Summaries,
   getDOK2Summaries: dok2Storage.getDOK2Summaries,
   deleteDOK2Summaries: dok2Storage.deleteDOK2Summaries,
+
+  // Learning Stream
+  addLearningStreamItem: learningStreamStorage.addLearningStreamItem,
+  getLearningStreamItems: learningStreamStorage.getLearningStreamItems,
+  updateLearningStreamItemStatus: learningStreamStorage.updateLearningStreamItemStatus,
+  gradeLearningStreamItem: learningStreamStorage.gradeLearningStreamItem,
+  getLearningStreamStats: learningStreamStorage.getLearningStreamStats,
 };
 
 // Export individual modules for direct access if needed
-export { brainliftsStorage, readingListStorage, expertsStorage, verificationsStorage, redundancyStorage, analyticsStorage, dok2Storage, sharesStorage };
+export { brainliftsStorage, readingListStorage, expertsStorage, verificationsStorage, redundancyStorage, analyticsStorage, dok2Storage, sharesStorage, learningStreamStorage };

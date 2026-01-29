@@ -9,6 +9,7 @@ export type {
   FactVerification, InsertFactVerification, FactModelScore, InsertFactModelScore,
   FactWithVerification, LLMModel, LlmFeedback, ModelAccuracyStats,
   FactRedundancyGroup, InsertFactRedundancyGroup, RedundancyStatus,
+  LearningStreamItem, NewLearningStreamItem,
   AuthContext
 } from "@shared/schema";
 
@@ -16,7 +17,7 @@ export {
   brainlifts, facts, contradictionClusters, readingListItems, readingListGrades,
   brainliftVersions, sourceFeedback, experts, factVerifications, factModelScores,
   llmFeedback, modelAccuracyStats, factRedundancyGroups, LLM_MODELS,
-  dok2Summaries, dok2Points, dok2FactRelations
+  dok2Summaries, dok2Points, dok2FactRelations, learningStreamItems
 } from "@shared/schema";
 
 export { eq, inArray, desc, and, sql, isNull, or } from "drizzle-orm";

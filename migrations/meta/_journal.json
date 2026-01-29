@@ -50,6 +50,27 @@
       "when": 1769442190484,
       "tag": "0006_absent_cassandra_nova",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1769628122169,
+      "tag": "0007_hot_patch",
+      "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1769636538482,
+      "tag": "0008_majestic_namora",
+      "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1769647053359,
+      "tag": "0009_calm_jean_grey",
+      "breakpoints": true
     }
   ]
 }

@@ -1,0 +1,1 @@
+ALTER TABLE "learning_stream_items" ADD CONSTRAINT "unique_brainlift_url" UNIQUE("brainlift_id","url");

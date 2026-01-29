@@ -1,4 +1,5 @@
 import { exampleJob } from './exampleJob';
+import { learningStreamResearchJob } from './learningStreamResearchJob';
 
 /**
  * Central registry of all background jobs.
@@ -11,6 +12,7 @@ import { exampleJob } from './exampleJob';
  */
 const tasks = {
   'example:hello': exampleJob,
+  'learning-stream:research': learningStreamResearchJob,
   // Future jobs will be added here:
   // 'brainlift:import': importBrainliftJob,
   // 'brainlift:verify-all': verifyAllFactsJob,

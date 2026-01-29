@@ -173,6 +173,43 @@ Child resources (experts, facts, groups) accessed by ID must verify ownership:
 
 Split by domain in `server/storage/`. Import via facade: `import { storage } from '../storage'`
 
+### Database Query Patterns
+
+#### Push Computation to the Database
+
+Don't fetch rows to process in JavaScript when the database can do it:
+
+- **Counting** → `COUNT(*)` not `rows.length`
+- **Summing/Averaging** → `SUM()`, `AVG()` not `.reduce()`
+- **Min/Max** → `MIN()`, `MAX()` not sorting and taking first/last
+- **Grouping** → `GROUP BY` not building objects in JS
+- **Filtering** → `WHERE` not `.filter()`
+- **Null filtering** → `WHERE x IS NOT NULL` not `.filter(r => r.x !== null)`
+- **Sorting** → `ORDER BY` not `.sort()`
+- **Deduplication** → `DISTINCT` or `DISTINCT ON` not `new Set()` or manual deduping
+- **Existence checks** → `SELECT 1 ... LIMIT 1` not fetching to check `.length > 0`
+- **Joining related data** → `JOIN` not fetching tables separately and merging in JS
+- **Pagination** → `LIMIT/OFFSET` not fetching all and slicing
+- **Looking up by list** → `WHERE id IN (...)` not looping with individual queries
+- **Batch writes** → Multi-row `INSERT`/`UPDATE` not looping with individual statements
+- **Default values** → `COALESCE(column, default)` not applying defaults after fetch
+- **Conditional logic** → `CASE WHEN` not ternaries on fetched data
+- **Date operations** → `DATE_TRUNC`, `EXTRACT`, interval arithmetic not JS date manipulation
+
+The database is optimized for these operations, uses indexes effectively, and avoids transferring unnecessary data over the wire.
+
+#### Index What You Query
+
+Add indexes for columns that appear in `WHERE`, `JOIN ON`, and `ORDER BY` clauses—especially on tables expected to grow. For queries filtering on multiple columns, use composite indexes with the most selective column first.
+
+Review query patterns before they ship, not after performance degrades.
+
+#### Avoid `as any`
+
+Cast to specific types, not `any`. If the type is known after validation, use the actual union type. If there's a genuine structural mismatch that can't be fixed upstream, add a comment explaining the cast.
+
+Exception: `catch (error: any)` is acceptable since caught errors are inherently untyped.
+
 ### Background Jobs
 
 **⚠️ MANDATORY: Follow these steps exactly. NO shortcuts. Type safety is non-negotiable.**

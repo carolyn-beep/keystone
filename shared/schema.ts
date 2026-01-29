@@ -349,6 +349,7 @@ export const brainliftsRelations = relations(brainlifts, ({ one, many }) => ({
   sourceFeedback: many(sourceFeedback),
   experts: many(experts),
   shares: many(brainliftShares),
+  learningStreamItems: many(learningStreamItems),
 }));
 
 export const brainliftSharesRelations = relations(brainliftShares, ({ one }) => ({
@@ -475,6 +476,46 @@ export const factRedundancyGroupsRelations = relations(factRedundancyGroups, ({ 
   }),
 }));
 
+// Learning Stream - Automated research feed items
+export const learningStreamItems = pgTable("learning_stream_items", {
+  id: serial("id").primaryKey(),
+  brainliftId: integer("brainlift_id").notNull().references(() => brainlifts.id, { onDelete: "cascade" }),
+
+  // Source metadata
+  type: text("type").notNull(), // "Substack", "Twitter", "Blog", "Research", "Academic Paper"
+  author: text("author").notNull(),
+  topic: text("topic").notNull(), // Title or brief description
+  time: text("time").notNull(), // "5 min", "15 min"
+  facts: text("facts").notNull(), // Summary/relevance description
+  url: text("url").notNull(),
+
+  // Learning stream state
+  status: text("status").$type<'pending' | 'bookmarked' | 'graded' | 'discarded'>()
+    .default('pending')
+    .notNull(),
+  source: text("source").$type<'quick-search' | 'deep-research' | 'twitter'>().notNull(),
+
+  // Grading fields (populated when status='graded')
+  quality: integer("quality"), // 1-5 scale, nullable
+  alignment: text("alignment").$type<'yes' | 'no'>(), // nullable
+
+  // AI metadata
+  relevanceScore: text("relevance_score"), // "0.85" from AI classification
+  aiRationale: text("ai_rationale"), // Why AI suggested this
+
+  // Timestamps
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+}, (table) => [
+  // Prevent duplicate URLs per brainlift
+  unique("unique_brainlift_url").on(table.brainliftId, table.url),
+  // Optimize status filtering queries
+  index("idx_learning_stream_status").on(table.brainliftId, table.status),
+]);
+
+export type LearningStreamItem = typeof learningStreamItems.$inferSelect;
+export type NewLearningStreamItem = typeof learningStreamItems.$inferInsert;
+
 // DOK2 Grading - Fail reasons for auto-fail conditions
 export const DOK2_FAIL_REASON = {
   COPY_PASTE: 'copy_paste',
@@ -570,6 +611,13 @@ export const readingListGradesRelations = relations(readingListGrades, ({ one })
   }),
 }));
 
+export const learningStreamItemsRelations = relations(learningStreamItems, ({ one }) => ({
+  brainlift: one(brainlifts, {
+    fields: [learningStreamItems.brainliftId],
+    references: [brainlifts.id],
+  }),
+}));
+
 // === SCHEMAS ===
 
 export const insertBrainliftSchema = createInsertSchema(brainlifts);
@@ -589,6 +637,7 @@ export const insertDok2SummarySchema = createInsertSchema(dok2Summaries).omit({ 
 export const insertDok2PointSchema = createInsertSchema(dok2Points).omit({ id: true });
 export const insertDok2FactRelationSchema = createInsertSchema(dok2FactRelations).omit({ id: true });
 export const insertBrainliftShareSchema = createInsertSchema(brainliftShares).omit({ id: true, createdAt: true });
+export const insertLearningStreamItemSchema = createInsertSchema(learningStreamItems).omit({ id: true, createdAt: true, updatedAt: true });
 
 // === TYPES ===
 
@@ -630,6 +679,7 @@ export type Dok2FactRelation = typeof dok2FactRelations.$inferSelect;
 export type InsertDok2FactRelation = z.infer<typeof insertDok2FactRelationSchema>;
 export type BrainliftShare = typeof brainliftShares.$inferSelect;
 export type InsertBrainliftShare = z.infer<typeof insertBrainliftShareSchema>;
+export type InsertLearningStreamItem = z.infer<typeof insertLearningStreamItemSchema>;
 
 // Full brainlift data with nested relations (for API response)
 export interface BrainliftData extends Brainlift {

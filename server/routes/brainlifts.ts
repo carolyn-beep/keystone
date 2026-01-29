@@ -325,6 +325,7 @@ brainliftsRouter.patch(
     // Run expert extraction and redundancy analysis in parallel after update
     await runPostProcessingPipeline({
       brainliftId: updatedBrainlift.id,
+      slug: slug,
       title: brainliftData.title,
       description: brainliftData.description,
       author: (brainliftData as any).author || null,
