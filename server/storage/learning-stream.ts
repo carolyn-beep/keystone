@@ -3,6 +3,7 @@ import {
   learningStreamItems,
   type LearningStreamItem, type NewLearningStreamItem
 } from './base';
+import { pool } from '../db';
 import { z } from 'zod';
 
 // URL validation schema - only allow http/https protocols to prevent XSS
@@ -177,4 +178,21 @@ export async function getLearningStreamStats(brainliftId: number): Promise<{
   }
 
   return stats;
+}
+
+/**
+ * Check if there's a pending or running research job for this brainlift.
+ * Queries graphile_worker's jobs table directly.
+ */
+export async function hasResearchJobPending(brainliftId: number): Promise<boolean> {
+  const result = await pool.query(
+    `SELECT 1 FROM graphile_worker._private_jobs j
+     JOIN graphile_worker._private_tasks t ON j.task_id = t.id
+     WHERE t.identifier = 'learning-stream:research'
+       AND j.payload->>'brainliftId' = $1::text
+     LIMIT 1`,
+    [brainliftId.toString()]
+  );
+
+  return result.rows.length > 0;
 }

@@ -360,7 +360,7 @@ export async function saveBrainliftFromAI(
 
     // Save DOK2 summaries if present (with grading)
     if (data.dok2Summaries && data.dok2Summaries.length > 0) {
-      console.log(`[Auto-Grade] Grading and saving ${data.dok2Summaries.length} DOK2 summaries...`);
+      console.log(`[Auto-Grade] ${skipGrading ? 'Skipping grading and saving' : 'Grading and saving'} ${data.dok2Summaries.length} DOK2 summaries...`);
 
       // Build fact ID map: originalId -> database ID
       const savedFacts = await storage.getFactsForBrainlift(brainlift.id);
@@ -380,7 +380,7 @@ export async function saveBrainliftFromAI(
       // Emit initial DOK2 grading progress
       onProgress?.({
         stage: 'grading_dok2',
-        message: STAGE_LABELS.grading_dok2,
+        message: skipGrading ? 'Skipping DOK2 grading (SKIP_GRADING=true)' : STAGE_LABELS.grading_dok2,
         completed: 0,
         total: totalDOK2,
       });
@@ -397,6 +397,22 @@ export async function saveBrainliftFromAI(
         const summaryPoints = summary.points.map((p: { text: string }) => p.text);
 
         let gradeResult: DOK2GradeResult;
+
+        // Fast path: skip DOK2 grading if SKIP_GRADING=true
+        if (skipGrading) {
+          dok2CompletedCount++;
+          onProgress?.({ stage: 'grading_dok2', message: 'Skipping DOK2 grading', completed: dok2CompletedCount, total: totalDOK2 });
+          return {
+            ...summary,
+            displayTitle: null,
+            grade: 0,
+            diagnosis: 'Grading skipped (SKIP_GRADING=true)',
+            feedback: 'Grading skipped',
+            failReason: null,
+            sourceVerified: false,
+          };
+        }
+
         try {
           gradeResult = await gradeDOK2Summary(
             summaryPoints,

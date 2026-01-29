@@ -35,8 +35,8 @@ export async function learningStreamResearchJob(
       };
     }
 
-    // Fetch brainlift data
-    const brainlift = await storage.getBrainliftById(brainliftId);
+    // Fetch brainlift data (with facts, experts, etc.)
+    const brainlift = await storage.getBrainliftDataById(brainliftId);
     if (!brainlift) {
       throw new Error(`Brainlift not found: ${brainliftId}`);
     }
@@ -244,6 +244,7 @@ export async function learningStreamResearchJob(
     };
 
   } catch (error: any) {
+    console.error('[Learning Stream] Job failed:', error.message, error.stack);
     helpers.logger.error('Learning stream research job failed', {
       brainliftId,
       error: error.message,

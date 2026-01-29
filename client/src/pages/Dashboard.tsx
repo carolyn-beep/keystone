@@ -20,6 +20,7 @@ import { UpdateModal, FactDetailModal, HistoryModal, RedundancyModal, ResearchMo
 import { NotBrainliftView } from '@/components/NotBrainliftView';
 import { BrainliftTab } from '@/components/BrainliftTab';
 import { SummariesTab } from '@/components/SummariesTab';
+import { LearningStreamTab } from '@/components/LearningStreamTab';
 import { usePDFExport } from '@/hooks/usePDFExport';
 import { useShareToken } from '@/hooks/useShareToken';
 
@@ -28,7 +29,7 @@ interface DashboardProps {
   isSharedView?: boolean;
 }
 
-const VALID_TABS = ['brainlift', 'grading', 'contradictions', 'reading', 'summaries'] as const;
+const VALID_TABS = ['brainlift', 'grading', 'contradictions', 'reading', 'learning', 'summaries'] as const;
 type TabKey = typeof VALID_TABS[number];
 
 export default function Dashboard({ slug, isSharedView = false }: DashboardProps) {
@@ -341,6 +342,11 @@ const { downloadBrainliftPDF } = usePDFExport();
             deleteExpertMutation={deleteExpertMutation}
             canModify={canModify}
           />
+        )}
+
+        {/* Learning Stream Tab - AI-curated resources */}
+        {!isNotBrainlift && activeTab === 'learning' && (
+          <LearningStreamTab slug={slug} canModify={canModify} />
         )}
 
       </main>

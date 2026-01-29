@@ -30,6 +30,7 @@ export const storage = {
   // Brainlifts
   getBrainliftBySlug: brainliftsStorage.getBrainliftBySlug,
   getBrainliftById: brainliftsStorage.getBrainliftById,
+  getBrainliftDataById: brainliftsStorage.getBrainliftDataById,
   getBrainliftsByOwnerId: brainliftsStorage.getBrainliftsByOwnerId,
   createBrainlift: brainliftsStorage.createBrainlift,
   updateBrainlift: brainliftsStorage.updateBrainlift,
@@ -99,6 +100,7 @@ export const storage = {
   updateLearningStreamItemStatus: learningStreamStorage.updateLearningStreamItemStatus,
   gradeLearningStreamItem: learningStreamStorage.gradeLearningStreamItem,
   getLearningStreamStats: learningStreamStorage.getLearningStreamStats,
+  hasResearchJobPending: learningStreamStorage.hasResearchJobPending,
 };
 
 // Export individual modules for direct access if needed

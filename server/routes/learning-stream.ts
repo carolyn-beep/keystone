@@ -56,7 +56,7 @@ learningStreamRouter.get(
 
 /**
  * GET /api/brainlifts/:slug/learning-stream/stats
- * Get learning stream statistics
+ * Get learning stream statistics (includes isResearching flag)
  */
 learningStreamRouter.get(
   '/api/brainlifts/:slug/learning-stream/stats',
@@ -64,8 +64,11 @@ learningStreamRouter.get(
   requireBrainliftAccess,
   asyncHandler(async (req, res) => {
     const brainlift = req.brainlift!;
-    const stats = await storage.getLearningStreamStats(brainlift.id);
-    res.json(stats);
+    const [stats, isResearching] = await Promise.all([
+      storage.getLearningStreamStats(brainlift.id),
+      storage.hasResearchJobPending(brainlift.id),
+    ]);
+    res.json({ ...stats, isResearching });
   })
 );
 

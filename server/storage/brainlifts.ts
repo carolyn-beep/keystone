@@ -36,6 +36,28 @@ export async function getBrainliftById(id: number): Promise<Brainlift | undefine
   return brainlift;
 }
 
+export async function getBrainliftDataById(id: number): Promise<BrainliftData | undefined> {
+  const [brainlift] = await db.select().from(brainlifts).where(eq(brainlifts.id, id));
+
+  if (!brainlift) return undefined;
+
+  const brainliftFacts = await db.select().from(facts).where(eq(facts.brainliftId, brainlift.id));
+  const clusters = await db.select().from(contradictionClusters).where(eq(contradictionClusters.brainliftId, brainlift.id));
+  const readingList = await db.select().from(readingListItems).where(eq(readingListItems.brainliftId, brainlift.id));
+  const brainliftExperts = await db.select().from(experts).where(eq(experts.brainliftId, brainlift.id));
+  const dok2SummariesData = await getDOK2Summaries(brainlift.id);
+
+  return {
+    ...brainlift,
+    improperlyFormatted: brainlift.improperlyFormatted ?? false,
+    facts: brainliftFacts,
+    contradictionClusters: clusters,
+    readingList: readingList,
+    experts: brainliftExperts.sort((a, b) => (b.rankScore ?? 0) - (a.rankScore ?? 0)),
+    dok2Summaries: dok2SummariesData.length > 0 ? dok2SummariesData : undefined,
+  };
+}
+
 /**
  * Get all brainlifts owned by a specific user
  */

@@ -532,3 +532,93 @@
 .animate-pulse-slow {
   animation: pulse 2s ease-in-out infinite;
 }
+
+/* Learning Stream animations */
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+.animate-shimmer {
+  animation: shimmer 2s linear infinite;
+}
+
+@keyframes bounce-dots {
+  0%, 80%, 100% {
+    transform: translateY(0);
+    opacity: 0.4;
+  }
+  40% {
+    transform: translateY(-4px);
+    opacity: 1;
+  }
+}
+
+.animate-bounce-dots {
+  display: inline-block;
+  animation: bounce-dots 1.2s ease-in-out infinite;
+}
+
+/* Learning Stream card exit animations */
+@keyframes exit-bookmark {
+  0% {
+    opacity: 1;
+    transform: translateX(0) scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: translateX(100px) scale(1.02);
+  }
+}
+
+@keyframes exit-grade {
+  0% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(0.9);
+  }
+}
+
+@keyframes exit-discard {
+  0% {
+    opacity: 1;
+    transform: translateX(0) rotate(0deg);
+  }
+  100% {
+    opacity: 0;
+    transform: translateX(-100px) rotate(-5deg);
+  }
+}
+
+.animate-exit-bookmark {
+  animation: exit-bookmark 0.35s ease-out forwards;
+}
+
+.animate-exit-grade {
+  animation: exit-grade 0.3s ease-out forwards;
+}
+
+.animate-exit-discard {
+  animation: exit-discard 0.35s ease-out forwards;
+}
+
+/* Reduced motion support for Learning Stream */
+@media (prefers-reduced-motion: reduce) {
+  .animate-shimmer,
+  .animate-bounce-dots,
+  .animate-exit-bookmark,
+  .animate-exit-grade,
+  .animate-exit-discard {
+    animation: none;
+  }
+
+  .animate-exit-bookmark,
+  .animate-exit-grade,
+  .animate-exit-discard {
+    opacity: 0;
+    transition: opacity 0.15s ease-out;
+  }
+}

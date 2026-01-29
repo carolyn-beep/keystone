@@ -163,7 +163,7 @@ export function DashboardHeader({
       >
         {/* Navigation Tabs - Left aligned, flat underline style */}
         <div className="flex gap-1 flex-wrap">
-          {!isNotBrainlift && ['brainlift', 'grading', 'summaries', 'contradictions', 'reading'].map(tab => (
+          {!isNotBrainlift && ['brainlift', 'grading', 'summaries', 'contradictions', 'reading', 'learning'].map(tab => (
             <button
               key={tab}
               onClick={() => setActiveTab(tab)}
@@ -190,6 +190,7 @@ export function DashboardHeader({
               {tab === 'analytics' && 'Analytics'}
               {tab === 'contradictions' && 'Contradictions'}
               {tab === 'reading' && 'Reading List'}
+              {tab === 'learning' && 'Learning Stream'}
               {tab === 'summaries' && 'Summaries'}
             </button>
           ))}
