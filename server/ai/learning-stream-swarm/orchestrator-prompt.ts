@@ -3,23 +3,24 @@
  *
  * Generates the prompt for the Opus orchestrator that will:
  * 1. Get brainlift context via MCP tool
- * 2. Design 20 diverse research tasks
- * 3. Spawn all 20 web-researcher agents IN PARALLEL via Task tool
+ * 2. Design N diverse research tasks (configurable via SWARM_AGENT_COUNT)
+ * 3. Spawn all N web-researcher agents IN PARALLEL via Task tool
  * 4. Collect results and call save_learning_item for each
  * 5. Report summary
  */
 
-import { RESOURCE_TYPE_DISTRIBUTION, type ResourceType } from './types';
+import { SWARM_AGENT_COUNT, generateResourceDistribution, type ResourceType } from './types';
 
 /**
  * Generate research task assignments based on resource type distribution.
- * Returns a list of 20 task descriptions for the orchestrator to execute.
+ * Returns a list of task descriptions for the orchestrator to execute.
  */
 function generateTaskAssignments(): string {
   const tasks: string[] = [];
   let taskNum = 1;
+  const distribution = generateResourceDistribution(SWARM_AGENT_COUNT);
 
-  for (const [resourceType, count] of Object.entries(RESOURCE_TYPE_DISTRIBUTION) as [ResourceType, number][]) {
+  for (const [resourceType, count] of Object.entries(distribution) as [ResourceType, number][]) {
     for (let i = 0; i < count; i++) {
       let focus: string;
       switch (resourceType) {
@@ -74,10 +75,10 @@ function generateTaskAssignments(): string {
 export function buildOrchestratorPrompt(brainliftId: number): string {
   const taskAssignments = generateTaskAssignments();
 
-  return `You are a Learning Stream Research Orchestrator. Your job is to coordinate a swarm of 20 web researchers to find high-quality learning resources for a brainlift.
+  return `You are a Learning Stream Research Orchestrator. Your job is to coordinate a swarm of ${SWARM_AGENT_COUNT} web researchers to find high-quality learning resources for a brainlift.
 
 ## Your Mission
-Find 20 diverse, high-quality learning resources by delegating research to specialized web-researcher agents.
+Find ${SWARM_AGENT_COUNT} diverse, high-quality learning resources by delegating research to specialized web-researcher agents.
 
 ## Step 1: Get Brainlift Context
 FIRST, use the get_brainlift_context tool with brainliftId: ${brainliftId}
@@ -90,16 +91,16 @@ This will return:
 - experts: Experts to prioritize content from
 - existingTopics: Topics already in the learning stream (AVOID DUPLICATES)
 
-## Step 2: Spawn 20 Web Researchers IN PARALLEL
+## Step 2: Spawn ${SWARM_AGENT_COUNT} Web Researchers IN PARALLEL
 
-CRITICAL: You MUST spawn ALL 20 researchers in a SINGLE message using multiple Task tool calls. Do NOT spawn them sequentially.
+CRITICAL: You MUST spawn ALL ${SWARM_AGENT_COUNT} researchers in a SINGLE message using multiple Task tool calls. Do NOT spawn them sequentially.
 
 For each task, use the Task tool with:
 - subagent_type: "web-researcher"
 - description: Brief 3-5 word summary
 - prompt: Include the research criteria AND brainlift context (see format below)
 
-Here are your 20 research tasks:
+Here are your ${SWARM_AGENT_COUNT} research tasks:
 ${taskAssignments}
 
 ## Task Prompt Format
@@ -133,14 +134,14 @@ After all researchers return, for EACH successful result (where found=true):
 ## Step 4: Report Summary
 
 After saving all items, report:
-- Total researchers spawned: 20
+- Total researchers spawned: ${SWARM_AGENT_COUNT}
 - Resources found: [count]
 - Resources saved: [count]
 - Duplicates skipped: [count]
 - Failures: [count with brief reasons]
 
 ## Important Rules
-1. PARALLEL EXECUTION: Spawn all 20 agents in ONE message with multiple Task calls
+1. PARALLEL EXECUTION: Spawn all ${SWARM_AGENT_COUNT} agents in ONE message with multiple Task calls
 2. DIVERSITY: Each researcher has a unique focus - maintain this diversity
 3. EXPERT PRIORITY: Researchers looking for expert content should prioritize listed experts
 4. DUPLICATE HANDLING: The researchers will check for duplicates, but the save tool also handles them gracefully

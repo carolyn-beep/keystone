@@ -4,6 +4,7 @@ import { requireAuth } from '../middleware/auth';
 import { asyncHandler, BadRequestError, NotFoundError } from '../middleware/error-handler';
 import { requireBrainliftAccess, requireBrainliftModify } from '../middleware/brainlift-auth';
 import { z } from 'zod';
+import { swarmEmitter } from '../ai/learning-stream-swarm';
 
 export const learningStreamRouter = Router();
 
@@ -206,6 +207,106 @@ learningStreamRouter.post(
     res.json({
       message: 'Research queued. New sources will appear shortly.',
       stats,
+    });
+  })
+);
+
+/**
+ * GET /api/brainlifts/:slug/learning-stream/swarm-events
+ * Server-Sent Events endpoint for real-time swarm monitoring.
+ * Streams events from the running swarm for this brainlift.
+ */
+learningStreamRouter.get(
+  '/api/brainlifts/:slug/learning-stream/swarm-events',
+  requireAuth,
+  requireBrainliftAccess,
+  (req, res) => {
+    const brainlift = req.brainlift!;
+
+    // Set up SSE headers
+    res.setHeader('Content-Type', 'text/event-stream');
+    res.setHeader('Cache-Control', 'no-cache');
+    res.setHeader('Connection', 'keep-alive');
+    res.setHeader('X-Accel-Buffering', 'no'); // Disable nginx buffering
+    res.flushHeaders();
+
+    // Send initial connection event
+    res.write(`event: connected\ndata: ${JSON.stringify({ brainliftId: brainlift.id })}\n\n`);
+
+    // Check if a swarm is active
+    if (!swarmEmitter.isSwarmActive(brainlift.id)) {
+      // No active swarm - send idle status and keep connection open
+      res.write(`event: idle\ndata: ${JSON.stringify({ message: 'No active swarm' })}\n\n`);
+    }
+
+    // Subscribe to swarm events
+    const unsubscribe = swarmEmitter.subscribe(brainlift.id, (event) => {
+      // Format as SSE
+      res.write(`id: ${event.id}\n`);
+      res.write(`event: ${event.type}\n`);
+      res.write(`data: ${JSON.stringify(event)}\n\n`);
+
+      // Close connection when swarm completes
+      if (event.type === 'swarm:complete') {
+        setTimeout(() => {
+          res.end();
+        }, 100);
+      }
+    });
+
+    // Handle client disconnect
+    req.on('close', () => {
+      unsubscribe();
+    });
+
+    // Keep-alive ping every 30 seconds
+    const keepAlive = setInterval(() => {
+      res.write(': keepalive\n\n');
+    }, 30000);
+
+    req.on('close', () => {
+      clearInterval(keepAlive);
+    });
+  }
+);
+
+/**
+ * GET /api/brainlifts/:slug/learning-stream/swarm-status
+ * Get current swarm status (active/idle) and agent states.
+ */
+learningStreamRouter.get(
+  '/api/brainlifts/:slug/learning-stream/swarm-status',
+  requireAuth,
+  requireBrainliftAccess,
+  asyncHandler(async (req, res) => {
+    const brainlift = req.brainlift!;
+
+    const isActive = swarmEmitter.isSwarmActive(brainlift.id);
+    const swarmState = swarmEmitter.getSwarmState(brainlift.id);
+
+    if (!isActive || !swarmState) {
+      res.json({
+        active: false,
+        agents: [],
+      });
+      return;
+    }
+
+    const agents = Array.from(swarmState.agents.values()).map((agent) => ({
+      agentNumber: agent.agentNumber,
+      description: agent.description,
+      resourceType: agent.resourceType,
+      status: agent.status,
+      startTime: agent.startTime,
+      endTime: agent.endTime,
+      result: agent.result,
+      eventCount: agent.events.length,
+    }));
+
+    res.json({
+      active: true,
+      startTime: swarmState.startTime,
+      agents,
     });
   })
 );

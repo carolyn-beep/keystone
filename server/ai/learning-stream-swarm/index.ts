@@ -2,10 +2,15 @@
  * Learning Stream Swarm - Main Entry Point
  *
  * Replaces the 3-method AI research approach with a Claude Agent SDK swarm.
- * One Opus orchestrator spawns 20 parallel Sonnet "web-researcher" subagents,
- * each finding a single high-quality learning resource.
+ * One Opus orchestrator spawns N parallel "web-researcher" subagents (configurable
+ * via SWARM_AGENT_COUNT env var, default 5), each finding a single learning resource.
  *
- * Verbose logging: Set SWARM_VERBOSE_LOG=true to enable detailed logging to file.
+ * Per-Agent Logging: Each agent is tracked via parent_tool_use_id correlation.
+ * Logs are prefixed with [Swarm:UNIT-XX] for easy debugging.
+ *
+ * SSE Events: Set onEvent callback to receive real-time swarm events for frontend.
+ *
+ * Verbose file logging: Set SWARM_VERBOSE_LOG=true to enable detailed logging to file.
  * Logs are written to: logs/swarm-{brainliftId}-{timestamp}.log
  */
 
@@ -13,7 +18,8 @@ import { query } from '@anthropic-ai/claude-agent-sdk';
 import { createLearningStreamMcpServer } from './mcp-server';
 import { webResearcherAgent } from './web-researcher-agent';
 import { buildOrchestratorPrompt } from './orchestrator-prompt';
-import type { SwarmResult } from './types';
+import type { SwarmResult, AgentInfo, SwarmEvent } from './types';
+import * as swarmEmitter from './event-emitter';
 import * as fs from 'fs';
 import * as path from 'path';
 
@@ -22,16 +28,21 @@ export interface SwarmOptions {
   maxBudgetUsd?: number;
 }
 
+export type SwarmEventCallback = (event: SwarmEvent) => void;
+
 /**
- * Logger class for swarm verbose logging.
- * Writes to both console and file when SWARM_VERBOSE_LOG is enabled.
+ * Logger class for swarm verbose logging with per-agent support.
  */
 class SwarmLogger {
   private logFile: string | null = null;
   private writeStream: fs.WriteStream | null = null;
   private verbose: boolean;
+  private agentRegistry: Map<string, AgentInfo> = new Map();
+  private agentCounter = 0;
+  private brainliftId: number;
 
   constructor(brainliftId: number) {
+    this.brainliftId = brainliftId;
     this.verbose = process.env.SWARM_VERBOSE_LOG === 'true';
 
     if (this.verbose) {
@@ -46,98 +57,197 @@ class SwarmLogger {
       this.logFile = path.join(logsDir, `swarm-${brainliftId}-${timestamp}.log`);
       this.writeStream = fs.createWriteStream(this.logFile, { flags: 'a' });
 
-      this.log('='.repeat(80));
-      this.log(`SWARM VERBOSE LOG - Brainlift ID: ${brainliftId}`);
-      this.log(`Started: ${new Date().toISOString()}`);
-      this.log('='.repeat(80));
+      this.log('ORCH', '='.repeat(80));
+      this.log('ORCH', `SWARM VERBOSE LOG - Brainlift ID: ${brainliftId}`);
+      this.log('ORCH', `Started: ${new Date().toISOString()}`);
+      this.log('ORCH', '='.repeat(80));
     }
   }
 
-  private formatMessage(level: string, message: string, data?: unknown): string {
+  private formatPrefix(source: string): string {
+    return source === 'ORCH' ? '[Swarm:ORCH]' : `[Swarm:${source}]`;
+  }
+
+  private formatMessage(level: string, source: string, message: string, data?: unknown): string {
     const timestamp = new Date().toISOString();
-    let formatted = `[${timestamp}] [${level}] ${message}`;
+    let formatted = `[${timestamp}] [${level}] ${this.formatPrefix(source)} ${message}`;
     if (data !== undefined) {
       formatted += '\n' + JSON.stringify(data, null, 2);
     }
     return formatted;
   }
 
-  log(message: string, data?: unknown) {
-    const formatted = this.formatMessage('INFO', message, data);
-    console.log(`[Swarm] ${message}`);
+  log(source: string, message: string, data?: unknown) {
+    const formatted = this.formatMessage('INFO', source, message, data);
+    console.log(`${this.formatPrefix(source)} ${message}`);
     if (this.writeStream) {
       this.writeStream.write(formatted + '\n');
     }
   }
 
-  debug(message: string, data?: unknown) {
+  debug(source: string, message: string, data?: unknown) {
     if (!this.verbose) return;
-    const formatted = this.formatMessage('DEBUG', message, data);
-    console.log(`[Swarm:DEBUG] ${message}`);
+    const formatted = this.formatMessage('DEBUG', source, message, data);
+    console.log(`${this.formatPrefix(source)} ${message}`);
     if (this.writeStream) {
       this.writeStream.write(formatted + '\n');
     }
   }
 
-  tool(toolName: string, input: unknown) {
+  /**
+   * Register a new agent and return its UNIT-XX identifier.
+   */
+  registerAgent(toolUseId: string, description: string, resourceType: string): AgentInfo {
+    this.agentCounter++;
+    const agentNumber = this.agentCounter;
+    const unitId = `UNIT-${String(agentNumber).padStart(2, '0')}`;
+
+    const agentInfo: AgentInfo = {
+      agentNumber,
+      toolUseId,
+      description,
+      resourceType,
+      status: 'spawning',
+      startTime: Date.now(),
+      events: [],
+    };
+
+    this.agentRegistry.set(toolUseId, agentInfo);
+    this.log('ORCH', `Spawning ${unitId} (${resourceType}: ${description})`);
+
+    // Emit to event emitter
+    swarmEmitter.registerAgent(this.brainliftId, agentInfo);
+
+    return agentInfo;
+  }
+
+  /**
+   * Get the UNIT-XX identifier for a tool_use_id.
+   */
+  getUnitId(toolUseId: string): string {
+    const agent = this.agentRegistry.get(toolUseId);
+    if (agent) {
+      return `UNIT-${String(agent.agentNumber).padStart(2, '0')}`;
+    }
+    return 'ORCH';
+  }
+
+  /**
+   * Get agent info by tool_use_id.
+   */
+  getAgent(toolUseId: string): AgentInfo | undefined {
+    return this.agentRegistry.get(toolUseId);
+  }
+
+  /**
+   * Record an activity for an agent.
+   */
+  recordActivity(
+    toolUseId: string,
+    eventType: string,
+    data: Record<string, unknown>
+  ) {
+    const agent = this.agentRegistry.get(toolUseId);
+    if (!agent) return;
+
+    agent.events.push({
+      timestamp: Date.now(),
+      type: eventType as any,
+      data,
+    });
+
+    if (agent.status === 'spawning') {
+      agent.status = 'running';
+    }
+
+    // Emit to event emitter
+    swarmEmitter.recordAgentActivity(this.brainliftId, toolUseId, eventType, data);
+  }
+
+  /**
+   * Mark agent as complete with result.
+   */
+  completeAgent(
+    toolUseId: string,
+    result: { found: boolean; url?: string; topic?: string; reason?: string }
+  ) {
+    const agent = this.agentRegistry.get(toolUseId);
+    if (!agent) return;
+
+    agent.status = 'complete';
+    agent.endTime = Date.now();
+    agent.result = result;
+
+    const unitId = this.getUnitId(toolUseId);
+    if (result.found) {
+      this.log(unitId, `DONE - Found: "${result.topic}"`);
+    } else {
+      this.log(unitId, `DONE - Not found: ${result.reason}`);
+    }
+
+    // Emit to event emitter
+    swarmEmitter.completeAgent(this.brainliftId, toolUseId, result);
+  }
+
+  /**
+   * Log tool call with agent context.
+   */
+  tool(source: string, toolName: string, input: unknown) {
     if (!this.verbose) return;
-    const formatted = this.formatMessage('TOOL_CALL', `Tool: ${toolName}`, input);
-    console.log(`[Swarm:TOOL] Calling: ${toolName}`);
+    const formatted = this.formatMessage('TOOL_CALL', source, `Tool: ${toolName}`, input);
+    console.log(`${this.formatPrefix(source)} ${toolName}`);
     if (this.writeStream) {
       this.writeStream.write(formatted + '\n');
     }
   }
 
-  toolResult(toolName: string, result: unknown) {
+  /**
+   * Log tool result with agent context.
+   */
+  toolResult(source: string, toolName: string, result: unknown) {
     if (!this.verbose) return;
-    // Truncate very long results for console, but write full to file
     const resultStr = JSON.stringify(result);
     const truncated = resultStr.length > 500 ? resultStr.substring(0, 500) + '...' : resultStr;
-    console.log(`[Swarm:TOOL] Result from ${toolName}: ${truncated}`);
+    console.log(`${this.formatPrefix(source)} Result: ${truncated}`);
     if (this.writeStream) {
-      const formatted = this.formatMessage('TOOL_RESULT', `Tool: ${toolName}`, result);
+      const formatted = this.formatMessage('TOOL_RESULT', source, `Tool: ${toolName}`, result);
       this.writeStream.write(formatted + '\n');
     }
   }
 
-  reasoning(text: string) {
+  reasoning(source: string, text: string) {
     if (!this.verbose) return;
-    // Truncate for console
     const truncated = text.length > 200 ? text.substring(0, 200) + '...' : text;
-    console.log(`[Swarm:THINK] ${truncated}`);
+    console.log(`${this.formatPrefix(source)} [THINK] ${truncated}`);
     if (this.writeStream) {
-      const formatted = this.formatMessage('REASONING', text);
+      const formatted = this.formatMessage('REASONING', source, text);
       this.writeStream.write(formatted + '\n');
     }
   }
 
-  subagent(action: 'spawn' | 'complete', agentType: string, details?: unknown) {
-    const message = action === 'spawn'
-      ? `Spawning subagent: ${agentType}`
-      : `Subagent completed: ${agentType}`;
-    const formatted = this.formatMessage('SUBAGENT', message, details);
-    console.log(`[Swarm:AGENT] ${message}`);
+  error(source: string, message: string, error?: unknown) {
+    const formatted = this.formatMessage('ERROR', source, message, error);
+    console.error(`${this.formatPrefix(source)} ERROR: ${message}`);
     if (this.writeStream) {
       this.writeStream.write(formatted + '\n');
     }
   }
 
-  error(message: string, error?: unknown) {
-    const formatted = this.formatMessage('ERROR', message, error);
-    console.error(`[Swarm:ERROR] ${message}`);
-    if (this.writeStream) {
-      this.writeStream.write(formatted + '\n');
-    }
+  /**
+   * Get all registered agents.
+   */
+  getAgents(): AgentInfo[] {
+    return Array.from(this.agentRegistry.values());
   }
 
   close() {
     if (this.writeStream) {
-      this.log('='.repeat(80));
-      this.log(`Swarm log completed: ${new Date().toISOString()}`);
+      this.log('ORCH', '='.repeat(80));
+      this.log('ORCH', `Swarm log completed: ${new Date().toISOString()}`);
       if (this.logFile) {
-        this.log(`Log file: ${this.logFile}`);
+        this.log('ORCH', `Log file: ${this.logFile}`);
       }
-      this.log('='.repeat(80));
+      this.log('ORCH', '='.repeat(80));
       this.writeStream.end();
     }
   }
@@ -152,11 +262,13 @@ class SwarmLogger {
  *
  * @param brainliftId - The brainlift to research for
  * @param options - Optional configuration for the swarm
+ * @param onEvent - Optional callback to receive real-time swarm events
  * @returns SwarmResult with success status, counts, and timing
  */
 export async function runLearningStreamSwarm(
   brainliftId: number,
-  options: SwarmOptions = {}
+  options: SwarmOptions = {},
+  onEvent?: SwarmEventCallback
 ): Promise<SwarmResult> {
   const startTime = Date.now();
   const errors: string[] = [];
@@ -169,17 +281,29 @@ export async function runLearningStreamSwarm(
   } = options;
 
   const logger = new SwarmLogger(brainliftId);
-  logger.log(`Starting swarm for brainlift ${brainliftId}`);
-  logger.debug('Options', { maxTurns, maxBudgetUsd });
+  logger.log('ORCH', `Starting swarm for brainlift ${brainliftId}`);
+  logger.debug('ORCH', 'Options', { maxTurns, maxBudgetUsd });
+
+  // Start swarm tracking
+  swarmEmitter.startSwarm(brainliftId);
+
+  // Subscribe to events if callback provided
+  let unsubscribe: (() => void) | null = null;
+  if (onEvent) {
+    unsubscribe = swarmEmitter.subscribe(brainliftId, onEvent);
+  }
+
+  // Track pending tool calls to map results back to agents
+  const pendingToolCalls = new Map<string, { agentToolUseId: string; toolName: string }>();
 
   try {
     // Create the MCP server for this swarm run
     const mcpServer = createLearningStreamMcpServer();
-    logger.debug('MCP server created');
+    logger.debug('ORCH', 'MCP server created');
 
     // Build the orchestrator prompt
     const orchestratorPrompt = buildOrchestratorPrompt(brainliftId);
-    logger.debug('Orchestrator prompt built', { promptLength: orchestratorPrompt.length });
+    logger.debug('ORCH', 'Orchestrator prompt built', { promptLength: orchestratorPrompt.length });
 
     // Run the orchestrator with a simple string prompt
     for await (const message of query({
@@ -205,9 +329,14 @@ export async function runLearningStreamSwarm(
         permissionMode: 'bypassPermissions',
       },
     })) {
+      // Determine the source context for this message
+      // If parent_tool_use_id is set, this is from a subagent
+      const parentToolUseId = 'parent_tool_use_id' in message ? message.parent_tool_use_id : null;
+      const source = parentToolUseId ? logger.getUnitId(parentToolUseId as string) : 'ORCH';
+
       // Handle system init message
       if (message.type === 'system' && message.subtype === 'init') {
-        logger.debug('System initialized', {
+        logger.debug('ORCH', 'System initialized', {
           model: message.model,
           tools: message.tools,
           mcpServers: message.mcp_servers,
@@ -221,35 +350,75 @@ export async function runLearningStreamSwarm(
           for (const block of content) {
             // Log text reasoning
             if ('type' in block && block.type === 'text' && 'text' in block) {
-              logger.reasoning(block.text as string);
+              logger.reasoning(source, block.text as string);
+              if (parentToolUseId) {
+                logger.recordActivity(parentToolUseId as string, 'reasoning', {
+                  text: (block.text as string).substring(0, 500),
+                });
+              }
             }
 
             // Log tool calls
             if ('type' in block && block.type === 'tool_use') {
+              const toolUseId = 'id' in block ? (block.id as string) : 'unknown';
               const toolName = 'name' in block ? (block.name as string) : 'unknown';
               const toolInput = 'input' in block ? block.input : {};
 
-              logger.tool(toolName, toolInput);
+              logger.tool(source, toolName, toolInput);
 
-              // Special handling for specific tools
-              if (toolName === 'Task') {
-                const input = toolInput as { subagent_type?: string; prompt?: string; description?: string };
-                logger.subagent('spawn', input.subagent_type || 'unknown', {
-                  description: input.description,
-                  promptPreview: input.prompt?.substring(0, 200) + '...',
+              // Track pending tool call for result mapping
+              if (parentToolUseId) {
+                pendingToolCalls.set(toolUseId, {
+                  agentToolUseId: parentToolUseId as string,
+                  toolName,
                 });
-              } else if (toolName === 'WebSearch') {
+              }
+
+              // Special handling for Task tool - register new agent
+              if (toolName === 'Task') {
+                const input = toolInput as {
+                  subagent_type?: string;
+                  prompt?: string;
+                  description?: string;
+                };
+                // Extract resource type from description or prompt
+                const resourceType = extractResourceType(input.description || input.prompt || '');
+                logger.registerAgent(
+                  toolUseId,
+                  input.description || 'Research task',
+                  resourceType
+                );
+              }
+              // Handle web research tools from subagents
+              else if (toolName === 'WebSearch' && parentToolUseId) {
                 const input = toolInput as { query?: string };
-                logger.debug(`WebSearch query: "${input.query}"`);
-              } else if (toolName === 'WebFetch') {
+                const unitId = logger.getUnitId(parentToolUseId as string);
+                logger.log(unitId, `WebSearch: "${input.query}"`);
+                logger.recordActivity(parentToolUseId as string, 'search', {
+                  query: input.query,
+                });
+              } else if (toolName === 'WebFetch' && parentToolUseId) {
                 const input = toolInput as { url?: string };
-                logger.debug(`WebFetch URL: ${input.url}`);
+                const unitId = logger.getUnitId(parentToolUseId as string);
+                logger.log(unitId, `WebFetch: ${input.url}`);
+                logger.recordActivity(parentToolUseId as string, 'fetch', {
+                  url: input.url,
+                });
+              } else if (toolName === 'mcp__learning-stream__check_duplicate' && parentToolUseId) {
+                const input = toolInput as { url?: string };
+                logger.recordActivity(parentToolUseId as string, 'check_duplicate', {
+                  url: input.url,
+                });
               } else if (toolName === 'mcp__learning-stream__save_learning_item') {
                 const input = toolInput as { topic?: string; url?: string; type?: string };
-                logger.log(`Saving item: [${input.type}] "${input.topic}" - ${input.url}`);
-              } else if (toolName === 'mcp__learning-stream__check_duplicate') {
-                const input = toolInput as { url?: string };
-                logger.debug(`Checking duplicate: ${input.url}`);
+                logger.log(source, `Saving: [${input.type}] "${input.topic}" - ${input.url}`);
+                if (parentToolUseId) {
+                  logger.recordActivity(parentToolUseId as string, 'save_item', {
+                    topic: input.topic,
+                    url: input.url,
+                    type: input.type,
+                  });
+                }
               }
             }
           }
@@ -262,17 +431,40 @@ export async function runLearningStreamSwarm(
         if (Array.isArray(content)) {
           for (const block of content) {
             if ('type' in block && block.type === 'tool_result') {
-              const toolUseId = 'tool_use_id' in block ? block.tool_use_id : 'unknown';
+              const toolUseId = 'tool_use_id' in block ? (block.tool_use_id as string) : 'unknown';
               const result = 'content' in block ? block.content : null;
-              logger.toolResult(`tool_use_${toolUseId}`, result);
 
-              // Track duplicates from save results
-              if (typeof result === 'string' && result.includes('"error":"duplicate"')) {
-                duplicatesSkipped++;
-                logger.debug('Duplicate URL skipped');
-              } else if (typeof result === 'string' && result.includes('"success":true')) {
-                totalSaved++;
-                logger.debug('Item saved successfully');
+              // Check if this is a subagent's tool result
+              const pendingCall = pendingToolCalls.get(toolUseId);
+              if (pendingCall) {
+                logger.toolResult(
+                  logger.getUnitId(pendingCall.agentToolUseId),
+                  pendingCall.toolName,
+                  result
+                );
+                pendingToolCalls.delete(toolUseId);
+              } else {
+                // Check if this is a Task tool result (agent completion)
+                const agent = logger.getAgent(toolUseId);
+                if (agent) {
+                  // Parse the agent's result
+                  const parsedResult = parseAgentResult(result);
+                  logger.completeAgent(toolUseId, parsedResult);
+                }
+
+                logger.toolResult(source, `tool_use_${toolUseId}`, result);
+              }
+
+              // Track duplicates and saves from results
+              const resultText = extractResultText(result);
+              if (resultText) {
+                if (resultText.includes('"error":"duplicate"')) {
+                  duplicatesSkipped++;
+                  logger.debug(source, 'Duplicate URL skipped');
+                } else if (resultText.includes('"success":true')) {
+                  totalSaved++;
+                  logger.debug(source, 'Item saved successfully');
+                }
               }
             }
           }
@@ -282,10 +474,10 @@ export async function runLearningStreamSwarm(
       // Handle final result
       if (message.type === 'result') {
         if (message.subtype === 'success') {
-          logger.log('Swarm completed successfully');
+          logger.log('ORCH', 'Swarm completed successfully');
 
           const resultText = 'result' in message ? message.result : '';
-          logger.debug('Final result', { result: resultText });
+          logger.debug('ORCH', 'Final result', { result: resultText });
 
           // Try to extract counts from the summary if we didn't track them
           if (typeof resultText === 'string') {
@@ -293,38 +485,45 @@ export async function runLearningStreamSwarm(
             const duplicatesMatch = resultText.match(/Duplicates skipped:\s*(\d+)/i);
 
             if (savedMatch && totalSaved === 0) totalSaved = parseInt(savedMatch[1], 10);
-            if (duplicatesMatch && duplicatesSkipped === 0) duplicatesSkipped = parseInt(duplicatesMatch[1], 10);
+            if (duplicatesMatch && duplicatesSkipped === 0)
+              duplicatesSkipped = parseInt(duplicatesMatch[1], 10);
           }
 
           // Log usage stats if available
           if ('total_cost_usd' in message) {
-            logger.log(`Total cost: $${message.total_cost_usd?.toFixed(4)}`);
+            logger.log('ORCH', `Total cost: $${message.total_cost_usd?.toFixed(4)}`);
           }
           if ('usage' in message) {
-            logger.debug('Token usage', message.usage);
+            logger.debug('ORCH', 'Token usage', message.usage);
           }
         } else {
           // Handle error cases
           const errorSubtype = message.subtype;
           if (errorSubtype === 'error_max_turns') {
             errors.push('Max turns exceeded - partial results returned');
-            logger.error('Max turns exceeded');
+            logger.error('ORCH', 'Max turns exceeded');
           } else if (errorSubtype === 'error_max_budget_usd') {
             errors.push('Budget limit exceeded - partial results returned');
-            logger.error('Budget limit exceeded');
+            logger.error('ORCH', 'Budget limit exceeded');
           } else if (errorSubtype === 'error_during_execution') {
             const errorMessages = 'errors' in message ? message.errors : [];
             const errArray = Array.isArray(errorMessages) ? errorMessages : [String(errorMessages)];
             errors.push(...errArray);
-            logger.error('Execution errors', errArray);
+            logger.error('ORCH', 'Execution errors', errArray);
           }
         }
       }
     }
 
     const durationMs = Date.now() - startTime;
-    logger.log(`Finished in ${(durationMs / 1000).toFixed(2)}s`);
-    logger.log(`Results: Saved=${totalSaved}, Duplicates=${duplicatesSkipped}, Errors=${errors.length}`);
+    const agents = logger.getAgents();
+    const completedAgents = agents.filter((a) => a.status === 'complete').length;
+
+    logger.log('ORCH', `Finished in ${(durationMs / 1000).toFixed(2)}s`);
+    logger.log(
+      'ORCH',
+      `Results: Saved=${totalSaved}, Duplicates=${duplicatesSkipped}, Agents=${completedAgents}/${agents.length}, Errors=${errors.length}`
+    );
 
     const logFile = logger.getLogFile();
     if (logFile) {
@@ -333,27 +532,126 @@ export async function runLearningStreamSwarm(
 
     logger.close();
 
-    return {
+    // End swarm tracking
+    const result: SwarmResult = {
       success: errors.length === 0,
       totalSaved,
       duplicatesSkipped,
       errors,
       durationMs,
     };
+
+    swarmEmitter.endSwarm(brainliftId, result);
+
+    // Cleanup subscription
+    if (unsubscribe) unsubscribe();
+
+    return result;
   } catch (error: any) {
     const durationMs = Date.now() - startTime;
-    logger.error('Fatal error', { message: error.message, stack: error.stack });
+    logger.error('ORCH', 'Fatal error', { message: error.message, stack: error.stack });
     logger.close();
 
-    return {
+    const result: SwarmResult = {
       success: false,
       totalSaved,
       duplicatesSkipped,
       errors: [error.message || 'Unknown error'],
       durationMs,
     };
+
+    swarmEmitter.endSwarm(brainliftId, result);
+
+    // Cleanup subscription
+    if (unsubscribe) unsubscribe();
+
+    return result;
   }
 }
 
-// Re-export types for external use
-export type { SwarmResult };
+/**
+ * Extract text content from a tool result, handling various formats.
+ * Tool results can be a string, or an array of content blocks.
+ */
+function extractResultText(result: unknown): string | null {
+  if (typeof result === 'string') {
+    return result;
+  }
+
+  if (Array.isArray(result)) {
+    for (const item of result) {
+      if (typeof item === 'object' && item !== null && 'text' in item) {
+        return item.text as string;
+      }
+    }
+  }
+
+  return null;
+}
+
+/**
+ * Extract resource type from task description.
+ */
+function extractResourceType(text: string): string {
+  const types = ['Substack', 'Academic Paper', 'Twitter', 'Blog', 'Research', 'Podcast', 'Video'];
+  for (const type of types) {
+    if (text.toLowerCase().includes(type.toLowerCase())) {
+      return type;
+    }
+  }
+  return 'Unknown';
+}
+
+/**
+ * Parse the agent's final result from tool result content.
+ */
+function parseAgentResult(content: unknown): {
+  found: boolean;
+  url?: string;
+  topic?: string;
+  reason?: string;
+} {
+  try {
+    let jsonStr: string | null = null;
+
+    if (typeof content === 'string') {
+      jsonStr = content;
+    } else if (Array.isArray(content)) {
+      // Handle content blocks
+      for (const block of content) {
+        if (typeof block === 'object' && block !== null && 'text' in block) {
+          jsonStr = block.text as string;
+          break;
+        }
+      }
+    }
+
+    if (!jsonStr) {
+      return { found: false, reason: 'No result content' };
+    }
+
+    // Try to parse JSON from the content
+    const jsonMatch = jsonStr.match(/\{[\s\S]*\}/);
+    if (jsonMatch) {
+      const parsed = JSON.parse(jsonMatch[0]);
+      if (parsed.found === false) {
+        return { found: false, reason: parsed.reason || 'Unknown reason' };
+      }
+      if (parsed.found === true && parsed.resource) {
+        return {
+          found: true,
+          url: parsed.resource.url,
+          topic: parsed.resource.topic,
+        };
+      }
+    }
+
+    return { found: false, reason: 'Could not parse result' };
+  } catch {
+    return { found: false, reason: 'Parse error' };
+  }
+}
+
+// Re-export types and event emitter functions for external use
+export type { SwarmResult, SwarmEvent, AgentInfo };
+export { swarmEmitter };

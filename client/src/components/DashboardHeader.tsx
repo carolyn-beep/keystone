@@ -57,6 +57,7 @@ interface DashboardHeaderProps {
   isOwner?: boolean;
   setShowShareModal?: (show: boolean) => void;
   canModify?: boolean;
+  isAdmin?: boolean;
 }
 
 export function DashboardHeader({
@@ -77,6 +78,7 @@ export function DashboardHeader({
   isOwner,
   setShowShareModal,
   canModify = true, // Default to true for backwards compatibility
+  isAdmin = false,
 }: DashboardHeaderProps) {
   const { title, description, displayPurpose, slug } = data;
 
@@ -163,7 +165,7 @@ export function DashboardHeader({
       >
         {/* Navigation Tabs - Left aligned, flat underline style */}
         <div className="flex gap-1 flex-wrap">
-          {!isNotBrainlift && ['brainlift', 'grading', 'summaries', 'contradictions', 'reading', 'learning'].map(tab => (
+          {!isNotBrainlift && ['brainlift', 'grading', 'summaries', 'contradictions', 'reading', ...(isAdmin ? ['learning'] : [])].map(tab => (
             <button
               key={tab}
               onClick={() => setActiveTab(tab)}

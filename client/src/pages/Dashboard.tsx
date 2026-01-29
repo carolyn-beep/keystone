@@ -92,6 +92,10 @@ const { toast } = useToast();
   const canModify = userPermission === 'owner' || userPermission === 'editor';
   const canDelete = userPermission === 'owner';
 
+  // Check if user is admin for restricted features
+  const { data: session } = authClient.useSession();
+  const isAdmin = session?.user?.role === 'admin';
+
 const { downloadBrainliftPDF } = usePDFExport();
 
   const { tweetSearchMutation } = useResearch(slug, {
@@ -229,6 +233,7 @@ const { downloadBrainliftPDF } = usePDFExport();
         isOwner={isOwner}
         setShowShareModal={setShowShareModal}
         canModify={canModify}
+        isAdmin={isAdmin}
       />
 
       {/* Main Content */}
@@ -344,8 +349,8 @@ const { downloadBrainliftPDF } = usePDFExport();
           />
         )}
 
-        {/* Learning Stream Tab - AI-curated resources */}
-        {!isNotBrainlift && activeTab === 'learning' && (
+        {/* Learning Stream Tab - AI-curated resources (Admin only) */}
+        {!isNotBrainlift && activeTab === 'learning' && isAdmin && (
           <LearningStreamTab slug={slug} canModify={canModify} />
         )}
 

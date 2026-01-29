@@ -1,6 +1,5 @@
 import { createContext, useContext, useState, ReactNode } from 'react';
 import { ChevronDown, ChevronUp, ExternalLink, Bookmark, Star, X, User, Clock } from 'lucide-react';
-import { tokens } from '@/lib/colors';
 import type { LearningStreamItem } from '@/hooks/useLearningStream';
 
 // Context for compound component
@@ -17,13 +16,6 @@ function useStreamItemContext() {
   if (!ctx) throw new Error('StreamItemCard components must be used within StreamItemCard.Root');
   return ctx;
 }
-
-// Source badge colors
-const sourceColors: Record<string, { bg: string; text: string }> = {
-  'quick-search': { bg: 'bg-info-soft', text: 'text-info' },
-  'deep-research': { bg: 'bg-success-soft', text: 'text-success' },
-  'twitter': { bg: 'bg-muted', text: 'text-muted-foreground' },
-};
 
 // Root component
 interface RootProps {
@@ -56,44 +48,28 @@ function Root({ item, children, exitAnimation, onAnimationEnd }: RootProps) {
   );
 }
 
-// Badge component
-function Badge() {
-  const { item } = useStreamItemContext();
-  const colors = sourceColors[item.sourceType] || sourceColors['quick-search'];
-  const label = item.sourceType === 'quick-search'
-    ? 'QUICK SEARCH'
-    : item.sourceType === 'deep-research'
-      ? 'DEEP RESEARCH'
-      : 'TWITTER';
-
-  return (
-    <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold tracking-wide ${colors.bg} ${colors.text}`}>
-      {label}
-    </span>
-  );
-}
-
 // Header component
 function Header() {
   const { item } = useStreamItemContext();
 
   return (
     <div className="px-5 pt-4 pb-2">
-      <div className="flex items-center gap-2 mb-2 flex-wrap">
-        <Badge />
-        {item.author && (
-          <span className="flex items-center gap-1 text-xs text-muted-foreground">
-            <User size={12} />
-            @{item.author}
-          </span>
-        )}
-        {item.estimatedReadTime && (
-          <span className="flex items-center gap-1 text-xs text-muted-foreground">
-            <Clock size={12} />
-            {item.estimatedReadTime} min
-          </span>
-        )}
-      </div>
+      {(item.author || item.estimatedReadTime) && (
+        <div className="flex items-center gap-2 mb-2 flex-wrap">
+          {item.author && (
+            <span className="flex items-center gap-1 text-xs text-muted-foreground">
+              <User size={12} />
+              @{item.author}
+            </span>
+          )}
+          {item.estimatedReadTime && (
+            <span className="flex items-center gap-1 text-xs text-muted-foreground">
+              <Clock size={12} />
+              {item.estimatedReadTime} min
+            </span>
+          )}
+        </div>
+      )}
       <h4 className="text-base font-semibold text-foreground m-0 leading-snug">
         {item.title || item.topic || 'Untitled Resource'}
       </h4>
@@ -189,7 +165,6 @@ function Actions({ onBookmark, onGrade, onDiscard, isBookmarking, isProcessing }
 // Compound export
 export const StreamItemCard = {
   Root,
-  Badge,
   Header,
   Rationale,
   Actions,

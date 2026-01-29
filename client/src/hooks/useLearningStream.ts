@@ -103,6 +103,9 @@ export function useLearningStream(slug: string) {
     grade: gradeMutation.mutateAsync,
     refresh: refreshMutation.mutateAsync,
 
+    // Refetch data (e.g., after swarm completes)
+    refetch: invalidateAll,
+
     // Loading states
     isBookmarking: bookmarkMutation.isPending,
     isDiscarding: discardMutation.isPending,

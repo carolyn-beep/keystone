@@ -28,7 +28,7 @@ export function HomeHeader({ adminView, onAddBrainlift }: HomeHeaderProps) {
   return (
     <header className="flex justify-between items-center flex-wrap gap-3 px-4 py-4 sm:px-8 md:px-12 bg-card border-b border-border">
       <div>
-        <h1 className="text-[28px] font-bold text-foreground m-0">DOK1 GRADING</h1>
+        <h1 className="text-[28px] font-bold text-foreground m-0">Brainlift Assessment</h1>
         <p className="text-muted-foreground text-sm mt-1">
           Grade and manage your educational brainlifts
         </p>
