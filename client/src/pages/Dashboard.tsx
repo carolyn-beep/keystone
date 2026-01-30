@@ -86,15 +86,15 @@ const { toast } = useToast();
     updateError,
   } = useBrainlift(slug, isSharedView);
 
-  // Get user permission from backend-enriched data
-  const userPermission = data?.userPermission ?? null;
-  const isOwner = userPermission === 'owner';
-  const canModify = userPermission === 'owner' || userPermission === 'editor';
-  const canDelete = userPermission === 'owner';
-
   // Check if user is admin for restricted features
   const { data: session } = authClient.useSession();
   const isAdmin = session?.user?.role === 'admin';
+
+  // Get user permission from backend-enriched data
+  const userPermission = data?.userPermission ?? null;
+  const isOwner = userPermission === 'owner';
+  const canModify = userPermission === 'owner' || userPermission === 'editor' || isAdmin;
+  const canDelete = userPermission === 'owner';
 
 const { downloadBrainliftPDF } = usePDFExport();
 
