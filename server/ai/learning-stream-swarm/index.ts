@@ -282,6 +282,9 @@ export async function runLearningStreamSwarm(
 
   const logger = new SwarmLogger(brainliftId);
   logger.log('ORCH', `Starting swarm for brainlift ${brainliftId}`);
+  logger.log('ORCH', `Orchestrator model: opus (override: ${process.env.ANTHROPIC_DEFAULT_OPUS_MODEL || 'none'})`);
+  logger.log('ORCH', `Researcher model: ${webResearcherAgent.model} (override: ${process.env.ANTHROPIC_DEFAULT_SONNET_MODEL || 'none'})`);
+  logger.log('ORCH', `ANTHROPIC_BASE_URL: ${process.env.ANTHROPIC_BASE_URL || '(not set)'}`);
   logger.debug('ORCH', 'Options', { maxTurns, maxBudgetUsd });
 
   // Start swarm tracking
@@ -306,12 +309,20 @@ export async function runLearningStreamSwarm(
     logger.debug('ORCH', 'Orchestrator prompt built', { promptLength: orchestratorPrompt.length });
 
     // Run the orchestrator with a simple string prompt
+    // Model is 'opus' but can be overridden via ANTHROPIC_DEFAULT_OPUS_MODEL env var
     for await (const message of query({
       prompt: orchestratorPrompt,
       options: {
-        model: 'claude-opus-4-5-20251101',
+        model: 'opus',
         mcpServers: {
           'learning-stream': mcpServer,
+          'exa': {
+            type: 'http',
+            url: 'https://mcp.exa.ai/mcp?tools=web_search_exa',
+            headers: {
+              'x-api-key': process.env.EXA_API_KEY || '',
+            },
+          },
         },
         agents: {
           'web-researcher': webResearcherAgent,
@@ -321,7 +332,7 @@ export async function runLearningStreamSwarm(
           'mcp__learning-stream__get_brainlift_context',
           'mcp__learning-stream__check_duplicate',
           'mcp__learning-stream__save_learning_item',
-          'WebSearch',
+          'mcp__exa__web_search_exa',
           'WebFetch',
         ],
         maxTurns,
@@ -333,6 +344,9 @@ export async function runLearningStreamSwarm(
       // If parent_tool_use_id is set, this is from a subagent
       const parentToolUseId = 'parent_tool_use_id' in message ? message.parent_tool_use_id : null;
       const source = parentToolUseId ? logger.getUnitId(parentToolUseId as string) : 'ORCH';
+
+      // Log ALL message types for debugging
+      logger.debug(source, `Message received: type=${message.type}, subtype=${'subtype' in message ? message.subtype : 'none'}`);
 
       // Handle system init message
       if (message.type === 'system' && message.subtype === 'init') {
@@ -350,10 +364,22 @@ export async function runLearningStreamSwarm(
           for (const block of content) {
             // Log text reasoning
             if ('type' in block && block.type === 'text' && 'text' in block) {
-              logger.reasoning(source, block.text as string);
+              const text = block.text as string;
+
+              // Detect API errors in the response
+              if (text.includes('API Error') || text.includes('"error":{') || text.includes('No allowed providers')) {
+                logger.error(source, `API ERROR DETECTED IN RESPONSE:\n${text}`);
+                console.error(`\n${'='.repeat(80)}`);
+                console.error(`[Swarm] API ERROR DETECTED`);
+                console.error(`Source: ${source}`);
+                console.error(`Full error text:\n${text}`);
+                console.error(`${'='.repeat(80)}\n`);
+              }
+
+              logger.reasoning(source, text);
               if (parentToolUseId) {
                 logger.recordActivity(parentToolUseId as string, 'reasoning', {
-                  text: (block.text as string).substring(0, 500),
+                  text: text.substring(0, 500),
                 });
               }
             }
@@ -390,10 +416,10 @@ export async function runLearningStreamSwarm(
                 );
               }
               // Handle web research tools from subagents
-              else if (toolName === 'WebSearch' && parentToolUseId) {
+              else if (toolName === 'mcp__exa__web_search_exa' && parentToolUseId) {
                 const input = toolInput as { query?: string };
                 const unitId = logger.getUnitId(parentToolUseId as string);
-                logger.log(unitId, `WebSearch: "${input.query}"`);
+                logger.log(unitId, `Exa Search: "${input.query}"`);
                 logger.recordActivity(parentToolUseId as string, 'search', {
                   query: input.query,
                 });
@@ -499,6 +525,13 @@ export async function runLearningStreamSwarm(
         } else {
           // Handle error cases
           const errorSubtype = message.subtype;
+
+          // Log full error message for debugging
+          console.error(`\n${'='.repeat(80)}`);
+          console.error(`[Swarm] RESULT ERROR: subtype=${errorSubtype}`);
+          console.error(`Full message: ${JSON.stringify(message, null, 2)}`);
+          console.error(`${'='.repeat(80)}\n`);
+
           if (errorSubtype === 'error_max_turns') {
             errors.push('Max turns exceeded - partial results returned');
             logger.error('ORCH', 'Max turns exceeded');
@@ -510,6 +543,10 @@ export async function runLearningStreamSwarm(
             const errArray = Array.isArray(errorMessages) ? errorMessages : [String(errorMessages)];
             errors.push(...errArray);
             logger.error('ORCH', 'Execution errors', errArray);
+          } else {
+            // Unknown error subtype
+            errors.push(`Unknown error: ${errorSubtype}`);
+            logger.error('ORCH', `Unknown error subtype: ${errorSubtype}`, message);
           }
         }
       }
@@ -549,7 +586,26 @@ export async function runLearningStreamSwarm(
     return result;
   } catch (error: any) {
     const durationMs = Date.now() - startTime;
-    logger.error('ORCH', 'Fatal error', { message: error.message, stack: error.stack });
+
+    // Extract all available error info
+    const errorInfo = {
+      message: error.message,
+      name: error.name,
+      code: error.code,
+      status: error.status,
+      statusCode: error.statusCode,
+      response: error.response,
+      body: error.body,
+      cause: error.cause,
+    };
+
+    console.error(`\n${'='.repeat(80)}`);
+    console.error(`[Swarm] FATAL ERROR`);
+    console.error(`Error info: ${JSON.stringify(errorInfo, null, 2)}`);
+    console.error(`Stack: ${error.stack}`);
+    console.error(`${'='.repeat(80)}\n`);
+
+    logger.error('ORCH', 'Fatal error', errorInfo);
     logger.close();
 
     const result: SwarmResult = {
