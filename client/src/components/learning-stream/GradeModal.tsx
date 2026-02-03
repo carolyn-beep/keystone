@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { X, Star, Loader2 } from 'lucide-react';
 import { tokens } from '@/lib/colors';
 import type { LearningStreamItem } from '@/hooks/useLearningStream';
+import { TactileButton } from '@/components/ui/tactile-button';
 
 interface GradeModalProps {
   show: boolean;
@@ -132,15 +133,11 @@ export function GradeModal({ show, item, onClose, onSubmit, isSubmitting }: Grad
         </div>
 
         {/* Submit Button */}
-        <button
+        <TactileButton
+          variant="raised"
           onClick={handleSubmit}
           disabled={!canSubmit}
-          className="w-full px-5 py-3 rounded-lg text-sm font-semibold flex items-center justify-center gap-2 transition-colors"
-          style={{
-            backgroundColor: canSubmit ? tokens.primary : tokens.border,
-            color: canSubmit ? tokens.onPrimary : tokens.textMuted,
-            cursor: canSubmit ? 'pointer' : 'not-allowed',
-          }}
+          className="w-full py-3 flex items-center justify-center gap-2"
         >
           {isSubmitting ? (
             <>
@@ -150,7 +147,7 @@ export function GradeModal({ show, item, onClose, onSubmit, isSubmitting }: Grad
           ) : (
             'Submit Grade'
           )}
-        </button>
+        </TactileButton>
       </div>
     </div>
   );

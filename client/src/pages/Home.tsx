@@ -145,7 +145,7 @@ export default function Home() {
   }, [setLocation]);
 
   return (
-    <div className="min-h-screen bg-background font-['Inter',-apple-system,sans-serif]">
+    <div className="min-h-screen bg-background font-sans">
       <HomeHeader
         adminView={adminView}
         onAddBrainlift={() => setShowModal(true)}

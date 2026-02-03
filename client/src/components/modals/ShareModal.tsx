@@ -1,9 +1,10 @@
 import { useState } from 'react';
-import { X, Users, Loader2, Copy, Check, Eye, Edit3, Trash2 } from 'lucide-react';
+import { X, Users, Loader2, Copy, Check, Trash2 } from 'lucide-react';
 import { tokens } from '@/lib/colors';
 import { useShares } from '@/hooks/useShares';
 import { toast } from '@/hooks/use-toast';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { TactileButton } from '@/components/ui/tactile-button';
 
 interface ShareModalProps {
   show: boolean;
@@ -183,19 +184,14 @@ export function ShareModal({ show, onClose, slug, isOwner }: ShareModalProps) {
                       <SelectItem value="editor">Editor</SelectItem>
                     </SelectContent>
                   </Select>
-                  <button
+                  <TactileButton
+                    variant="raised"
                     onClick={handleAddUser}
                     disabled={isCreating || !identifier.trim()}
-                    className="px-4 py-2.5 rounded-md border-none text-sm font-medium"
-                    style={{
-                      backgroundColor: tokens.primary,
-                      color: tokens.surface,
-                      cursor: isCreating || !identifier.trim() ? 'not-allowed' : 'pointer',
-                      opacity: isCreating || !identifier.trim() ? 0.5 : 1,
-                    }}
+                    className="px-4 py-2.5"
                   >
                     {isCreating ? <Loader2 size={16} className="animate-spin" /> : 'Add'}
-                  </button>
+                  </TactileButton>
                 </div>
               </div>
             )}

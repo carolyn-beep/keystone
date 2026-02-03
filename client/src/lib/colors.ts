@@ -1,5 +1,5 @@
 /**
- * Midnight Indigo Color System
+ * Warm Parchment Color System
  * Uses CSS variables from index.css for dynamic theming
  */
 
@@ -9,6 +9,8 @@ export const tokens = {
   surface: 'var(--surface-hex)',
   surfaceAlt: 'var(--surface-alt-hex)',
   border: 'var(--border-hex)',
+  borderStrong: 'var(--border-strong-hex)',
+  borderMuted: 'var(--border-muted-hex)',
 
   // Text
   textPrimary: 'var(--text-primary-hex)',

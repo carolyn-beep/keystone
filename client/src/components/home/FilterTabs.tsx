@@ -18,7 +18,7 @@ export function FilterTabs({ activeFilter, onFilterChange }: FilterTabsProps) {
         <button
           key={tab.key}
           onClick={() => onFilterChange(tab.key)}
-          className="px-5 py-3 bg-transparent border-none cursor-pointer text-sm font-medium transition-colors duration-150 -mb-px"
+          className="px-5 py-3 bg-transparent border-none cursor-pointer text-sm font-medium transition-colors duration-150 -mb-px font-serif"
           style={{
             borderBottom: activeFilter === tab.key ? `2px solid ${tokens.primary}` : '2px solid transparent',
             color: activeFilter === tab.key ? tokens.primary : tokens.textSecondary,

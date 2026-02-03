@@ -3,6 +3,8 @@ import { X, Upload, FileText, Link as LinkIcon, File } from 'lucide-react';
 import { tokens } from '@/lib/colors';
 import { useImportWithProgress } from '@/hooks/useImportWithProgress';
 import { ImportProgress } from '@/components/ImportProgress';
+import { TactileButton } from '@/components/ui/tactile-button';
+import modalBgTexture from '@/assets/textures/modal_bgv2.webp';
 
 type SourceType = 'html' | 'workflowy' | 'googledocs';
 
@@ -83,9 +85,22 @@ export function AddBrainliftModal({ show, onClose, onSuccess }: AddBrainliftModa
       onClick={closeModal}
     >
       <div
-        className="p-4 sm:p-6 w-full max-w-[600px] max-h-[90vh] overflow-auto rounded-xl bg-card"
+        className="relative p-4 sm:p-6 w-full max-w-[600px] max-h-[90vh] overflow-hidden rounded-xl bg-card"
         onClick={(e) => e.stopPropagation()}
       >
+        {/* Texture overlay - very subtle */}
+        <div
+          aria-hidden="true"
+          className="absolute inset-0 rounded-xl pointer-events-none z-0"
+          style={{
+            backgroundImage: `url(${modalBgTexture})`,
+            backgroundSize: 'cover',
+            backgroundPosition: 'center',
+            opacity: 0.10,
+            mixBlendMode: 'multiply',
+            
+          }}
+        />
         <div className="flex justify-between items-center mb-5">
           <h2 className="text-xl font-semibold text-foreground m-0">
             Add New Brainlift
@@ -103,32 +118,46 @@ export function AddBrainliftModal({ show, onClose, onSuccess }: AddBrainliftModa
           Add New Brainlift to Grade DOK1 facts and create a curated reading list.
         </p>
 
-        {/* Secondary/ghost tabs */}
-        <div className="flex gap-1 mb-5 flex-wrap">
-          {tabs.map((tab) => (
-            <button
-              key={tab.id}
-              data-testid={`tab-${tab.id}`}
-              onClick={() => {
-                setActiveTab(tab.id);
-                setError('');
-                setSelectedFile(null);
-                setUrl('');
-              }}
-              className="flex items-center gap-1.5 px-4 py-2 rounded-md text-[13px] font-medium cursor-pointer transition-all duration-150"
-              style={{
-                border: `1px solid ${activeTab === tab.id ? tokens.primary : tokens.border}`,
-                backgroundColor: activeTab === tab.id ? tokens.primarySoft : 'transparent',
-                color: activeTab === tab.id ? tokens.primary : tokens.textSecondary,
-              }}
-            >
-              <tab.icon size={14} />
-              {tab.label}
-            </button>
-          ))}
+        {/* Underline tabs */}
+        <div className="relative z-10 mb-5">
+          <div className="flex">
+            {tabs.map((tab) => (
+              <button
+                key={tab.id}
+                data-testid={`tab-${tab.id}`}
+                onClick={() => {
+                  setActiveTab(tab.id);
+                  setError('');
+                  setSelectedFile(null);
+                  setUrl('');
+                }}
+                className="flex-1 flex items-center justify-center gap-1.5 py-2.5 text-[13px] font-medium cursor-pointer transition-colors duration-200 bg-transparent border-none font-serif"
+                style={{
+                  color: activeTab === tab.id ? tokens.primary : tokens.textSecondary,
+                }}
+              >
+                <tab.icon size={14} />
+                {tab.label}
+              </button>
+            ))}
+          </div>
+          {/* Animated underline */}
+          <div
+            className="absolute bottom-0 left-0 h-0.5 transition-all duration-300 ease-out rounded-full"
+            style={{
+              backgroundColor: tokens.primary,
+              width: `${100 / tabs.length}%`,
+              transform: `translateX(${tabs.findIndex(t => t.id === activeTab) * 100}%)`,
+            }}
+          />
+          {/* Border line underneath */}
+          <div
+            className="absolute bottom-0 left-0 right-0 h-px"
+            style={{ backgroundColor: tokens.border }}
+          />
         </div>
 
-        <div className="min-h-[150px]">
+        <div className="relative z-10 h-[150px]">
           {activeTab === 'html' && (
             <div>
               <input
@@ -141,7 +170,7 @@ export function AddBrainliftModal({ show, onClose, onSuccess }: AddBrainliftModa
               />
               <div
                 onClick={() => fileInputRef.current?.click()}
-                className="border-2 border-dashed rounded-lg py-10 px-5 text-center cursor-pointer"
+                className="border-2 border-dashed rounded-lg py-6 px-5 text-center cursor-pointer h-full flex flex-col items-center justify-center"
                 style={{
                   borderColor: tokens.border,
                   backgroundColor: selectedFile ? tokens.surfaceAlt : 'transparent',
@@ -181,8 +210,11 @@ export function AddBrainliftModal({ show, onClose, onSuccess }: AddBrainliftModa
                 value={url}
                 onChange={(e) => setUrl(e.target.value)}
                 placeholder={activeTab === 'workflowy' ? 'https://workflowy.com/s/...' : 'https://docs.google.com/document/d/...'}
-                className="w-full p-3 rounded-lg border text-sm box-border"
-                style={{ borderColor: tokens.border }}
+                className="w-full p-3 rounded-lg text-sm box-border border-none outline-none"
+                style={{
+                  backgroundColor: tokens.surfaceAlt,
+                  boxShadow: 'inset 0 2px 4px rgba(0,0,0,0.06), inset 0 1px 2px rgba(0,0,0,0.08)',
+                }}
               />
               <p className="mt-2 text-muted-foreground text-[13px]">
                 {activeTab === 'workflowy'
@@ -212,38 +244,22 @@ export function AddBrainliftModal({ show, onClose, onSuccess }: AddBrainliftModa
         />
 
         <div className="flex gap-3 mt-5 justify-end">
-          {/* Cancel/Close button */}
-          <button
+          <TactileButton
+            variant="inset"
             data-testid="button-cancel"
             onClick={closeModal}
-            className="px-5 py-2.5 rounded-lg border bg-transparent text-muted-foreground text-sm"
-            style={{
-              borderColor: importWithProgress.isImporting ? tokens.danger : tokens.border,
-              color: importWithProgress.isImporting ? tokens.danger : tokens.textSecondary,
-              cursor: 'pointer',
-            }}
+            style={{ color: importWithProgress.isImporting ? tokens.danger : undefined }}
           >
             {importWithProgress.isImporting ? 'Cancel Import' : 'Cancel'}
-          </button>
-          {/* Primary button */}
+          </TactileButton>
           {!importWithProgress.isImporting && (
-            <button
+            <TactileButton
+              variant="raised"
               data-testid="button-submit-import"
               onClick={handleSubmit}
-              className="flex items-center gap-2 px-5 py-2.5 rounded-lg border-none text-primary-foreground text-sm font-medium"
-              style={{
-                backgroundColor: tokens.primary,
-                cursor: 'pointer',
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.backgroundColor = tokens.primaryHover;
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.backgroundColor = tokens.primary;
-              }}
             >
               Import & Analyze
-            </button>
+            </TactileButton>
           )}
         </div>
       </div>

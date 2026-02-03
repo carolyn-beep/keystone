@@ -1,5 +1,6 @@
 import { X, Upload } from 'lucide-react';
 import { tokens } from '@/lib/colors';
+import { TactileButton } from '@/components/ui/tactile-button';
 
 type SourceType = 'html' | 'workflowy' | 'googledocs';
 
@@ -151,19 +152,15 @@ export function UpdateModal({
           </p>
         )}
 
-        <button
+        <TactileButton
+          variant="raised"
           data-testid="button-submit-update"
           onClick={handleSubmit}
           disabled={isSubmitting || !canSubmit}
-          className="w-full px-3 py-3 border-none rounded-lg text-sm font-semibold"
-          style={{
-            backgroundColor: (isSubmitting || !canSubmit) ? tokens.textMuted : tokens.secondary,
-            color: tokens.surface,
-            cursor: (isSubmitting || !canSubmit) ? 'not-allowed' : 'pointer',
-          }}
+          className="w-full py-3"
         >
           {isSubmitting ? 'Updating... (this may take a minute)' : 'Update Brainlift'}
-        </button>
+        </TactileButton>
       </div>
     </div>
   );

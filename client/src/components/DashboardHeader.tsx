@@ -3,6 +3,7 @@ import { Link, useSearch } from 'wouter';
 import { RefreshCw, Download, Users, History } from 'lucide-react';
 import { BrainliftData, BrainliftVersion } from '@shared/schema';
 import { tokens } from '@/lib/colors';
+import { TactileButton } from '@/components/ui/tactile-button';
 
 /**
  * Render text with markdown links [text](url) as clickable <a> tags
@@ -170,7 +171,7 @@ export function DashboardHeader({
               key={tab}
               onClick={() => setActiveTab(tab)}
               data-testid={`tab-${tab}`}
-              className="px-5 py-3 bg-transparent border-none cursor-pointer text-sm font-medium transition-colors duration-150 -mb-px"
+              className="px-5 py-3 bg-transparent border-none cursor-pointer text-sm font-medium transition-colors duration-150 -mb-px font-serif"
               style={{
                 borderBottom: activeTab === tab ? `2px solid ${tokens.primary}` : '2px solid transparent',
                 color: activeTab === tab ? tokens.primary : tokens.textSecondary,
@@ -202,14 +203,15 @@ export function DashboardHeader({
         <div className="flex gap-2 items-center pb-2 flex-wrap">
           {/* Primary Action: Update */}
           {canModify && !isSharedView && !isNotBrainlift && (
-            <button
+            <TactileButton
+              variant="raised"
               data-testid="button-update-brainlift"
               onClick={() => setShowUpdateModal(true)}
-              className="flex items-center justify-center gap-1.5 px-4 py-2 rounded-md border-none bg-primary text-card cursor-pointer text-[13px] font-medium"
+              className="flex items-center gap-1.5 px-4 py-2 text-[13px]"
             >
               <RefreshCw size={14} />
               Update
-            </button>
+            </TactileButton>
           )}
 
           {/* Secondary Actions: Ghost buttons */}

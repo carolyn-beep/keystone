@@ -2,6 +2,7 @@ import { useCallback } from 'react';
 import { Plus, Shield } from 'lucide-react';
 import { tokens } from '@/lib/colors';
 import { authClient } from '@/lib/auth-client';
+import { TactileButton } from '@/components/ui/tactile-button';
 
 interface HomeHeaderProps {
   adminView: boolean;
@@ -75,16 +76,15 @@ export function HomeHeader({ adminView, onAddBrainlift }: HomeHeaderProps) {
           </button>
         )}
 
-        <button
+        <TactileButton
+          variant="raised"
           data-testid="button-add-brainlift"
           onClick={onAddBrainlift}
-          className="flex items-center gap-2 bg-primary text-primary-foreground border-none rounded-lg px-5 py-2.5 text-sm font-medium cursor-pointer transition-colors duration-150"
-          onMouseEnter={(e) => e.currentTarget.style.backgroundColor = tokens.primaryHover}
-          onMouseLeave={(e) => e.currentTarget.style.backgroundColor = tokens.primary}
+          className="flex items-center gap-2"
         >
           <Plus size={18} />
           Add Brainlift
-        </button>
+        </TactileButton>
       </div>
     </header>
   );

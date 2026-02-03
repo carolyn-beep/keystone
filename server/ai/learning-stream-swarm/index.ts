@@ -313,7 +313,7 @@ export async function runLearningStreamSwarm(
     for await (const message of query({
       prompt: orchestratorPrompt,
       options: {
-        model: 'opus',
+        model: 'sonnet',
         mcpServers: {
           'learning-stream': mcpServer,
           'exa': {

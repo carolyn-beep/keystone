@@ -134,6 +134,7 @@ export const brainlifts = pgTable("brainlifts", {
     score5Count: number;
     contradictionCount: number;
   }>().notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
 }, (table) => [
   index("brainlifts_created_by_user_id_idx").on(table.createdByUserId),
 ]);

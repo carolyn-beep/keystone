@@ -1,4 +1,5 @@
 import { Download, FileText } from 'lucide-react';
+import ReactMarkdown from 'react-markdown';
 import { tokens } from '@/lib/colors';
 
 interface BrainliftTabProps {
@@ -53,10 +54,18 @@ export const BrainliftTab = ({ originalContent, sourceType, slug }: BrainliftTab
 
       {/* Document Content */}
       {originalContent ? (
-        <div className="bg-muted rounded-lg p-5 max-h-[600px] overflow-y-auto">
-          <pre className="m-0 whitespace-pre-wrap break-words font-sans text-sm leading-relaxed text-foreground">
-            {originalContent}
-          </pre>
+        <div className="bg-muted rounded-lg p-5 max-h-[600px] overflow-y-auto prose prose-sm dark:prose-invert max-w-none
+          prose-headings:text-foreground prose-headings:font-semibold prose-headings:mt-4 prose-headings:mb-2
+          prose-h1:text-xl prose-h1:border-b prose-h1:border-border prose-h1:pb-2
+          prose-h2:text-lg
+          prose-h3:text-base
+          prose-p:text-foreground prose-p:leading-relaxed prose-p:my-2
+          prose-ul:my-2 prose-ul:pl-5
+          prose-li:text-foreground prose-li:my-0.5
+          prose-strong:text-foreground
+          prose-a:text-primary prose-a:no-underline hover:prose-a:underline
+        ">
+          <ReactMarkdown>{originalContent}</ReactMarkdown>
         </div>
       ) : (
         <div className="text-center py-[60px] px-5 text-muted-foreground">

@@ -71,6 +71,13 @@
       "when": 1769647053359,
       "tag": "0009_calm_jean_grey",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1770119965133,
+      "tag": "0010_fancy_proudstar",
+      "breakpoints": true
     }
   ]
 }
