@@ -89,16 +89,26 @@ ${styleGuideline}`;
   }
 
   // 4. Generate image with GPT (returns base64)
-  console.log(`[Image Gen] Calling GPT image generation API`);
-  const response = await openai.images.generate({
-    model: 'gpt-image-1',
+  const apiParams = {
+    model: 'gpt-image-1' as const,
     prompt: gptPrompt,
-    size: '1024x1024',
-    quality: 'high',
-    background: 'transparent',
-    output_format: 'png',
+    size: '1024x1024' as const,
+    quality: 'high' as const,
+    background: 'transparent' as const,
+    output_format: 'png' as const,
     n: 1,
-  });
+  };
+
+  console.log(`[Image Gen] Calling GPT image generation API with params:`);
+  console.log(`  model: ${apiParams.model}`);
+  console.log(`  size: ${apiParams.size}`);
+  console.log(`  quality: ${apiParams.quality}`);
+  console.log(`  background: ${apiParams.background}`);
+  console.log(`  output_format: ${apiParams.output_format}`);
+  console.log(`  n: ${apiParams.n}`);
+  console.log(`  prompt: (${apiParams.prompt.length} chars)`);
+
+  const response = await openai.images.generate(apiParams);
 
   const imageBase64 = response.data?.[0]?.b64_json;
 
