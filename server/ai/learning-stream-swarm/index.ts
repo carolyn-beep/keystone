@@ -18,6 +18,7 @@ import { query } from '@anthropic-ai/claude-agent-sdk';
 import { createLearningStreamMcpServer } from './mcp-server';
 import { webResearcherAgent } from './web-researcher-agent';
 import { videoResearcherAgent } from './video-researcher-agent';
+import { podcastResearcherAgent } from './podcast-researcher-agent';
 import { buildOrchestratorPrompt } from './orchestrator-prompt';
 import type { SwarmResult, AgentInfo, SwarmEvent } from './types';
 import * as swarmEmitter from './event-emitter';
@@ -336,6 +337,7 @@ export async function runLearningStreamSwarm(
         agents: {
           'web-researcher': webResearcherAgent,
           'video-researcher': videoResearcherAgent,
+          'podcast-researcher': podcastResearcherAgent,
         },
         allowedTools: [
           'Task',

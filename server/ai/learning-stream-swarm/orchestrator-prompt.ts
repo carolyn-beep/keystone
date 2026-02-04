@@ -130,6 +130,7 @@ Return ONLY the JSON result.
 
 ## Agent Selection
 - For Video tasks: use subagent_type: "video-researcher" (uses YouTube metadata API)
+- For Podcast tasks: use subagent_type: "podcast-researcher" (searches for podcast episodes, verifies with WebFetch or YouTube API)
 - For all other tasks: use subagent_type: "web-researcher" (uses general web search)
 
 ## Step 3: Process Results

@@ -58,13 +58,13 @@ export const SWARM_AGENT_COUNT = parseInt(process.env.SWARM_AGENT_COUNT || '5', 
  * These are normalized to produce the actual counts based on SWARM_AGENT_COUNT.
  */
 export const RESOURCE_TYPE_WEIGHTS = {
-  Substack: 4,
-  'Academic Paper': 3,
-  Twitter: 3,
-  Video: 3,
-  Blog: 3,
-  Research: 3,
-  Podcast: 2,
+  Podcast: 8, // TEMPORARY: Testing podcast researcher
+  Substack: 1,
+  'Academic Paper': 1,
+  Twitter: 1,
+  Video: 1,
+  Blog: 1,
+  Research: 1,
 } as const;
 
 export type ResourceType = keyof typeof RESOURCE_TYPE_WEIGHTS;
