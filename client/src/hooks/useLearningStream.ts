@@ -76,7 +76,7 @@ export function useLearningStream(slug: string) {
     mutationFn: async ({ itemId, quality, alignment }: { itemId: number; quality: number; alignment: boolean }) => {
       return apiRequest('POST', `/api/brainlifts/${slug}/learning-stream/${itemId}/grade`, {
         quality,
-        alignment,
+        alignment: alignment ? 'yes' : 'no',
       });
     },
     onSuccess: invalidateAll,

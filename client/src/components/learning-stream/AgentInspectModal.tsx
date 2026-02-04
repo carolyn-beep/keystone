@@ -181,7 +181,12 @@ const LogEntry = memo(function LogEntry({ event, formatTime }: LogEntryProps) {
       content = `"${event.data.query}"`;
       break;
     case 'fetch':
-      content = String(event.data.url || '');
+      // Handle both web fetches (url) and YouTube fetches (videoId)
+      if (event.data.source === 'youtube' && event.data.videoId) {
+        content = `YouTube: ${event.data.videoId}`;
+      } else {
+        content = String(event.data.url || '');
+      }
       break;
     case 'reasoning':
       content = String(event.data.text || '').substring(0, 100) + (String(event.data.text || '').length > 100 ? '...' : '');

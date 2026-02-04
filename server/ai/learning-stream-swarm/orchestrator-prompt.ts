@@ -92,12 +92,14 @@ This will return:
 - experts: Experts to prioritize content from
 - existingTopics: Topics already in the learning stream (AVOID DUPLICATES)
 
-## Step 2: Spawn ${SWARM_AGENT_COUNT} Web Researchers IN PARALLEL
+## Step 2: Spawn ${SWARM_AGENT_COUNT} Researchers IN PARALLEL
 
 CRITICAL: You MUST spawn ALL ${SWARM_AGENT_COUNT} researchers in a SINGLE message using multiple Task tool calls. Do NOT spawn them sequentially.
 
 For each task, use the Task tool with:
-- subagent_type: "web-researcher"
+- subagent_type: Select the appropriate agent:
+  - "video-researcher" for Video tasks (uses YouTube metadata API for better video info)
+  - "web-researcher" for all other resource types
 - description: Brief 3-5 word summary
 - prompt: Include the research criteria AND brainlift context (see format below)
 
@@ -125,6 +127,10 @@ AVOID THESE EXISTING TOPICS:
 
 Return ONLY the JSON result.
 \`\`\`
+
+## Agent Selection
+- For Video tasks: use subagent_type: "video-researcher" (uses YouTube metadata API)
+- For all other tasks: use subagent_type: "web-researcher" (uses general web search)
 
 ## Step 3: Process Results
 

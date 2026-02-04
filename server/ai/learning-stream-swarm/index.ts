@@ -17,6 +17,7 @@
 import { query } from '@anthropic-ai/claude-agent-sdk';
 import { createLearningStreamMcpServer } from './mcp-server';
 import { webResearcherAgent } from './web-researcher-agent';
+import { videoResearcherAgent } from './video-researcher-agent';
 import { buildOrchestratorPrompt } from './orchestrator-prompt';
 import type { SwarmResult, AgentInfo, SwarmEvent } from './types';
 import * as swarmEmitter from './event-emitter';
@@ -323,9 +324,18 @@ export async function runLearningStreamSwarm(
               'x-api-key': process.env.EXA_API_KEY || '',
             },
           },
+          'yt-mcp': {
+            type: 'stdio',
+            command: 'npx',
+            args: ['-y', 'yt-mcp'],
+            env: {
+              YOUTUBE_API_KEY: process.env.YOUTUBE_API_KEY || '',
+            },
+          },
         },
         agents: {
           'web-researcher': webResearcherAgent,
+          'video-researcher': videoResearcherAgent,
         },
         allowedTools: [
           'Task',
@@ -333,6 +343,7 @@ export async function runLearningStreamSwarm(
           'mcp__learning-stream__check_duplicate',
           'mcp__learning-stream__save_learning_item',
           'mcp__exa__web_search_exa',
+          'mcp__yt-mcp__getVideoDetails',
           'WebFetch',
         ],
         maxTurns,
@@ -429,6 +440,14 @@ export async function runLearningStreamSwarm(
                 logger.log(unitId, `WebFetch: ${input.url}`);
                 logger.recordActivity(parentToolUseId as string, 'fetch', {
                   url: input.url,
+                });
+              } else if (toolName === 'mcp__yt-mcp__getVideoDetails' && parentToolUseId) {
+                const input = toolInput as { videoId?: string };
+                const unitId = logger.getUnitId(parentToolUseId as string);
+                logger.log(unitId, `YouTube: Getting details for video ${input.videoId}`);
+                logger.recordActivity(parentToolUseId as string, 'fetch', {
+                  videoId: input.videoId,
+                  source: 'youtube',
                 });
               } else if (toolName === 'mcp__learning-stream__check_duplicate' && parentToolUseId) {
                 const input = toolInput as { url?: string };
