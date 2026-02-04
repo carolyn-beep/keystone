@@ -6,7 +6,6 @@
 import { tool, createSdkMcpServer } from '@anthropic-ai/claude-agent-sdk';
 import { z } from 'zod';
 import { storage } from '../../storage';
-import type { BrainliftContext } from './types';
 
 /**
  * Get brainlift context for research.
@@ -19,9 +18,9 @@ const getBrainliftContextTool = tool(
     brainliftId: z.number().describe('The brainlift ID to get context for'),
   },
   async (args) => {
-    const brainlift = await storage.getBrainliftDataById(args.brainliftId);
+    const context = await storage.getLearningStreamContext(args.brainliftId);
 
-    if (!brainlift) {
+    if (!context) {
       return {
         content: [{
           type: 'text' as const,
@@ -29,37 +28,6 @@ const getBrainliftContextTool = tool(
         }],
       };
     }
-
-    // Get existing learning stream topics to avoid duplicates
-    const existingItems = await storage.getLearningStreamItems(args.brainliftId);
-    const existingTopics = existingItems.map(item => item.topic);
-
-    // Build context with top facts and experts
-    const context: BrainliftContext = {
-      id: brainlift.id,
-      title: brainlift.title,
-      description: brainlift.description,
-      displayPurpose: brainlift.displayPurpose,
-      facts: brainlift.facts
-        .filter(f => f.score >= 3) // Only high-quality facts
-        .slice(0, 15)
-        .map(f => ({
-          id: f.id,
-          fact: f.fact,
-          category: f.category,
-          score: f.score,
-        })),
-      experts: brainlift.experts
-        .filter(e => e.isFollowing)
-        .slice(0, 10)
-        .map(e => ({
-          id: e.id,
-          name: e.name,
-          twitterHandle: e.twitterHandle,
-          rankScore: e.rankScore,
-        })),
-      existingTopics,
-    };
 
     return {
       content: [{

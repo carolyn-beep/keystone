@@ -36,12 +36,15 @@ export const storage = {
   updateBrainlift: brainliftsStorage.updateBrainlift,
   deleteBrainlift: brainliftsStorage.deleteBrainlift,
   updateBrainliftFields: brainliftsStorage.updateBrainliftFields,
+  updateBrainliftCoverImage: brainliftsStorage.updateBrainliftCoverImage,
   getVersionsByBrainliftId: brainliftsStorage.getVersionsByBrainliftId,
   getBrainliftsForUserPaginated: brainliftsStorage.getBrainliftsForUserPaginated,
   getAllBrainliftsPaginated: brainliftsStorage.getAllBrainliftsPaginated,
   canAccessBrainlift: brainliftsStorage.canAccessBrainlift,
   canModifyBrainlift: brainliftsStorage.canModifyBrainlift,
   isOwner: brainliftsStorage.isOwner,
+  getImageGenerationContext: brainliftsStorage.getImageGenerationContext,
+  getLearningStreamContext: brainliftsStorage.getLearningStreamContext,
 
   // Shares
   getUserSharePermission: sharesStorage.getUserSharePermission,

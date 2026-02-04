@@ -299,6 +299,15 @@ export async function updateBrainliftFields(id: number, fields: {
     .where(eq(brainlifts.id, id));
 }
 
+/**
+ * Update the cover image URL for a brainlift.
+ */
+export async function updateBrainliftCoverImage(id: number, coverImageUrl: string): Promise<void> {
+  await db.update(brainlifts)
+    .set({ coverImageUrl })
+    .where(eq(brainlifts.id, id));
+}
+
 export async function getVersionsByBrainliftId(brainliftId: number): Promise<BrainliftVersion[]> {
   return await db.select().from(brainliftVersions)
     .where(eq(brainliftVersions.brainliftId, brainliftId))
@@ -436,4 +445,148 @@ export async function canModifyBrainlift(brainlift: Brainlift, authContext: Auth
  */
 export function isOwner(brainlift: Brainlift, authContext: AuthContext): boolean {
   return brainlift.createdByUserId === authContext.userId;
+}
+
+// ============================================================================
+// Context Queries - Optimized for specific AI operations
+// ============================================================================
+
+export interface ImageGenerationContext {
+  id: number;
+  title: string;
+  purpose: string;  // The real purpose (stored in description field)
+  topFactSummaries: string[];
+}
+
+/**
+ * Get context for cover image generation.
+ * Returns title, purpose (from description), and top 5 fact summaries (score >= 3).
+ * All filtering/limiting done in SQL.
+ */
+export async function getImageGenerationContext(brainliftId: number): Promise<ImageGenerationContext | null> {
+  // Get brainlift core info
+  const [brainlift] = await db
+    .select({
+      id: brainlifts.id,
+      title: brainlifts.title,
+      description: brainlifts.description,  // This is the real purpose
+    })
+    .from(brainlifts)
+    .where(eq(brainlifts.id, brainliftId));
+
+  if (!brainlift) return null;
+
+  // Get top 5 fact summaries (score >= 3, has summary)
+  const topFacts = await db
+    .select({ summary: facts.summary })
+    .from(facts)
+    .where(
+      and(
+        eq(facts.brainliftId, brainliftId),
+        sql`${facts.score} >= 3`,
+        sql`${facts.summary} IS NOT NULL`
+      )
+    )
+    .orderBy(desc(facts.score))
+    .limit(5);
+
+  return {
+    id: brainlift.id,
+    title: brainlift.title,
+    purpose: brainlift.description,
+    topFactSummaries: topFacts.map(f => f.summary!),
+  };
+}
+
+export interface LearningStreamContext {
+  id: number;
+  title: string;
+  description: string;
+  displayPurpose: string | null;
+  facts: Array<{
+    id: number;
+    fact: string;
+    category: string;
+    score: number;
+  }>;
+  experts: Array<{
+    id: number;
+    name: string;
+    twitterHandle: string | null;
+    rankScore: number | null;
+  }>;
+  existingTopics: string[];
+}
+
+/**
+ * Get context for learning stream research swarm.
+ * Returns title, purpose, top 15 facts (score >= 3), followed experts, existing topics.
+ * All filtering/limiting done in SQL.
+ */
+export async function getLearningStreamContext(brainliftId: number): Promise<LearningStreamContext | null> {
+  // Get brainlift core info
+  const [brainlift] = await db
+    .select({
+      id: brainlifts.id,
+      title: brainlifts.title,
+      description: brainlifts.description,
+      displayPurpose: brainlifts.displayPurpose,
+    })
+    .from(brainlifts)
+    .where(eq(brainlifts.id, brainliftId));
+
+  if (!brainlift) return null;
+
+  // Get top 15 facts (score >= 3)
+  const topFacts = await db
+    .select({
+      id: facts.id,
+      fact: facts.fact,
+      category: facts.category,
+      score: facts.score,
+    })
+    .from(facts)
+    .where(
+      and(
+        eq(facts.brainliftId, brainliftId),
+        sql`${facts.score} >= 3`
+      )
+    )
+    .orderBy(desc(facts.score))
+    .limit(15);
+
+  // Get followed experts (top 10 by rank)
+  const followedExperts = await db
+    .select({
+      id: experts.id,
+      name: experts.name,
+      twitterHandle: experts.twitterHandle,
+      rankScore: experts.rankScore,
+    })
+    .from(experts)
+    .where(
+      and(
+        eq(experts.brainliftId, brainliftId),
+        eq(experts.isFollowing, true)
+      )
+    )
+    .orderBy(desc(experts.rankScore))
+    .limit(10);
+
+  // Get existing learning stream topics
+  const { learningStreamItems } = await import('./base');
+  const existingItems = await db
+    .select({ topic: learningStreamItems.topic })
+    .from(learningStreamItems)
+    .where(eq(learningStreamItems.brainliftId, brainliftId));
+
+  return {
+    id: brainlift.id,
+    title: brainlift.title,
+    description: brainlift.description,
+    displayPurpose: brainlift.displayPurpose,
+    facts: topFacts,
+    experts: followedExperts,
+    existingTopics: existingItems.map(i => i.topic),
+  };
 }

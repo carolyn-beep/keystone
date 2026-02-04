@@ -55,8 +55,9 @@ function generateTaskAssignments(): string {
                   'educational episode on core topic';
           break;
         case 'Video':
-          focus = i === 0 ? 'conference talk or lecture' :
-                  'educational explainer or tutorial';
+          focus = i === 0 ? 'video essay exploring the topic in depth' :
+                  i === 1 ? 'conference talk, lecture, or presentation' :
+                  'any educational video, explainer, or tutorial on the topic';
           break;
         default:
           focus = 'general coverage';

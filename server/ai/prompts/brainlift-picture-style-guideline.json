@@ -1,0 +1,42 @@
+{
+  "style_name": "Victorian Textbook Line Engraving",
+  "aesthetic_intent": "Patient, instructional engraving with calm, confident shading",
+  "line_work": {
+    "technique": "traditional line engraving",
+    "stroke_character": "fine, hand-placed, gently varied",
+    "directionality": "lines follow form, curvature, and structural flow",
+    "rhythm": "natural variation in spacing and density"
+  },
+  "shading": {
+    "method": "layered hatching and cross-hatching",
+    "coverage": "generous and evenly distributed",
+    "purpose": "to explain volume and material calmly",
+    "light_handling": "consistent and understated"
+  },
+  "form_representation": {
+    "approach": "structural and idealized",
+    "surface_treatment": "planes suggested through line density",
+    "detail_style": "descriptive and symbolic rather than literal"
+  },
+  "composition": {
+    "layout": "centered, plate-style illustration",
+    "balance": "visually stable and symmetrical",
+    "background": "neutral, parchment-like field",
+    "spacing": "ample negative space around the subject"
+  },
+  "material_feel": {
+    "ink": "soft, slightly absorbed into paper",
+    "paper": "warm, lightly textured",
+    "finish": "archival and printed, amber/sepia tinted"
+  },
+  "tone": {
+    "mood": "calm, scholarly, timeless",
+    "authorship": "clearly human-crafted",
+    "presence": "confident without emphasis"
+  },
+  "historical_reference": [
+    "Victorian scientific textbooks",
+    "19th-century encyclopedias",
+    "nautical and philosophical engravings"
+  ]
+}

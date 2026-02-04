@@ -30,9 +30,14 @@ const PROFILE_IMAGES = [
 ];
 
 /**
- * Get a consistent random image for a brainlift based on its ID
+ * Get the profile image for a brainlift.
+ * Uses the AI-generated cover image if available, otherwise falls back to a
+ * placeholder based on the brainlift ID.
  */
-function getProfileImage(id: number): string {
+function getProfileImage(id: number, coverImageUrl?: string | null): string {
+  if (coverImageUrl) {
+    return coverImageUrl;
+  }
   const index = id % PROFILE_IMAGES.length;
   return PROFILE_IMAGES[index];
 }
@@ -79,7 +84,7 @@ export function BrainliftCard({ brainlift, adminView, onDelete }: BrainliftCardP
   const summary = brainlift.summary || { meanScore: '0', totalFacts: 0, score5Count: 0, contradictionCount: 0 };
   const meanScore = parseFloat(summary.meanScore || '0');
   const ownerName = brainlift.author || 'Unknown Owner';
-  const profileImage = getProfileImage(brainlift.id);
+  const profileImage = getProfileImage(brainlift.id, brainlift.coverImageUrl);
 
   return (
     <Link

@@ -112,6 +112,7 @@ export const brainlifts = pgTable("brainlifts", {
   improperlyFormatted: boolean("improperly_formatted").default(false).notNull(),
   originalContent: text("original_content"),
   sourceType: text("source_type"),
+  coverImageUrl: text("cover_image_url"),  // AI-generated cover image stored in S3
   expertDiagnostics: jsonb("expert_diagnostics").$type<{
     isValid: boolean;
     diagnostics: Array<{

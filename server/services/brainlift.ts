@@ -94,6 +94,22 @@ export async function runPostProcessingPipeline(
     // Don't fail the import if job queuing fails
     console.error('[Learning Stream] Failed to queue research job:', jobErr);
   }
+
+  // Queue cover image generation job (non-blocking)
+  try {
+    const { withJob } = await import('../utils/withJob');
+
+    await withJob('brainlift:generate-image')
+      .forPayload({
+        brainliftId: input.brainliftId,
+      })
+      .queue();
+
+    console.log(`[Brainlift Image] Image generation job queued for brainlift ${input.slug}`);
+  } catch (jobErr) {
+    // Don't fail the import if job queuing fails
+    console.error('[Brainlift Image] Failed to queue image generation job:', jobErr);
+  }
 }
 
 export async function saveBrainliftFromAI(

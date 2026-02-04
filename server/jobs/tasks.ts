@@ -1,5 +1,6 @@
 import { exampleJob } from './exampleJob';
 import { learningStreamResearchJob } from './learningStreamResearchJob';
+import { brainliftImageJob } from './brainliftImageJob';
 
 /**
  * Central registry of all background jobs.
@@ -13,10 +14,7 @@ import { learningStreamResearchJob } from './learningStreamResearchJob';
 const tasks = {
   'example:hello': exampleJob,
   'learning-stream:research': learningStreamResearchJob,
-  // Future jobs will be added here:
-  // 'brainlift:import': importBrainliftJob,
-  // 'brainlift:verify-all': verifyAllFactsJob,
-  // 'brainlift:refresh-experts': refreshExpertsJob,
+  'brainlift:generate-image': brainliftImageJob,
 } as const;
 
 export default tasks;

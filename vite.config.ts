@@ -49,6 +49,13 @@ export default defineConfig({
     },
   },
   server: {
+    host: true, // Expose on local network
+    proxy: {
+      '/api': {
+        target: 'http://localhost:5000',
+        changeOrigin: true,
+      },
+    },
     fs: {
       strict: true,
       deny: ["**/.*"],

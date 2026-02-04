@@ -61,10 +61,10 @@ export const RESOURCE_TYPE_WEIGHTS = {
   Substack: 4,
   'Academic Paper': 3,
   Twitter: 3,
+  Video: 3,
   Blog: 3,
   Research: 3,
   Podcast: 2,
-  Video: 2,
 } as const;
 
 export type ResourceType = keyof typeof RESOURCE_TYPE_WEIGHTS;

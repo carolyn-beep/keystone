@@ -5,6 +5,44 @@ import { BrainliftData, BrainliftVersion } from '@shared/schema';
 import { tokens } from '@/lib/colors';
 import { TactileButton } from '@/components/ui/tactile-button';
 
+// Import all profile images
+import appleImg from '@/assets/bl_profile/apple.webp';
+import birdImg from '@/assets/bl_profile/bird.webp';
+import booksImg from '@/assets/bl_profile/books.webp';
+import brainImg from '@/assets/bl_profile/brain.webp';
+import dandelionImg from '@/assets/bl_profile/dandelion.webp';
+import doorImg from '@/assets/bl_profile/door.webp';
+import hourglassImg from '@/assets/bl_profile/hourglass.webp';
+import lighthouseImg from '@/assets/bl_profile/lighthouse.webp';
+import listenImg from '@/assets/bl_profile/listen.webp';
+import maskImg from '@/assets/bl_profile/mask.webp';
+import matchstickImg from '@/assets/bl_profile/matchstick.webp';
+import prismImg from '@/assets/bl_profile/prism.webp';
+import shipImg from '@/assets/bl_profile/ship.webp';
+import stairsImg from '@/assets/bl_profile/stairs.webp';
+import telescopeImg from '@/assets/bl_profile/telescope.webp';
+import hourglass2Img from '@/assets/bl_profile/hourglass2.webp';
+import mindImg from '@/assets/bl_profile/mind.webp';
+
+const PROFILE_IMAGES = [
+  appleImg, birdImg, booksImg, brainImg, dandelionImg, doorImg, hourglassImg,
+  lighthouseImg, listenImg, maskImg, matchstickImg, prismImg, shipImg,
+  stairsImg, telescopeImg, hourglass2Img, mindImg
+];
+
+/**
+ * Get the profile image for a brainlift.
+ * Uses the AI-generated cover image if available, otherwise falls back to a
+ * placeholder based on the brainlift ID.
+ */
+function getProfileImage(id: number, coverImageUrl?: string | null): string {
+  if (coverImageUrl) {
+    return coverImageUrl;
+  }
+  const index = id % PROFILE_IMAGES.length;
+  return PROFILE_IMAGES[index];
+}
+
 /**
  * Render text with markdown links [text](url) as clickable <a> tags
  */
@@ -99,65 +137,84 @@ export function DashboardHeader({
         </Link>
       )}
 
-      {/* Row 2: Identity Block - Title only, no buttons */}
-      <h1 className="text-[26px] font-bold m-0 text-foreground tracking-tight leading-[1.3]">{title}</h1>
-
-      {/* Row 3: Subtitle */}
-      <p className="text-muted-foreground text-sm mt-1.5 mb-0">
-        {renderWithLinks(displayPurpose || description)}
-      </p>
-
-      {/* Row 4: Author */}
-      <div
-        className="mt-1 flex items-center gap-1"
-        style={{
-          cursor: editingAuthor ? 'text' : 'pointer',
-        }}
-        onClick={() => {
-          if (!editingAuthor) {
-            setAuthorInput(data.author || '');
-            setEditingAuthor(true);
-          }
-        }}
-        title={editingAuthor ? undefined : "Click to set owner name"}
-      >
-        <span className="text-muted-foreground text-[13px]">By</span>
-        {editingAuthor ? (
-          <input
-            type="text"
-            value={authorInput}
-            onChange={(e) => setAuthorInput(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' && authorInput.trim()) {
-                onUpdateAuthor(authorInput.trim());
-              }
-              if (e.key === 'Escape') setEditingAuthor(false);
-            }}
-            onBlur={() => {
-              if (authorInput.trim()) {
-                onUpdateAuthor(authorInput.trim());
-              } else {
-                setEditingAuthor(false);
-              }
-            }}
-            autoFocus
-            placeholder="Enter name..."
-            className="border-none border-b border-b-gray-300 bg-transparent py-0.5 px-0 text-[13px] w-[150px] outline-none text-foreground"
-            onClick={(e) => e.stopPropagation()}
+      {/* Row 2: Identity Block with Profile Image */}
+      <div className="flex items-start gap-2.5">
+        {/* Profile Image */}
+        <div
+          className="w-28 h-28 shrink-0 rounded-lg flex items-center justify-center"
+          style={{ backgroundColor: tokens.surfaceAlt }}
+        >
+          <img
+            src={getProfileImage(data.id, data.coverImageUrl)}
+            alt=""
+            className="w-28 h-28 object-contain"
+            style={{ filter: 'sepia(60%) saturate(80%) brightness(92%)' }}
+            loading="lazy"
           />
-        ) : (
-          <span
-            className="owner-name-hover transition-all duration-150"
+        </div>
+
+        {/* Title, Subtitle, Author */}
+        <div className="flex-1 min-w-0 flex flex-col gap-1.5">
+          <h1 className="text-[30px] font-bold mt-2 text-foreground tracking-tight leading-[1.3]">{title}</h1>
+
+          {/* Subtitle */}
+          <p className="text-muted-foreground text-base m-0">
+            {renderWithLinks(displayPurpose || description)}
+          </p>
+
+          {/* Author */}
+          <div
+            className="flex items-center gap-1"
             style={{
-              color: data.author ? tokens.textMuted : '#9CA3AF',
-              fontStyle: data.author ? 'normal' : 'italic',
-              borderBottom: data.author ? 'none' : '1px dashed #D1D5DB',
-              paddingBottom: data.author ? 0 : '1px',
+              cursor: editingAuthor ? 'text' : 'pointer',
             }}
+            onClick={() => {
+              if (!editingAuthor) {
+                setAuthorInput(data.author || '');
+                setEditingAuthor(true);
+              }
+            }}
+            title={editingAuthor ? undefined : "Click to set owner name"}
           >
-            {data.author || 'Set Owner Name...'}
-          </span>
-        )}
+            <span className="text-muted-foreground text-[13px]">By</span>
+            {editingAuthor ? (
+              <input
+                type="text"
+                value={authorInput}
+                onChange={(e) => setAuthorInput(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && authorInput.trim()) {
+                    onUpdateAuthor(authorInput.trim());
+                  }
+                  if (e.key === 'Escape') setEditingAuthor(false);
+                }}
+                onBlur={() => {
+                  if (authorInput.trim()) {
+                    onUpdateAuthor(authorInput.trim());
+                  } else {
+                    setEditingAuthor(false);
+                  }
+                }}
+                autoFocus
+                placeholder="Enter name..."
+                className="border-none border-b border-b-gray-300 bg-transparent py-0.5 px-0 text-[13px] w-[150px] outline-none text-foreground"
+                onClick={(e) => e.stopPropagation()}
+              />
+            ) : (
+              <span
+                className="owner-name-hover transition-all duration-150"
+                style={{
+                  color: data.author ? tokens.textMuted : '#9CA3AF',
+                  fontStyle: data.author ? 'normal' : 'italic',
+                  borderBottom: data.author ? 'none' : '1px dashed #D1D5DB',
+                  paddingBottom: data.author ? 0 : '1px',
+                }}
+              >
+                {data.author || 'Set Owner Name...'}
+              </span>
+            )}
+          </div>
+        </div>
       </div>
 
       {/* Row 5: Navigation Tabs (left) + Actions (right) */}
