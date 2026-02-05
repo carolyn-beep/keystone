@@ -100,7 +100,8 @@ learningStreamRouter.patch(
     }
 
     // Auto-refill stream if this was the last pending item
-    maybeRefillStream(brainlift.id);
+    // DISABLED: Temporarily commented out for testing
+    // maybeRefillStream(brainlift.id);
 
     res.json(updated);
   })
@@ -133,7 +134,8 @@ learningStreamRouter.patch(
     }
 
     // Auto-refill stream if this was the last pending item
-    maybeRefillStream(brainlift.id);
+    // DISABLED: Temporarily commented out for testing
+    // maybeRefillStream(brainlift.id);
 
     res.json(updated);
   })
@@ -173,7 +175,8 @@ learningStreamRouter.post(
     }
 
     // Auto-refill stream if this was the last pending item
-    maybeRefillStream(brainlift.id);
+    // DISABLED: Temporarily commented out for testing
+    // maybeRefillStream(brainlift.id);
 
     res.json(updated);
   })

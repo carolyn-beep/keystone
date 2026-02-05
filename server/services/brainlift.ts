@@ -80,20 +80,21 @@ export async function runPostProcessingPipeline(
 
   // Queue learning stream research job (non-blocking)
   // This runs AFTER experts are extracted and saved to database
-  try {
-    const { withJob } = await import('../utils/withJob');
-
-    await withJob('learning-stream:research')
-      .forPayload({
-        brainliftId: input.brainliftId,
-      })
-      .queue();
-
-    console.log(`[Learning Stream] Research job queued for brainlift ${input.slug}`);
-  } catch (jobErr) {
-    // Don't fail the import if job queuing fails
-    console.error('[Learning Stream] Failed to queue research job:', jobErr);
-  }
+  // DISABLED: Temporarily commented out for testing
+  // try {
+  //   const { withJob } = await import('../utils/withJob');
+  //
+  //   await withJob('learning-stream:research')
+  //     .forPayload({
+  //       brainliftId: input.brainliftId,
+  //     })
+  //     .queue();
+  //
+  //   console.log(`[Learning Stream] Research job queued for brainlift ${input.slug}`);
+  // } catch (jobErr) {
+  //   // Don't fail the import if job queuing fails
+  //   console.error('[Learning Stream] Failed to queue research job:', jobErr);
+  // }
 
   // Queue cover image generation job (non-blocking)
   try {
@@ -473,16 +474,28 @@ export async function saveBrainliftFromAI(
       await storage.saveDOK2Summaries(brainlift.id, gradedDOK2Summaries, factIdMap);
       console.log(`[Auto-Grade] DOK2 summaries saved successfully with grades`);
 
-      // Recalculate mean score to include both DOK1 and DOK2
+      // Recalculate mean score with DOK1 and DOK2 weighted equally (50/50)
       const dok2Grades = gradedDOK2Summaries.filter(s => s.grade && s.grade > 0);
       const dok2Sum = dok2Grades.reduce((sum, s) => sum + (s.grade || 0), 0);
+      const dok2Mean = dok2Grades.length > 0 ? dok2Sum / dok2Grades.length : 0;
 
       const dok1Sum = gradeableFacts.reduce((sum, f) => sum + f.score, 0);
-      const totalGraded = gradeableFacts.length + dok2Grades.length;
+      const dok1Mean = gradeableFacts.length > 0 ? dok1Sum / gradeableFacts.length : 0;
 
-      const combinedMeanScore = totalGraded > 0
-        ? ((dok1Sum + dok2Sum) / totalGraded).toFixed(2)
-        : "0";
+      // Weight DOK1 and DOK2 equally: average the category means
+      let combinedMeanScore: string;
+      if (gradeableFacts.length > 0 && dok2Grades.length > 0) {
+        // Both categories have grades - average them 50/50
+        combinedMeanScore = ((dok1Mean + dok2Mean) / 2).toFixed(2);
+      } else if (gradeableFacts.length > 0) {
+        // Only DOK1 has grades
+        combinedMeanScore = dok1Mean.toFixed(2);
+      } else if (dok2Grades.length > 0) {
+        // Only DOK2 has grades
+        combinedMeanScore = dok2Mean.toFixed(2);
+      } else {
+        combinedMeanScore = "0";
+      }
 
       // Update brainlift summary with combined mean score
       await storage.updateBrainliftFields(brainlift.id, {
@@ -492,8 +505,7 @@ export async function saveBrainliftFromAI(
         },
       });
 
-      const dok2Mean = dok2Grades.length > 0 ? (dok2Sum / dok2Grades.length).toFixed(2) : '0';
-      console.log(`[Auto-Grade] Updated mean score: DOK1=${meanScore} (${gradeableFacts.length} facts), DOK2=${dok2Mean} (${dok2Grades.length} summaries), Combined=${combinedMeanScore}`);
+      console.log(`[Auto-Grade] Updated mean score: DOK1=${dok1Mean.toFixed(2)} (${gradeableFacts.length} facts), DOK2=${dok2Mean.toFixed(2)} (${dok2Grades.length} summaries), Combined=${combinedMeanScore} (50/50 weighted)`);
     }
   } catch (err: any) {
     // Handle duplicate slug error with retry

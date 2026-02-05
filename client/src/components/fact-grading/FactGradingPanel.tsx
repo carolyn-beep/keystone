@@ -268,7 +268,7 @@ export function FactGradingPanel({
           const meanScoreNum = gradeableFacts.length > 0
             ? gradeableFacts.reduce((sum, f) => sum + f.score, 0) / gradeableFacts.length
             : 0;
-          const meanScore = gradeableFacts.length > 0 ? meanScoreNum.toFixed(1) : '—';
+          const meanScore = gradeableFacts.length > 0 ? parseFloat(meanScoreNum.toFixed(2)) : '—';
 
           // Color based on rounded score: 5=green, 4=blue, 3-2=orange, 1=red
           const getMeanScoreColor = (score: number) => {

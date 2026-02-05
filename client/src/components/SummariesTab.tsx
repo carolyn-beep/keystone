@@ -473,7 +473,7 @@ export function SummariesTab({ summaries, facts, setActiveTab }: SummariesTabPro
 
           return [
             { label: 'Total Summaries', value: summaries.length, color: '#8b5cf6' }, // primary
-            { label: 'Mean Grade', value: avgGradeNum > 0 ? avgGradeNum.toFixed(1) : '—', color: getAvgGradeColor(avgGradeNum) },
+            { label: 'Mean Grade', value: avgGradeNum > 0 ? parseFloat(avgGradeNum.toFixed(2)) : '—', color: getAvgGradeColor(avgGradeNum) },
             { label: 'High Quality (4-5)', value: highQuality, color: '#10b981' }, // green
             { label: 'Needs Work (1-2)', value: lowQuality, color: lowQuality > 0 ? '#f59e0b' : '#6b7280' },
           ];

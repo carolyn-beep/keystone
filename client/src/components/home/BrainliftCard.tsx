@@ -185,7 +185,7 @@ export function BrainliftCard({ brainlift, adminView, onDelete }: BrainliftCardP
                 textShadow: meanScore > 0 ? '0 1px 0 rgba(255,255,255,0.3)' : 'none',
               }}
             >
-              {meanScore > 0 ? meanScore.toFixed(1) : 'N/A'}
+              {meanScore > 0 ? parseFloat(meanScore.toFixed(2)) : 'N/A'}
             </span>
             {/* Engraved grifo underline - only shown for valid scores */}
             {meanScore > 0 && (

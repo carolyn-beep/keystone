@@ -37,8 +37,8 @@ type TabKey = typeof VALID_TABS[number];
 
 const NAV_ITEMS: NavItem[] = [
   { id: 'brainlift', label: 'Brainlift', icon: FileText },
-  { id: 'grading', label: 'Fact Grading', icon: PiCompassToolFill },
-  { id: 'summaries', label: 'Summaries', icon: RiQuillPenAiFill },
+  { id: 'grading', label: 'DOK1 Facts', icon: PiCompassToolFill },
+  { id: 'summaries', label: 'DOK2 Summaries', icon: RiQuillPenAiFill },
   { id: 'contradictions', label: 'Contradictions', icon: FaBalanceScale },
   { id: 'reading', label: 'Reading List', icon: BookOpen },
   { id: 'learning', label: 'Learning Stream', icon: MdDynamicFeed, adminOnly: true },
