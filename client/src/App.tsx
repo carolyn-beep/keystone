@@ -1,11 +1,10 @@
 import { Suspense, lazy } from "react";
-import { Switch, Route, useLocation } from "wouter";
+import { Switch, Route } from "wouter";
 import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
-import { UserMenu } from "@/components/UserMenu";
 
 // Lazy load pages for code splitting
 const Home = lazy(() => import("@/pages/Home"));
@@ -68,17 +67,9 @@ function App() {
         <Suspense fallback={<PageLoader />}>
           <Router />
         </Suspense>
-        <UserMenuWrapper />
       </TooltipProvider>
     </QueryClientProvider>
   );
-}
-
-function UserMenuWrapper() {
-  const [location] = useLocation();
-  // Don't show on login page
-  if (location === "/login") return null;
-  return <UserMenu />;
 }
 
 export default App;

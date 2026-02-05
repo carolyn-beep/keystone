@@ -1,28 +1,31 @@
 import { useState, useMemo, useCallback } from 'react';
-import { useQuery, useMutation } from '@tanstack/react-query';
+import { useQuery } from '@tanstack/react-query';
 import { Link, useSearch } from 'wouter';
 import { authClient } from '@/lib/auth-client';
-import { BrainliftData, ReadingListGrade, BrainliftVersion, CLASSIFICATION, type Expert, type Fact } from '@shared/schema';
-import { ChevronUp, ExternalLink, Download, RefreshCw, History, X, Upload, Search, Plus, Loader2, AlertTriangle, FileText, Clock, ThumbsUp, ThumbsDown, Users, User, Trash2, CheckCircle } from 'lucide-react';
-import { SiX } from 'react-icons/si';
-import { tokens, getScoreChipColors } from '@/lib/colors';
+import { ReadingListGrade, BrainliftVersion, type Fact } from '@shared/schema';
+import { AlertTriangle, FileText, BookOpen, Loader2 } from 'lucide-react';
+import { PiCompassToolFill } from 'react-icons/pi';
+import { RiQuillPenAiFill } from 'react-icons/ri';
+import { FaBalanceScale } from 'react-icons/fa';
+import { MdDynamicFeed } from 'react-icons/md';
+import { tokens } from '@/lib/colors';
 import { useToast } from '@/hooks/use-toast';
 import { useBrainlift } from '@/hooks/useBrainlift';
 import { useExperts } from '@/hooks/useExperts';
 import { useRedundancy } from '@/hooks/useRedundancy';
 import { useResearch } from '@/hooks/useResearch';
-import { ModelAccuracyPanel } from '@/components/ModelAccuracyPanel';
 import { FactGradingPanel } from '@/components/fact-grading';
 import { DashboardHeader } from '@/components/DashboardHeader';
 import { ContradictionsTab } from '@/components/ContradictionsTab';
 import { ReadingListTab } from '@/components/ReadingListTab';
-import { UpdateModal, FactDetailModal, HistoryModal, RedundancyModal, ResearchModal, AddResourceModal, ShareModal } from '@/components/modals';
+import { UpdateModal, FactDetailModal, HistoryModal, RedundancyModal, ResearchModal, ShareModal } from '@/components/modals';
 import { NotBrainliftView } from '@/components/NotBrainliftView';
 import { BrainliftTab } from '@/components/BrainliftTab';
 import { SummariesTab } from '@/components/SummariesTab';
 import { LearningStreamTab } from '@/components/LearningStreamTab';
 import { usePDFExport } from '@/hooks/usePDFExport';
 import { useShareToken } from '@/hooks/useShareToken';
+import { SidebarLayout, AppSidebar, type NavItem } from '@/components/layout';
 
 interface DashboardProps {
   slug: string;
@@ -31,6 +34,15 @@ interface DashboardProps {
 
 const VALID_TABS = ['brainlift', 'grading', 'contradictions', 'reading', 'learning', 'summaries'] as const;
 type TabKey = typeof VALID_TABS[number];
+
+const NAV_ITEMS: NavItem[] = [
+  { id: 'brainlift', label: 'Brainlift', icon: FileText },
+  { id: 'grading', label: 'Fact Grading', icon: PiCompassToolFill },
+  { id: 'summaries', label: 'Summaries', icon: RiQuillPenAiFill },
+  { id: 'contradictions', label: 'Contradictions', icon: FaBalanceScale },
+  { id: 'reading', label: 'Reading List', icon: BookOpen },
+  { id: 'learning', label: 'Learning Stream', icon: MdDynamicFeed, adminOnly: true },
+];
 
 export default function Dashboard({ slug, isSharedView = false }: DashboardProps) {
   // Handle share token redemption if ?share=TOKEN is present
@@ -58,7 +70,6 @@ export default function Dashboard({ slug, isSharedView = false }: DashboardProps
     window.dispatchEvent(new PopStateEvent('popstate'));
   }, []);
 
-  const [expandedFacts, setExpandedFacts] = useState<number[]>([]);
   const [showUpdateModal, setShowUpdateModal] = useState(false);
   const [showHistoryModal, setShowHistoryModal] = useState(false);
   const [showShareModal, setShowShareModal] = useState(false);
@@ -66,7 +77,6 @@ export default function Dashboard({ slug, isSharedView = false }: DashboardProps
   const [updateFile, setUpdateFile] = useState<File | null>(null);
   const [updateUrl, setUpdateUrl] = useState('');
   const [showResearchModal, setShowResearchModal] = useState(false);
-  const [showAddResourceModal, setShowAddResourceModal] = useState(false);
   const [tweetResults, setTweetResults] = useState<any>(null);
   const [showTweetSection, setShowTweetSection] = useState(false);
   const [showAllExperts, setShowAllExperts] = useState(false);
@@ -94,7 +104,6 @@ const { toast } = useToast();
   const userPermission = data?.userPermission ?? null;
   const isOwner = userPermission === 'owner';
   const canModify = userPermission === 'owner' || userPermission === 'editor' || isAdmin;
-  const canDelete = userPermission === 'owner';
 
 const { downloadBrainliftPDF } = usePDFExport();
 
@@ -163,7 +172,6 @@ const { downloadBrainliftPDF } = usePDFExport();
 
   const {
     data: redundancyData,
-    refetch: refetchRedundancy,
     analyze: analyzeRedundancy,
     isAnalyzing: isAnalyzingRedundancy,
     updateStatus: updateRedundancyStatus,
@@ -193,6 +201,10 @@ const { downloadBrainliftPDF } = usePDFExport();
     downloadBrainliftPDF(data, grades);
   };
 
+  // Preserve admin param when navigating back
+  const isAdminView = new URLSearchParams(searchString).get('admin') === 'true';
+  const backLink = isAdminView ? '/?admin=true' : '/';
+
   // Show loading while redeeming share token
   if (isRedeeming) {
     return (
@@ -211,150 +223,148 @@ const { downloadBrainliftPDF } = usePDFExport();
     </div>
   );
 
-  const { title, description, facts, contradictionClusters, readingList, summary, expertDiagnostics } = data;
+  const { facts, contradictionClusters, readingList, expertDiagnostics } = data;
 
   return (
-    <div className="min-h-screen bg-background text-foreground font-sans">
-      <DashboardHeader
-        data={data}
-        isSharedView={isSharedView}
-        isNotBrainlift={isNotBrainlift}
-        activeTab={activeTab}
-        setActiveTab={setActiveTab}
-        versions={versions}
-        editingAuthor={editingAuthor}
-        setEditingAuthor={setEditingAuthor}
-        authorInput={authorInput}
-        setAuthorInput={setAuthorInput}
-        onUpdateAuthor={handleUpdateAuthor}
-        setShowUpdateModal={setShowUpdateModal}
-        setShowHistoryModal={setShowHistoryModal}
-        handleDownloadPDF={handleDownloadPDF}
-        isOwner={isOwner}
-        setShowShareModal={setShowShareModal}
-        canModify={canModify}
-        isAdmin={isAdmin}
-      />
+    <SidebarLayout
+      sidebar={
+        !isSharedView ? (
+          <AppSidebar
+            navItems={NAV_ITEMS}
+            activeNavId={activeTab}
+            onNavChange={setActiveTab}
+            backLink={{ href: backLink, label: 'All Brainlifts' }}
+            isAdmin={isAdmin}
+          />
+        ) : null
+      }
+      header={
+        <DashboardHeader
+          data={data}
+          isSharedView={isSharedView}
+          isNotBrainlift={isNotBrainlift}
+          versions={versions}
+          editingAuthor={editingAuthor}
+          setEditingAuthor={setEditingAuthor}
+          authorInput={authorInput}
+          setAuthorInput={setAuthorInput}
+          onUpdateAuthor={handleUpdateAuthor}
+          setShowUpdateModal={setShowUpdateModal}
+          setShowHistoryModal={setShowHistoryModal}
+          handleDownloadPDF={handleDownloadPDF}
+          isOwner={isOwner}
+          setShowShareModal={setShowShareModal}
+          canModify={canModify}
+        />
+      }
+    >
+      {/* Not a Brainlift View */}
+      {isNotBrainlift && (
+        <NotBrainliftView data={data} isSharedView={isSharedView} toast={toast} />
+      )}
 
-      {/* Main Content */}
-      <main className="px-4 py-4 sm:px-6 md:px-8">
-        
-        {/* Not a Brainlift View */}
-        {isNotBrainlift && (
-          <NotBrainliftView data={data} isSharedView={isSharedView} toast={toast} />
-        )}
-
-        {/* Partial Brainlift Warning */}
-        {isPartialBrainlift && (
-          <div className="bg-warning-soft rounded-lg p-4 mb-6 flex items-start gap-3">
-            <AlertTriangle size={20} className="shrink-0 mt-0.5" style={{ color: tokens.warning }} />
-            <div>
-              <div className="font-semibold" style={{ color: tokens.warning }}>Partial Brainlift</div>
-              <div className="text-sm text-muted-foreground">
-                This document contains {facts.filter(f => !f.isGradeable).length} non-gradeable claims (prescriptive statements or uncited claims) alongside verifiable DOK1 facts.
-              </div>
+      {/* Partial Brainlift Warning */}
+      {isPartialBrainlift && (
+        <div className="bg-warning-soft rounded-lg p-4 mb-6 flex items-start gap-3">
+          <AlertTriangle size={20} className="shrink-0 mt-0.5" style={{ color: tokens.warning }} />
+          <div>
+            <div className="font-semibold" style={{ color: tokens.warning }}>Partial Brainlift</div>
+            <div className="text-sm text-muted-foreground">
+              This document contains {facts.filter(f => !f.isGradeable).length} non-gradeable claims (prescriptive statements or uncited claims) alongside verifiable DOK1 facts.
             </div>
           </div>
-        )}
+        </div>
+      )}
 
-        {/* Brainlift Tab - Original Document */}
-        {!isNotBrainlift && activeTab === 'brainlift' && (
-          <BrainliftTab
-            originalContent={data.originalContent}
-            sourceType={data.sourceType}
-            slug={data.slug}
-          />
-        )}
+      {/* Brainlift Tab - Original Document */}
+      {!isNotBrainlift && activeTab === 'brainlift' && (
+        <BrainliftTab
+          originalContent={data.originalContent}
+          sourceType={data.sourceType}
+          slug={data.slug}
+        />
+      )}
 
-        {/* Grading Tab */}
-        {!isNotBrainlift && activeTab === 'grading' && (
-          <div>
-            {/* Flags/Warnings - Compact inline callouts */}
-            {data?.flags && data.flags.length > 0 && (
-              <div className="mb-4 flex flex-col gap-2">
-                {data.flags.map((flag, index) => (
-                  <div
-                    key={index}
-                    data-testid={`flag-${index}`}
-                    className="flex items-start gap-2 py-2.5 px-3.5 bg-warning-soft rounded-md text-[13px] leading-normal"
-                    style={{ color: tokens.warning }}
-                  >
-                    <AlertTriangle size={14} className="shrink-0 mt-0.5" style={{ color: tokens.warning }} />
-                    <span>{flag}</span>
-                  </div>
-                ))}
-              </div>
-            )}
+      {/* Grading Tab */}
+      {!isNotBrainlift && activeTab === 'grading' && (
+        <div>
+          {/* Flags/Warnings - Compact inline callouts */}
+          {data?.flags && data.flags.length > 0 && (
+            <div className="mb-4 flex flex-col gap-2">
+              {data.flags.map((flag, index) => (
+                <div
+                  key={index}
+                  data-testid={`flag-${index}`}
+                  className="flex items-start gap-2 py-2.5 px-3.5 bg-warning-soft rounded-md text-[13px] leading-normal"
+                  style={{ color: tokens.warning }}
+                >
+                  <AlertTriangle size={14} className="shrink-0 mt-0.5" style={{ color: tokens.warning }} />
+                  <span>{flag}</span>
+                </div>
+              ))}
+            </div>
+          )}
 
-            {/* New Fact Grading Panel */}
-            <FactGradingPanel
-              slug={slug}
-              facts={facts}
-              humanGrades={humanGrades}
-              redundancyData={redundancyData}
-              onShowRedundancyModal={() => setShowRedundancyModal(true)}
-              onAnalyzeRedundancy={() => analyzeRedundancy()}
-              isAnalyzingRedundancy={isAnalyzingRedundancy}
-              onViewFactFullText={(fact) => setSelectedFactForModal(fact)}
-              canModify={canModify}
-            />
-          </div>
-        )}
-
-        {/* Summaries Tab - DOK2 owner interpretations */}
-        {!isNotBrainlift && activeTab === 'summaries' && (
-          <SummariesTab
-            summaries={data.dok2Summaries ?? []}
-            facts={facts}
-            setActiveTab={setActiveTab}
-          />
-        )}
-
-        {/* Model Accuracy Analytics Tab */}
-        {!isNotBrainlift && activeTab === 'analytics' && (
-          <div className="max-w-[1200px] mx-auto">
-            <ModelAccuracyPanel />
-          </div>
-        )}
-
-        {/* Contradictions Tab - Card-based styled design */}
-        {!isNotBrainlift && activeTab === 'contradictions' && (
-          <ContradictionsTab
-            contradictionClusters={contradictionClusters}
-            setActiveTab={setActiveTab}
-          />
-        )}
-
-        {/* Reading List Tab - Card-based Design */}
-        {!isNotBrainlift && activeTab === 'reading' && (
-          <ReadingListTab
+          {/* New Fact Grading Panel */}
+          <FactGradingPanel
             slug={slug}
-            readingList={readingList}
-            expertsList={expertsList}
-            expertDiagnostics={expertDiagnostics ?? null}
-            tweetResults={tweetResults}
-            showTweetSection={showTweetSection}
-            showAllExperts={showAllExperts}
-            isSharedView={isSharedView}
-            grades={grades}
-            setShowResearchModal={setShowResearchModal}
-            setShowTweetSection={setShowTweetSection}
-            setShowAllExperts={setShowAllExperts}
-            setActiveTab={setActiveTab}
-            tweetSearchMutation={tweetSearchMutation}
-            refreshExpertsMutation={refreshExpertsMutation}
-            toggleExpertFollowMutation={toggleExpertFollowMutation}
-            deleteExpertMutation={deleteExpertMutation}
+            facts={facts}
+            humanGrades={humanGrades}
+            redundancyData={redundancyData}
+            onShowRedundancyModal={() => setShowRedundancyModal(true)}
+            onAnalyzeRedundancy={() => analyzeRedundancy()}
+            isAnalyzingRedundancy={isAnalyzingRedundancy}
+            onViewFactFullText={(fact) => setSelectedFactForModal(fact)}
             canModify={canModify}
           />
-        )}
+        </div>
+      )}
 
-        {/* Learning Stream Tab - AI-curated resources (Admin only) */}
-        {!isNotBrainlift && activeTab === 'learning' && isAdmin && (
-          <LearningStreamTab slug={slug} canModify={canModify} />
-        )}
+      {/* Summaries Tab - DOK2 owner interpretations */}
+      {!isNotBrainlift && activeTab === 'summaries' && (
+        <SummariesTab
+          summaries={data.dok2Summaries ?? []}
+          facts={facts}
+          setActiveTab={setActiveTab}
+        />
+      )}
 
-      </main>
+      {/* Contradictions Tab - Card-based styled design */}
+      {!isNotBrainlift && activeTab === 'contradictions' && (
+        <ContradictionsTab
+          contradictionClusters={contradictionClusters}
+          setActiveTab={setActiveTab}
+        />
+      )}
+
+      {/* Reading List Tab - Card-based Design */}
+      {!isNotBrainlift && activeTab === 'reading' && (
+        <ReadingListTab
+          slug={slug}
+          readingList={readingList}
+          expertsList={expertsList}
+          expertDiagnostics={expertDiagnostics ?? null}
+          tweetResults={tweetResults}
+          showTweetSection={showTweetSection}
+          showAllExperts={showAllExperts}
+          isSharedView={isSharedView}
+          grades={grades}
+          setShowResearchModal={setShowResearchModal}
+          setShowTweetSection={setShowTweetSection}
+          setShowAllExperts={setShowAllExperts}
+          setActiveTab={setActiveTab}
+          tweetSearchMutation={tweetSearchMutation}
+          refreshExpertsMutation={refreshExpertsMutation}
+          toggleExpertFollowMutation={toggleExpertFollowMutation}
+          deleteExpertMutation={deleteExpertMutation}
+          canModify={canModify}
+        />
+      )}
+
+      {/* Learning Stream Tab - AI-curated resources (Admin only) */}
+      {!isNotBrainlift && activeTab === 'learning' && isAdmin && (
+        <LearningStreamTab slug={slug} canModify={canModify} />
+      )}
 
       {/* Update Modal */}
       <UpdateModal
@@ -403,13 +413,6 @@ const { downloadBrainliftPDF } = usePDFExport();
         slug={slug}
       />
 
-      {/* Manual Add Resource Modal */}
-      <AddResourceModal
-        show={showAddResourceModal}
-        onClose={() => setShowAddResourceModal(false)}
-        slug={slug}
-      />
-
       {/* Share Modal */}
       <ShareModal
         show={showShareModal}
@@ -417,6 +420,6 @@ const { downloadBrainliftPDF } = usePDFExport();
         slug={slug}
         isOwner={isOwner}
       />
-    </div>
+    </SidebarLayout>
   );
 }

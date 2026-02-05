@@ -1,5 +1,6 @@
 import { useCallback } from 'react';
-import { Plus, Shield } from 'lucide-react';
+import { useLocation } from 'wouter';
+import { Plus, Shield, LogOut } from 'lucide-react';
 import { tokens } from '@/lib/colors';
 import { authClient } from '@/lib/auth-client';
 import { TactileButton } from '@/components/ui/tactile-button';
@@ -10,8 +11,21 @@ interface HomeHeaderProps {
 }
 
 export function HomeHeader({ adminView, onAddBrainlift }: HomeHeaderProps) {
+  const [, setLocation] = useLocation();
   const { data: session } = authClient.useSession();
   const isAdmin = session?.user?.role === 'admin';
+
+  const handleSignOut = async () => {
+    await authClient.signOut({
+      fetchOptions: {
+        onSuccess: () => {
+          setLocation('/login');
+        },
+      },
+    });
+  };
+
+  const initials = session?.user?.name?.charAt(0).toUpperCase() || 'U';
 
   const handleAdminViewToggle = useCallback(() => {
     const params = new URLSearchParams(window.location.search);
@@ -85,6 +99,31 @@ export function HomeHeader({ adminView, onAddBrainlift }: HomeHeaderProps) {
           <Plus size={18} />
           Add Brainlift
         </TactileButton>
+
+        {/* User Menu */}
+        {session && (
+          <div className="flex items-center gap-2 ml-2 pl-4 border-l border-border">
+            <div className="h-8 w-8 rounded-full bg-primary flex items-center justify-center text-primary-foreground text-sm font-medium overflow-hidden">
+              {session.user.image ? (
+                <img
+                  src={session.user.image}
+                  alt={session.user.name || 'User'}
+                  className="h-full w-full object-cover"
+                  referrerPolicy="no-referrer"
+                />
+              ) : (
+                initials
+              )}
+            </div>
+            <button
+              onClick={handleSignOut}
+              className="h-8 w-8 rounded-md flex items-center justify-center transition-colors hover:bg-muted"
+              title="Sign out"
+            >
+              <LogOut size={16} className="text-muted-foreground" />
+            </button>
+          </div>
+        )}
       </div>
     </header>
   );

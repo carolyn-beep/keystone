@@ -1,8 +1,6 @@
 import { ReactNode } from 'react';
-import { Link, useSearch } from 'wouter';
 import { RefreshCw, Download, Users, History } from 'lucide-react';
 import { BrainliftData, BrainliftVersion } from '@shared/schema';
-import { tokens } from '@/lib/colors';
 import { TactileButton } from '@/components/ui/tactile-button';
 
 // Import all profile images
@@ -82,8 +80,6 @@ interface DashboardHeaderProps {
   data: BrainliftData;
   isSharedView: boolean;
   isNotBrainlift: boolean;
-  activeTab: string;
-  setActiveTab: (tab: string) => void;
   versions: BrainliftVersion[];
   editingAuthor: boolean;
   setEditingAuthor: (editing: boolean) => void;
@@ -96,15 +92,12 @@ interface DashboardHeaderProps {
   isOwner?: boolean;
   setShowShareModal?: (show: boolean) => void;
   canModify?: boolean;
-  isAdmin?: boolean;
 }
 
 export function DashboardHeader({
   data,
   isSharedView,
   isNotBrainlift,
-  activeTab,
-  setActiveTab,
   versions,
   editingAuthor,
   setEditingAuthor,
@@ -116,39 +109,22 @@ export function DashboardHeader({
   handleDownloadPDF,
   isOwner,
   setShowShareModal,
-  canModify = true, // Default to true for backwards compatibility
-  isAdmin = false,
+  canModify = true,
 }: DashboardHeaderProps) {
-  const { title, description, displayPurpose, slug } = data;
-
-  // Preserve admin param when navigating back
-  const searchString = useSearch();
-  const isAdminView = new URLSearchParams(searchString).get('admin') === 'true';
-  const backLink = isAdminView ? '/?admin=true' : '/';
+  const { title, description, displayPurpose } = data;
 
   return (
-    <header
-      className="px-4 pt-4 sm:px-8 md:px-12 bg-card"
-    >
-      {/* Row 1: Back Link */}
-      {!isSharedView && (
-        <Link href={backLink} className="text-muted-foreground no-underline text-[13px] inline-block mb-2">
-          ← All Brainlifts
-        </Link>
-      )}
-
-      {/* Row 2: Identity Block with Profile Image */}
+    <div className="px-4 pt-4 pb-4 sm:px-8 md:px-12">
+      {/* Identity Block with Profile Image */}
       <div className="flex items-start gap-2.5">
         {/* Profile Image */}
         <div
-          className="w-28 h-28 shrink-0 rounded-lg flex items-center justify-center"
-          style={{ backgroundColor: tokens.surfaceAlt }}
+          className="w-28 h-28 shrink-0 rounded-lg flex items-center justify-center bg-sidebar"
         >
           <img
             src={getProfileImage(data.id, data.coverImageUrl)}
             alt=""
-            className="w-28 h-28 object-contain"
-            style={{ filter: 'sepia(60%) saturate(80%) brightness(92%)' }}
+            className="w-28 h-28 object-contain sepia-[.6] saturate-[.8] brightness-[.92]"
             loading="lazy"
           />
         </div>
@@ -164,10 +140,7 @@ export function DashboardHeader({
 
           {/* Author */}
           <div
-            className="flex items-center gap-1"
-            style={{
-              cursor: editingAuthor ? 'text' : 'pointer',
-            }}
+            className={`flex items-center gap-1 ${editingAuthor ? 'cursor-text' : 'cursor-pointer'}`}
             onClick={() => {
               if (!editingAuthor) {
                 setAuthorInput(data.author || '');
@@ -202,62 +175,20 @@ export function DashboardHeader({
               />
             ) : (
               <span
-                className="owner-name-hover transition-all duration-150"
-                style={{
-                  color: data.author ? tokens.textMuted : '#9CA3AF',
-                  fontStyle: data.author ? 'normal' : 'italic',
-                  borderBottom: data.author ? 'none' : '1px dashed #D1D5DB',
-                  paddingBottom: data.author ? 0 : '1px',
-                }}
+                className={`owner-name-hover transition-all duration-150 ${
+                  data.author
+                    ? 'text-muted-foreground'
+                    : 'text-gray-400 italic border-b border-dashed border-gray-300 pb-px'
+                }`}
               >
                 {data.author || 'Set Owner Name...'}
               </span>
             )}
           </div>
         </div>
-      </div>
 
-      {/* Row 5: Navigation Tabs (left) + Actions (right) */}
-      <div
-        className="flex flex-col sm:flex-row sm:justify-between sm:items-end gap-2 sm:gap-0 mt-4 border-b border-border"
-      >
-        {/* Navigation Tabs - Left aligned, flat underline style */}
-        <div className="flex gap-1 flex-wrap">
-          {!isNotBrainlift && ['brainlift', 'grading', 'summaries', 'contradictions', 'reading', ...(isAdmin ? ['learning'] : [])].map(tab => (
-            <button
-              key={tab}
-              onClick={() => setActiveTab(tab)}
-              data-testid={`tab-${tab}`}
-              className="px-5 py-3 bg-transparent border-none cursor-pointer text-sm font-medium transition-colors duration-150 -mb-px font-serif"
-              style={{
-                borderBottom: activeTab === tab ? `2px solid ${tokens.primary}` : '2px solid transparent',
-                color: activeTab === tab ? tokens.primary : tokens.textSecondary,
-              }}
-              onMouseEnter={(e) => {
-                if (activeTab !== tab) {
-                  e.currentTarget.style.color = tokens.primary;
-                }
-              }}
-              onMouseLeave={(e) => {
-                if (activeTab !== tab) {
-                  e.currentTarget.style.color = tokens.textSecondary;
-                }
-              }}
-            >
-              {tab === 'brainlift' && 'Brainlift'}
-              {tab === 'grading' && 'Fact Grading'}
-              {tab === 'verification' && 'AI Verification'}
-              {tab === 'analytics' && 'Analytics'}
-              {tab === 'contradictions' && 'Contradictions'}
-              {tab === 'reading' && 'Reading List'}
-              {tab === 'learning' && 'Learning Stream'}
-              {tab === 'summaries' && 'Summaries'}
-            </button>
-          ))}
-        </div>
-
-        {/* Action Cluster - Right aligned */}
-        <div className="flex gap-2 items-center pb-2 flex-wrap">
+        {/* Action Buttons - Right aligned, bottom of header */}
+        <div className="flex gap-2 items-end flex-wrap shrink-0 self-end">
           {/* Primary Action: Update */}
           {canModify && !isSharedView && !isNotBrainlift && (
             <TactileButton
@@ -276,10 +207,7 @@ export function DashboardHeader({
             <button
               data-testid="button-download-pdf"
               onClick={handleDownloadPDF}
-              className="flex items-center justify-center gap-1.5 px-4 py-2 rounded-md border-none bg-transparent cursor-pointer text-[13px] font-medium"
-              style={{ color: tokens.textSecondary }}
-              onMouseEnter={(e) => e.currentTarget.style.color = tokens.textPrimary}
-              onMouseLeave={(e) => e.currentTarget.style.color = tokens.textSecondary}
+              className="flex items-center justify-center gap-1.5 px-4 py-2 rounded-md border-none bg-transparent cursor-pointer text-[13px] font-medium text-muted-foreground hover:text-foreground transition-colors"
             >
               <Download size={14} />
               PDF
@@ -290,10 +218,7 @@ export function DashboardHeader({
             <button
               data-testid="button-share"
               onClick={() => setShowShareModal?.(true)}
-              className="flex items-center justify-center gap-1.5 px-4 py-2 rounded-md border-none bg-transparent cursor-pointer text-[13px] font-medium"
-              style={{ color: tokens.textSecondary }}
-              onMouseEnter={(e) => e.currentTarget.style.color = tokens.textPrimary}
-              onMouseLeave={(e) => e.currentTarget.style.color = tokens.textSecondary}
+              className="flex items-center justify-center gap-1.5 px-4 py-2 rounded-md border-none bg-transparent cursor-pointer text-[13px] font-medium text-muted-foreground hover:text-foreground transition-colors"
             >
               <Users size={14} />
               Share
@@ -305,10 +230,7 @@ export function DashboardHeader({
             <button
               data-testid="button-view-history"
               onClick={() => setShowHistoryModal(true)}
-              className="flex items-center justify-center gap-1.5 px-4 py-2 rounded-md border-none bg-transparent cursor-pointer text-[13px] font-medium"
-              style={{ color: tokens.textSecondary }}
-              onMouseEnter={(e) => e.currentTarget.style.color = tokens.textPrimary}
-              onMouseLeave={(e) => e.currentTarget.style.color = tokens.textSecondary}
+              className="flex items-center justify-center gap-1.5 px-4 py-2 rounded-md border-none bg-transparent cursor-pointer text-[13px] font-medium text-muted-foreground hover:text-foreground transition-colors"
             >
               <History size={14} />
               History
@@ -316,6 +238,6 @@ export function DashboardHeader({
           )}
         </div>
       </div>
-    </header>
+    </div>
   );
 }
