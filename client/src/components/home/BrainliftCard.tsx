@@ -90,22 +90,17 @@ export function BrainliftCard({ brainlift, adminView, onDelete }: BrainliftCardP
     <Link
       href={`/grading/${brainlift.slug}${adminView ? '?admin=true' : ''}`}
       data-testid={`card-brainlift-${brainlift.slug}`}
-      className="group rounded-xl no-underline flex relative transition-all duration-200 cursor-pointer h-full box-border overflow-hidden"
+      className="group rounded-xl no-underline flex relative transition-all duration-200 cursor-pointer h-full box-border overflow-hidden shadow-card hover:shadow-card-hover hover:-translate-y-0.5"
       style={{
         backgroundColor: tokens.surface,
         border: `1px solid ${tokens.border}`,
         color: 'inherit',
-        boxShadow: '0 2px 6px rgba(0, 0, 0, 0.06), 0 1px 3px rgba(0, 0, 0, 0.04)',
       }}
       onMouseEnter={(e) => {
         e.currentTarget.style.borderColor = tokens.borderStrong;
-        e.currentTarget.style.boxShadow = '0 4px 12px rgba(34, 21, 13, 0.08), 0 2px 4px rgba(34, 21, 13, 0.04)';
-        e.currentTarget.style.transform = 'translateY(-2px)';
       }}
       onMouseLeave={(e) => {
         e.currentTarget.style.borderColor = tokens.border;
-        e.currentTarget.style.boxShadow = '0 2px 6px rgba(0, 0, 0, 0.06), 0 1px 3px rgba(0, 0, 0, 0.04)';
-        e.currentTarget.style.transform = 'none';
       }}
     >
       {/* Delete Button - Top Right */}

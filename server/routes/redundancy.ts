@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { storage } from '../storage';
 import { db } from '../db';
-import { facts, factVerifications, factModelScores, llmFeedback, factRedundancyGroups } from '@shared/schema';
+import { facts, factVerifications, factModelScores, llmFeedback, factRedundancyGroups, dok2FactRelations } from '@shared/schema';
 import { eq, inArray, and } from 'drizzle-orm';
 import { requireAuth } from '../middleware/auth';
 import { asyncHandler, BadRequestError, NotFoundError } from '../middleware/error-handler';
@@ -140,6 +140,9 @@ redundancyRouter.patch(
 
           // Delete LLM feedback
           await db.delete(llmFeedback).where(eq(llmFeedback.factId, factId));
+
+          // Delete DOK2 fact relations
+          await db.delete(dok2FactRelations).where(eq(dok2FactRelations.factId, factId));
 
           // Delete the fact itself
           await db.delete(facts).where(eq(facts.id, factId));

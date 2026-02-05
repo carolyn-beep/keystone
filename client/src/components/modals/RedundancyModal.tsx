@@ -1,5 +1,9 @@
-import { X, AlertTriangle, CheckCircle } from 'lucide-react';
+import { X } from 'lucide-react';
+import { AnimatePresence, motion } from 'framer-motion';
 import { tokens, getScoreChipColors } from '@/lib/colors';
+import { TactileButton } from '@/components/ui/tactile-button';
+import overlapIcon from '@/assets/icons/overlap.svg';
+import inkQuillBg from '@/assets/bl_profile/ink-quill.webp';
 
 interface RedundancyGroup {
   id: number;
@@ -52,173 +56,200 @@ export function RedundancyModal({
 }: RedundancyModalProps) {
   if (!show || !data) return null;
 
+  const pendingGroups = data.groups.filter(g => g.status === 'pending');
+
   return (
     <div
       className="fixed inset-0 flex items-center justify-center z-[1000]"
       style={{ backgroundColor: tokens.overlay }}
     >
       <div
-        className="p-4 sm:p-8 w-[95%] max-w-[800px] max-h-[90vh] overflow-auto rounded-xl scrollbar-styled bg-card"
+        className="p-8 sm:p-10 w-[95%] max-w-[800px] max-h-[90vh] overflow-auto rounded-xl scrollbar-none bg-card-elevated"
         style={{ overscrollBehavior: 'contain' }}
         onWheel={(e) => e.stopPropagation()}
       >
-        <div className="flex justify-between items-center mb-6">
-          <h2 className="text-xl font-bold m-0 text-primary">
-            <AlertTriangle size={20} className="mr-2 align-middle text-warning inline-block" />
-            Review Redundant Facts
-          </h2>
+        {/* Header */}
+        <div className="flex justify-between items-center mb-8">
+          <div className="flex items-center gap-2.5">
+            <img src={overlapIcon} alt="" className="w-6 h-6 opacity-40" />
+            <span
+              className="text-[24px] uppercase tracking-[0.15em] font-semibold"
+              style={{ color: tokens.warning }}
+            >
+              Review Redundant Facts
+            </span>
+          </div>
           <button
             data-testid="button-close-redundancy-modal"
             onClick={onClose}
-            className="bg-transparent border-none cursor-pointer p-1"
+            className="bg-transparent border-none cursor-pointer p-1.5 rounded-md text-muted-foreground hover:text-foreground transition-colors"
           >
-            <X size={20} />
+            <X size={18} />
           </button>
         </div>
 
-        <p className="text-muted-foreground text-sm mb-5">
+        {/* Description */}
+        <p className="font-serif italic text-[14px] text-muted-foreground leading-relaxed mb-8">
           These facts have been flagged as potentially redundant. Review each group and decide which facts to keep.
           Keeping fewer, stronger facts helps focus the brainlift on essential DOK1 content.
         </p>
 
-        <div className="grid grid-cols-3 gap-3 mb-6 p-4 bg-muted rounded-lg">
-          <div className="text-center">
-            <p className="text-2xl font-bold text-primary m-0">{data.stats.totalFacts}</p>
-            <p className="text-xs text-muted-foreground m-0">Total Facts</p>
-          </div>
-          <div className="text-center">
-            <p className="text-2xl font-bold text-success m-0">{data.stats.uniqueFactCount}</p>
-            <p className="text-xs text-muted-foreground m-0">Core Facts</p>
-          </div>
-          <div className="text-center">
-            <p className="text-2xl font-bold text-warning m-0">{data.stats.pendingReview}</p>
-            <p className="text-xs text-muted-foreground m-0">Pending Review</p>
-          </div>
-        </div>
-
-        {data.groups.filter(g => g.status === 'pending').length === 0 ? (
-          <div className="text-center p-10 text-muted-foreground">
-            <CheckCircle size={48} className="opacity-30 mb-4 inline-block" />
-            <p className="m-0">No redundancies pending review</p>
+        {/* Groups or empty state */}
+        {pendingGroups.length === 0 ? (
+          <div className="text-center py-14">
+            <p className="m-0 font-serif italic text-muted-foreground">No redundancies pending review</p>
           </div>
         ) : (
-          <div className="flex flex-col gap-4">
-            {data.groups.filter(g => g.status === 'pending').map((group) => (
-              <div
-                key={group.id}
-                data-testid={`redundancy-group-${group.id}`}
-                className="rounded-xl p-5 bg-card border border-border"
-              >
-                <div className="flex justify-between items-start mb-3">
-                  <div>
-                    <h3 className="m-0 mb-1 text-[15px] font-semibold text-foreground">
-                      {group.groupName}
-                    </h3>
-                    <p className="m-0 text-xs text-muted-foreground">
-                      {group.factIds.length} facts | {group.similarityScore} similarity
+          <div className="flex flex-col gap-6">
+            <AnimatePresence initial={false}>
+              {pendingGroups.map((group) => (
+                <motion.div
+                  key={group.id}
+                  layout
+                  initial={{ opacity: 1, scale: 1 }}
+                  exit={{ opacity: 0, scale: 0.95, transition: { duration: 0.3, ease: 'easeInOut' } }}
+                  transition={{ layout: { duration: 0.35, ease: 'easeInOut' } }}
+                  data-testid={`redundancy-group-${group.id}`}
+                  className="rounded-xl bg-card shadow-card overflow-hidden relative"
+                >
+                  {/* Ink quill background */}
+                  <div
+                    aria-hidden="true"
+                    className="absolute bottom-0 right-0 w-[200px] h-[200px] pointer-events-none z-0"
+                    style={{
+                      backgroundImage: `url(${inkQuillBg})`,
+                      backgroundSize: 'contain',
+                      backgroundRepeat: 'no-repeat',
+                      backgroundPosition: 'bottom right',
+                      opacity: 0.12,
+                      mixBlendMode: 'multiply',
+                    }}
+                  />
+
+                  {/* Group header */}
+                  <div className="py-6 px-8 bg-primary/5 border-b border-border">
+                    <div className="flex items-center gap-2.5">
+                      <img src={overlapIcon} alt="" className="w-5 h-5 opacity-40" />
+                      <span
+                        className="text-[11px] uppercase tracking-[0.35em] font-semibold"
+                        style={{ color: tokens.warning }}
+                      >
+                        {group.groupName}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-2 mt-2 ml-[30px]">
+                      <span className="text-[9px] uppercase tracking-[0.35em] font-semibold text-muted-light">
+                        {group.factIds.length} FACTS
+                      </span>
+                      <span className="text-[10px] font-extrabold text-muted-light" aria-hidden>&middot;</span>
+                      <span className="text-[9px] uppercase tracking-[0.35em] font-semibold text-muted-light">
+                        {group.similarityScore} MATCH
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Reason */}
+                  <div className="py-5 px-8 border-b border-border">
+                    <p className="m-0 font-serif italic text-[14px] text-muted-foreground leading-relaxed">
+                      {group.reason}
                     </p>
                   </div>
-                  <span className="px-[10px] py-1 rounded-xl bg-warning-soft text-warning text-[11px] font-medium">
-                    Pending
-                  </span>
-                </div>
 
-                <p className="text-[13px] text-muted-foreground mb-4 italic">
-                  {group.reason}
-                </p>
+                  {/* Fact selection */}
+                  <div className="p-8">
+                    <p className="text-[10px] uppercase tracking-[0.3em] font-semibold text-muted-light mb-3">
+                      Click a fact to select it as the one to keep
+                    </p>
+                    <div className="flex flex-col gap-4 mb-6">
+                      {group.facts.map((fact) => {
+                        const currentPrimary = selectedPrimaryFacts[group.id] ?? group.primaryFactId;
+                        const isSelected = fact.id === currentPrimary;
+                        const isAutoRecommended = fact.id === group.primaryFactId;
 
-                {/* Fact selection - click to choose primary */}
-                <p className="text-[11px] text-muted-foreground mb-2">
-                  Click a fact to select it as the one to keep:
-                </p>
-                <div className="flex flex-col gap-2 mb-4">
-                  {group.facts.map((fact) => {
-                    const currentPrimary = selectedPrimaryFacts[group.id] ?? group.primaryFactId;
-                    const isSelected = fact.id === currentPrimary;
-                    const isAutoRecommended = fact.id === group.primaryFactId;
-
-                    return (
-                      <div
-                        key={fact.id}
-                        onClick={() => onSelectPrimaryFact(group.id, fact.id)}
-                        className="flex items-start gap-3 p-3 rounded-lg cursor-pointer transition-all duration-150"
-                        style={{
-                          backgroundColor: isSelected ? tokens.successSoft : tokens.surfaceAlt,
-                          border: isSelected ? `2px solid ${tokens.success}` : '2px solid transparent',
-                        }}
-                      >
-                        <div className="shrink-0">
-                          {isSelected ? (
-                            <CheckCircle size={16} style={{ color: tokens.success }} />
-                          ) : (
-                            <div
-                              className="w-4 h-4 rounded-full bg-card"
-                              style={{ border: `2px solid ${tokens.border}` }}
-                            />
-                          )}
-                        </div>
-                        <div className="flex-1">
-                          <div className="flex items-center gap-2 mb-1">
-                            <span className="font-semibold text-xs text-muted-foreground">
-                              Fact {fact.originalId}
-                            </span>
-                            <span
-                              className="px-[6px] py-[2px] rounded text-[10px] font-semibold"
-                              style={{
-                                backgroundColor: getScoreChipColors(fact.score).bg,
-                                color: getScoreChipColors(fact.score).text,
-                              }}
-                            >
-                              {fact.score}/5
-                            </span>
-                            {isAutoRecommended && (
-                              <span className="px-[6px] py-[2px] rounded bg-info-soft text-info text-[10px] font-semibold">
-                                AI Pick
-                              </span>
-                            )}
-                            {isSelected && (
-                              <span className="px-[6px] py-[2px] rounded bg-success text-white text-[10px] font-semibold">
-                                Will Keep
-                              </span>
-                            )}
+                        return (
+                          <div
+                            key={fact.id}
+                            onClick={() => onSelectPrimaryFact(group.id, fact.id)}
+                            className={`flex items-start gap-3 p-3.5 rounded-lg cursor-pointer transition-all duration-300 ease-in-out ${
+                              isSelected
+                                ? 'bg-card-elevated shadow-card border border-transparent'
+                                : 'bg-card border border-border shadow-none'
+                            }`}
+                          >
+                            {/* Radio-like indicator */}
+                            <div className="shrink-0 mt-0.5">
+                              {isSelected ? (
+                                <div className="w-4 h-4 rounded-full bg-primary flex items-center justify-center">
+                                  <div className="w-1.5 h-1.5 rounded-full bg-white" />
+                                </div>
+                              ) : (
+                                <div className="w-4 h-4 rounded-full border-2 border-border bg-card" />
+                              )}
+                            </div>
+                            <div className="flex-1">
+                              <div className="flex items-center gap-2 mb-1">
+                                <span className="font-serif text-xs text-muted-light">
+                                  Fact {fact.originalId}
+                                </span>
+                                <span
+                                  className="px-[6px] py-[2px] rounded text-[10px] font-semibold"
+                                  style={{
+                                    backgroundColor: getScoreChipColors(fact.score).bg,
+                                    color: getScoreChipColors(fact.score).text,
+                                  }}
+                                >
+                                  {fact.score}/5
+                                </span>
+                                {isAutoRecommended && (
+                                  <span className="px-[6px] py-[2px] rounded bg-muted text-muted-foreground text-[9px] uppercase tracking-[0.25em] font-semibold">
+                                    AI Pick
+                                  </span>
+                                )}
+                                {isSelected && (
+                                  <span className="px-[6px] py-[2px] rounded bg-success-soft text-success text-[9px] uppercase tracking-[0.25em] font-semibold">
+                                    Will Keep
+                                  </span>
+                                )}
+                              </div>
+                              <p className="m-0 font-serif italic text-[15px] text-foreground leading-normal">
+                                {fact.summary || fact.fact}
+                              </p>
+                            </div>
                           </div>
-                          <p className="m-0 text-[13px] text-foreground leading-normal">
-                            {fact.summary || fact.fact}
-                          </p>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
+                        );
+                      })}
+                    </div>
 
-                <div className="flex gap-2 flex-wrap">
-                  <button
-                    onClick={() => {
-                      const primaryFactId = selectedPrimaryFacts[group.id] ?? group.primaryFactId;
-                      if (primaryFactId) {
-                        onKeep(group.id, primaryFactId);
-                      }
-                    }}
-                    disabled={isUpdating}
-                    data-testid={`button-keep-${group.id}`}
-                    className="hover-elevate active-elevate-2 px-4 py-2 rounded-md border-none bg-success text-white text-xs font-medium cursor-pointer flex items-center gap-[6px]"
-                  >
-                    <CheckCircle size={12} />
-                    Keep Selected & Remove Others
-                  </button>
-                  <button
-                    onClick={() => onDismiss(group.id)}
-                    disabled={isUpdating}
-                    data-testid={`button-dismiss-${group.id}`}
-                    className="hover-elevate active-elevate-2 px-4 py-2 rounded-md bg-card text-muted-foreground text-xs font-medium cursor-pointer flex items-center gap-[6px]"
-                    style={{ border: `1px solid ${tokens.border}` }}
-                  >
-                    <X size={12} />
-                    Keep All (Not Redundant)
-                  </button>
-                </div>
-              </div>
-            ))}
+                    {/* Action buttons */}
+                    <div className="flex gap-3 flex-wrap">
+                      <TactileButton
+                        variant="raised"
+                        onClick={() => {
+                          const primaryFactId = selectedPrimaryFacts[group.id] ?? group.primaryFactId;
+                          if (primaryFactId) {
+                            onKeep(group.id, primaryFactId);
+                          }
+                        }}
+                        disabled={isUpdating}
+                        data-testid={`button-keep-${group.id}`}
+                        className="text-[12px] flex items-center gap-1.5"
+                      >
+                        Keep Selected &amp; Remove Others
+                      </TactileButton>
+                      <TactileButton
+                        variant="inset"
+                        onClick={() => onDismiss(group.id)}
+                        disabled={isUpdating}
+                        data-testid={`button-dismiss-${group.id}`}
+                        className="text-[12px] flex items-center gap-1.5"
+                      >
+                        Keep All (Not Redundant)
+                      </TactileButton>
+                    </div>
+                  </div>
+                </motion.div>
+              ))}
+            </AnimatePresence>
           </div>
         )}
       </div>

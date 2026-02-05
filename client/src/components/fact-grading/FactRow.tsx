@@ -1,10 +1,15 @@
-import { useState, useRef, useEffect, useLayoutEffect } from 'react';
-import { createPortal } from 'react-dom';
-import { AlertTriangle, Check, Loader2, Brain, X, ExternalLink } from 'lucide-react';
+import { useState } from 'react';
+import { AnimatePresence, motion } from 'framer-motion';
+import * as Popover from '@radix-ui/react-popover';
+import { Loader2, ExternalLink } from 'lucide-react';
+import { IoLinkSharp } from 'react-icons/io5';
 import { tokens, getScoreChipColors } from '@/lib/colors';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
+import { TactileButton } from '@/components/ui/tactile-button';
 import type { Fact } from '@shared/schema';
+import checklistIcon from '@/assets/icons/checklist.svg';
+import overlapIcon from '@/assets/icons/overlap.svg';
 
 export interface HumanGrade {
   score: number | null;
@@ -20,14 +25,7 @@ export interface FactRowProps {
   isFirstInGroup?: boolean;
   isLastInGroup?: boolean;
   humanGrade?: HumanGrade;
-  isGrading: boolean;
-  gradingScore: number;
-  gradingNotes: string;
-  onGradingScoreChange: (score: number) => void;
-  onGradingNotesChange: (notes: string) => void;
-  onStartGrading: () => void;
   onSaveGrade: (score?: number) => void;
-  onCancelGrading: () => void;
   isSavingGrade: boolean;
   onViewFullText?: () => void;
   sourceUrls?: Record<string, string>;
@@ -37,14 +35,15 @@ export interface FactRowProps {
 
 // Parse source string to extract text and URL, returning a clickable link
 function parseSourceWithLink(source: string): React.ReactNode {
-  // Match URLs starting with http:// or https://
-  const urlPattern = /(https?:\/\/[^\s]+)/;
-  const match = source.match(urlPattern);
+  // First try markdown link format: [text](url) or [url](url)
+  const markdownPattern = /\[([^\]]+)\]\((https?:\/\/[^)]+)\)/;
+  const markdownMatch = source.match(markdownPattern);
 
-  if (match) {
-    const url = match[1];
-    // Get the text portion (everything before the URL, trimmed)
-    const text = source.substring(0, match.index).trim();
+  if (markdownMatch) {
+    const url = markdownMatch[2];
+    // Get the text before the markdown link
+    const textBefore = source.substring(0, markdownMatch.index).trim();
+    const displayText = textBefore || markdownMatch[1] || url;
 
     return (
       <a
@@ -52,10 +51,32 @@ function parseSourceWithLink(source: string): React.ReactNode {
         target="_blank"
         rel="noopener noreferrer"
         onClick={(e) => e.stopPropagation()}
-        className="text-muted-foreground hover:text-primary transition-colors inline-flex items-center gap-1"
+        className="text-muted-foreground hover:text-foreground transition-colors duration-300"
       >
-        {text || url}
-        <ExternalLink size={11} className="opacity-60" />
+        {displayText}
+      </a>
+    );
+  }
+
+  // Fallback: plain URL
+  const urlPattern = /(https?:\/\/[^\s]+)/;
+  const match = source.match(urlPattern);
+
+  if (match) {
+    const url = match[1];
+    const textBefore = source.substring(0, match.index).trim();
+    const textAfter = source.substring(match.index! + match[1].length).trim();
+    const displayText = textBefore || textAfter || url;
+
+    return (
+      <a
+        href={url}
+        target="_blank"
+        rel="noopener noreferrer"
+        onClick={(e) => e.stopPropagation()}
+        className="text-muted-foreground hover:text-foreground transition-colors duration-300"
+      >
+        {displayText}
       </a>
     );
   }
@@ -64,49 +85,91 @@ function parseSourceWithLink(source: string): React.ReactNode {
   return source;
 }
 
-// Parse AI analysis text and convert source references to links
-function parseAnalysisWithLinks(
-  text: string,
-  sourceUrls?: Record<string, string>
-): React.ReactNode[] {
-  if (!text) return [];
+// Parse AI analysis into structured parts: assessment, quotes, and source URL
+function parseAnalysisStructured(text: string, sourceUrls?: Record<string, string>) {
+  if (!text) return { assessment: '', quotes: [] as string[], sourceUrl: null as string | null };
 
-  const sourcePattern = /(Source\s*\d+)/gi;
-  const parts = text.split(sourcePattern);
+  // Extract source URL from the end (markdown link or raw URL)
+  let sourceUrl: string | null = null;
+  let body = text;
 
-  return parts.map((part, index) => {
-    const match = part.match(/^Source\s*(\d+)$/i);
-    if (match) {
-      const sourceKey = `Source ${match[1]}`;
-      const url = sourceUrls?.[sourceKey] || sourceUrls?.[part];
-
-      if (url) {
-        return (
-          <a
-            key={index}
-            href={url}
-            target="_blank"
-            rel="noopener noreferrer"
-            onClick={(e) => e.stopPropagation()}
-            className="text-info underline font-semibold inline-flex items-center gap-0.5"
-          >
-            {part}
-            <ExternalLink size={11} />
-          </a>
-        );
-      } else {
-        return (
-          <span
-            key={index}
-            className="text-info font-semibold"
-          >
-            {part}
-          </span>
-        );
-      }
+  // Try markdown link: Source: [text](url) or Source [text](url)
+  const mdLinkPattern = /\s*Source:?\s*\[([^\]]*)\]\((https?:\/\/[^)]+)\)\s*$/i;
+  const mdMatch = body.match(mdLinkPattern);
+  if (mdMatch) {
+    sourceUrl = mdMatch[2];
+    body = body.slice(0, mdMatch.index).trim();
+  } else {
+    // Try raw URL at end
+    const rawUrlPattern = /\s*Source:?\s*(https?:\/\/\S+)\s*$/i;
+    const rawMatch = body.match(rawUrlPattern);
+    if (rawMatch) {
+      sourceUrl = rawMatch[1];
+      body = body.slice(0, rawMatch.index).trim();
     }
-    return <span key={index}>{part}</span>;
-  });
+  }
+
+  // Also check sourceUrls map for Source N references
+  if (!sourceUrl) {
+    const sourceRefPattern = /Source\s*(\d+)/gi;
+    const refMatch = sourceRefPattern.exec(body);
+    if (refMatch) {
+      const key = `Source ${refMatch[1]}`;
+      sourceUrl = sourceUrls?.[key] || sourceUrls?.[refMatch[0]] || null;
+    }
+  }
+
+  // Extract quoted text (between "..." or "...")
+  const quotes: string[] = [];
+  const quotePattern = /["\u201C]([^"\u201D]+)["\u201D]/g;
+  let qMatch;
+  while ((qMatch = quotePattern.exec(body)) !== null) {
+    if (qMatch[1].length > 30) {
+      quotes.push(qMatch[1]);
+    }
+  }
+
+  // The assessment is the full body (we'll render quotes inline as styled elements)
+  return { assessment: body, quotes, sourceUrl };
+}
+
+// Render assessment text with inline quotes styled as blockquotes
+function renderAssessmentWithQuotes(text: string, quotes: string[]): React.ReactNode[] {
+  if (quotes.length === 0) return [<span key={0}>{text}</span>];
+
+  const parts: React.ReactNode[] = [];
+  let remaining = text;
+  let keyIdx = 0;
+
+  for (const quote of quotes) {
+    const fullQuote = new RegExp(`["\u201C]${quote.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}["\u201D]`);
+    const idx = remaining.search(fullQuote);
+    if (idx === -1) continue;
+
+    const matchResult = remaining.match(fullQuote);
+    if (!matchResult) continue;
+
+    // Text before the quote
+    if (idx > 0) {
+      parts.push(<span key={keyIdx++}>{remaining.slice(0, idx)}</span>);
+    }
+
+    // The quote itself as a styled blockquote
+    parts.push(
+      <span key={keyIdx++} className="block my-4 pl-5 border-l-2 border-border italic text-muted-foreground">
+        &ldquo;{quote}&rdquo;
+      </span>
+    );
+
+    remaining = remaining.slice(idx + matchResult[0].length);
+  }
+
+  // Remaining text after last quote
+  if (remaining) {
+    parts.push(<span key={keyIdx}>{remaining}</span>);
+  }
+
+  return parts;
 }
 
 export function FactRow({
@@ -115,14 +178,7 @@ export function FactRow({
   isInGroup = false,
   isLastInGroup = false,
   humanGrade,
-  isGrading,
-  gradingScore,
-  gradingNotes,
-  onGradingScoreChange,
-  onGradingNotesChange,
-  onStartGrading,
   onSaveGrade,
-  onCancelGrading,
   isSavingGrade,
   onViewFullText,
   sourceUrls,
@@ -131,11 +187,7 @@ export function FactRow({
 }: FactRowProps) {
   const { toast } = useToast();
   const [showAIAnalysis, setShowAIAnalysis] = useState(false);
-  const [showQuickGrade, setShowQuickGrade] = useState(false);
-  const [showNotesPanel, setShowNotesPanel] = useState(false);
-  const [dropdownPosition, setDropdownPosition] = useState({ top: 0, right: 0 });
-  const gradeDropdownRef = useRef<HTMLDivElement>(null);
-  const gradeButtonRef = useRef<HTMLButtonElement>(null);
+  const [gradeOpen, setGradeOpen] = useState(false);
 
   const hasContradiction = fact.contradicts !== null && fact.contradicts !== '';
   const scoreChip = getScoreChipColors(fact.score);
@@ -150,33 +202,6 @@ export function FactRow({
 
   const hasAIAnalysis = fact.note && fact.note.trim().length > 0;
 
-  // Calculate dropdown position when it opens
-  useLayoutEffect(() => {
-    if (showQuickGrade && gradeButtonRef.current) {
-      const rect = gradeButtonRef.current.getBoundingClientRect();
-      setDropdownPosition({
-        top: rect.bottom + 8,
-        right: window.innerWidth - rect.right,
-      });
-    }
-  }, [showQuickGrade]);
-
-  useEffect(() => {
-    function handleClickOutside(event: MouseEvent) {
-      const target = event.target as Node;
-      if (
-        gradeDropdownRef.current && !gradeDropdownRef.current.contains(target) &&
-        gradeButtonRef.current && !gradeButtonRef.current.contains(target)
-      ) {
-        setShowQuickGrade(false);
-      }
-    }
-    if (showQuickGrade) {
-      document.addEventListener('mousedown', handleClickOutside);
-      return () => document.removeEventListener('mousedown', handleClickOutside);
-    }
-  }, [showQuickGrade]);
-
   const handleQuickGrade = (score: number) => {
     if (!canModify) {
       toast({
@@ -184,14 +209,15 @@ export function FactRow({
         description: "You don't have permission to grade facts. Ask the owner for Editor access.",
         variant: 'destructive',
       });
-      setShowQuickGrade(false);
+      setGradeOpen(false);
       return;
     }
-    onSaveGrade(score);  // Pass score directly - no state timing issues
-    setShowQuickGrade(false);
+    onSaveGrade(score);
+    setGradeOpen(false);
   };
 
-  const handleGradeButtonClick = () => {
+  const handleGradeButtonClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
     if (!canModify) {
       toast({
         title: 'Permission denied',
@@ -200,427 +226,277 @@ export function FactRow({
       });
       return;
     }
-    setShowQuickGrade(!showQuickGrade);
   };
 
   return (
     <div
       data-testid={`row-fact-${fact.originalId}`}
       className={cn(
-        "transition-all duration-200 overflow-hidden",
-        isInGroup ? "rounded-none mb-0" : "rounded-xl mb-3",
+        "transition-all duration-200 overflow-hidden shadow-card",
+        isInGroup ? "rounded-none mb-0" : "rounded-xl",
+        "bg-card-elevated",
       )}
       style={{
-        backgroundColor: isPrimary ? tokens.primarySoft : tokens.surface,
-        border: isInGroup ? 'none' : `1px solid ${isPrimary ? tokens.primary : tokens.border}`,
         borderBottom: isInGroup && !isLastInGroup ? `1px solid ${tokens.border}` : undefined,
       }}
     >
-      {/* Main Row: Fact ID | Content | Scores Area */}
-      <div
-        className="grid gap-4 px-5 py-4 items-start"
-        style={{
-          gridTemplateColumns: '70px 1fr auto',
-        }}
-      >
-        {/* Fact ID */}
-        <div className="flex flex-col items-center gap-1">
-          <span className="font-mono text-sm font-bold text-primary px-2 py-1 bg-accent rounded-md">
-            {fact.originalId}
-          </span>
-          {isPrimary && (
-            <span className="text-[9px] font-semibold text-success uppercase tracking-wider">
-              Primary
+      {/* Main Row: Fact Content | Vertical Separator | Scores */}
+      <div className="flex">
+        {/* Left: Fact ID + Content - 70% */}
+        <div className="flex gap-10 px-10 py-14 basis-[70%] shrink-0">
+          {/* Fact ID */}
+          <div className="flex flex-col items-center gap-1 shrink-0">
+            <span className="font-serif text-[32px] leading-none text-muted-light tracking-wide">
+              {fact.originalId}
             </span>
-          )}
-          {hasContradiction && (
-            <span
-              title={`Contradicts: ${fact.contradicts}`}
-              className="flex items-center justify-center w-5 h-5 bg-warning-soft text-warning rounded-full text-xs font-bold"
-            >!</span>
-          )}
+            {isPrimary && (
+              <span className="text-[9px] font-semibold text-success uppercase tracking-wider">
+                Primary
+              </span>
+            )}
+            {hasContradiction && (
+              <span
+                title={`Contradicts: ${fact.contradicts}`}
+                className="flex items-center justify-center w-5 h-5 bg-warning-soft text-warning rounded-full text-xs font-bold"
+              >!</span>
+            )}
+          </div>
+
+          {/* Fact Content */}
+          <div className="flex flex-col gap-6">
+            <p className="font-serif text-[22px] leading-relaxed text-foreground m-0 italic">
+              {fact.summary || fact.fact}
+            </p>
+            {fact.summary && onViewFullText && (
+              <button
+                onClick={(e) => { e.stopPropagation(); onViewFullText(); }}
+                className="text-[10px] text-muted-light bg-transparent p-0 cursor-pointer text-left w-fit uppercase tracking-[0.35em] font-semibold border-0 border-b border-solid border-muted-light/50 hover:border-dashed hover:text-muted-foreground hover:border-muted-foreground transition-colors duration-300"
+              >
+                VIEW ORIGINAL TEXT
+              </button>
+            )}
+            {fact.source && (
+              <span className="text-xs text-muted-foreground flex items-center gap-4">
+                <IoLinkSharp size={18} className="shrink-0" />
+                {parseSourceWithLink(fact.source)}
+              </span>
+            )}
+            {isRedundant && (
+              <span className="inline-flex items-center gap-2 text-[9px] uppercase tracking-[0.35em] font-semibold text-warning w-fit">
+                <img src={overlapIcon} alt="" className="w-4 h-4 opacity-40" />
+                Redundant
+              </span>
+            )}
+          </div>
         </div>
 
-        {/* Fact Content */}
-        <div className="flex flex-col gap-1.5">
-          <p className="text-[15px] leading-relaxed text-foreground m-0 font-normal">
-            {fact.summary || fact.fact}
-          </p>
-          {fact.source && (
-            <span className="text-xs text-muted-foreground italic">
-              Source: {parseSourceWithLink(fact.source)}
-            </span>
-          )}
-          {fact.summary && onViewFullText && (
-            <button
-              onClick={(e) => { e.stopPropagation(); onViewFullText(); }}
-              className="text-[11px] text-primary bg-transparent border-none p-0 cursor-pointer underline text-left w-fit"
-            >
-              View full original text
-            </button>
-          )}
-          {isRedundant && (
-            <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-warning-soft text-warning rounded text-[10px] font-semibold uppercase tracking-wider w-fit">
-              <AlertTriangle size={10} />
-              Redundant
-            </span>
-          )}
-        </div>
+        {/* Vertical Separator */}
+        <div className="w-px bg-border my-10 shrink-0" />
 
-        {/* Scores Area - AI Score, Your Grade, and Understand Score button */}
-        <div className="flex flex-col gap-3 items-end">
+        {/* Right: Scores Area - 30% */}
+        <div className="px-10 py-14 flex items-start justify-center basis-[30%]">
+          <div className="flex flex-col items-center justify-between h-full gap-8">
           {/* Top row: AI Score and Your Grade side by side */}
-          <div className="flex gap-4">
+          <div className="flex gap-16">
             {/* AI Score */}
-            <div className="flex flex-col items-center gap-1">
-              <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">AI Score</span>
+            <div className="flex flex-col items-center gap-4">
+              <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-[0.35em]">AI</span>
               <div
-                className="flex items-center justify-center gap-1.5 px-3 py-2 rounded-full font-bold text-sm min-w-[70px]"
+                className="flex items-center justify-center w-12 h-12 rounded-full font-serif text-[24px] font-normal"
                 style={{
-                  backgroundColor: isGradeable ? scoreChip.bg : tokens.surfaceAlt,
+                  backgroundColor: 'transparent',
                   color: isGradeable ? scoreChip.text : tokens.textMuted,
-                  border: `2px solid ${isGradeable ? scoreChip.text : tokens.border}`,
+                  border: `1px solid ${tokens.border}`,
                 }}
               >
                 {isGradeable ? fact.score : '—'}
               </div>
               <span
-                className="text-[10px] font-medium"
+                className="text-[8px]  uppercase tracking-[0.25em]"
                 style={{
                   color: isGradeable ? scoreChip.text : tokens.textMuted,
                 }}
               >{scoreLabel}</span>
             </div>
 
-            {/* Your Grade */}
-            <div
-              ref={gradeDropdownRef}
-              className="flex flex-col items-center gap-1 relative"
-            >
-              <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Your Grade</span>
+            {/* Grade */}
+            <Popover.Root open={gradeOpen} onOpenChange={setGradeOpen}>
+              <div className="flex flex-col items-center gap-4">
+                <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-[0.35em]">GRADE</span>
 
-              {isGrading && isSavingGrade ? (
-                <div className="flex items-center justify-center px-3 py-2 rounded-full bg-sidebar min-w-[70px]">
-                  <Loader2 size={16} className="animate-spin" color={tokens.primary} />
-                </div>
-              ) : humanGrade && humanGrade.score !== null ? (
-                <button
-                  ref={gradeButtonRef}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    handleGradeButtonClick();
-                  }}
-                  className="flex items-center justify-center gap-1.5 px-3 py-2 rounded-full font-bold text-sm min-w-[70px] cursor-pointer transition-all duration-150"
-                  style={{
-                    backgroundColor: getScoreChipColors(humanGrade.score).bg,
-                    color: getScoreChipColors(humanGrade.score).text,
-                    border: `2px solid ${getScoreChipColors(humanGrade.score).text}`,
-                  }}
-                >
-                  {humanGrade.score}
-                </button>
-              ) : (
-                <button
-                  ref={gradeButtonRef}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    handleGradeButtonClick();
-                  }}
-                  className="flex items-center justify-center gap-1 px-3 py-2 rounded-full bg-accent text-primary text-sm font-bold min-w-[70px] cursor-pointer transition-all duration-150"
-                  style={{
-                    border: `2px solid ${tokens.primary}`,
-                  }}
-                >
-                  + Grade
-                </button>
-              )}
-
-              {/* Quick Grade Dropdown - rendered via portal */}
-              {showQuickGrade && createPortal(
-                <div
-                  ref={gradeDropdownRef}
-                  className="fixed bg-card rounded-xl shadow-lg p-2 z-[9999] min-w-[140px]"
-                  style={{
-                    top: dropdownPosition.top,
-                    right: dropdownPosition.right,
-                    border: `1px solid ${tokens.border}`,
-                  }}
-                >
-                  <div
-                    className="text-[10px] font-semibold text-muted-foreground uppercase px-2 pt-1 pb-2 mb-2"
-                    style={{
-                      borderBottom: `1px solid ${tokens.border}`,
-                    }}
-                  >
-                    Quick Grade
+                {isSavingGrade ? (
+                  <div className="flex items-center justify-center w-12 h-12 rounded-full bg-sidebar">
+                    <Loader2 size={16} className="animate-spin" color={tokens.primary} />
                   </div>
-                  {[5, 4, 3, 2, 1].map((score) => {
-                    const colors = getScoreChipColors(score);
-                    const label = score === 5 ? 'Verified' : score === 4 ? 'Strong' : score === 3 ? 'Partial' : score === 2 ? 'Weak' : 'Failed';
-                    return (
-                      <button
-                        key={score}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleQuickGrade(score);
-                        }}
-                        className="flex items-center gap-2 w-full px-2.5 py-2 border-none rounded-md cursor-pointer transition-colors duration-150"
-                        style={{
-                          backgroundColor: humanGrade?.score === score ? colors.bg : 'transparent',
-                        }}
-                        onMouseEnter={(e) => e.currentTarget.style.backgroundColor = colors.bg}
-                        onMouseLeave={(e) => {
-                          if (humanGrade?.score !== score) {
-                            e.currentTarget.style.backgroundColor = 'transparent';
-                          }
-                        }}
-                      >
-                        <span
-                          className="flex items-center justify-center w-6 h-6 rounded-full font-bold text-xs"
-                          style={{
-                            backgroundColor: colors.bg,
-                            color: colors.text,
-                            border: `2px solid ${colors.text}`,
-                          }}
-                        >
-                          {score}
-                        </span>
-                        <span className="text-xs font-medium text-foreground">
-                          {label}
-                        </span>
-                        {humanGrade?.score === score && (
-                          <Check size={14} color={tokens.success} className="ml-auto" />
-                        )}
-                      </button>
-                    );
-                  })}
-                  <div
-                    className="mt-2 pt-2"
-                    style={{
-                      borderTop: `1px solid ${tokens.border}`,
-                    }}
-                  >
+                ) : humanGrade && humanGrade.score !== null ? (
+                  <Popover.Trigger asChild>
                     <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        if (!canModify) {
-                          toast({
-                            title: 'Permission denied',
-                            description: "You don't have permission to grade facts. Ask the owner for Editor access.",
-                            variant: 'destructive',
-                          });
-                          setShowQuickGrade(false);
-                          return;
-                        }
-                        setShowQuickGrade(false);
-                        setShowNotesPanel(true);
-                        onStartGrading();
+                      onClick={handleGradeButtonClick}
+                      className="flex items-center justify-center w-12 h-12 rounded-full font-serif text-[24px] font-normal cursor-pointer transition-all duration-150"
+                      style={{
+                        backgroundColor: 'transparent',
+                        color: getScoreChipColors(humanGrade.score).text,
+                        border: `1px solid ${tokens.border}`,
                       }}
-                      className="flex items-center justify-center gap-1.5 w-full p-2 bg-sidebar border-none rounded-md text-[11px] text-muted-foreground cursor-pointer"
                     >
-                      Add notes...
+                      {humanGrade.score}
                     </button>
-                  </div>
-                </div>,
-                document.body
-              )}
-            </div>
+                  </Popover.Trigger>
+                ) : (
+                  <Popover.Trigger asChild>
+                    <TactileButton
+                      variant="raised"
+                      onClick={handleGradeButtonClick}
+                      className="text-[13px] rounded-full mt-1.5"
+                    >
+                      Grade
+                    </TactileButton>
+                  </Popover.Trigger>
+                )}
+
+                <Popover.Portal>
+                  <Popover.Content
+                    side="bottom"
+                    align="end"
+                    sideOffset={8}
+                    className="bg-card-elevated rounded-xl shadow-lg z-[9999] min-w-[220px] overflow-hidden border border-border"
+                    onOpenAutoFocus={(e) => e.preventDefault()}
+                  >
+                    {/* Header */}
+                    <div className="px-6 pt-5 pb-4 border-b border-border">
+                      <span className="text-[10px] uppercase tracking-[0.35em] font-semibold text-muted-foreground">
+                        Grade Fact
+                      </span>
+                    </div>
+
+                    {/* Grade options */}
+                    <div className="flex flex-col">
+                      {[
+                        { score: 5, label: 'VERIFIED' },
+                        { score: 4, label: 'STRONG' },
+                        { score: 3, label: 'PARTIAL' },
+                        { score: 2, label: 'WEAK' },
+                        { score: 1, label: 'FAILED' },
+                      ].map(({ score, label }) => {
+                        const colors = getScoreChipColors(score);
+                        const isActive = humanGrade?.score === score;
+                        return (
+                          <button
+                            key={score}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleQuickGrade(score);
+                            }}
+                            className={cn(
+                              "flex items-center justify-between px-6 py-4 border-none cursor-pointer transition-colors duration-200",
+                              isActive ? "bg-primary/5" : "bg-transparent hover:bg-primary/5",
+                            )}
+                          >
+                            <span className="text-[12px] uppercase tracking-[0.25em] font-semibold text-foreground">
+                              {label}
+                            </span>
+                            <span
+                              className="flex items-center justify-center w-9 h-9 rounded-full font-serif text-[16px]"
+                              style={{
+                                color: colors.text,
+                                border: `1px solid ${tokens.border}`,
+                                backgroundColor: isActive ? colors.bg : 'transparent',
+                              }}
+                            >
+                              {score}
+                            </span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </Popover.Content>
+                </Popover.Portal>
+              </div>
+            </Popover.Root>
           </div>
 
-          {/* Understand Score Button - below the scores */}
           {hasAIAnalysis && (
             <button
               onClick={(e) => {
                 e.stopPropagation();
                 setShowAIAnalysis(!showAIAnalysis);
               }}
-              className="flex items-center gap-1.5 px-3 py-1.5 mt-2 rounded-md text-[11px] font-semibold cursor-pointer transition-all duration-150 w-full justify-center"
-              style={{
-                backgroundColor: showAIAnalysis ? tokens.info : tokens.infoSoft,
-                color: showAIAnalysis ? '#fff' : tokens.info,
-                border: `1px solid ${tokens.info}`,
-              }}
+              className="text-[10px] text-muted-light bg-transparent p-0 cursor-pointer text-center w-fit uppercase tracking-[0.35em] font-semibold border-0 border-b border-solid border-muted-light/50 hover:border-dashed hover:text-muted-foreground hover:border-muted-foreground transition-colors duration-300"
             >
-              <Brain size={14} />
-              {showAIAnalysis ? 'Hide Analysis' : 'Understand Score'}
+              {showAIAnalysis ? 'HIDE ANALYSIS' : 'UNDERSTAND SCORE'}
             </button>
           )}
         </div>
       </div>
+    </div>
 
       {/* AI Analysis Panel */}
-      {showAIAnalysis && hasAIAnalysis && (
-        <div
-          className="mx-5 mb-4 p-4 bg-info-soft rounded-[10px]"
-          style={{
-            border: `1px solid ${tokens.info}`,
-          }}
-        >
-          <div className="flex items-center justify-between mb-3">
-            <div className="flex items-center gap-2">
-              <div
-                className="flex items-center justify-center w-8 h-8 rounded-lg"
-                style={{
-                  backgroundColor: tokens.info,
-                }}
-              >
-                <Brain size={18} color="#fff" />
-              </div>
-              <div>
-                <div
-                  className="text-[13px] font-bold"
-                  style={{
-                    color: tokens.info,
-                  }}
-                >
-                  AI Analysis
+      <AnimatePresence initial={false}>
+        {showAIAnalysis && hasAIAnalysis && (
+          <motion.div
+            key="ai-analysis"
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: 'auto', opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={{ height: { duration: 0.4, ease: 'easeInOut' }, opacity: { duration: 0.2 } }}
+            className="overflow-hidden border-t border-border"
+          >
+            {(() => {
+              const { assessment, quotes, sourceUrl } = parseAnalysisStructured(fact.note || '', sourceUrls);
+              return (
+                <div className="px-10 py-8">
+                  <motion.div
+                    initial={{ opacity: 0, y: -8 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 0.2, duration: 0.35, ease: 'easeOut' }}
+                    className="mb-5"
+                  >
+                    <div className="flex items-center gap-2">
+                      <img src={checklistIcon} alt="" className="w-5 h-5 opacity-40" />
+                      <span className="text-[10px] uppercase tracking-[0.35em] font-semibold text-muted-light">
+                        AI Analysis
+                      </span>
+                    </div>
+                  </motion.div>
+
+                  <motion.div
+                    initial={{ opacity: 0, y: -6 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 0.35, duration: 0.4, ease: 'easeOut' }}
+                    className="font-serif text-[15px] leading-[1.8] text-foreground"
+                  >
+                    {renderAssessmentWithQuotes(assessment, quotes)}
+                  </motion.div>
+
+                  {sourceUrl && (
+                    <motion.div
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      transition={{ delay: 0.55, duration: 0.3 }}
+                      className="mt-6 pt-5 border-t border-border"
+                    >
+                      <span className="text-[9px] uppercase tracking-[0.35em] font-semibold text-muted-light">
+                        Source
+                      </span>
+                      <a
+                        href={sourceUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        onClick={(e) => e.stopPropagation()}
+                        className="block mt-1.5 text-[13px] text-muted-foreground hover:text-foreground transition-colors duration-300 truncate"
+                      >
+                        {sourceUrl.replace(/^https?:\/\//, '').split('/')[0]}
+                        <ExternalLink size={11} className="inline-block ml-1.5 -mt-0.5" />
+                      </a>
+                    </motion.div>
+                  )}
                 </div>
-                <div className="text-[11px] text-muted-foreground">
-                  Why this fact scored {fact.score}/5
-                </div>
-              </div>
-            </div>
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                setShowAIAnalysis(false);
-              }}
-              className="flex items-center justify-center w-7 h-7 bg-transparent rounded-md cursor-pointer"
-              style={{
-                border: `1px solid ${tokens.info}`,
-                color: tokens.info,
-              }}
-            >
-              <X size={16} />
-            </button>
-          </div>
-          <p className="m-0 text-sm leading-[1.7] text-foreground">
-            {parseAnalysisWithLinks(fact.note || '', sourceUrls)}
-          </p>
-        </div>
-      )}
+              );
+            })()}
+          </motion.div>
+        )}
+      </AnimatePresence>
 
-      {/* Notes Panel - for adding/editing grade with notes */}
-      {showNotesPanel && (
-        <div
-          className="mx-5 mb-4 p-4 bg-sidebar rounded-[10px]"
-          style={{
-            border: `1px solid ${tokens.border}`,
-          }}
-        >
-          <div className="flex items-center justify-between mb-3">
-            <div className="text-[13px] font-bold text-foreground">
-              {humanGrade ? 'Update Grade & Notes' : 'Add Grade with Notes'}
-            </div>
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                setShowNotesPanel(false);
-                onCancelGrading();
-              }}
-              className="flex items-center justify-center w-7 h-7 bg-transparent rounded-md cursor-pointer text-muted-foreground"
-              style={{
-                border: `1px solid ${tokens.border}`,
-              }}
-            >
-              <X size={16} />
-            </button>
-          </div>
-
-          <div className="flex flex-col gap-3">
-            <select
-              value={gradingScore}
-              onChange={(e) => onGradingScoreChange(parseInt(e.target.value))}
-              className="px-3.5 py-2.5 rounded-lg bg-card text-sm font-semibold cursor-pointer w-full"
-              style={{
-                border: `1px solid ${tokens.border}`,
-              }}
-              data-testid={`select-grade-${fact.originalId}`}
-            >
-              <option value={5}>5 - Verified</option>
-              <option value={4}>4 - Strong</option>
-              <option value={3}>3 - Partial</option>
-              <option value={2}>2 - Weak</option>
-              <option value={1}>1 - Failed</option>
-            </select>
-            <textarea
-              placeholder="Add your notes..."
-              value={gradingNotes}
-              onChange={(e) => onGradingNotesChange(e.target.value)}
-              className="px-3.5 py-2.5 rounded-lg text-[13px] min-h-[80px] resize-y font-[inherit]"
-              style={{
-                border: `1px solid ${tokens.border}`,
-              }}
-              data-testid={`input-grade-notes-${fact.originalId}`}
-            />
-            <div className="flex gap-2">
-              <button
-                onClick={() => {
-                  onSaveGrade();
-                  setShowNotesPanel(false);
-                }}
-                disabled={isSavingGrade}
-                className="flex-1 px-4 py-2.5 rounded-lg border-none bg-success text-white text-[13px] font-semibold flex items-center justify-center gap-1.5"
-                style={{
-                  cursor: isSavingGrade ? 'not-allowed' : 'pointer',
-                  opacity: isSavingGrade ? 0.7 : 1,
-                }}
-                data-testid={`button-save-grade-${fact.originalId}`}
-              >
-                {isSavingGrade ? (
-                  <><Loader2 size={14} className="animate-spin" /> Saving...</>
-                ) : (
-                  <><Check size={14} /> Save Grade</>
-                )}
-              </button>
-              <button
-                onClick={() => {
-                  setShowNotesPanel(false);
-                  onCancelGrading();
-                }}
-                className="px-4 py-2.5 rounded-lg bg-card text-[13px] cursor-pointer"
-                style={{
-                  border: `1px solid ${tokens.border}`,
-                }}
-                data-testid={`button-cancel-grade-${fact.originalId}`}
-              >
-                Cancel
-              </button>
-            </div>
-          </div>
-
-          {/* Existing notes display */}
-          {humanGrade?.notes && (
-            <div
-              className="mt-3 p-3 bg-accent rounded-lg"
-              style={{
-                borderLeft: `4px solid ${tokens.primary}`,
-              }}
-            >
-              <div className="text-[11px] font-semibold text-primary uppercase mb-1.5">
-                Current Notes
-              </div>
-              <p className="m-0 text-[13px] text-foreground">{humanGrade.notes}</p>
-            </div>
-          )}
-
-          {/* Contradiction warning */}
-          {hasContradiction && (
-            <div
-              className="mt-3 p-3 bg-warning-soft rounded-lg"
-              style={{
-                borderLeft: `4px solid ${tokens.warning}`,
-              }}
-            >
-              <div className="flex items-center gap-1.5 text-[11px] font-semibold text-warning uppercase mb-1.5">
-                <AlertTriangle size={12} />
-                Contradiction Detected
-              </div>
-              <p className="m-0 text-[13px] text-foreground">This fact contradicts: <strong>{fact.contradicts}</strong></p>
-            </div>
-          )}
-        </div>
-      )}
     </div>
   );
 }

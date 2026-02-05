@@ -1,7 +1,6 @@
 import { useState, useMemo, useRef, useLayoutEffect } from 'react';
 import { useMutation } from '@tanstack/react-query';
-import { useWindowVirtualizer } from '@tanstack/react-virtual';
-import { AlertTriangle, RefreshCw } from 'lucide-react';
+import { useVirtualizer } from '@tanstack/react-virtual';
 import { tokens } from '@/lib/colors';
 import { queryClient } from '@/lib/queryClient';
 import { useToast } from '@/hooks/use-toast';
@@ -25,8 +24,6 @@ export interface FactGradingPanelProps {
   humanGrades: Record<number, HumanGrade>;
   redundancyData?: RedundancyData;
   onShowRedundancyModal: () => void;
-  onAnalyzeRedundancy: () => void;
-  isAnalyzingRedundancy: boolean;
   onViewFactFullText: (fact: Fact) => void;
   canModify?: boolean;
 }
@@ -37,8 +34,6 @@ export function FactGradingPanel({
   humanGrades,
   redundancyData,
   onShowRedundancyModal,
-  onAnalyzeRedundancy,
-  isAnalyzingRedundancy,
   onViewFactFullText,
   canModify = true,
 }: FactGradingPanelProps) {
@@ -48,9 +43,7 @@ export function FactGradingPanel({
   const [expandedFactIds, setExpandedFactIds] = useState<Set<number>>(new Set());
 
   // State for grading
-  const [gradingFactId, setGradingFactId] = useState<number | null>(null);
-  const [gradingScore, setGradingScore] = useState<number>(3);
-  const [gradingNotes, setGradingNotes] = useState<string>('');
+
 
   const toggleFactExpanded = (factId: number) => {
     setExpandedFactIds(prev => {
@@ -66,11 +59,11 @@ export function FactGradingPanel({
 
   // Human grade mutation
   const setHumanGradeMutation = useMutation({
-    mutationFn: async ({ factId, score, notes }: { factId: number; score: number; notes: string }) => {
+    mutationFn: async ({ factId, score }: { factId: number; score: number }) => {
       const res = await fetch(`/api/brainlifts/${slug}/facts/${factId}/human-grade`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ score, notes }),
+        body: JSON.stringify({ score }),
       });
       if (!res.ok) {
         const err = await res.json();
@@ -80,9 +73,6 @@ export function FactGradingPanel({
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['human-grades', slug] });
-      setGradingFactId(null);
-      setGradingScore(3);
-      setGradingNotes('');
       toast({
         title: 'Grade Saved',
         description: 'Your grade has been saved successfully.',
@@ -189,68 +179,64 @@ export function FactGradingPanel({
 
   const nonGradeableFacts = facts.filter(f => !f.isGradeable);
 
-  // Virtualization for the main facts list (uses window scrolling)
+  // Virtualization for the main facts list
   const listContainerRef = useRef<HTMLDivElement>(null);
+  const [scrollElement, setScrollElement] = useState<HTMLElement | null>(null);
   const [scrollMargin, setScrollMargin] = useState(0);
 
-  // Measure offset from top of document to the list container
+  // Find the nearest scrollable ancestor (<main> with overflow-y-auto) and measure offset
   useLayoutEffect(() => {
-    if (listContainerRef.current) {
-      const rect = listContainerRef.current.getBoundingClientRect();
-      const scrollTop = window.scrollY || document.documentElement.scrollTop;
-      setScrollMargin(rect.top + scrollTop);
+    const listEl = listContainerRef.current;
+    if (!listEl) return;
+
+    let scrollEl: HTMLElement | null = listEl.parentElement;
+    while (scrollEl) {
+      const { overflowY } = getComputedStyle(scrollEl);
+      if (overflowY === 'auto' || overflowY === 'scroll') break;
+      scrollEl = scrollEl.parentElement;
+    }
+
+    if (scrollEl) {
+      setScrollElement(scrollEl);
+      const scrollRect = scrollEl.getBoundingClientRect();
+      const listRect = listEl.getBoundingClientRect();
+      setScrollMargin(listRect.top - scrollRect.top + scrollEl.scrollTop);
     }
   }, [groupedFacts.groups.size]); // Re-measure when redundancy groups change
 
-  const virtualizer = useWindowVirtualizer({
+  const virtualizer = useVirtualizer({
     count: groupedFacts.allFactsSorted.length,
-    estimateSize: () => 130, // base row height estimate
+    getScrollElement: () => scrollElement,
+    estimateSize: () => 350, // base row height estimate (with increased padding)
     overscan: 5, // render 5 extra rows above/below viewport
     scrollMargin,
   });
 
+  const totalFacts = facts.length;
+  const gradedFacts = Object.keys(humanGrades).length;
+  const redundancyCount = redundancyData?.stats?.pendingReview ?? 0;
+
   return (
     <div className="max-w-[1200px] mx-auto">
       {/* Panel Header */}
-      <div className="flex items-center justify-between mb-6 pb-4" style={{ borderBottom: `1px solid ${tokens.border}` }}>
-        <div>
-          <h2 className="text-xl font-bold text-foreground m-0">
-            Fact Grading
-          </h2>
-          <p className="text-sm text-muted-foreground mt-1 mb-0">
-            {facts.length} facts &bull; {Object.keys(humanGrades).length} graded
-            {redundancyData?.stats?.pendingReview ? ` \u2022 ${redundancyData.stats.pendingReview} redundancy reviews pending` : ''}
-          </p>
+      <div className="flex flex-col gap-4 mb-6 pb-4">
+        <div className="flex items-start justify-between gap-6">
+          <div>
+            <h2 className="text-[30px] font-bold text-foreground tracking-tight leading-[1.1] m-0">
+              DOK1 Facts Grading
+            </h2>
+          </div>
+
         </div>
 
-        {/* Redundancy Actions */}
-        <div className="flex gap-2">
-          <button
-            onClick={onAnalyzeRedundancy}
-            disabled={isAnalyzingRedundancy}
-            className="flex items-center gap-1.5 px-3.5 py-2 bg-card rounded-lg text-[13px] font-medium"
-            style={{
-              border: `1px solid ${tokens.border}`,
-              cursor: isAnalyzingRedundancy ? 'not-allowed' : 'pointer',
-              opacity: isAnalyzingRedundancy ? 0.7 : 1,
-            }}
-          >
-            <RefreshCw size={14} className={isAnalyzingRedundancy ? 'animate-spin' : ''} />
-            {isAnalyzingRedundancy ? 'Analyzing...' : 'Analyze Redundancy'}
-          </button>
-          {redundancyData?.stats?.pendingReview ? (
-            <button
-              onClick={onShowRedundancyModal}
-              className="flex items-center gap-1.5 px-3.5 py-2 bg-warning-soft rounded-lg text-[13px] font-semibold cursor-pointer"
-              style={{
-                border: `1px solid ${tokens.warning}`,
-                color: tokens.warning,
-              }}
-            >
-              <AlertTriangle size={14} />
-              Review {redundancyData.stats.pendingReview} Redundancies
-            </button>
-          ) : null}
+        <div className="flex flex-wrap items-center gap-2 text-[12px] uppercase tracking-[0.35em] text-muted-foreground">
+          <span className="font-semibold">{totalFacts} FACTS EXTRACTED</span>
+          <span aria-hidden className="text-[18px] font-extrabold text-muted-light">·</span>
+          <span className="font-semibold">{gradedFacts} GRADED</span>
+          <span aria-hidden className="text-[18px] font-extrabold text-muted-light">·</span>
+          <span className="font-semibold" style={{ color: tokens.warning }}>
+            {redundancyCount} REDUNDANCIES IDENTIFIED
+          </span>
         </div>
       </div>
 
@@ -262,7 +248,7 @@ export function FactGradingPanel({
       )}
 
       {/* Stats Summary */}
-      <div className="grid grid-cols-5 gap-3 mb-6">
+      <div className="flex justify-between mb-16">
         {(() => {
           const gradeableFacts = facts.filter(f => f.isGradeable && f.score > 0);
           const meanScoreNum = gradeableFacts.length > 0
@@ -284,22 +270,24 @@ export function FactGradingPanel({
           const coreFacts = redundancyData?.stats?.uniqueFactCount || facts.length;
 
           return [
-            { label: 'Total Facts', value: facts.length, color: tokens.primary },
-            { label: 'Core Facts', value: coreFacts, color: tokens.success },
-            { label: 'Mean Score', value: meanScore, color: getMeanScoreColor(meanScoreNum) },
-            { label: 'Highly Verified (5/5)', value: highlyVerified, color: tokens.success },
-            { label: 'Redundant', value: redundantCount, color: redundantCount > 0 ? tokens.warning : tokens.textMuted },
+            { label: ['TOTAL', 'FACTS'], value: facts.length, color: tokens.primary },
+            { label: ['CORE', 'FACTS'], value: coreFacts, color: tokens.success },
+            { label: ['MEAN', 'SCORE'], value: meanScore, color: getMeanScoreColor(meanScoreNum) },
+            { label: ['HIGHLY', 'VERIFIED'], value: highlyVerified, color: tokens.success },
+            { label: ['REDUNDANT', ''], value: redundantCount, color: redundantCount > 0 ? tokens.warning : tokens.textMuted },
           ];
         })().map((stat, i) => (
           <div
             key={i}
-            className="p-4 bg-card rounded-lg border border-border text-center"
+            className="w-[160px] py-6 px-5 bg-card-elevated rounded-lg  shadow-card flex flex-col"
           >
-            <div className="text-2xl font-bold mb-1" style={{ color: stat.color }}>
+            <div className="font-serif text-[54px] leading-none font-normal tracking-wide" style={{ color: stat.color }}>
               {stat.value}
             </div>
-            <div className="text-xs text-muted-foreground uppercase tracking-wider">
-              {stat.label}
+            <div className="mt-5 text-[13px] text-muted-foreground font-semibold tracking-[0.35em] leading-relaxed">
+              {stat.label[0]}
+              {stat.label[1] && <br />}
+              {stat.label[1]}
             </div>
           </div>
         ))}
@@ -323,27 +311,11 @@ export function FactGradingPanel({
               isFirstInGroup={index === 0}
               isLastInGroup={index === groupFacts.length - 1}
               humanGrade={humanGrades[fact.id]}
-              isGrading={gradingFactId === fact.id}
-              gradingScore={gradingScore}
-              gradingNotes={gradingNotes}
-              onGradingScoreChange={setGradingScore}
-              onGradingNotesChange={setGradingNotes}
-              onStartGrading={() => {
-                setGradingFactId(fact.id);
-                setGradingScore(humanGrades[fact.id]?.score || 3);
-                setGradingNotes(humanGrades[fact.id]?.notes || '');
-              }}
+
               onSaveGrade={(score) => {
-                setHumanGradeMutation.mutate({
-                  factId: fact.id,
-                  score: score ?? gradingScore,
-                  notes: gradingNotes,
-                });
-              }}
-              onCancelGrading={() => {
-                setGradingFactId(null);
-                setGradingScore(3);
-                setGradingNotes('');
+                if (score) {
+                  setHumanGradeMutation.mutate({ factId: fact.id, score });
+                }
               }}
               isSavingGrade={setHumanGradeMutation.isPending}
               onViewFullText={() => onViewFactFullText(fact)}
@@ -355,10 +327,16 @@ export function FactGradingPanel({
 
       {/* Individual Facts Section (Stack Ranked) - Virtualized */}
       {groupedFacts.allFactsSorted.length > 0 && (
-        <div>
-          <h3 className="text-base font-semibold text-foreground mb-4 pt-2">
-            Individual Facts (Stack Ranked)
-          </h3>
+        <div className="mt-20">
+          <div className="flex items-baseline justify-between">
+            <h3 className="text-[24px] font-semibold text-foreground m-0">
+              Individual Facts
+            </h3>
+            <span className="text-[10px] uppercase tracking-[0.35em] text-muted-light font-semibold">
+              STACK RANKED
+            </span>
+          </div>
+          <hr className="border-t border-border mt-4 mb-12" />
           <div ref={listContainerRef} style={{ height: virtualizer.getTotalSize(), position: 'relative' }}>
             {virtualizer.getVirtualItems().map((virtualRow) => {
               const fact = groupedFacts.allFactsSorted[virtualRow.index];
@@ -367,6 +345,7 @@ export function FactGradingPanel({
                   key={fact.id}
                   data-index={virtualRow.index}
                   ref={virtualizer.measureElement}
+                  className={"pb-16"}
                   style={{
                     position: 'absolute',
                     top: 0,
@@ -380,27 +359,11 @@ export function FactGradingPanel({
                       isExpanded={expandedFactIds.has(fact.id)}
                       onToggle={() => toggleFactExpanded(fact.id)}
                       humanGrade={humanGrades[fact.id]}
-                      isGrading={gradingFactId === fact.id}
-                      gradingScore={gradingScore}
-                      gradingNotes={gradingNotes}
-                      onGradingScoreChange={setGradingScore}
-                      onGradingNotesChange={setGradingNotes}
-                      onStartGrading={() => {
-                        setGradingFactId(fact.id);
-                        setGradingScore(humanGrades[fact.id]?.score || 3);
-                        setGradingNotes(humanGrades[fact.id]?.notes || '');
-                      }}
+        
                       onSaveGrade={(score) => {
-                        setHumanGradeMutation.mutate({
-                          factId: fact.id,
-                          score: score ?? gradingScore,
-                          notes: gradingNotes,
-                        });
-                      }}
-                      onCancelGrading={() => {
-                        setGradingFactId(null);
-                        setGradingScore(3);
-                        setGradingNotes('');
+                        if (score) {
+                          setHumanGradeMutation.mutate({ factId: fact.id, score });
+                        }
                       }}
                       isSavingGrade={setHumanGradeMutation.isPending}
                       onViewFullText={() => onViewFactFullText(fact)}

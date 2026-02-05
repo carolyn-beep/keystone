@@ -18,6 +18,7 @@ export default {
         input: "hsl(var(--input) / <alpha-value>)",
         card: {
           DEFAULT: "hsl(var(--card) / <alpha-value>)",
+          elevated: "hsl(var(--card-elevated) / <alpha-value>)",
           foreground: "hsl(var(--card-foreground) / <alpha-value>)",
           border: "hsl(var(--card-border) / <alpha-value>)",
         },
@@ -40,6 +41,7 @@ export default {
           DEFAULT: "hsl(var(--sidebar) / <alpha-value>)",
           foreground: "hsl(var(--muted-foreground) / <alpha-value>)",
           border: "var(--muted-border)",
+          light: "hsl(var(--muted-foreground-light) / <alpha-value>)",
         },
         accent: {
           DEFAULT: "hsl(var(--accent) / <alpha-value>)",
@@ -102,6 +104,10 @@ export default {
         sans: ["var(--font-sans)"],
         serif: ["var(--font-serif)"],
         mono: ["var(--font-mono)"],
+      },
+      boxShadow: {
+        card: "var(--shadow-card)",
+        "card-hover": "var(--shadow-card-hover)",
       },
       keyframes: {
         "accordion-down": {

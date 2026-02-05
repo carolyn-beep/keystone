@@ -297,9 +297,22 @@ Tailwind CSS for all styling. Avoid inline styles except for dynamic runtime val
 | `tokens.success/warning/info` | `bg-success` / `text-warning` / etc. |
 | `tokens.successSoft` | `bg-success-soft` |
 
-### CSS Variables
+### CSS Variables & Tailwind Config
 
-Colors defined in `client/src/index.css` with light/dark mode variants. Tailwind config in `tailwind.config.ts` maps to these variables.
+Custom design tokens live in `client/src/index.css` (both `:root` and `.dark`). Tailwind config in `tailwind.config.ts` references these via `var()`.
+
+**Always define values in CSS first, then reference in Tailwind** - don't hardcode values directly in `tailwind.config.ts`. Direct values can fail to apply reliably; CSS variables work consistently.
+
+```css
+/* index.css */
+:root { --shadow-card: 0 2px 6px rgba(0,0,0,0.06); }
+.dark { --shadow-card: 0 2px 6px rgba(0,0,0,0.25); }
+```
+
+```typescript
+/* tailwind.config.ts */
+boxShadow: { card: "var(--shadow-card)" }
+```
 
 ### Refactoring
 

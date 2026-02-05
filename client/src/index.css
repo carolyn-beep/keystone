@@ -1,3 +1,5 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap');
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -29,13 +31,13 @@
   --primary-soft-hex: #F5EDE6;
   --secondary-hex: #0F766E;
   --secondary-soft-hex: #E6F5F3;
-  --success-hex: #16A34A;
+  --success-hex: #56643F;
   --success-soft-hex: #E8F5EC;
   --warning-hex: #D97706;
   --warning-soft-hex: #FDF4E8;
-  --danger-hex: #DC2626;
+  --danger-hex: #953A34;
   --danger-soft-hex: #FDECEC;
-  --info-hex: #0284C7;
+  --info-hex: #3B6E8F;
   --info-soft-hex: #E8F4FA;
   --overlay-hex: rgba(0, 0, 0, 0.5);
   --on-primary-hex: #FFFFFF;
@@ -49,6 +51,9 @@
 
   /* Surface: #F9F5ED - card/surface background */
   --card: 40 50% 95%;
+
+  /* Elevated card - whiter surface */
+  --card-elevated: 40 30% 98%;
 
   /* Text Primary: #2D2D2D */
   --card-foreground: 0 0% 18%;
@@ -104,6 +109,9 @@
   /* Text Secondary: #5A5A5A */
   --muted-foreground: 0 0% 35%;
 
+  /* Lighter muted text */
+  --muted-foreground-light: 0 0% 55%;
+
   /* Accent Soft - warm beige */
   --accent: 30 40% 93%;
 
@@ -115,13 +123,13 @@
   --destructive-foreground: 0 0% 100%;
   --destructive-soft: 0 60% 96%;
 
-  /* Success: #16A34A */
-  --success: 142 76% 36%;
+  /* Success: #56643F */
+  --success: 83 23% 32%;
   --success-foreground: 0 0% 100%;
   --success-soft: 142 50% 94%;
 
-  /* Warning: #D97706 */
-  --warning: 32 95% 44%;
+  /* Warning: #9D691D */
+  --warning: 39 54% 48%;
   --warning-foreground: 0 0% 100%;
   --warning-soft: 38 70% 95%;
 
@@ -143,10 +151,12 @@
   --chart-4: 38 92% 50%;
   --chart-5: 199 89% 48%;
 
-  --font-sans: 'Libre Franklin', 'Helvetica Neue', Arial, sans-serif;
+  --font-sans: 'Inter', 'Helvetica Neue', Arial, sans-serif;
   --font-serif: 'Libre Baskerville', Baskerville, 'Baskerville Old Face', Georgia, serif;
   --font-mono: Menlo, monospace;
   --radius: .5rem; /* 8px */
+  --shadow-card: 0 2px 6px rgba(0, 0, 0, 0.06), 0 1px 3px rgba(0, 0, 0, 0.04);
+  --shadow-card-hover: 0 4px 12px rgba(34, 21, 13, 0.08), 0 2px 4px rgba(34, 21, 13, 0.04);
   --shadow-2xs: 0px 1px 2px 0px hsl(40 20% 30% / 0.03);
   --shadow-xs: 0px 1px 2px 0px hsl(40 20% 30% / 0.05);
   --shadow-sm: 0px 1px 3px 0px hsl(40 20% 30% / 0.08), 0px 1px 2px -1px hsl(40 20% 30% / 0.05);
@@ -213,9 +223,9 @@
   --primary-soft-hex: #1E3A5F;
   --secondary-hex: #14B8A6;
   --secondary-soft-hex: #134E4A;
-  --success-hex: #22C55E;
+  --success-hex: #56643F;
   --success-soft-hex: #14532D;
-  --warning-hex: #F59E0B;
+  --warning-hex: #9D691D;
   --warning-soft-hex: #78350F;
   --danger-hex: #EF4444;
   --danger-soft-hex: #7F1D1D;
@@ -233,6 +243,9 @@
 
   /* Dark card surface */
   --card: 222 47% 11%;
+
+  /* Elevated card - slightly lighter surface */
+  --card-elevated: 222 40% 14%;
 
   /* Light text */
   --card-foreground: 210 40% 96%;
@@ -286,7 +299,7 @@
   --muted: 217 33% 20%;
 
   /* Lighter muted text */
-  --muted-foreground: 215 20% 65%;
+  --muted-foreground-light: 0 0% 55%;
 
   /* Dark accent */
   --accent: 224 50% 20%;
@@ -299,13 +312,13 @@
   --destructive-foreground: 0 0% 100%;
   --destructive-soft: 0 63% 31%;
 
-  /* Success: #22C55E */
-  --success: 142 71% 45%;
+  /* Success: #56643F */
+  --success: 83 23% 32%;
   --success-foreground: 0 0% 100%;
   --success-soft: 144 61% 20%;
 
-  /* Warning: #F59E0B */
-  --warning: 38 92% 50%;
+  /* Warning: #9D691D */
+  --warning: 39 54% 48%;
   --warning-foreground: 0 0% 100%;
   --warning-soft: 22 78% 26%;
 
@@ -327,6 +340,8 @@
   --chart-4: 38 92% 50%;
   --chart-5: 199 89% 48%;
 
+  --shadow-card: 0 2px 6px rgba(0, 0, 0, 0.25), 0 1px 3px rgba(0, 0, 0, 0.2);
+  --shadow-card-hover: 0 4px 12px rgba(0, 0, 0, 0.35), 0 2px 4px rgba(0, 0, 0, 0.25);
   --shadow-2xs: 0px 1px 2px 0px hsl(222 47% 5% / 0.3);
   --shadow-xs: 0px 1px 2px 0px hsl(222 47% 5% / 0.4);
   --shadow-sm: 0px 1px 3px 0px hsl(222 47% 5% / 0.5), 0px 1px 2px -1px hsl(222 47% 5% / 0.3);
@@ -471,6 +486,14 @@
   border-bottom-color: #9CA3AF !important;
   border-bottom-style: dashed !important;
   border-bottom-width: 1px !important;
+}
+
+/* Hidden scrollbar (still scrollable) */
+.scrollbar-none {
+  scrollbar-width: none;
+}
+.scrollbar-none::-webkit-scrollbar {
+  display: none;
 }
 
 /* Styled scrollbar for modals and scrollable containers */

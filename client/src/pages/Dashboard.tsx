@@ -172,8 +172,6 @@ const { downloadBrainliftPDF } = usePDFExport();
 
   const {
     data: redundancyData,
-    analyze: analyzeRedundancy,
-    isAnalyzing: isAnalyzingRedundancy,
     updateStatus: updateRedundancyStatus,
     isUpdatingStatus: isUpdatingRedundancyStatus,
   } = useRedundancy(slug);
@@ -312,8 +310,6 @@ const { downloadBrainliftPDF } = usePDFExport();
             humanGrades={humanGrades}
             redundancyData={redundancyData}
             onShowRedundancyModal={() => setShowRedundancyModal(true)}
-            onAnalyzeRedundancy={() => analyzeRedundancy()}
-            isAnalyzingRedundancy={isAnalyzingRedundancy}
             onViewFactFullText={(fact) => setSelectedFactForModal(fact)}
             canModify={canModify}
           />
