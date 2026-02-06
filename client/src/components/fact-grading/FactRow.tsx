@@ -3,6 +3,8 @@ import { AnimatePresence, motion } from 'framer-motion';
 import * as Popover from '@radix-ui/react-popover';
 import { Loader2, ExternalLink } from 'lucide-react';
 import { IoLinkSharp } from 'react-icons/io5';
+import { MdLinkOff } from 'react-icons/md';
+import * as Tooltip from '@radix-ui/react-tooltip';
 import { tokens, getScoreChipColors } from '@/lib/colors';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
@@ -31,6 +33,13 @@ export interface FactRowProps {
   sourceUrls?: Record<string, string>;
   isRedundant?: boolean;
   canModify?: boolean;
+}
+
+// Check if a source string contains a URL
+function sourceHasUrl(source: string): boolean {
+  const markdownPattern = /\[([^\]]+)\]\((https?:\/\/[^)]+)\)/;
+  const urlPattern = /(https?:\/\/[^\s]+)/;
+  return markdownPattern.test(source) || urlPattern.test(source);
 }
 
 // Parse source string to extract text and URL, returning a clickable link
@@ -277,7 +286,29 @@ export function FactRow({
             )}
             {fact.source && (
               <span className="text-xs text-muted-foreground flex items-center gap-4">
-                <IoLinkSharp size={18} className="shrink-0" />
+                {sourceHasUrl(fact.source) ? (
+                  <IoLinkSharp size={18} className="shrink-0" />
+                ) : (
+                  <Tooltip.Provider delayDuration={200}>
+                    <Tooltip.Root>
+                      <Tooltip.Trigger asChild>
+                        <span className="shrink-0 cursor-help">
+                          <MdLinkOff size={18} className="text-muted-light" />
+                        </span>
+                      </Tooltip.Trigger>
+                      <Tooltip.Portal>
+                        <Tooltip.Content
+                          side="top"
+                          sideOffset={6}
+                          className="bg-card-elevated text-foreground text-xs px-3 py-2 rounded-lg shadow-lg border border-border max-w-[200px] z-[9999]"
+                        >
+                          No URL was provided for this source
+                          <Tooltip.Arrow className="fill-card-elevated" />
+                        </Tooltip.Content>
+                      </Tooltip.Portal>
+                    </Tooltip.Root>
+                  </Tooltip.Provider>
+                )}
                 {parseSourceWithLink(fact.source)}
               </span>
             )}

@@ -1,15 +1,16 @@
 import { useState, useMemo, ReactNode } from 'react';
+import { AnimatePresence, motion } from 'framer-motion';
 import {
-  ChevronDown,
-  ChevronUp,
-  ExternalLink,
   BookOpen,
   AlertTriangle,
-  ArrowUpDown,
 } from 'lucide-react';
+import { FaSortNumericDownAlt } from 'react-icons/fa';
+import { TbCategoryFilled } from 'react-icons/tb';
+import { IoLinkSharp } from 'react-icons/io5';
 import { AiOutlineFileSearch } from 'react-icons/ai';
 import { FaArrowUpRightDots } from 'react-icons/fa6';
 import type { Fact, DOK2FailReason } from '@shared/schema';
+import { tokens, getScoreChipColors } from '@/lib/colors';
 
 /**
  * Render text with markdown links [text](url) as clickable <a> tags
@@ -77,15 +78,6 @@ interface SummariesTabProps {
 
 type SortMode = 'grade' | 'category';
 
-// Grade color configuration
-const GRADE_COLORS: Record<number, { bg: string; text: string; border: string }> = {
-  1: { bg: 'bg-red-100 dark:bg-red-900/30', text: 'text-red-700 dark:text-red-300', border: 'border-red-300 dark:border-red-700' },
-  2: { bg: 'bg-orange-100 dark:bg-orange-900/30', text: 'text-orange-700 dark:text-orange-300', border: 'border-orange-300 dark:border-orange-700' },
-  3: { bg: 'bg-yellow-100 dark:bg-yellow-900/30', text: 'text-yellow-700 dark:text-yellow-300', border: 'border-yellow-300 dark:border-yellow-700' },
-  4: { bg: 'bg-green-100 dark:bg-green-900/30', text: 'text-green-700 dark:text-green-300', border: 'border-green-300 dark:border-green-700' },
-  5: { bg: 'bg-emerald-100 dark:bg-emerald-900/30', text: 'text-emerald-700 dark:text-emerald-300', border: 'border-emerald-300 dark:border-emerald-700' },
-};
-
 // Fail reason display labels
 const FAIL_REASON_LABELS: Record<string, string> = {
   copy_paste: 'Copy-paste detected',
@@ -94,45 +86,18 @@ const FAIL_REASON_LABELS: Record<string, string> = {
   fact_manipulation: 'Facts manipulated to fit narrative',
 };
 
-function GradeBadge({ grade, failReason }: { grade: number | null; failReason: DOK2FailReason | null }) {
-  if (grade === null) {
-    return (
-      <span className="px-2 py-1 text-xs font-medium rounded-full bg-muted text-muted-foreground">
-        Not graded
-      </span>
-    );
-  }
-
-  const colors = GRADE_COLORS[grade] || GRADE_COLORS[3];
-
-  return (
-    <div className="flex items-center gap-2">
-      <span className={`px-2.5 py-1 text-sm font-bold rounded-full ${colors.bg} ${colors.text} border ${colors.border}`}>
-        {grade}/5
-      </span>
-      {grade === 1 && failReason && (
-        <span className="flex items-center gap-1 px-2 py-1 text-xs font-medium rounded-full bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300">
-          <AlertTriangle size={12} />
-          {FAIL_REASON_LABELS[failReason] || failReason}
-        </span>
-      )}
-    </div>
-  );
+// Get grade label from score
+function getGradeLabel(grade: number | null): string {
+  if (grade === null) return 'Ungraded';
+  if (grade === 5) return 'Excellent';
+  if (grade === 4) return 'Strong';
+  if (grade === 3) return 'Adequate';
+  if (grade === 2) return 'Weak';
+  return 'Failed';
 }
 
 export function SummariesTab({ summaries, facts, setActiveTab }: SummariesTabProps) {
-  // Track which source cards are expanded (default: all expanded)
-  const [expandedSources, setExpandedSources] = useState<Record<number, boolean>>(() =>
-    Object.fromEntries(summaries.map(s => [s.id, true]))
-  );
-
   // Track which sections are expanded within each card
-  const [expandedDiagnosis, setExpandedDiagnosis] = useState<Record<number, boolean>>(() =>
-    Object.fromEntries(summaries.map(s => [s.id, true]))
-  );
-  const [expandedFeedback, setExpandedFeedback] = useState<Record<number, boolean>>(() =>
-    Object.fromEntries(summaries.map(s => [s.id, true]))
-  );
   const [expandedPoints, setExpandedPoints] = useState<Record<number, boolean>>({});
   const [expandedFacts, setExpandedFacts] = useState<Record<number, boolean>>({});
 
@@ -167,15 +132,6 @@ export function SummariesTab({ summaries, facts, setActiveTab }: SummariesTabPro
   const getFactById = (factId: number) => facts.find(f => f.id === factId);
 
   // Toggle functions
-  const toggleSource = (summaryId: number) => {
-    setExpandedSources(prev => ({ ...prev, [summaryId]: !prev[summaryId] }));
-  };
-  const toggleDiagnosis = (summaryId: number) => {
-    setExpandedDiagnosis(prev => ({ ...prev, [summaryId]: !prev[summaryId] }));
-  };
-  const toggleFeedback = (summaryId: number) => {
-    setExpandedFeedback(prev => ({ ...prev, [summaryId]: !prev[summaryId] }));
-  };
   const togglePoints = (summaryId: number) => {
     setExpandedPoints(prev => ({ ...prev, [summaryId]: !prev[summaryId] }));
   };
@@ -200,213 +156,281 @@ export function SummariesTab({ summaries, facts, setActiveTab }: SummariesTabPro
 
   // Render a single summary card
   const renderSummaryCard = (summary: DOK2Summary) => {
-    const isExpanded = expandedSources[summary.id];
-    const diagnosisExpanded = expandedDiagnosis[summary.id];
-    const feedbackExpanded = expandedFeedback[summary.id];
     const pointsExpanded = expandedPoints[summary.id];
     const factsExpanded = expandedFacts[summary.id];
     const relatedFacts = summary.relatedFactIds
       .map(id => getFactById(id))
       .filter((f): f is Fact => f !== undefined);
 
+    const gradeColors = summary.grade !== null ? getScoreChipColors(summary.grade) : null;
+    const gradeLabel = getGradeLabel(summary.grade);
+
     return (
       <div
         key={summary.id}
-        className="bg-card rounded-xl transition-all duration-200 border border-border"
+        className="bg-card-elevated rounded-xl shadow-card overflow-hidden"
       >
-        {/* Header - Always visible */}
-        <div
-          className="p-5 cursor-pointer"
-          onClick={() => toggleSource(summary.id)}
-        >
-          <div className="flex items-start justify-between gap-4">
-            <div className="flex items-start gap-3 flex-1 min-w-0">
-              {/* Grade Badge */}
-              <GradeBadge grade={summary.grade} failReason={summary.failReason} />
-              <div className="min-w-0 flex-1">
-                <h4 className="text-base font-semibold text-foreground m-0">
-                  {summary.displayTitle || renderWithLinks(summary.sourceName)}
-                </h4>
-                <div className="flex items-center gap-2 mt-0.5 flex-wrap">
-                  <span className="text-xs text-muted-foreground">
-                    {summary.points.length} point{summary.points.length !== 1 ? 's' : ''}
-                  </span>
-                  <span className="text-xs text-muted-foreground">
-                    • {summary.category}
-                  </span>
-                  {summary.sourceUrl && (
-                    <a
-                      href={summary.sourceUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-xs text-primary flex items-center gap-1 hover:underline"
-                      onClick={(e) => e.stopPropagation()}
-                    >
-                      View source <ExternalLink size={10} />
-                    </a>
-                  )}
-                  {!summary.sourceUrl && (
-                    <span className="text-xs text-orange-600 dark:text-orange-400">
-                      No source link
-                    </span>
-                  )}
-                </div>
-              </div>
-            </div>
-            <button
-              className="p-2 rounded-lg hover:bg-sidebar transition-colors text-muted-foreground shrink-0"
-              aria-label={isExpanded ? 'Collapse' : 'Expand'}
+        {/* Header: Grade + Title + Meta */}
+        <div className="flex gap-8 px-10 py-12">
+          {/* Grade Circle */}
+          <div className="flex flex-col items-center gap-3 shrink-0">
+            <div
+              className="flex items-center justify-center w-14 h-14 rounded-full font-serif text-[28px] font-normal"
+              style={{
+                backgroundColor: 'transparent',
+                color: gradeColors ? gradeColors.text : tokens.textMuted,
+                border: `1px solid ${tokens.border}`,
+              }}
             >
-              {isExpanded ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
-            </button>
+              {summary.grade !== null ? summary.grade : '—'}
+            </div>
+            <span
+              className="text-[9px] uppercase tracking-[0.25em]"
+              style={{ color: gradeColors ? gradeColors.text : tokens.textMuted }}
+            >
+              {gradeLabel}
+            </span>
+          </div>
+
+          {/* Title & Meta */}
+          <div className="flex flex-col gap-4 flex-1">
+            <h4 className="font-serif text-[24px] font-bold leading-snug text-foreground m-0">
+              {summary.displayTitle || renderWithLinks(summary.sourceName)}
+            </h4>
+
+            {/* Meta row */}
+            <div className="flex items-center gap-4 text-muted-foreground">
+              <span className="text-[11px] uppercase tracking-[0.2em] font-semibold">
+                {summary.category}
+              </span>
+              <span className="text-muted-light">•</span>
+              <span className="text-[11px] uppercase tracking-[0.2em]">
+                {summary.points.length} summary point{summary.points.length !== 1 ? 's' : ''} 
+              </span>
+              {summary.sourceUrl && (
+                <>
+                  <span className="text-muted-light">•</span>
+                  <a
+                    href={summary.sourceUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center gap-1.5 text-[11px] text-muted-foreground hover:text-foreground transition-colors"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    <IoLinkSharp size={14} />
+                    Source
+                  </a>
+                </>
+              )}
+            </div>
+
+            {/* Fail reason warning */}
+            {summary.grade === 1 && summary.failReason && (
+              <span className="inline-flex items-center gap-2 text-[9px] uppercase tracking-[0.35em] font-semibold text-warning">
+                <AlertTriangle size={14} className="opacity-50" />
+                {FAIL_REASON_LABELS[summary.failReason] || summary.failReason}
+              </span>
+            )}
           </div>
         </div>
 
-        {/* Expanded Content */}
-        {isExpanded && (
-          <div className="px-5 pb-5 space-y-4">
-            {/* Diagnosis & Feedback Grid */}
-            {(summary.diagnosis || summary.feedback) && (
-              <div className="border-t border-border pt-4">
-                <div className="flex flex-col gap-4">
-                  {/* Summary Analysis Card */}
-                  {summary.diagnosis && (
-                    <div className="rounded-lg bg-amber-50/70 dark:bg-amber-950/30 overflow-hidden">
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          toggleDiagnosis(summary.id);
-                        }}
-                        className="flex items-center gap-2.5 w-full text-left px-4 py-3 hover:bg-amber-100/50 dark:hover:bg-amber-900/30 transition-colors cursor-pointer"
-                      >
-                        <div className="p-1.5 rounded-md bg-amber-500/20">
-                          <AiOutlineFileSearch size={16} className="text-amber-600 dark:text-amber-400" />
-                        </div>
-                        <span className="text-sm font-semibold text-amber-800 dark:text-amber-300">Summary Analysis</span>
-                        <span className="ml-auto text-amber-600/70 dark:text-amber-400/70">
-                          {diagnosisExpanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
-                        </span>
-                      </button>
-                      {diagnosisExpanded && (
-                        <div className="px-4 pb-4 pt-1">
-                          <p className="text-sm text-foreground m-0 whitespace-pre-wrap leading-relaxed">
-                            {summary.diagnosis}
-                          </p>
-                        </div>
-                      )}
-                    </div>
-                  )}
-
-                  {/* How to Improve Card */}
-                  {summary.feedback && (
-                    <div className="rounded-lg bg-teal-50/70 dark:bg-teal-950/30 overflow-hidden">
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          toggleFeedback(summary.id);
-                        }}
-                        className="flex items-center gap-2.5 w-full text-left px-4 py-3 hover:bg-teal-100/50 dark:hover:bg-teal-900/30 transition-colors cursor-pointer"
-                      >
-                        <div className="p-1.5 rounded-md bg-teal-500/20">
-                          <FaArrowUpRightDots size={16} className="text-teal-600 dark:text-teal-400" />
-                        </div>
-                        <span className="text-sm font-semibold text-teal-800 dark:text-teal-300">How to Improve</span>
-                        <span className="ml-auto text-teal-600/70 dark:text-teal-400/70">
-                          {feedbackExpanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
-                        </span>
-                      </button>
-                      {feedbackExpanded && (
-                        <div className="px-4 pb-4 pt-1">
-                          <p className="text-sm text-foreground m-0 whitespace-pre-wrap leading-relaxed">
-                            {summary.feedback}
-                          </p>
-                        </div>
-                      )}
-                    </div>
-                  )}
+        {/* Diagnosis & Feedback - Always Visible */}
+        {(summary.diagnosis || summary.feedback) && (
+          <div className="px-10 pb-12 grid grid-cols-2 gap-12">
+            {/* Summary Analysis */}
+            {summary.diagnosis && (
+              <div className="rounded-xl p-10 bg-primary/5 border border-border">
+                <div className="flex items-center gap-2.5 mb-8">
+                  <AiOutlineFileSearch size={20} style={{ color: tokens.warning }} />
+                  <span
+                    className="text-[16px] uppercase tracking-[0.1em] font-semibold"
+                    style={{ color: tokens.warning }}
+                  >
+                    Summary Analysis
+                  </span>
                 </div>
+                <p className="font-serif text-[15px] leading-[2] text-foreground m-0 whitespace-pre-wrap">
+                  {summary.diagnosis}
+                </p>
               </div>
             )}
 
-            {/* Summary Points Section */}
-            <div className="border-t border-border pt-4">
+            {/* How to Improve */}
+            {summary.feedback && (
+              <div className="rounded-xl p-10 bg-primary/5 border border-border">
+                <div className="flex items-center gap-2.5 mb-8">
+                  <FaArrowUpRightDots size={20} style={{ color: tokens.success }} />
+                  <span
+                    className="text-[16px] uppercase tracking-[0.1em] font-semibold"
+                    style={{ color: tokens.success }}
+                  >
+                    How to Improve
+                  </span>
+                </div>
+                <p className="font-serif text-[15px] leading-[2] text-foreground m-0 whitespace-pre-wrap italic">
+                  {summary.feedback}
+                </p>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Buttons when nothing is expanded */}
+        {!pointsExpanded && !factsExpanded && (summary.points.length > 0 || relatedFacts.length > 0) && (
+          <div className="px-10 pb-10 flex gap-8">
+            {summary.points.length > 0 && (
               <button
                 onClick={(e) => {
                   e.stopPropagation();
                   togglePoints(summary.id);
                 }}
-                className="flex items-center gap-2 text-sm font-medium text-foreground hover:text-primary transition-colors bg-transparent border-none cursor-pointer p-0"
+                className="text-[12px] text-muted-light bg-transparent p-0 cursor-pointer text-left uppercase tracking-[0.35em] font-semibold border-0 border-b border-solid border-muted-light/50 hover:border-dashed hover:text-muted-foreground hover:border-muted-foreground transition-colors duration-300"
               >
-                {pointsExpanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
-                <span>Summary Points ({summary.points.length})</span>
+                VIEW {summary.points.length} POINTS
               </button>
-              {pointsExpanded && (
-                <div className="mt-2 bg-sidebar rounded-lg p-4">
-                  <ul className="m-0 pl-4 space-y-1.5">
-                    {summary.points
-                      .sort((a, b) => a.sortOrder - b.sortOrder)
-                      .map(point => {
-                        const leadingSpaces = point.text.match(/^(\s*)/)?.[1]?.length || 0;
-                        const indentLevel = Math.floor(leadingSpaces / 2);
-                        const trimmedText = point.text.trim();
-
-                        return (
-                          <li
-                            key={point.id}
-                            className="text-sm text-foreground leading-relaxed list-none"
-                            style={{ marginLeft: `${indentLevel * 16}px` }}
-                          >
-                            <span className="flex items-start gap-2">
-                              <span className={`shrink-0 mt-1.5 w-1.5 h-1.5 rounded-full ${
-                                indentLevel === 0 ? 'bg-primary' : 'bg-muted-foreground/50'
-                              }`} />
-                              <span>{trimmedText}</span>
-                            </span>
-                          </li>
-                        );
-                      })}
-                  </ul>
-                </div>
-              )}
-            </div>
-
-            {/* Related DOK1 Facts Section */}
+            )}
             {relatedFacts.length > 0 && (
-              <div className="border-t border-border pt-4">
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    toggleRelatedFacts(summary.id);
-                  }}
-                  className="flex items-center gap-2 text-sm font-medium text-foreground hover:text-primary transition-colors bg-transparent border-none cursor-pointer p-0"
-                >
-                  {factsExpanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
-                  <span>Related DOK1 Facts ({relatedFacts.length})</span>
-                </button>
-                {factsExpanded && (
-                  <div className="mt-3 space-y-2">
-                    {relatedFacts.map(fact => (
-                      <button
-                        key={fact.id}
-                        onClick={() => navigateToFact(fact.id)}
-                        className="w-full text-left p-3 bg-sidebar rounded-lg border border-transparent hover:border-primary/30 transition-colors cursor-pointer"
-                      >
-                        <div className="flex items-start gap-2">
-                          <span className="text-xs font-semibold text-primary bg-primary/10 px-1.5 py-0.5 rounded shrink-0">
-                            #{fact.originalId}
-                          </span>
-                          <p className="text-sm text-foreground m-0 line-clamp-2">
-                            {fact.fact}
-                          </p>
-                        </div>
-                      </button>
-                    ))}
-                  </div>
-                )}
-              </div>
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  toggleRelatedFacts(summary.id);
+                }}
+                className="text-[12px] text-muted-light bg-transparent p-0 cursor-pointer text-left uppercase tracking-[0.35em] font-semibold border-0 border-b border-solid border-muted-light/50 hover:border-dashed hover:text-muted-foreground hover:border-muted-foreground transition-colors duration-300"
+              >
+                VIEW {relatedFacts.length} RELATED FACTS
+              </button>
             )}
           </div>
         )}
+
+        {/* Summary Points - Expandable */}
+        <AnimatePresence initial={false}>
+          {pointsExpanded && summary.points.length > 0 && (
+            <motion.div
+              key="points-content"
+              initial={{ height: 0, opacity: 0 }}
+              animate={{ height: 'auto', opacity: 1 }}
+              exit={{ height: 0, opacity: 0 }}
+              transition={{ height: { duration: 0.4, ease: 'easeInOut' }, opacity: { duration: 0.2 } }}
+              className="overflow-hidden"
+            >
+              <div className="px-10 py-14">
+                <span className="text-[13px] uppercase tracking-[0.3em] font-bold text-muted-foreground">
+                  Summary Points
+                </span>
+
+                <div className="mt-10 space-y-10">
+                  {summary.points
+                    .sort((a, b) => a.sortOrder - b.sortOrder)
+                    .map(point => {
+                      const leadingSpaces = point.text.match(/^(\s*)/)?.[1]?.length || 0;
+                      const indentLevel = Math.floor(leadingSpaces / 2);
+                      const trimmedText = point.text.trim();
+
+                      return (
+                        <div
+                          key={point.id}
+                          className="pl-8 border-l-2 border-border"
+                          style={{ marginLeft: `${indentLevel * 24}px` }}
+                        >
+                          <p className="font-serif text-[17px] leading-[2] text-foreground m-0 italic">
+                            {trimmedText}
+                          </p>
+                        </div>
+                      );
+                    })}
+                </div>
+
+                {/* Buttons at bottom of points section */}
+                <div className="mt-12 flex gap-8">
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      togglePoints(summary.id);
+                    }}
+                    className="text-[10px] text-muted-light bg-transparent p-0 cursor-pointer text-left uppercase tracking-[0.35em] font-semibold border-0 border-b border-solid border-muted-light/50 hover:border-dashed hover:text-muted-foreground hover:border-muted-foreground transition-colors duration-300"
+                  >
+                    HIDE POINTS
+                  </button>
+                  {relatedFacts.length > 0 && !factsExpanded && (
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        toggleRelatedFacts(summary.id);
+                      }}
+                      className="text-[10px] text-muted-light bg-transparent p-0 cursor-pointer text-left uppercase tracking-[0.35em] font-semibold border-0 border-b border-solid border-muted-light/50 hover:border-dashed hover:text-muted-foreground hover:border-muted-foreground transition-colors duration-300"
+                    >
+                      VIEW {relatedFacts.length} RELATED FACTS
+                    </button>
+                  )}
+                </div>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* Related DOK1 Facts - Expandable */}
+        <AnimatePresence initial={false}>
+          {factsExpanded && relatedFacts.length > 0 && (
+            <motion.div
+              key="facts-content"
+              initial={{ height: 0, opacity: 0 }}
+              animate={{ height: 'auto', opacity: 1 }}
+              exit={{ height: 0, opacity: 0 }}
+              transition={{ height: { duration: 0.4, ease: 'easeInOut' }, opacity: { duration: 0.2 } }}
+              className="overflow-hidden"
+            >
+              <div className="px-10 py-14">
+                <span className="text-[13px] uppercase tracking-[0.3em] font-bold text-muted-foreground mb-10 block">
+                  Related DOK1 Facts
+                </span>
+
+                <div className="space-y-8">
+                  {relatedFacts.map(fact => (
+                    <button
+                      key={fact.id}
+                      onClick={() => navigateToFact(fact.id)}
+                      className="w-full text-left p-6 bg-sidebar rounded-lg border border-transparent hover:border-primary/30 transition-colors cursor-pointer"
+                    >
+                      <div className="flex items-start gap-6">
+                        <span className="font-serif text-[18px] text-muted-light shrink-0">
+                          #{fact.originalId}
+                        </span>
+                        <p className="text-[14px] text-foreground m-0 line-clamp-2 leading-relaxed">
+                          {fact.fact}
+                        </p>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+
+                {/* Buttons at bottom of facts section */}
+                <div className="mt-12 flex gap-8">
+                  {summary.points.length > 0 && !pointsExpanded && (
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        togglePoints(summary.id);
+                      }}
+                      className="text-[10px] text-muted-light bg-transparent p-0 cursor-pointer text-left uppercase tracking-[0.35em] font-semibold border-0 border-b border-solid border-muted-light/50 hover:border-dashed hover:text-muted-foreground hover:border-muted-foreground transition-colors duration-300"
+                    >
+                      VIEW {summary.points.length} POINTS
+                    </button>
+                  )}
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      toggleRelatedFacts(summary.id);
+                    }}
+                    className="text-[10px] text-muted-light bg-transparent p-0 cursor-pointer text-left uppercase tracking-[0.35em] font-semibold border-0 border-b border-solid border-muted-light/50 hover:border-dashed hover:text-muted-foreground hover:border-muted-foreground transition-colors duration-300"
+                  >
+                    HIDE FACTS
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </div>
     );
   };
@@ -415,13 +439,28 @@ export function SummariesTab({ summaries, facts, setActiveTab }: SummariesTabPro
   if (summaries.length === 0) {
     return (
       <div className="max-w-[1200px] mx-auto">
-        <div className="text-center py-16 bg-card rounded-xl border border-border">
-          <BookOpen size={48} className="mx-auto mb-4 text-muted-foreground opacity-50" />
-          <h3 className="text-lg font-semibold text-foreground mb-2">No Summaries Found</h3>
-          <p className="text-muted-foreground max-w-md mx-auto">
-            DOK2 summaries capture the owner's interpretation and synthesis of source materials.
-            They will appear here once your brainlift includes DOK2 content.
+        {/* Page Header */}
+        <div className="flex flex-col gap-4 mb-6 pb-4">
+          <h2 className="text-[30px] font-bold text-foreground tracking-tight leading-[1.1] m-0">
+            DOK2 Summaries
+          </h2>
+          <p className="text-[15px] text-muted-light m-0 max-w-2xl font-serif italic">
+            Your interpretation and synthesis of source materials.
           </p>
+        </div>
+
+        {/* Empty Card */}
+        <div className="bg-card-elevated rounded-xl shadow-card py-20 px-12">
+          <div className="flex flex-col items-center text-center">
+            <BookOpen size={40} className="text-muted-light opacity-40 mb-8" />
+            <h3 className="font-serif text-[24px] text-foreground m-0 mb-4">
+              No Syntheses Yet
+            </h3>
+            <p className="text-[14px] text-muted-light m-0 max-w-md leading-relaxed">
+              DOK2 summaries capture how you've reorganized and interpreted your source materials.
+              They will appear here once your BrainLift includes DOK2 content.
+            </p>
+          </div>
         </div>
       </div>
     );
@@ -430,80 +469,100 @@ export function SummariesTab({ summaries, facts, setActiveTab }: SummariesTabPro
   return (
     <div className="max-w-[1200px] mx-auto">
       {/* Page Header */}
-      <div className="mb-8 pb-5 border-b border-border">
-        <div className="flex justify-between items-start flex-wrap gap-4">
+      <div className="flex flex-col gap-4 mb-6 pb-4">
+        <div className="flex items-start justify-between gap-6">
           <div>
-            <h2 className="text-2xl font-bold m-0 mb-2 text-foreground">
+            <h2 className="text-[30px] font-bold text-foreground tracking-tight leading-[1.1] m-0">
               DOK2 Summaries
             </h2>
-            <p className="text-[15px] text-muted-foreground m-0">
-              Your interpretation and synthesis of source materials. Grades reflect how well you've reorganized the facts through your unique lens.
-            </p>
           </div>
-          {/* Sort Toggle */}
-          <button
-            onClick={() => setSortMode(prev => prev === 'grade' ? 'category' : 'grade')}
-            className="flex items-center gap-2 px-3 py-2 text-sm font-medium bg-sidebar hover:bg-sidebar/80 rounded-lg transition-colors text-foreground border border-border"
-          >
-            <ArrowUpDown size={16} />
-            {sortMode === 'grade' ? 'Sort by Category' : 'Sort by Grade'}
-          </button>
         </div>
+
+        <p className="text-[15px] text-muted-light m-0 max-w-2xl font-serif italic">
+          Your interpretation and synthesis of source materials. Grades reflect how well you've reorganized the facts through your unique lens.
+        </p>
       </div>
 
       {/* Stats Summary */}
-      <div className="grid grid-cols-4 gap-3 mb-6">
+      <div className="flex justify-between mb-16">
         {(() => {
           const gradedSummaries = summaries.filter(s => s.grade !== null);
           const avgGradeNum = gradedSummaries.length > 0
             ? gradedSummaries.reduce((sum, s) => sum + (s.grade || 0), 0) / gradedSummaries.length
             : 0;
+          const meanGrade = gradedSummaries.length > 0 ? parseFloat(avgGradeNum.toFixed(2)) : '—';
 
           // Color based on avg grade
-          const getAvgGradeColor = (score: number) => {
-            if (score >= 4.5) return '#10b981'; // emerald-500
-            if (score >= 3.5) return '#3b82f6'; // blue-500
-            if (score >= 2.5) return '#f59e0b'; // amber-500
-            if (score > 0) return '#ef4444'; // red-500
-            return '#6b7280'; // gray-500
+          const getMeanGradeColor = (score: number) => {
+            if (score >= 4.5) return tokens.success;
+            if (score >= 3.5) return tokens.info;
+            if (score >= 1.5) return tokens.warning;
+            if (score > 0) return tokens.danger;
+            return tokens.textMuted;
           };
 
           const highQuality = summaries.filter(s => s.grade !== null && s.grade >= 4).length;
           const lowQuality = summaries.filter(s => s.grade !== null && s.grade <= 2).length;
 
           return [
-            { label: 'Total Summaries', value: summaries.length, color: '#8b5cf6' }, // primary
-            { label: 'Mean Grade', value: avgGradeNum > 0 ? parseFloat(avgGradeNum.toFixed(2)) : '—', color: getAvgGradeColor(avgGradeNum) },
-            { label: 'High Quality (4-5)', value: highQuality, color: '#10b981' }, // green
-            { label: 'Needs Work (1-2)', value: lowQuality, color: lowQuality > 0 ? '#f59e0b' : '#6b7280' },
+            { label: ['TOTAL', 'SUMMARIES'], value: summaries.length, color: tokens.primary },
+            { label: ['MEAN', 'GRADE'], value: meanGrade, color: getMeanGradeColor(avgGradeNum) },
+            { label: ['HIGH', 'QUALITY'], value: highQuality, color: tokens.success },
+            { label: ['NEEDS', 'WORK'], value: lowQuality, color: lowQuality > 0 ? tokens.warning : tokens.textMuted },
           ];
         })().map((stat, i) => (
           <div
             key={i}
-            className="p-4 bg-card rounded-lg border border-border text-center"
+            className="w-[160px] py-6 px-5 bg-card-elevated rounded-lg shadow-card flex flex-col"
           >
-            <div className="text-2xl font-bold mb-1" style={{ color: stat.color }}>
+            <div className="font-serif text-[54px] leading-none font-normal tracking-wide" style={{ color: stat.color }}>
               {stat.value}
             </div>
-            <div className="text-xs text-muted-foreground uppercase tracking-wider">
-              {stat.label}
+            <div className="mt-5 text-[13px] text-muted-foreground font-semibold tracking-[0.35em] leading-relaxed">
+              {stat.label[0]}
+              {stat.label[1] && <br />}
+              {stat.label[1]}
             </div>
           </div>
         ))}
       </div>
 
+      {/* Section Header */}
+      <div className="flex items-baseline justify-between">
+        <h3 className="text-[24px] font-semibold text-foreground m-0">
+          Active Syntheses
+        </h3>
+        <button
+          onClick={() => setSortMode(prev => prev === 'grade' ? 'category' : 'grade')}
+          className="flex items-center gap-2 text-[10px] uppercase tracking-[0.35em] text-muted-light font-semibold bg-transparent border-0 p-0 cursor-pointer hover:text-muted-foreground transition-colors duration-200"
+        >
+          {sortMode === 'grade' ? (
+            <>
+              <FaSortNumericDownAlt size={14} />
+              Sort by Grade
+            </>
+          ) : (
+            <>
+              <TbCategoryFilled size={14} />
+              Sort by Category
+            </>
+          )}
+        </button>
+      </div>
+      <hr className="border-t border-border mt-4 mb-12" />
+
       {/* Content - depends on sort mode */}
       {sortMode === 'grade' ? (
         // Flat list sorted by grade
-        <div className="flex flex-col gap-4">
+        <div className="flex flex-col gap-16">
           {sortedByGrade.map(renderSummaryCard)}
         </div>
       ) : (
         // Grouped by category
         Array.from(groupedByCategory.entries()).map(([category, categorySummaries]) => (
-          <div key={category} className="mb-10">
+          <div key={category} className="mb-20">
             {/* Category Header */}
-            <div className="flex items-center gap-3 mb-4">
+            <div className="flex items-center gap-3 mb-8">
               <h3 className="text-lg font-semibold m-0 text-foreground">{category}</h3>
               <span className="bg-sidebar text-muted-foreground text-xs py-1 px-2.5 rounded-xl">
                 {categorySummaries.length} source{categorySummaries.length !== 1 ? 's' : ''}
@@ -511,7 +570,7 @@ export function SummariesTab({ summaries, facts, setActiveTab }: SummariesTabPro
             </div>
 
             {/* Source Cards */}
-            <div className="flex flex-col gap-4">
+            <div className="flex flex-col gap-16">
               {categorySummaries.map(renderSummaryCard)}
             </div>
           </div>
