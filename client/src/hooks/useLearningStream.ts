@@ -4,18 +4,21 @@ import { queryClient, apiRequest } from '@/lib/queryClient';
 export interface LearningStreamItem {
   id: number;
   brainliftId: number;
-  sourceType: 'quick-search' | 'deep-research' | 'twitter';
-  author: string | null;
-  title: string | null;
-  topic: string | null;
-  url: string | null;
-  rationale: string | null;
-  estimatedReadTime: number | null;
+  // DB field names (actual API response)
+  type: string;                     // "Blog", "Podcast", "Video", "Research", etc.
+  author: string;
+  topic: string;                    // Title/topic of the resource
+  time: string;                     // "5 min", "15 min"
+  facts: string;                    // Key insights summary (2-3 sentences)
+  url: string;
+  source: 'quick-search' | 'deep-research' | 'twitter' | 'swarm-research';
   status: 'pending' | 'bookmarked' | 'graded' | 'discarded';
-  quality: number | null;
-  alignment: boolean | null;
+  relevanceScore: string | null;    // AI relevance score "0.5" to "1.0"
+  aiRationale: string | null;       // Why AI suggested this
+  quality: number | null;           // Grade (1-5)
+  alignment: 'yes' | 'no' | null;
   createdAt: string;
-  processedAt: string | null;
+  updatedAt: string;
 }
 
 export interface LearningStreamStats {

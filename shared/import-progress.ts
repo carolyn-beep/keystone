@@ -5,7 +5,6 @@ export type ImportStage =
   | 'grading'
   | 'grading_dok2'
   | 'contradictions'
-  | 'readingList'
   | 'saving'
   | 'experts'
   | 'redundancy'
@@ -37,10 +36,6 @@ export interface ContradictionsProgress extends BaseProgressEvent {
   stage: 'contradictions';
 }
 
-export interface ReadingListProgress extends BaseProgressEvent {
-  stage: 'readingList';
-}
-
 export interface SavingProgress extends BaseProgressEvent {
   stage: 'saving';
 }
@@ -68,7 +63,6 @@ export type ImportProgress =
   | GradingProgress
   | GradingDOK2Progress
   | ContradictionsProgress
-  | ReadingListProgress
   | SavingProgress
   | ExpertsProgress
   | RedundancyProgress
@@ -81,7 +75,6 @@ export const STAGE_LABELS: Record<ImportStage, string> = {
   grading: 'Grading DOK1 facts...',
   grading_dok2: 'Grading DOK2 summaries...',
   contradictions: 'Detecting contradictions...',
-  readingList: 'Generating reading list...',
   saving: 'Saving to database...',
   experts: 'Extracting experts...',
   redundancy: 'Analyzing redundancies...',
@@ -92,10 +85,9 @@ export const STAGE_LABELS: Record<ImportStage, string> = {
 // Weights for progress bar calculation (must sum to 100)
 export const STAGE_WEIGHTS: Record<Exclude<ImportStage, 'complete' | 'error'>, number> = {
   extracting: 5,
-  grading: 50,           // DOK1 grading takes the longest
+  grading: 55,           // DOK1 grading takes the longest
   grading_dok2: 15,      // DOK2 grading (fewer items, runs in parallel)
   contradictions: 5,
-  readingList: 5,
   saving: 5,
   experts: 10,
   redundancy: 5,
@@ -111,7 +103,6 @@ export function calculateProgress(event: ImportProgress): number {
     'grading',
     'grading_dok2',
     'contradictions',
-    'readingList',
     'saving',
     'experts',
     'redundancy',

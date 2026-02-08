@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { insertBrainliftSchema, brainlifts, insertFactSchema, insertContradictionClusterSchema, insertReadingListItemSchema } from './schema';
+import { insertBrainliftSchema, brainlifts, insertFactSchema, insertContradictionClusterSchema } from './schema';
 
 export const errorSchemas = {
   validation: z.object({
@@ -28,9 +28,8 @@ export const api = {
       path: '/api/brainlifts/:slug',
       responses: {
         200: z.custom<typeof brainlifts.$inferSelect & {
-          facts: any[], 
-          contradictionClusters: any[], 
-          readingList: any[]
+          facts: any[],
+          contradictionClusters: any[]
         }>(),
         404: errorSchemas.notFound,
       },
@@ -47,7 +46,6 @@ export const api = {
         summary: z.any(),
         facts: z.array(insertFactSchema.omit({ brainliftId: true })),
         contradictionClusters: z.array(insertContradictionClusterSchema.omit({ brainliftId: true })),
-        readingList: z.array(insertReadingListItemSchema.omit({ brainliftId: true })),
       }),
       responses: {
         201: z.custom<typeof brainlifts.$inferSelect>(),

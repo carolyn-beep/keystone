@@ -1,5 +1,5 @@
 import type { Fact } from '@shared/schema';
-import type { ExpertProfile, ExtractedExpert, ReadingListItem } from './types';
+import type { ExpertProfile, ExtractedExpert } from './types';
 import { sanitizeName, countExpertMentions } from './extractors';
 
 /**
@@ -9,8 +9,7 @@ export function buildExpertProfiles(
   documentExperts: ExtractedExpert[],
   facts: Fact[],
   originalContent: string,
-  author: string | null,
-  readingList: ReadingListItem[]
+  author: string | null
 ): ExpertProfile[] {
   const profiles: Map<string, ExpertProfile> = new Map();
 
@@ -29,7 +28,6 @@ export function buildExpertProfiles(
             factCitations: 0,
             noteCitations: 0,
             sourceCitations: 0,
-            readingListMentions: 0,
             isInDok1Section: true,
             score5FactCitations: 0,
           });
@@ -43,7 +41,6 @@ export function buildExpertProfiles(
         factCitations: 0,
         noteCitations: 0,
         sourceCitations: 0,
-        readingListMentions: 0,
         isInDok1Section: true,
         score5FactCitations: 0,
       });
@@ -69,7 +66,6 @@ export function buildExpertProfiles(
 
     if (knownCitationCounts[normalizedName] !== undefined) {
       profile.factCitations = knownCitationCounts[normalizedName];
-      profile.readingListMentions = 0;
       return;
     }
 
@@ -84,18 +80,9 @@ export function buildExpertProfiles(
       }
     }
 
-    let readingListAuthorMentions = 0;
-    for (const item of readingList) {
-      const authorText = (item.author || '').toLowerCase();
-      if (lastName && authorText.includes(lastName)) {
-        readingListAuthorMentions++;
-      }
-    }
-
     const contentMentions = countExpertMentions(originalContent, profile.name);
 
-    profile.factCitations = Math.max(factMentions, contentMentions + readingListAuthorMentions);
-    profile.readingListMentions = readingListAuthorMentions;
+    profile.factCitations = Math.max(factMentions, contentMentions);
   });
 
   return Array.from(profiles.values());

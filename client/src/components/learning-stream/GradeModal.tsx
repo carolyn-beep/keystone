@@ -41,21 +41,20 @@ export function GradeModal({ show, item, onClose, onSubmit, isSubmitting }: Grad
       onClick={handleClose}
     >
       <div
-        className="p-6 w-[95%] max-w-[450px] rounded-xl"
-        style={{ backgroundColor: tokens.surface }}
+        className="p-8 w-[95%] max-w-[450px] rounded-xl shadow-card bg-card-elevated"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="flex justify-between items-start mb-5">
+        <div className="flex justify-between items-start mb-6">
           <div>
-            <h2 className="text-lg font-bold m-0 text-foreground">Grade Resource</h2>
-            <p className="text-sm text-muted-foreground mt-1 m-0 line-clamp-2">
-              {item.title || item.topic || 'Untitled Resource'}
+            <h2 className="font-serif text-xl text-foreground m-0">Grade Resource</h2>
+            <p className="text-sm text-muted-foreground mt-2 m-0 line-clamp-2 font-serif italic">
+              {item.topic || 'Untitled Resource'}
             </p>
           </div>
           <button
             onClick={handleClose}
-            className="bg-transparent border-none cursor-pointer p-1 text-muted-foreground hover:text-foreground"
+            className="bg-transparent border-none cursor-pointer p-1 text-muted-foreground hover:text-foreground transition-colors"
             aria-label="Close modal"
           >
             <X size={20} />
@@ -63,9 +62,9 @@ export function GradeModal({ show, item, onClose, onSubmit, isSubmitting }: Grad
         </div>
 
         {/* Quality Rating */}
-        <div className="mb-6">
-          <label className="block text-sm font-medium text-foreground mb-3">
-            Quality (1-5 stars)
+        <div className="mb-8">
+          <label className="block text-[10px] uppercase tracking-[0.35em] font-semibold text-muted-foreground mb-4">
+            Quality
           </label>
           <div className="flex items-center gap-1">
             {[1, 2, 3, 4, 5].map((value) => (
@@ -89,7 +88,7 @@ export function GradeModal({ show, item, onClose, onSubmit, isSubmitting }: Grad
             ))}
           </div>
           {quality !== null && (
-            <p className="text-xs text-muted-foreground mt-2">
+            <p className="text-xs text-muted-foreground mt-3">
               {quality === 1 && 'Poor quality - not useful'}
               {quality === 2 && 'Below average - limited value'}
               {quality === 3 && 'Average - somewhat useful'}
@@ -100,9 +99,9 @@ export function GradeModal({ show, item, onClose, onSubmit, isSubmitting }: Grad
         </div>
 
         {/* Alignment */}
-        <div className="mb-6">
-          <label className="block text-sm font-medium text-foreground mb-3">
-            Does this align with your brainlift?
+        <div className="mb-8">
+          <label className="block text-[10px] uppercase tracking-[0.35em] font-semibold text-muted-foreground mb-4">
+            Alignment
           </label>
           <div className="flex gap-3">
             <button
@@ -110,7 +109,7 @@ export function GradeModal({ show, item, onClose, onSubmit, isSubmitting }: Grad
               className="flex-1 px-4 py-3 rounded-lg text-sm font-medium transition-all"
               style={{
                 backgroundColor: alignment === true ? tokens.successSoft : 'transparent',
-                border: `2px solid ${alignment === true ? tokens.success : tokens.border}`,
+                border: `1px solid ${alignment === true ? tokens.success : tokens.border}`,
                 color: alignment === true ? tokens.success : tokens.textSecondary,
                 cursor: 'pointer',
               }}
@@ -122,7 +121,7 @@ export function GradeModal({ show, item, onClose, onSubmit, isSubmitting }: Grad
               className="flex-1 px-4 py-3 rounded-lg text-sm font-medium transition-all"
               style={{
                 backgroundColor: alignment === false ? tokens.dangerSoft : 'transparent',
-                border: `2px solid ${alignment === false ? tokens.danger : tokens.border}`,
+                border: `1px solid ${alignment === false ? tokens.danger : tokens.border}`,
                 color: alignment === false ? tokens.danger : tokens.textSecondary,
                 cursor: 'pointer',
               }}

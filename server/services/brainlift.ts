@@ -19,7 +19,6 @@ interface PostProcessingInput {
   author: string | null;
   facts: Array<{ id?: number; fact: string; source?: string | null; note?: string | null; score?: number }>;
   originalContent: string;
-  readingList: Array<{ author?: string; topic?: string }>;
 }
 
 type ProgressCallback = (event: ImportProgress) => void;
@@ -44,7 +43,6 @@ export async function runPostProcessingPipeline(
           author: input.author,
           facts: input.facts as any[],
           originalContent: input.originalContent,
-          readingList: input.readingList,
         });
 
         if (expertData.length > 0) {
@@ -150,8 +148,8 @@ export async function saveBrainliftFromAI(
   // Cache failed URLs to avoid retrying the same 403/404 errors
   const failedUrlCache = new Map<string, string>();
 
-  // Run fact processing, contradiction detection, and reading list extraction in parallel
-  const [factsWithSummaries, contradictionClusters, extractedReadingList] = await Promise.all([
+  // Run fact processing and contradiction detection in parallel
+  const [factsWithSummaries, contradictionClusters] = await Promise.all([
     Promise.all(data.facts.map(fact => limit(async () => {
       // Fast path: skip grading entirely
       if (skipGrading) {
@@ -292,19 +290,11 @@ export async function saveBrainliftFromAI(
     (async () => {
       const { findContradictions } = await import("../ai/brainliftExtractor");
       return findContradictions(data.facts);
-    })(),
-    // Parallel reading list extraction
-    (async () => {
-      const { extractReadingList } = await import("../ai/brainliftExtractor");
-      return extractReadingList(data.title, data.description, data.facts);
     })()
   ]);
 
   // Emit contradictions progress (already completed in parallel)
   onProgress?.({ stage: 'contradictions', message: STAGE_LABELS.contradictions });
-
-  // Emit reading list progress (already completed in parallel)
-  onProgress?.({ stage: 'readingList', message: STAGE_LABELS.readingList });
 
   const batchElapsed = ((Date.now() - batchStart) / 1000).toFixed(1);
   const memEnd = process.memoryUsage();
@@ -334,16 +324,6 @@ export async function saveBrainliftFromAI(
     contradictionCount: factsWithSummaries.filter(f => f.contradicts).length || clusters.length
   };
 
-  // Use either the extracted reading list or the one from input data (if any)
-  const finalReadingList = extractedReadingList.length > 0 ? extractedReadingList : (data.readingList || []).map((r) => ({
-    type: r.type,
-    author: r.author,
-    topic: r.topic,
-    time: r.time,
-    facts: r.facts,
-    url: r.url,
-  }));
-
   // Run expert format diagnostics on the original content
   const expertDiagnostics = originalContent ? await diagnoseExpertFormat(originalContent) : null;
 
@@ -371,7 +351,6 @@ export async function saveBrainliftFromAI(
       },
       factsWithSummaries,
       clusters,
-      finalReadingList,
       userId
     );
 
@@ -525,7 +504,6 @@ export async function saveBrainliftFromAI(
     author: data.owner || null,
     facts: factsWithSummaries,
     originalContent: originalContent || '',
-    readingList: finalReadingList,
   }, onProgress);
 
   return storage.getBrainliftBySlug(slug) as Promise<BrainliftData>;

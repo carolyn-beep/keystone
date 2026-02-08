@@ -2,7 +2,6 @@
 // This maintains backward compatibility with `import { storage } from "../storage"`
 
 import * as brainliftsStorage from './brainlifts';
-import * as readingListStorage from './reading-list';
 import * as expertsStorage from './experts';
 import * as verificationsStorage from './verifications';
 import * as redundancyStorage from './redundancy';
@@ -14,8 +13,8 @@ import * as learningStreamStorage from './learning-stream';
 // Re-export types from base
 export type {
   Brainlift, BrainliftData, InsertBrainlift,
-  Fact, ContradictionCluster, ReadingListItem, ReadingListGrade, InsertReadingListGrade,
-  BrainliftVersion, SourceFeedback, InsertSourceFeedback, Expert, InsertExpert,
+  Fact, ContradictionCluster,
+  BrainliftVersion, Expert, InsertExpert,
   FactVerification, InsertFactVerification, FactModelScore, InsertFactModelScore,
   FactWithVerification, LLMModel, LlmFeedback, ModelAccuracyStats,
   FactRedundancyGroup, InsertFactRedundancyGroup, RedundancyStatus,
@@ -57,14 +56,6 @@ export const storage = {
   getUserByEmailOrUsername: sharesStorage.getUserByEmailOrUsername,
   getSharedBrainlifts: sharesStorage.getSharedBrainlifts,
   transferOwnershipToFirstEditor: sharesStorage.transferOwnershipToFirstEditor,
-
-  // Reading List
-  getGradesByBrainliftId: readingListStorage.getGradesByBrainliftId,
-  saveGrade: readingListStorage.saveGrade,
-  addReadingListItem: readingListStorage.addReadingListItem,
-  getSourceFeedback: readingListStorage.getSourceFeedback,
-  saveSourceFeedback: readingListStorage.saveSourceFeedback,
-  getGradedReadingList: readingListStorage.getGradedReadingList,
 
   // Experts
   getExpertsByBrainliftId: expertsStorage.getExpertsByBrainliftId,
@@ -108,4 +99,4 @@ export const storage = {
 };
 
 // Export individual modules for direct access if needed
-export { brainliftsStorage, readingListStorage, expertsStorage, verificationsStorage, redundancyStorage, analyticsStorage, dok2Storage, sharesStorage, learningStreamStorage };
+export { brainliftsStorage, expertsStorage, verificationsStorage, redundancyStorage, analyticsStorage, dok2Storage, sharesStorage, learningStreamStorage };

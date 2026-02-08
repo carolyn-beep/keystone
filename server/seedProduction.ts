@@ -1,7 +1,7 @@
 import { db } from "./db";
-import { brainlifts, facts, contradictionClusters, readingListItems, experts } from "@shared/schema";
+import { brainlifts, facts, contradictionClusters, experts } from "@shared/schema";
 import { sql } from "drizzle-orm";
-import { brainliftsData, factsData, readingListData, contradictionsData, expertsData } from "./seedData";
+import { brainliftsData, factsData, contradictionsData, expertsData } from "./seedData";
 
 export async function seedProductionIfEmpty() {
   try {
@@ -52,22 +52,6 @@ export async function seedProductionIfEmpty() {
       }
     }
 
-    console.log(`Seeding ${readingListData?.length || 0} reading list items...`);
-    if (readingListData && readingListData.length > 0) {
-      for (const r of readingListData) {
-        await db.insert(readingListItems).values({
-          id: r.id,
-          brainliftId: r.brainlift_id,
-          type: r.type,
-          author: r.author,
-          topic: r.topic,
-          time: r.time,
-          facts: r.facts,
-          url: r.url,
-        }).onConflictDoNothing();
-      }
-    }
-
     console.log(`Seeding ${contradictionsData?.length || 0} contradiction clusters...`);
     if (contradictionsData && contradictionsData.length > 0) {
       for (const c of contradictionsData) {
@@ -101,7 +85,6 @@ export async function seedProductionIfEmpty() {
 
     await db.execute(sql`SELECT setval('brainlifts_id_seq', (SELECT COALESCE(MAX(id), 1) FROM brainlifts))`);
     await db.execute(sql`SELECT setval('facts_id_seq', (SELECT COALESCE(MAX(id), 1) FROM facts))`);
-    await db.execute(sql`SELECT setval('reading_list_items_id_seq', (SELECT COALESCE(MAX(id), 1) FROM reading_list_items))`);
     await db.execute(sql`SELECT setval('contradiction_clusters_id_seq', (SELECT COALESCE(MAX(id), 1) FROM contradiction_clusters))`);
     await db.execute(sql`SELECT setval('experts_id_seq', (SELECT COALESCE(MAX(id), 1) FROM experts))`);
 

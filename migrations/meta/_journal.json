@@ -78,6 +78,13 @@
       "when": 1770119965133,
       "tag": "0010_fancy_proudstar",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1770577009358,
+      "tag": "0011_broken_bishop",
+      "breakpoints": true
     }
   ]
 }

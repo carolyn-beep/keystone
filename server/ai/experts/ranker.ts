@@ -210,8 +210,7 @@ export async function extractAndRankExperts(input: ExtractionInput): Promise<Ins
     cleanedExperts,
     input.facts,
     input.originalContent || '',
-    input.author,
-    input.readingList || []
+    input.author
   );
 
   const maxCitations = Math.max(

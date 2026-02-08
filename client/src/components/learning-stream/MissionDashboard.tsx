@@ -1,13 +1,18 @@
-import { useState, useReducer, useCallback, useRef, useEffect, memo } from 'react';
-import { AlertTriangle, RefreshCw, Radar, Loader2 } from 'lucide-react';
+import { useState, useReducer, useCallback, useEffect, memo } from 'react';
+import { motion, AnimatePresence, LayoutGroup } from 'framer-motion';
+import { AlertTriangle, RefreshCw, Search, Loader2 } from 'lucide-react';
 import { useSwarmEvents, type AgentInfo, type OrchestratorLog, type SwarmStatus } from '@/hooks/useSwarmEvents';
-import { AgentUnit } from './AgentUnit';
+import { AgentCard } from './AgentCard';
 import { AgentInspectModal } from './AgentInspectModal';
+import { ActivityLog } from './ActivityLog';
+import { DeploymentPanel } from './DeploymentPanel';
+import { TactileButton } from '@/components/ui/tactile-button';
+import { cn } from '@/lib/utils';
+import queueClearedImg from '@/assets/textures/research_queue_cleared_bg.webp';
+import researchCompleteBgImg from '@/assets/textures/research_complete_bg.webp';
 
-const GRID_COLS = 5;
-
-// State machine for dashboard UI states
-type DashboardState =
+// State machine for dashboard UI states (exported for DeploymentPanel)
+export type DashboardState =
   | { phase: 'idle' }
   | { phase: 'launching' }      // API call in flight
   | { phase: 'waiting' }        // API returned, waiting for SSE
@@ -33,39 +38,33 @@ function dashboardReducer(state: DashboardState, action: DashboardAction): Dashb
       return { phase: 'launching' };
 
     case 'LAUNCH_COMPLETE':
-      // After API returns, wait for SSE events
       if (state.phase === 'launching') {
         return { phase: 'waiting' };
       }
       return state;
 
     case 'SSE_CONNECTING':
-      // SSE is connecting - stay in waiting/deploying
       if (state.phase === 'waiting' || state.phase === 'launching') {
         return { phase: 'deploying' };
       }
       return state;
 
     case 'SSE_RUNNING':
-      // SSE reports running - move to deploying if we don't have agents yet
       if (state.phase === 'waiting' || state.phase === 'launching' || state.phase === 'idle') {
         return { phase: 'deploying' };
       }
       return state;
 
     case 'AGENTS_SPAWNED':
-      // Agents appeared - we're active
       return { phase: 'active' };
 
     case 'SWARM_COMPLETE':
       return { phase: 'complete' };
 
     case 'SSE_IDLE':
-      // Only go back to idle if we weren't in the middle of something
       if (state.phase === 'idle' || state.phase === 'complete' || state.phase === 'error') {
         return { phase: 'idle' };
       }
-      // If we just launched, stay in waiting
       if (state.phase === 'launching' || state.phase === 'waiting') {
         return state;
       }
@@ -86,15 +85,13 @@ interface MissionDashboardProps {
   slug: string;
   onLaunch?: () => Promise<void>;
   isLaunching?: boolean;
-  /** When true, hides the dashboard completely when idle (use when items already exist) */
   hideWhenIdle?: boolean;
-  /** Number of pending items - hides NEW MISSION button when > 0 */
   pendingCount?: number;
 }
 
 /**
- * Unified Mission Control dashboard.
- * Uses a state machine for explicit phase transitions.
+ * Research Observatory dashboard - three-column editorial layout.
+ * Uses Framer Motion LayoutGroup for shared layout animations.
  */
 export function MissionDashboard({ slug, onLaunch, isLaunching, hideWhenIdle, pendingCount = 0 }: MissionDashboardProps) {
   const {
@@ -107,12 +104,13 @@ export function MissionDashboard({ slug, onLaunch, isLaunching, hideWhenIdle, pe
     failedCount,
     orchestratorLogs,
     connect,
+    startTime,
   } = useSwarmEvents(slug, true);
 
   const [state, dispatch] = useReducer(dashboardReducer, { phase: 'idle' });
   const [inspectedAgentId, setInspectedAgentId] = useState<string | null>(null);
 
-  // Look up the live agent from the agents array (for realtime updates in modal)
+  // Look up the live agent from the agents array
   const inspectedAgent = inspectedAgentId ? agents.find(a => a.toolUseId === inspectedAgentId) ?? null : null;
 
   // Sync SSE status changes to state machine
@@ -167,248 +165,290 @@ export function MissionDashboard({ slug, onLaunch, isLaunching, hideWhenIdle, pe
     dispatch({ type: 'LAUNCH_COMPLETE' });
   }, [onLaunch]);
 
-  // Fade out state - when complete and there are pending items to show
+  // Fade out state - triggers after completion with delay
   const [hasFadedOut, setHasFadedOut] = useState(false);
-  const shouldFadeOut = state.phase === 'complete' && pendingCount > 0;
+  const [shouldFadeOut, setShouldFadeOut] = useState(false);
 
-  // Reset fade state when swarm starts again
   useEffect(() => {
     if (state.phase !== 'complete') {
       setHasFadedOut(false);
+      setShouldFadeOut(false);
+      return;
     }
+
+    // When complete, wait a moment to show completion state, then fade out
+    const timer = setTimeout(() => {
+      setShouldFadeOut(true);
+    }, 2500); // Show completion for 2.5 seconds before fading
+
+    return () => clearTimeout(timer);
   }, [state.phase]);
 
-  // When hideWhenIdle is true and we're idle with no agents, render nothing
-  // (Must be after all hooks)
+  // Auto-scroll to items after fade completes
+  useEffect(() => {
+    if (hasFadedOut && pendingCount > 0) {
+      // Scroll to the items section
+      const itemsSection = document.querySelector('[data-learning-items]');
+      if (itemsSection) {
+        itemsSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }
+    }
+  }, [hasFadedOut, pendingCount]);
+
+  // Hide conditions (after all hooks)
   if (hideWhenIdle && state.phase === 'idle' && agents.length === 0) {
     return null;
   }
 
-  // Hide after fade out completes
   if (hasFadedOut) {
     return null;
   }
 
-  // Derive display conditions from state machine
+  // Derive display conditions
   const showIdleState = state.phase === 'idle';
   const showDeployingState = state.phase === 'launching' || state.phase === 'waiting' || state.phase === 'deploying';
   const showAgents = state.phase === 'active' || state.phase === 'complete' || (agents.length > 0);
   const showError = state.phase === 'error';
-  const isActive = state.phase === 'active' || state.phase === 'deploying' || state.phase === 'launching' || state.phase === 'waiting';
+
+  // Cycle number for display
+  const cycleNumber = String(agents.length).padStart(3, '0');
 
   return (
-    <div
-      className={`bg-slate-950 border border-slate-800 rounded-xl overflow-hidden transition-all duration-700 ease-out ${
-        shouldFadeOut ? 'opacity-0 scale-95' : 'opacity-100 scale-100'
-      }`}
-      onTransitionEnd={(e) => {
-        // Only react to opacity transition ending on this element
-        if (shouldFadeOut && e.propertyName === 'opacity' && e.target === e.currentTarget) {
-          setHasFadedOut(true);
-        }
-      }}
-    >
-      {/* Header - always visible, changes based on state */}
-      <DashboardHeader
-        phase={state.phase}
-        completedCount={completedCount}
-        totalCount={totalCount}
-        failedCount={failedCount}
-      />
-
-      {/* Content area - transitions between states */}
-      <div className="transition-all duration-500 ease-out">
-        {/* Idle State - Launch prompt */}
-        {showIdleState && (
-          <IdleLaunchState onLaunch={handleLaunch} />
+    <LayoutGroup>
+      <motion.div
+        layout
+        className={cn(
+          'transition-all duration-700 ease-out',
+          shouldFadeOut && 'opacity-0 scale-95'
         )}
-
-        {/* Deploying State - Waiting for first agent */}
-        {showDeployingState && !showAgents && (
-          <DeployingState />
-        )}
-
-        {/* Error State without agents */}
-        {showError && !showAgents && (
-          <ErrorState error={error} onRetry={handleRetry} />
-        )}
-
-        {/* Active/Complete State - Show master control and agents */}
-        {showAgents && (
-          <>
-            {/* Master Control Terminal */}
-            <MasterControl logs={orchestratorLogs} isError={showError} />
-
-            {/* Error Banner */}
-            {showError && error && (
-              <div className="mx-4 mb-4 p-3 bg-red-950/50 border border-red-800 rounded-lg flex items-center justify-between">
-                <div className="flex items-center gap-2 text-red-400 text-sm font-mono">
-                  <AlertTriangle size={16} />
-                  <span>{error}</span>
-                </div>
-                <button
-                  onClick={handleRetry}
-                  className="flex items-center gap-1 px-3 py-1 text-xs font-mono text-red-400 border border-red-700 rounded hover:bg-red-900/50 transition-colors"
-                >
-                  <RefreshCw size={12} />
-                  RETRY
-                </button>
-              </div>
-            )}
-
-            {/* Agent Grid - grows dynamically */}
-            <div
-              className="p-4 grid gap-3 transition-all duration-300 ease-out"
-              style={{ gridTemplateColumns: `repeat(${Math.min(agents.length, GRID_COLS)}, minmax(0, 1fr))` }}
-            >
-              {agents.map((agent, index) => (
-                <div
-                  key={agent.toolUseId}
-                  className="animate-agent-spawn"
-                  style={{ animationDelay: `${index * 50}ms` }}
-                >
-                  <AgentUnit agent={agent} onInspect={handleInspect} />
-                </div>
-              ))}
+        onTransitionEnd={(e) => {
+          if (shouldFadeOut && e.propertyName === 'opacity' && e.target === e.currentTarget) {
+            setHasFadedOut(true);
+          }
+        }}
+      >
+        {/* Main Header */}
+        <header className="mb-8">
+          <div className="flex items-center justify-between">
+            <div>
+              <h1 className="font-serif text-2xl font-bold text-foreground">
+                Research Swarm
+              </h1>
+              <p className="text-sm text-muted-foreground mt-1 max-w-xl font-serif italic">
+                Unleash a swarm of specialized research agents to help you expand your brainlifts with a varied selection of high quality sources.
+              </p>
             </div>
 
-            {/* Mission Complete Footer */}
-            {state.phase === 'complete' && (
-              <MissionCompleteFooter
-                savedCount={completedCount - failedCount}
-                failedCount={failedCount}
-                onNewMission={handleLaunch}
-                isLaunching={isLaunching}
-                hideLaunchButton={pendingCount > 0}
-              />
-            )}
-          </>
+            {/* Status indicator */}
+            <div className="flex items-center gap-4">
+              <StatusIndicator phase={state.phase} />
+              {totalCount > 0 && (
+                <span className="text-sm text-muted-foreground">
+                  <span className="font-medium text-foreground">{completedCount}</span>
+                  <span className="mx-1">/</span>
+                  <span>{totalCount}</span>
+                  {failedCount > 0 && (
+                    <span className="text-destructive ml-2">({failedCount} failed)</span>
+                  )}
+                </span>
+              )}
+            </div>
+          </div>
+        </header>
+
+        {/* Content Area */}
+        <AnimatePresence mode="wait">
+          {/* Idle State */}
+          {showIdleState && (
+            <motion.div
+              key="idle"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.3 }}
+            >
+              <IdleLaunchState onLaunch={handleLaunch} />
+            </motion.div>
+          )}
+
+          {/* Deploying State */}
+          {showDeployingState && !showAgents && (
+            <motion.div
+              key="deploying"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.3 }}
+            >
+              <DeployingState />
+            </motion.div>
+          )}
+
+          {/* Error State (without agents) */}
+          {showError && !showAgents && (
+            <motion.div
+              key="error"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.3 }}
+            >
+              <ErrorState error={error} onRetry={handleRetry} />
+            </motion.div>
+          )}
+
+          {/* Active / Complete State - Three Column Layout */}
+          {showAgents && (
+            <motion.div
+              key="active"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.3 }}
+            >
+              {/* Error Banner (if error with agents) */}
+              {showError && error && (
+                <div className="mb-8 p-4 bg-destructive-soft border border-destructive/20 flex items-center justify-between">
+                  <div className="flex items-center gap-2 text-destructive text-sm">
+                    <AlertTriangle size={16} />
+                    <span>{error}</span>
+                  </div>
+                  <button
+                    onClick={handleRetry}
+                    className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-destructive border border-destructive/30 hover:bg-destructive/10 transition-colors"
+                  >
+                    <RefreshCw size={12} />
+                    Retry
+                  </button>
+                </div>
+              )}
+
+              {/* Three Column Layout - Border at top */}
+              <div className="border-t border-border pt-12">
+                <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-12">
+                  {/* Left Column - Deployment */}
+                  <section className="lg:col-span-3">
+                    <div className="border-b-2 border-foreground pb-2 mb-6">
+                      <h2 className="font-serif text-xl font-bold text-foreground">Deployment</h2>
+                    </div>
+                    <DeploymentPanel
+                      phase={state.phase}
+                      agentCount={agents.length}
+                      completedCount={completedCount}
+                      startTime={startTime}
+                    />
+                  </section>
+
+                  {/* Center Column - Active Units */}
+                  <section className="lg:col-span-5">
+                    <div className="border-b-2 border-foreground pb-2 mb-6 flex justify-between items-end">
+                      <h2 className="font-serif text-xl font-bold text-foreground">Active Units</h2>
+                      <span className="text-xs text-muted-foreground uppercase tracking-wider">
+                        Cycle {cycleNumber}
+                      </span>
+                    </div>
+
+                    <AgentList
+                      agents={agents}
+                      onInspect={handleInspect}
+                      inspectedAgentId={inspectedAgentId}
+                    />
+
+                    {/* Research Complete Footer */}
+                    {state.phase === 'complete' && (
+                      <ResearchCompleteFooter
+                        savedCount={completedCount - failedCount}
+                        failedCount={failedCount}
+                        onNewMission={handleLaunch}
+                        isLaunching={isLaunching}
+                        hideLaunchButton={pendingCount > 0}
+                      />
+                    )}
+                  </section>
+
+                  {/* Right Column - Activity Log */}
+                  <section className="lg:col-span-4 lg:pl-8 lg:border-l lg:border-border">
+                    <div className="border-b-2 border-foreground pb-2 mb-6">
+                      <h2 className="font-serif text-xl font-bold text-foreground">Activity Log</h2>
+                    </div>
+                    <ActivityLog logs={orchestratorLogs} isError={showError} />
+                  </section>
+                </div>
+              </div>
+
+              {/* Mobile: Collapsed Research Notes */}
+              <div className="lg:hidden mt-8">
+                <MobileResearchNotes logs={orchestratorLogs} isError={showError} />
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* Inspect Modal (outside AnimatePresence for shared layout) */}
+        {inspectedAgent && (
+          <AgentInspectModal agent={inspectedAgent} onClose={handleCloseInspect} />
         )}
-      </div>
+      </motion.div>
+    </LayoutGroup>
+  );
+}
 
-      {/* Inspect Modal */}
-      {inspectedAgent && (
-        <AgentInspectModal agent={inspectedAgent} onClose={handleCloseInspect} />
-      )}
+// Status indicator component
+function StatusIndicator({ phase }: { phase: DashboardState['phase'] }) {
+  const config = {
+    idle: { color: 'bg-muted-foreground/50', label: 'Standby', pulse: false },
+    launching: { color: 'bg-warning', label: 'Launching', pulse: true },
+    waiting: { color: 'bg-warning', label: 'Initializing', pulse: true },
+    deploying: { color: 'bg-warning', label: 'Deploying', pulse: true },
+    active: { color: 'bg-success', label: 'Active', pulse: true },
+    complete: { color: 'bg-success', label: 'Complete', pulse: false },
+    error: { color: 'bg-destructive', label: 'Error', pulse: true },
+  }[phase];
 
-      {/* Inject animation keyframes */}
-      <style>{`
-        @keyframes agent-spawn {
-          0% {
-            opacity: 0;
-            transform: scale(0.8) translateY(10px);
-          }
-          100% {
-            opacity: 1;
-            transform: scale(1) translateY(0);
-          }
-        }
-        .animate-agent-spawn {
-          animation: agent-spawn 0.3s ease-out forwards;
-        }
-      `}</style>
+  return (
+    <div className="flex items-center gap-2">
+      <div className={cn('w-2 h-2 rounded-full', config.color, config.pulse && 'animate-pulse')} />
+      <span className="text-xs uppercase tracking-[0.2em] font-semibold text-muted-foreground">
+        {config.label}
+      </span>
     </div>
   );
 }
 
-// Header subcomponent
-interface DashboardHeaderProps {
-  phase: DashboardState['phase'];
-  completedCount: number;
-  totalCount: number;
-  failedCount: number;
+// Agent List with vertical layout and proper animations
+interface AgentListProps {
+  agents: AgentInfo[];
+  onInspect: (agent: AgentInfo) => void;
+  inspectedAgentId: string | null;
 }
 
-function DashboardHeader({
-  phase,
-  completedCount,
-  totalCount,
-  failedCount,
-}: DashboardHeaderProps) {
-  // Determine header color scheme based on phase
-  const getAccentColors = () => {
-    if (phase === 'error') return ['bg-red-500', 'bg-red-600', 'bg-red-700'];
-    if (phase === 'complete') return ['bg-emerald-500', 'bg-emerald-600', 'bg-emerald-700'];
-    if (phase === 'active' || phase === 'deploying' || phase === 'launching' || phase === 'waiting') {
-      return ['bg-amber-500', 'bg-amber-600', 'bg-amber-700'];
-    }
-    return ['bg-slate-600', 'bg-slate-700', 'bg-slate-800'];
-  };
-
-  const accentColors = getAccentColors();
-
-  const statusText = {
-    idle: 'STANDBY',
-    launching: 'LAUNCHING',
-    waiting: 'INITIALIZING',
-    deploying: 'DEPLOYING',
-    active: 'ACTIVE',
-    complete: 'COMPLETE',
-    error: 'ERROR',
-  }[phase];
-
-  const statusColor = {
-    idle: 'text-slate-500',
-    launching: 'text-amber-400',
-    waiting: 'text-amber-400',
-    deploying: 'text-amber-400',
-    active: 'text-amber-400',
-    complete: 'text-emerald-400',
-    error: 'text-red-500',
-  }[phase];
-
-  const indicatorColor = {
-    idle: 'bg-slate-600',
-    launching: 'bg-amber-400 animate-pulse',
-    waiting: 'bg-amber-400 animate-pulse',
-    deploying: 'bg-amber-400 animate-pulse',
-    active: 'bg-amber-400 animate-pulse',
-    complete: 'bg-emerald-500',
-    error: 'bg-red-500 animate-pulse',
-  }[phase];
-
+function AgentList({ agents, onInspect, inspectedAgentId }: AgentListProps) {
   return (
-    <div className="flex items-center justify-between px-4 py-3 bg-slate-900 border-b border-slate-800">
-      <div className="flex items-center gap-3">
-        {/* Decorative blocks - color changes with state */}
-        <div className="flex items-center gap-1 transition-colors duration-300">
-          <div className={`w-2 h-4 ${accentColors[0]} transition-colors duration-300`} />
-          <div className={`w-2 h-4 ${accentColors[1]} transition-colors duration-300`} />
-          <div className={`w-2 h-4 ${accentColors[2]} transition-colors duration-300`} />
-        </div>
-        <h3 className="font-mono text-sm font-bold text-slate-200 tracking-widest uppercase">
-          {phase === 'idle' ? 'Research Division' : 'Learning Research Command Center'}
-        </h3>
-      </div>
-
-      <div className="flex items-center gap-4 font-mono text-xs">
-        {/* Progress counter - only show when we have agents */}
-        {totalCount > 0 && (
-          <div className="flex items-center gap-2">
-            <span className="text-slate-500">[</span>
-            <span className="text-slate-300 font-bold">
-              {completedCount}/{totalCount}
-            </span>
-            <span className="text-slate-500">]</span>
-          </div>
-        )}
-
-        {/* Failed counter (if any) */}
-        {failedCount > 0 && (
-          <div className="flex items-center gap-1 text-red-400">
-            <AlertTriangle size={12} />
-            <span>{failedCount}</span>
-          </div>
-        )}
-
-        {/* Status indicator */}
-        <div className="flex items-center gap-2">
-          <div className={`w-2 h-2 rounded-full ${indicatorColor} transition-colors duration-300`} />
-          <span className={`font-bold tracking-wider ${statusColor} transition-colors duration-300`}>
-            {statusText}
-          </span>
-        </div>
-      </div>
+    <div className="space-y-6">
+      <AnimatePresence mode="popLayout">
+        {agents.map((agent, index) => (
+          <motion.div
+            key={agent.toolUseId}
+            layout
+            initial={{ opacity: 0, y: 20, scale: 0.98 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.98 }}
+            transition={{
+              type: 'spring',
+              stiffness: 500,
+              damping: 40,
+              mass: 1,
+              delay: index * 0.05,
+            }}
+          >
+            <AgentCard
+              agent={agent}
+              onInspect={onInspect}
+              isInspected={agent.toolUseId === inspectedAgentId}
+            />
+          </motion.div>
+        ))}
+      </AnimatePresence>
     </div>
   );
 }
@@ -420,47 +460,99 @@ interface IdleLaunchStateProps {
 
 function IdleLaunchState({ onLaunch }: IdleLaunchStateProps) {
   return (
-    <div className="p-8">
-      <div className="flex flex-col items-center justify-center text-center">
-        {/* Offline radar */}
-        <div className="relative mb-6">
-          <div className="w-24 h-24 rounded-full border-2 border-dashed border-slate-700 flex items-center justify-center">
-            <div className="w-16 h-16 rounded-full border border-slate-700 flex items-center justify-center bg-slate-900/50">
-              <Radar size={32} className="text-slate-600" />
-            </div>
-          </div>
-          <div className="absolute -bottom-1 left-1/2 -translate-x-1/2 px-2 py-0.5 bg-slate-800 border border-slate-700 rounded text-[10px] font-mono text-slate-500">
-            OFFLINE
-          </div>
-        </div>
+    <div className="py-16 relative border-t border-border">
+      {/* Background image */}
+      <div
+        className="absolute inset-0 opacity-[0.06] bg-no-repeat bg-center pointer-events-none"
+        style={{ backgroundImage: `url(${queueClearedImg})`, backgroundSize: '50%' }}
+      />
 
-        <h3 className="font-mono text-lg font-bold text-slate-300 tracking-wide mb-2">
-          NO ACTIVE INTELLIGENCE
-        </h3>
-        <p className="font-mono text-sm text-slate-500 max-w-md mb-8">
-          Research division standing by. Deploy units to scan for learning resources.
-        </p>
-
-        {/* Launch button */}
-        <button
-          onClick={onLaunch}
-          className="group relative px-8 py-4 font-mono text-sm font-bold tracking-widest uppercase border-2 rounded-lg transition-all duration-300 border-amber-500 bg-amber-500/10 text-amber-400 hover:bg-amber-500/20 hover:shadow-[0_0_20px_rgba(245,158,11,0.3)]"
+      <div className="relative flex flex-col items-center justify-center text-center">
+        <motion.div
+          initial={{ scale: 0.9, opacity: 0 }}
+          animate={{ scale: 1, opacity: 1 }}
+          transition={{ duration: 0.4 }}
+          className="relative mb-8"
         >
-          <span className="absolute top-0 left-0 w-2 h-2 border-t-2 border-l-2 border-amber-500" />
-          <span className="absolute top-0 right-0 w-2 h-2 border-t-2 border-r-2 border-amber-500" />
-          <span className="absolute bottom-0 left-0 w-2 h-2 border-b-2 border-l-2 border-amber-500" />
-          <span className="absolute bottom-0 right-0 w-2 h-2 border-b-2 border-r-2 border-amber-500" />
-          <span className="flex items-center gap-3">
-            <Radar size={18} />
-            LAUNCH RESEARCH MISSION
-          </span>
-        </button>
+          <div className="w-20 h-20 rounded-full flex items-center justify-center border border-border">
+            <Search size={32} className="text-muted-foreground" />
+          </div>
+        </motion.div>
+
+        <motion.h3
+          initial={{ y: 10, opacity: 0 }}
+          animate={{ y: 0, opacity: 1 }}
+          transition={{ delay: 0.1 }}
+          className="font-serif text-3xl text-foreground mb-3"
+        >
+          No Active Research
+        </motion.h3>
+        <motion.p
+          initial={{ y: 10, opacity: 0 }}
+          animate={{ y: 0, opacity: 1 }}
+          transition={{ delay: 0.15 }}
+          className="text-sm text-muted-foreground max-w-md mb-10 leading-relaxed"
+        >
+          Research Agent Swarm inactive. Launch a new swarm to scan for new learning resources.
+        </motion.p>
+
+        <motion.div
+          initial={{ y: 10, opacity: 0 }}
+          animate={{ y: 0, opacity: 1 }}
+          transition={{ delay: 0.2 }}
+        >
+          <TactileButton
+            variant="raised"
+            onClick={onLaunch}
+            className="flex items-center gap-3 px-8 py-4 text-[14px]"
+          >
+            <Search size={18} />
+            Launch Research Swarm
+          </TactileButton>
+        </motion.div>
       </div>
     </div>
   );
 }
 
-// Error state (when error occurs before agents appear)
+// Deploying state
+function DeployingState() {
+  return (
+    <div className="py-16 relative border-t border-border">
+      <div className="relative flex flex-col items-center justify-center text-center">
+        <motion.div
+          initial={{ scale: 0.9, opacity: 0 }}
+          animate={{ scale: 1, opacity: 1 }}
+          className="relative mb-8"
+        >
+          <div className="w-20 h-20 rounded-full flex items-center justify-center border border-border">
+            <Loader2
+              size={32}
+              className="text-warning animate-spin"
+              style={{ animationDuration: '2s' }}
+            />
+          </div>
+
+          {/* Animated rings */}
+          <motion.div
+            className="absolute inset-0 rounded-full border border-warning/30"
+            animate={{ scale: [1, 1.5], opacity: [0.5, 0] }}
+            transition={{ duration: 1.5, repeat: Infinity }}
+          />
+        </motion.div>
+
+        <h3 className="font-serif text-3xl text-foreground mb-3">
+          Deploying Research Agents...
+        </h3>
+        <p className="text-sm text-muted-foreground max-w-sm leading-relaxed">
+          Initializing search. Agents will appear as they come online.
+        </p>
+      </div>
+    </div>
+  );
+}
+
+// Error state (before agents)
 interface ErrorStateProps {
   error?: string;
   onRetry: () => void;
@@ -468,146 +560,73 @@ interface ErrorStateProps {
 
 function ErrorState({ error, onRetry }: ErrorStateProps) {
   return (
-    <div className="p-8">
+    <div className="py-16 border-t border-border">
       <div className="flex flex-col items-center justify-center text-center">
-        <div className="relative mb-6">
-          <div className="w-20 h-20 rounded-full border-2 border-red-500/30 flex items-center justify-center bg-red-500/5">
-            <AlertTriangle size={32} className="text-red-500" />
-          </div>
-          <div className="absolute inset-0 rounded-full bg-red-500/10 blur-xl" />
-        </div>
-
-        <h3 className="font-mono text-lg font-bold text-slate-300 tracking-wide mb-2">
-          CONNECTION LOST
-        </h3>
-        <p className="font-mono text-sm text-red-400 max-w-md mb-8">
-          {error || 'Failed to establish uplink with swarm controller.'}
-        </p>
-
-        <button
-          onClick={onRetry}
-          className="group relative px-8 py-4 font-mono text-sm font-bold tracking-widest uppercase border-2 rounded-lg transition-all duration-300 border-red-500 bg-red-500/10 text-red-400 hover:bg-red-500/20 hover:shadow-[0_0_20px_rgba(239,68,68,0.3)]"
+        <motion.div
+          initial={{ scale: 0.9, opacity: 0 }}
+          animate={{ scale: 1, opacity: 1 }}
+          className="relative mb-8"
         >
-          <span className="absolute top-0 left-0 w-2 h-2 border-t-2 border-l-2 border-red-500" />
-          <span className="absolute top-0 right-0 w-2 h-2 border-t-2 border-r-2 border-red-500" />
-          <span className="absolute bottom-0 left-0 w-2 h-2 border-b-2 border-l-2 border-red-500" />
-          <span className="absolute bottom-0 right-0 w-2 h-2 border-b-2 border-r-2 border-red-500" />
-          <span className="flex items-center gap-3">
-            <RefreshCw size={18} />
-            RETRY CONNECTION
-          </span>
-        </button>
-      </div>
-    </div>
-  );
-}
-
-// Deploying state - waiting for first agent
-function DeployingState() {
-  return (
-    <div className="p-8">
-      <div className="flex flex-col items-center justify-center text-center">
-        <div className="relative mb-6">
-          <div className="w-20 h-20 rounded-full border-2 border-amber-500/30 flex items-center justify-center">
-            <div className="w-14 h-14 rounded-full border border-amber-500/50 flex items-center justify-center">
-              <Radar
-                size={32}
-                className="text-amber-400 animate-pulse"
-                style={{ animationDuration: '1.5s' }}
-              />
-            </div>
+          <div className="w-16 h-16 rounded-full flex items-center justify-center bg-destructive-soft border border-destructive/20">
+            <AlertTriangle size={28} className="text-destructive" />
           </div>
-          <div
-            className="absolute inset-0 rounded-full border-t-2 border-amber-400 animate-spin"
-            style={{ animationDuration: '3s' }}
-          />
-        </div>
+        </motion.div>
 
-        <h3 className="font-mono text-lg font-bold text-slate-200 tracking-wide mb-2">
-          DEPLOYING RESEARCH UNITS...
+        <h3 className="font-serif text-3xl text-foreground mb-3">
+          Connection Lost
         </h3>
-        <p className="font-mono text-sm text-slate-500 max-w-sm">
-          Initializing swarm. Agents will appear as they come online.
+        <p className="text-sm text-destructive max-w-md mb-10 leading-relaxed">
+          {error || 'Failed to establish connection with the research system.'}
         </p>
+
+        <TactileButton
+          variant="raised"
+          onClick={onRetry}
+          className="flex items-center gap-3 px-8 py-4 text-[14px]"
+        >
+          <RefreshCw size={18} />
+          Retry Connection
+        </TactileButton>
       </div>
     </div>
   );
 }
 
-// Master Control Terminal
-interface MasterControlProps {
+// Mobile Research Notes (collapsed version)
+interface MobileResearchNotesProps {
   logs: OrchestratorLog[];
   isError: boolean;
 }
 
-const MasterControl = memo(function MasterControl({ logs, isError }: MasterControlProps) {
-  const containerRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    if (containerRef.current) {
-      containerRef.current.scrollTop = containerRef.current.scrollHeight;
-    }
-  }, [logs.length]);
-
+const MobileResearchNotes = memo(function MobileResearchNotes({ logs, isError }: MobileResearchNotesProps) {
   const displayLogs = logs.slice(-3);
 
-  const getLogColor = (type: OrchestratorLog['type']) => {
-    switch (type) {
-      case 'error':
-        return 'text-red-500';
-      case 'complete':
-        return 'text-emerald-400';
-      case 'spawn':
-        return 'text-cyan-400';
-      case 'progress':
-        return 'text-amber-400';
-      default:
-        return 'text-green-500';
-    }
-  };
-
   return (
-    <div className="mx-4 mb-4">
-      <div className="flex items-center gap-2 mb-1">
-        <div className={`w-2 h-2 rounded-full ${isError ? 'bg-red-500' : 'bg-green-500 animate-pulse'}`} />
-        <span className="text-[10px] font-mono text-slate-500 tracking-widest uppercase">
-          Master Control
+    <div>
+      <div className="flex items-center gap-2 mb-3">
+        <div className={cn('w-2 h-2 rounded-full', isError ? 'bg-destructive' : 'bg-success animate-pulse')} />
+        <span className="text-xs uppercase tracking-[0.2em] font-semibold text-muted-foreground">
+          Activity
         </span>
       </div>
 
-      <div
-        ref={containerRef}
-        className="bg-black border border-green-900/50 rounded p-3 font-mono text-xs h-[72px] overflow-hidden"
-        style={{ boxShadow: 'inset 0 0 20px rgba(0, 255, 0, 0.03)' }}
-      >
+      <div className="bg-card border border-border p-4 text-xs space-y-2">
         {displayLogs.length === 0 ? (
-          <div className="text-green-700 animate-pulse">Awaiting signal...</div>
+          <div className="text-muted-foreground italic">Awaiting signal...</div>
         ) : (
-          <div className="space-y-1">
-            {displayLogs.map((log, idx) => (
-              <div key={idx} className="flex items-start gap-2">
-                <span className="text-green-800 shrink-0">
-                  {new Date(log.timestamp).toLocaleTimeString('en-US', {
-                    hour12: false,
-                    hour: '2-digit',
-                    minute: '2-digit',
-                    second: '2-digit',
-                  })}
-                </span>
-                <span className="text-green-600">&gt;</span>
-                <span className={`${getLogColor(log.type)} break-all`}>{log.message}</span>
-              </div>
-            ))}
-          </div>
+          displayLogs.map((log, idx) => (
+            <div key={idx} className="text-muted-foreground truncate">
+              {log.message}
+            </div>
+          ))
         )}
-        <span className="inline-block w-2 h-4 bg-green-500 animate-pulse ml-1" />
       </div>
     </div>
   );
 });
 
-// Mission Complete Footer
-interface MissionCompleteFooterProps {
+// Research Complete Footer
+interface ResearchCompleteFooterProps {
   savedCount: number;
   failedCount: number;
   onNewMission?: () => void;
@@ -615,44 +634,48 @@ interface MissionCompleteFooterProps {
   hideLaunchButton?: boolean;
 }
 
-function MissionCompleteFooter({ savedCount, failedCount, onNewMission, isLaunching, hideLaunchButton }: MissionCompleteFooterProps) {
+function ResearchCompleteFooter({ savedCount, failedCount, onNewMission, isLaunching, hideLaunchButton }: ResearchCompleteFooterProps) {
   return (
-    <div className="mx-4 mb-4 p-4 bg-emerald-950/30 border border-emerald-800/50 rounded-lg">
-      <div className="flex items-center justify-between">
-        <div className="font-mono text-sm">
-          <span className="text-emerald-400 font-bold">MISSION COMPLETE</span>
-          <span className="text-slate-500 mx-2">|</span>
-          <span className="text-slate-400">
+    <motion.div
+      initial={{ opacity: 0, y: 10 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ delay: 0.2 }}
+      className="relative mt-8 p-6 bg-success-soft border border-success/20 overflow-hidden"
+    >
+      {/* Subtle background illustration */}
+      <div
+        className="absolute inset-0 opacity-[0.06] bg-no-repeat bg-right bg-contain pointer-events-none"
+        style={{ backgroundImage: `url(${researchCompleteBgImg})` }}
+      />
+
+      <div className="relative flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div className="flex items-center gap-4">
+          <span className="font-serif text-lg text-success font-bold">Research Complete</span>
+          <span className="text-sm text-muted-foreground">
             {savedCount} saved
-            {failedCount > 0 && <span className="text-red-400 ml-2">{failedCount} failed</span>}
+            {failedCount > 0 && <span className="text-destructive ml-2">{failedCount} failed</span>}
           </span>
         </div>
 
         {onNewMission && !hideLaunchButton && (
-          <button
+          <TactileButton
+            variant="raised"
             onClick={onNewMission}
             disabled={isLaunching}
-            className={`
-              px-4 py-2 font-mono text-xs font-bold tracking-wider uppercase
-              border rounded transition-all duration-300
-              ${isLaunching
-                ? 'border-emerald-700/50 text-emerald-600/50 cursor-wait'
-                : 'border-emerald-600 text-emerald-400 hover:bg-emerald-500/10'
-              }
-            `}
+            className="text-[13px]"
           >
             {isLaunching ? (
               <span className="flex items-center gap-2">
                 <Loader2 size={14} className="animate-spin" />
-                DEPLOYING...
+                Starting...
               </span>
             ) : (
-              'NEW MISSION'
+              'New Swarm'
             )}
-          </button>
+          </TactileButton>
         )}
       </div>
-    </div>
+    </motion.div>
   );
 }
 
@@ -673,51 +696,53 @@ export function CompactMissionDashboard({ slug, onExpand }: CompactMissionDashbo
   const runningCount = agents.filter((a) => a.status === 'running').length;
 
   return (
-    <div className="bg-slate-950 border border-slate-800 rounded-lg p-3 font-mono text-xs">
+    <div className="bg-card border border-border p-4 text-sm">
       <div className="flex items-center justify-between mb-2">
-        <span className="text-slate-400 tracking-wide">SWARM STATUS</span>
+        <span className="text-muted-foreground text-xs uppercase tracking-wider">Research Status</span>
         <div className="flex items-center gap-2">
           <div
-            className={`w-2 h-2 rounded-full ${
+            className={cn(
+              'w-2 h-2 rounded-full',
               isError
-                ? 'bg-red-500 animate-pulse'
+                ? 'bg-destructive animate-pulse'
                 : isActive
-                  ? 'bg-amber-400 animate-pulse'
+                  ? 'bg-warning animate-pulse'
                   : status === 'complete'
-                    ? 'bg-emerald-500'
-                    : 'bg-slate-600'
-            }`}
+                    ? 'bg-success'
+                    : 'bg-muted-foreground/50'
+            )}
           />
           <span
-            className={
+            className={cn(
+              'text-xs',
               isError
-                ? 'text-red-500'
+                ? 'text-destructive'
                 : isActive
-                  ? 'text-amber-400'
+                  ? 'text-warning'
                   : status === 'complete'
-                    ? 'text-emerald-400'
-                    : 'text-slate-500'
-            }
+                    ? 'text-success'
+                    : 'text-muted-foreground'
+            )}
           >
-            {isError ? 'ERROR' : isActive ? 'RUNNING' : status === 'complete' ? 'DONE' : 'IDLE'}
+            {isError ? 'Error' : isActive ? 'Running' : status === 'complete' ? 'Done' : 'Idle'}
           </span>
         </div>
       </div>
 
-      <div className="flex items-center justify-between text-slate-300">
+      <div className="flex items-center justify-between text-foreground">
         <div className="flex items-center gap-4">
           <span>
-            <span className="text-emerald-400">{completedCount}</span>
-            <span className="text-slate-600">/</span>
+            <span className="text-success">{completedCount}</span>
+            <span className="text-muted-foreground mx-1">/</span>
             <span>{totalCount}</span>
           </span>
-          {runningCount > 0 && <span className="text-amber-400">{runningCount} active</span>}
-          {failedCount > 0 && <span className="text-red-400">{failedCount} failed</span>}
+          {runningCount > 0 && <span className="text-warning text-xs">{runningCount} active</span>}
+          {failedCount > 0 && <span className="text-destructive text-xs">{failedCount} failed</span>}
         </div>
 
         {onExpand && (
-          <button onClick={onExpand} className="text-slate-500 hover:text-slate-300 transition-colors">
-            [EXPAND]
+          <button onClick={onExpand} className="text-muted-foreground hover:text-foreground transition-colors text-xs">
+            Expand
           </button>
         )}
       </div>

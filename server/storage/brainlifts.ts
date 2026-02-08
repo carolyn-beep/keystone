@@ -1,7 +1,7 @@
 import {
   db, eq, inArray, desc, and, sql, isNull,
-  brainlifts, facts, contradictionClusters, readingListItems, readingListGrades,
-  brainliftVersions, sourceFeedback, experts, factVerifications, factModelScores,
+  brainlifts, facts, contradictionClusters,
+  brainliftVersions, experts, factVerifications, factModelScores,
   llmFeedback, factRedundancyGroups, dok2Summaries, dok2Points, dok2FactRelations,
   type Brainlift, type BrainliftData, type InsertBrainlift,
   type BrainliftVersion, type AuthContext
@@ -16,7 +16,6 @@ export async function getBrainliftBySlug(slug: string): Promise<BrainliftData | 
 
   const brainliftFacts = await db.select().from(facts).where(eq(facts.brainliftId, brainlift.id));
   const clusters = await db.select().from(contradictionClusters).where(eq(contradictionClusters.brainliftId, brainlift.id));
-  const readingList = await db.select().from(readingListItems).where(eq(readingListItems.brainliftId, brainlift.id));
   const brainliftExperts = await db.select().from(experts).where(eq(experts.brainliftId, brainlift.id));
   const dok2SummariesData = await getDOK2Summaries(brainlift.id);
 
@@ -25,7 +24,6 @@ export async function getBrainliftBySlug(slug: string): Promise<BrainliftData | 
     improperlyFormatted: brainlift.improperlyFormatted ?? false,
     facts: brainliftFacts,
     contradictionClusters: clusters,
-    readingList: readingList,
     experts: brainliftExperts.sort((a, b) => (b.rankScore ?? 0) - (a.rankScore ?? 0)),
     dok2Summaries: dok2SummariesData.length > 0 ? dok2SummariesData : undefined,
   };
@@ -43,7 +41,6 @@ export async function getBrainliftDataById(id: number): Promise<BrainliftData | 
 
   const brainliftFacts = await db.select().from(facts).where(eq(facts.brainliftId, brainlift.id));
   const clusters = await db.select().from(contradictionClusters).where(eq(contradictionClusters.brainliftId, brainlift.id));
-  const readingList = await db.select().from(readingListItems).where(eq(readingListItems.brainliftId, brainlift.id));
   const brainliftExperts = await db.select().from(experts).where(eq(experts.brainliftId, brainlift.id));
   const dok2SummariesData = await getDOK2Summaries(brainlift.id);
 
@@ -52,7 +49,6 @@ export async function getBrainliftDataById(id: number): Promise<BrainliftData | 
     improperlyFormatted: brainlift.improperlyFormatted ?? false,
     facts: brainliftFacts,
     contradictionClusters: clusters,
-    readingList: readingList,
     experts: brainliftExperts.sort((a, b) => (b.rankScore ?? 0) - (a.rankScore ?? 0)),
     dok2Summaries: dok2SummariesData.length > 0 ? dok2SummariesData : undefined,
   };
@@ -69,7 +65,6 @@ export async function createBrainlift(
   brainliftData: InsertBrainlift,
   factsData: any[],
   clustersData: any[],
-  readingData: any[],
   userId?: string
 ): Promise<BrainliftData> {
   const dataWithUser = userId ? { ...brainliftData, createdByUserId: userId } : brainliftData;
@@ -95,10 +90,6 @@ export async function createBrainlift(
     await db.insert(contradictionClusters).values(clustersData.map(c => ({ ...c, brainliftId: brainlift.id })));
   }
 
-  if (readingData.length > 0) {
-    await db.insert(readingListItems).values(readingData.map(r => ({ ...r, brainliftId: brainlift.id })));
-  }
-
   return getBrainliftBySlug(brainlift.slug) as Promise<BrainliftData>;
 }
 
@@ -106,33 +97,17 @@ export async function updateBrainlift(
   slug: string,
   brainliftData: InsertBrainlift,
   factsData: any[],
-  clustersData: any[],
-  readingData: any[]
+  clustersData: any[]
 ): Promise<BrainliftData> {
   const existing = await getBrainliftBySlug(slug);
   if (!existing) {
     throw new Error(`Brainlift with slug "${slug}" not found`);
   }
 
-  // Import reading-list functions lazily to avoid circular deps
-  const { getGradesByBrainliftId } = await import('./reading-list');
-  const grades = await getGradesByBrainliftId(existing.id);
-
   const versions = await db.select().from(brainliftVersions)
     .where(eq(brainliftVersions.brainliftId, existing.id))
     .orderBy(desc(brainliftVersions.versionNumber));
   const nextVersionNumber = versions.length > 0 ? versions[0].versionNumber + 1 : 1;
-
-  const gradesWithTopics = existing.readingList.map(item => {
-    const grade = grades.find(g => g.readingListItemId === item.id);
-    return {
-      readingListTopic: item.topic,
-      aligns: grade?.aligns || null,
-      contradicts: grade?.contradicts || null,
-      newInfo: grade?.newInfo || null,
-      quality: grade?.quality || null,
-    };
-  });
 
   const snapshot = {
     title: existing.title,
@@ -156,15 +131,6 @@ export async function updateBrainlift(
       factIds: c.factIds as string[],
       claims: c.claims as string[],
     })),
-    readingList: existing.readingList.map(r => ({
-      type: r.type,
-      author: r.author,
-      topic: r.topic,
-      time: r.time,
-      facts: r.facts,
-      url: r.url,
-    })),
-    grades: gradesWithTopics,
   };
 
   await db.insert(brainliftVersions).values({
@@ -174,12 +140,6 @@ export async function updateBrainlift(
     snapshot,
   });
 
-  const items = await db.select().from(readingListItems).where(eq(readingListItems.brainliftId, existing.id));
-  const itemIds = items.map(i => i.id);
-  if (itemIds.length > 0) {
-    await db.delete(readingListGrades).where(inArray(readingListGrades.readingListItemId, itemIds));
-  }
-  await db.delete(readingListItems).where(eq(readingListItems.brainliftId, existing.id));
   await db.delete(contradictionClusters).where(eq(contradictionClusters.brainliftId, existing.id));
 
   // Delete DOK2 data before facts (dok2_fact_relations has FK to facts)
@@ -202,7 +162,7 @@ export async function updateBrainlift(
     })
     .where(eq(brainlifts.id, existing.id));
 
-  console.log(`Inserting ${factsData.length} facts, ${clustersData.length} clusters, ${readingData.length} reading items`);
+  console.log(`Inserting ${factsData.length} facts, ${clustersData.length} clusters`);
 
   if (factsData.length > 0) {
     try {
@@ -224,15 +184,6 @@ export async function updateBrainlift(
       throw err;
     }
   }
-  if (readingData.length > 0) {
-    try {
-      await db.insert(readingListItems).values(readingData.map(r => ({ ...r, brainliftId: existing.id })));
-      console.log('Reading items inserted successfully');
-    } catch (err) {
-      console.error('Error inserting reading items:', err);
-      throw err;
-    }
-  }
 
   return getBrainliftBySlug(slug) as Promise<BrainliftData>;
 }
@@ -240,13 +191,6 @@ export async function updateBrainlift(
 export async function deleteBrainlift(id: number): Promise<void> {
   // Use transaction to ensure all deletes succeed or none do
   await db.transaction(async (tx) => {
-    const items = await tx.select().from(readingListItems).where(eq(readingListItems.brainliftId, id));
-    const itemIds = items.map(i => i.id);
-
-    if (itemIds.length > 0) {
-      await tx.delete(readingListGrades).where(inArray(readingListGrades.readingListItemId, itemIds));
-    }
-
     const factsList = await tx.select().from(facts).where(eq(facts.brainliftId, id));
     const factIds = factsList.map(f => f.id);
 
@@ -271,9 +215,7 @@ export async function deleteBrainlift(id: number): Promise<void> {
     }
     await tx.delete(dok2Summaries).where(eq(dok2Summaries.brainliftId, id));
 
-    await tx.delete(readingListItems).where(eq(readingListItems.brainliftId, id));
     await tx.delete(contradictionClusters).where(eq(contradictionClusters.brainliftId, id));
-    await tx.delete(sourceFeedback).where(eq(sourceFeedback.brainliftId, id));
     await tx.delete(brainliftVersions).where(eq(brainliftVersions.brainliftId, id));
     await tx.delete(experts).where(eq(experts.brainliftId, id));
     await tx.delete(factRedundancyGroups).where(eq(factRedundancyGroups.brainliftId, id));

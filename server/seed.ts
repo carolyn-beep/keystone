@@ -86,14 +86,6 @@ export async function seedDatabase() {
             status: c.status,
             factIds: c.factIds,
             claims: c.claims
-          })),
-          (data.readingList || []).map((r: any) => ({
-            type: r.type,
-            author: r.author,
-            topic: r.topic,
-            time: r.time,
-            facts: r.facts,
-            url: r.url
           }))
         );
         console.log(`Seeded ${item.slug}`);

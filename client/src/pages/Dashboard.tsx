@@ -2,8 +2,8 @@ import { useState, useMemo, useCallback } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Link, useSearch } from 'wouter';
 import { authClient } from '@/lib/auth-client';
-import { ReadingListGrade, BrainliftVersion, type Fact } from '@shared/schema';
-import { AlertTriangle, FileText, BookOpen, Loader2 } from 'lucide-react';
+import { BrainliftVersion, type Fact } from '@shared/schema';
+import { AlertTriangle, FileText, Loader2 } from 'lucide-react';
 import { PiCompassToolFill } from 'react-icons/pi';
 import { RiQuillPenAiFill } from 'react-icons/ri';
 import { FaBalanceScale } from 'react-icons/fa';
@@ -11,14 +11,11 @@ import { MdDynamicFeed } from 'react-icons/md';
 import { tokens } from '@/lib/colors';
 import { useToast } from '@/hooks/use-toast';
 import { useBrainlift } from '@/hooks/useBrainlift';
-import { useExperts } from '@/hooks/useExperts';
 import { useRedundancy } from '@/hooks/useRedundancy';
-import { useResearch } from '@/hooks/useResearch';
 import { FactGradingPanel } from '@/components/fact-grading';
 import { DashboardHeader } from '@/components/DashboardHeader';
 import { ContradictionsTab } from '@/components/ContradictionsTab';
-import { ReadingListTab } from '@/components/ReadingListTab';
-import { UpdateModal, FactDetailModal, HistoryModal, RedundancyModal, ResearchModal, ShareModal } from '@/components/modals';
+import { UpdateModal, FactDetailModal, HistoryModal, RedundancyModal, ShareModal } from '@/components/modals';
 import { NotBrainliftView } from '@/components/NotBrainliftView';
 import { BrainliftTab } from '@/components/BrainliftTab';
 import { SummariesTab } from '@/components/SummariesTab';
@@ -32,7 +29,7 @@ interface DashboardProps {
   isSharedView?: boolean;
 }
 
-const VALID_TABS = ['brainlift', 'grading', 'contradictions', 'reading', 'learning', 'summaries'] as const;
+const VALID_TABS = ['brainlift', 'grading', 'contradictions', 'learning', 'summaries'] as const;
 type TabKey = typeof VALID_TABS[number];
 
 const NAV_ITEMS: NavItem[] = [
@@ -40,7 +37,6 @@ const NAV_ITEMS: NavItem[] = [
   { id: 'grading', label: 'DOK1 Facts', icon: PiCompassToolFill },
   { id: 'summaries', label: 'DOK2 Summaries', icon: RiQuillPenAiFill },
   { id: 'contradictions', label: 'Contradictions', icon: FaBalanceScale },
-  { id: 'reading', label: 'Reading List', icon: BookOpen },
   { id: 'learning', label: 'Learning Stream', icon: MdDynamicFeed, adminOnly: true },
 ];
 
@@ -76,10 +72,6 @@ export default function Dashboard({ slug, isSharedView = false }: DashboardProps
   const [updateSourceType, setUpdateSourceType] = useState<'html' | 'workflowy' | 'googledocs'>('workflowy');
   const [updateFile, setUpdateFile] = useState<File | null>(null);
   const [updateUrl, setUpdateUrl] = useState('');
-  const [showResearchModal, setShowResearchModal] = useState(false);
-  const [tweetResults, setTweetResults] = useState<any>(null);
-  const [showTweetSection, setShowTweetSection] = useState(false);
-  const [showAllExperts, setShowAllExperts] = useState(false);
   const [selectedFactForModal, setSelectedFactForModal] = useState<Fact | null>(null);
   const [editingAuthor, setEditingAuthor] = useState(false);
   const [authorInput, setAuthorInput] = useState('');
@@ -107,42 +99,12 @@ const { toast } = useToast();
 
 const { downloadBrainliftPDF } = usePDFExport();
 
-  const { tweetSearchMutation } = useResearch(slug, {
-    onTweetSearchSuccess: (tweetData) => {
-      setTweetResults(tweetData);
-      setShowTweetSection(true);
-      if (tweetData.tweets?.length === 0) {
-        toast({
-          title: 'No relevant tweets found',
-          description: tweetData.searchSummary || 'Try again later or with different brainlift content.',
-        });
-      }
-    },
-    onTweetSearchError: (err: Error) => {
-      toast({
-        title: 'Tweet search failed',
-        description: err.message || 'Could not search Twitter. Please check your API key.',
-        variant: 'destructive',
-      });
-    },
-  });
-
   const handleUpdateAuthor = (author: string) => {
     updateAuthor(author).then(() => setEditingAuthor(false));
   };
 
   const isNotBrainlift = data?.classification === 'not_brainlift';
   const isPartialBrainlift = data?.classification === 'partial';
-
-  const { data: grades = [] } = useQuery<ReadingListGrade[]>({
-    queryKey: ['grades', slug],
-    queryFn: async () => {
-      const res = await fetch(`/api/brainlifts/${slug}/grades`);
-      if (!res.ok) return [];
-      return res.json();
-    },
-    enabled: !!slug
-  });
 
   const { data: versions = [] } = useQuery<BrainliftVersion[]>({
     queryKey: ['versions', slug],
@@ -176,9 +138,6 @@ const { downloadBrainliftPDF } = usePDFExport();
     isUpdatingStatus: isUpdatingRedundancyStatus,
   } = useRedundancy(slug);
 
-  const expertsList = data?.experts || [];
-  const { refreshMutation: refreshExpertsMutation, toggleFollowMutation: toggleExpertFollowMutation, deleteMutation: deleteExpertMutation } = useExperts(slug);
-
   const updateMutation = {
     mutate: (formData: FormData) => {
       updateBrainlift(formData, {
@@ -196,7 +155,7 @@ const { downloadBrainliftPDF } = usePDFExport();
 
   const handleDownloadPDF = () => {
     if (!data) return;
-    downloadBrainliftPDF(data, grades);
+    downloadBrainliftPDF(data);
   };
 
   // Preserve admin param when navigating back
@@ -221,7 +180,7 @@ const { downloadBrainliftPDF } = usePDFExport();
     </div>
   );
 
-  const { facts, contradictionClusters, readingList, expertDiagnostics } = data;
+  const { facts, contradictionClusters } = data;
 
   return (
     <SidebarLayout
@@ -333,30 +292,6 @@ const { downloadBrainliftPDF } = usePDFExport();
         />
       )}
 
-      {/* Reading List Tab - Card-based Design */}
-      {!isNotBrainlift && activeTab === 'reading' && (
-        <ReadingListTab
-          slug={slug}
-          readingList={readingList}
-          expertsList={expertsList}
-          expertDiagnostics={expertDiagnostics ?? null}
-          tweetResults={tweetResults}
-          showTweetSection={showTweetSection}
-          showAllExperts={showAllExperts}
-          isSharedView={isSharedView}
-          grades={grades}
-          setShowResearchModal={setShowResearchModal}
-          setShowTweetSection={setShowTweetSection}
-          setShowAllExperts={setShowAllExperts}
-          setActiveTab={setActiveTab}
-          tweetSearchMutation={tweetSearchMutation}
-          refreshExpertsMutation={refreshExpertsMutation}
-          toggleExpertFollowMutation={toggleExpertFollowMutation}
-          deleteExpertMutation={deleteExpertMutation}
-          canModify={canModify}
-        />
-      )}
-
       {/* Learning Stream Tab - AI-curated resources (Admin only) */}
       {!isNotBrainlift && activeTab === 'learning' && isAdmin && (
         <LearningStreamTab slug={slug} canModify={canModify} />
@@ -400,13 +335,6 @@ const { downloadBrainliftPDF } = usePDFExport();
         onKeep={(groupId, primaryFactId) => updateRedundancyStatus({ groupId, status: 'kept', primaryFactId })}
         onDismiss={(groupId) => updateRedundancyStatus({ groupId, status: 'dismissed' })}
         isUpdating={isUpdatingRedundancyStatus}
-      />
-
-      {/* Research Modal */}
-      <ResearchModal
-        show={showResearchModal}
-        onClose={() => setShowResearchModal(false)}
-        slug={slug}
       />
 
       {/* Share Modal */}

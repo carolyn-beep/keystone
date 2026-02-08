@@ -1,6 +1,4 @@
 import { useMemo } from 'react';
-import { Bookmark, CheckCircle, Clock } from 'lucide-react';
-import { tokens } from '@/lib/colors';
 import type { LearningStreamStats } from '@/hooks/useLearningStream';
 
 interface StreamProgressBarProps {
@@ -15,44 +13,49 @@ export function StreamProgressBar({ stats }: StreamProgressBarProps) {
   }, [stats]);
 
   return (
-    <div className="bg-card rounded-xl p-5 mb-6 border border-border">
+    <div className="bg-card-elevated rounded-xl shadow-card overflow-hidden">
       {/* Stats Row */}
-      <div className="flex items-center justify-between mb-4">
-        <div className="flex items-center gap-6">
-          <div className="flex items-center gap-2">
-            <Clock size={16} className="text-muted-foreground" />
-            <span className="text-sm text-muted-foreground">
-              <span className="font-semibold text-foreground">{stats.pending}</span> pending
-            </span>
+      <div className="px-10 py-8">
+        <div className="flex items-end justify-between">
+          {/* Stat columns */}
+          <div className="flex gap-12">
+            <StatColumn label="Pending" value={stats.pending} />
+            <StatColumn label="Saved" value={stats.bookmarked} />
+            <StatColumn label="Graded" value={stats.graded} />
           </div>
-          <div className="flex items-center gap-2">
-            <Bookmark size={16} className="text-info" />
-            <span className="text-sm text-muted-foreground">
-              <span className="font-semibold text-foreground">{stats.bookmarked}</span> saved
-            </span>
-          </div>
-          <div className="flex items-center gap-2">
-            <CheckCircle size={16} className="text-success" />
-            <span className="text-sm text-muted-foreground">
-              <span className="font-semibold text-foreground">{stats.graded}</span> graded
-            </span>
-          </div>
-        </div>
-        <div className="text-sm font-medium" style={{ color: tokens.primary }}>
-          {progress}% complete
-        </div>
-      </div>
 
-      {/* Progress Bar */}
-      <div className="relative h-3 bg-muted rounded-full overflow-hidden">
-        <div
-          className="absolute inset-y-0 left-0 rounded-full bg-gradient-to-r from-secondary via-primary to-info transition-all duration-500 ease-out"
-          style={{ width: `${progress}%` }}
-        >
-          {/* Shimmer overlay */}
-          <div className="absolute inset-0 animate-shimmer bg-gradient-to-r from-transparent via-white/20 to-transparent bg-[length:200%_100%]" />
+          {/* Progress percentage */}
+          <div className="flex flex-col items-end gap-1">
+            <span className="font-serif text-[28px] leading-none text-foreground">
+              {progress}%
+            </span>
+            <span className="text-[10px] uppercase tracking-[0.35em] text-muted-foreground">
+              Complete
+            </span>
+          </div>
+        </div>
+
+        {/* Progress Bar */}
+        <div className="mt-6 h-1 bg-border rounded-full overflow-hidden">
+          <div
+            className="h-full bg-success rounded-full transition-all duration-500 ease-out"
+            style={{ width: `${progress}%` }}
+          />
         </div>
       </div>
+    </div>
+  );
+}
+
+function StatColumn({ label, value }: { label: string; value: number }) {
+  return (
+    <div className="flex flex-col gap-1">
+      <span className="font-serif text-[28px] leading-none text-foreground">
+        {value}
+      </span>
+      <span className="text-[10px] uppercase tracking-[0.35em] text-muted-foreground">
+        {label}
+      </span>
     </div>
   );
 }

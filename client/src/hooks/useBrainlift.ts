@@ -1,5 +1,5 @@
 import { useQuery, useMutation } from '@tanstack/react-query';
-import { queryClient, apiRequest } from '@/lib/queryClient';
+import { queryClient } from '@/lib/queryClient';
 import type { BrainliftData } from '@shared/schema';
 
 export function useBrainlift(slug: string, isSharedView = false) {
@@ -50,16 +50,6 @@ export function useBrainlift(slug: string, isSharedView = false) {
     }
   });
 
-  // Save grade mutation
-  const saveGradeMutation = useMutation({
-    mutationFn: async (gradeData: { readingListItemId: number; aligns?: string; contradicts?: string; newInfo?: string; quality?: number }) => {
-      return apiRequest('POST', `/api/brainlifts/${slug}/grades`, gradeData);
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['grades', slug] });
-    }
-  });
-
   return {
     // Query state
     data: query.data,
@@ -77,11 +67,5 @@ export function useBrainlift(slug: string, isSharedView = false) {
     updateAsync: updateMutation.mutateAsync,
     isUpdating: updateMutation.isPending,
     updateError: updateMutation.error,
-
-    // Save grade
-    saveGrade: saveGradeMutation.mutate,
-    saveGradeAsync: saveGradeMutation.mutateAsync,
-    isSavingGrade: saveGradeMutation.isPending,
-    saveGradeError: saveGradeMutation.error,
   };
 }

@@ -1,59 +1,251 @@
 import { memo, useRef, useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
+import { motion, AnimatePresence } from 'framer-motion';
 import { X, ExternalLink } from 'lucide-react';
 import type { AgentInfo, AgentEvent } from '@/hooks/useSwarmEvents';
+import { cn } from '@/lib/utils';
 
 // Event type to display style mapping
 const EVENT_STYLES: Record<string, { color: string; label: string }> = {
-  spawn: { color: 'text-slate-400', label: 'INIT' },
-  search: { color: 'text-cyan-400', label: 'SEARCH' },
-  fetch: { color: 'text-amber-400', label: 'FETCH' },
-  reasoning: { color: 'text-slate-500', label: 'THINK' },
-  check_duplicate: { color: 'text-purple-400', label: 'CHECK' },
-  save_item: { color: 'text-emerald-400', label: 'SAVE' },
-  result: { color: 'text-emerald-400', label: 'RESULT' },
-  error: { color: 'text-red-400', label: 'ERROR' },
+  spawn: { color: 'text-muted-foreground', label: 'Init' },
+  search: { color: 'text-info', label: 'Search' },
+  fetch: { color: 'text-warning', label: 'Fetch' },
+  reasoning: { color: 'text-muted-foreground', label: 'Think' },
+  check_duplicate: { color: 'text-secondary', label: 'Check' },
+  save_item: { color: 'text-success', label: 'Save' },
+  result: { color: 'text-success', label: 'Result' },
+  error: { color: 'text-destructive', label: 'Error' },
 };
 
 interface AgentInspectModalProps {
-  agent: AgentInfo;
+  agent: AgentInfo | null;
   onClose: () => void;
 }
 
 /**
  * Modal displaying detailed activity log for a single agent.
+ * Uses shared layout animation with AgentCard for seamless expansion.
+ *
+ * IMPORTANT: The modal content uses layoutId to share layout with card.
+ * The backdrop is handled separately with AnimatePresence for fade.
  */
 export const AgentInspectModal = memo(function AgentInspectModal({
   agent,
   onClose,
 }: AgentInspectModalProps) {
   const logContainerRef = useRef<HTMLDivElement>(null);
-  const unitLabel = `UNIT-${String(agent.agentNumber).padStart(2, '0')}`;
 
   // Auto-scroll to bottom when events change
   useEffect(() => {
-    if (logContainerRef.current) {
+    if (logContainerRef.current && agent) {
       logContainerRef.current.scrollTop = logContainerRef.current.scrollHeight;
     }
-  }, [agent.events.length]);
+  }, [agent?.events.length]);
 
   // Live elapsed time - updates every 100ms for running agents
   const [now, setNow] = useState(Date.now());
   useEffect(() => {
     // Only run timer if agent is still running
-    if (agent.endTime) return;
+    if (!agent || agent.endTime) return;
 
     const interval = setInterval(() => {
       setNow(Date.now());
     }, 100);
 
     return () => clearInterval(interval);
-  }, [agent.endTime]);
+  }, [agent?.endTime]);
+
+  // Close on Escape key
+  useEffect(() => {
+    const handleEscape = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
+    };
+    window.addEventListener('keydown', handleEscape);
+    return () => window.removeEventListener('keydown', handleEscape);
+  }, [onClose]);
+
+  if (!agent) return null;
+
+  const agentLabel = `Agent ${agent.agentNumber}`;
 
   // Calculate elapsed time
   const elapsed = agent.endTime
     ? ((agent.endTime - agent.startTime) / 1000).toFixed(1)
     : ((now - agent.startTime) / 1000).toFixed(1);
+
+  // Status styling
+  const statusColor =
+    agent.status === 'running'
+      ? 'text-warning'
+      : agent.status === 'complete'
+        ? 'text-success'
+        : agent.status === 'failed'
+          ? 'text-destructive'
+          : 'text-muted-foreground';
+
+  const statusIndicator =
+    agent.status === 'running'
+      ? 'bg-warning animate-pulse'
+      : agent.status === 'complete'
+        ? 'bg-success'
+        : agent.status === 'failed'
+          ? 'bg-destructive'
+          : 'bg-muted-foreground/50';
+
+  return createPortal(
+    <>
+      {/* Backdrop - separate from modal for clean fade animation */}
+      <AnimatePresence>
+        {agent && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.2 }}
+            className="fixed inset-0 z-40 bg-black/50"
+            onClick={onClose}
+          />
+        )}
+      </AnimatePresence>
+
+      {/* Modal content - uses shared layoutId with card */}
+      <motion.div
+        layoutId={`agent-card-${agent.toolUseId}`}
+        className={cn(
+          'fixed z-50 bg-card-elevated rounded-xl shadow-lg overflow-hidden flex flex-col',
+          'inset-4 md:inset-8 lg:left-[15%] lg:right-[15%] lg:top-[10%] lg:bottom-[10%]'
+        )}
+        transition={{ type: 'spring', duration: 0.5, bounce: 0.15 }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* Header */}
+        <motion.div
+          layout="position"
+          className="flex-shrink-0 flex items-center justify-between px-6 py-4 border-b border-border"
+        >
+          <div className="flex items-center gap-3">
+            <h3 className="font-serif text-lg text-foreground">{agentLabel}</h3>
+            <div className={cn('w-2.5 h-2.5 rounded-full', statusIndicator)} />
+          </div>
+          <button
+            onClick={onClose}
+            className="p-2 text-muted-foreground hover:text-foreground hover:bg-muted rounded-lg transition-colors"
+          >
+            <X size={18} />
+          </button>
+        </motion.div>
+
+        {/* Meta Info Bar */}
+        <motion.div
+          layout="position"
+          className="flex-shrink-0 flex items-center gap-6 px-6 py-3 bg-sidebar border-b border-border text-xs"
+        >
+          <div className="flex items-center gap-2">
+            <span className="text-muted-foreground">Type:</span>
+            <span className="text-foreground">{agent.resourceType}</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="text-muted-foreground">Status:</span>
+            <span className={cn('font-semibold', statusColor)}>
+              {agent.status.charAt(0).toUpperCase() + agent.status.slice(1)}
+            </span>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="text-muted-foreground">Elapsed:</span>
+            <span className="text-foreground font-mono">{elapsed}s</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="text-muted-foreground">Events:</span>
+            <span className="text-foreground font-mono">{agent.events.length}</span>
+          </div>
+        </motion.div>
+
+        {/* Log Content - flex-1 with min-h-0 to allow shrinking */}
+        <div
+          ref={logContainerRef}
+          className="flex-1 min-h-0 overflow-y-auto p-4 space-y-1.5 bg-sidebar font-mono text-xs scrollbar-styled"
+        >
+          <AnimatePresence mode="popLayout">
+            {agent.events.length === 0 ? (
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                className="text-muted-foreground italic"
+              >
+                Awaiting activity...
+              </motion.div>
+            ) : (
+              agent.events.map((event, idx) => (
+                <LogEntry key={idx} event={event} index={idx} />
+              ))
+            )}
+          </AnimatePresence>
+        </div>
+
+        {/* Result Footer (if complete) - flex-shrink-0 to always show */}
+        {agent.status === 'complete' && agent.result && (
+          <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="flex-shrink-0 px-6 py-4 bg-card border-t border-border"
+          >
+            {agent.result.found ? (
+              <div className="space-y-2">
+                <div className="text-[10px] uppercase tracking-[0.35em] font-semibold text-success">
+                  Resource Found
+                </div>
+                <div className="text-sm text-foreground">{agent.result.topic}</div>
+                {agent.result.url && (
+                  <a
+                    href={agent.result.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1.5 text-xs text-info hover:text-info/80 transition-colors"
+                  >
+                    <ExternalLink size={12} />
+                    <span className="truncate max-w-md">{agent.result.url}</span>
+                  </a>
+                )}
+              </div>
+            ) : (
+              <div className="space-y-1">
+                <div className="text-[10px] uppercase tracking-[0.35em] font-semibold text-muted-foreground">
+                  Not Found
+                </div>
+                <div className="text-sm text-muted-foreground">{agent.result.reason}</div>
+              </div>
+            )}
+          </motion.div>
+        )}
+
+        {agent.status === 'failed' && (
+          <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="flex-shrink-0 px-6 py-4 bg-destructive-soft border-t border-destructive/20"
+          >
+            <div className="text-[10px] uppercase tracking-[0.35em] font-semibold text-destructive">
+              Error
+            </div>
+            <div className="text-sm text-destructive mt-1">
+              {agent.result?.reason || 'Unknown error'}
+            </div>
+          </motion.div>
+        )}
+      </motion.div>
+    </>,
+    document.body
+  );
+});
+
+// Individual log entry component
+interface LogEntryProps {
+  event: AgentEvent;
+  index: number;
+}
+
+const LogEntry = memo(function LogEntry({ event, index }: LogEntryProps) {
+  const style = EVENT_STYLES[event.type] || { color: 'text-muted-foreground', label: event.type };
 
   // Format timestamp for display
   const formatTime = (timestamp: number) => {
@@ -66,114 +258,6 @@ export const AgentInspectModal = memo(function AgentInspectModal({
     });
   };
 
-  return createPortal(
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm"
-      onClick={onClose}
-    >
-      <div
-        className="w-full max-w-2xl max-h-[80vh] bg-slate-900 border-2 border-slate-600 rounded-lg font-mono overflow-hidden shadow-2xl"
-        onClick={(e) => e.stopPropagation()}
-      >
-        {/* Header */}
-        <div className="flex items-center justify-between px-4 py-3 bg-slate-800 border-b border-slate-700">
-          <h3 className="text-sm font-bold text-slate-200 tracking-wider">
-            {unitLabel} ACTIVITY LOG
-          </h3>
-          <button
-            onClick={onClose}
-            className="p-1 text-slate-400 hover:text-slate-200 hover:bg-slate-700 rounded transition-colors"
-          >
-            <X size={18} />
-          </button>
-        </div>
-
-        {/* Meta Info Bar */}
-        <div className="flex items-center gap-6 px-4 py-2 bg-slate-800/50 border-b border-slate-700 text-xs">
-          <div className="flex items-center gap-2">
-            <span className="text-slate-500">Type:</span>
-            <span className="text-slate-300">{agent.resourceType}</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <span className="text-slate-500">Status:</span>
-            <span
-              className={`font-bold ${
-                agent.status === 'running'
-                  ? 'text-amber-400'
-                  : agent.status === 'complete'
-                    ? 'text-emerald-400'
-                    : agent.status === 'failed'
-                      ? 'text-red-400'
-                      : 'text-slate-400'
-              }`}
-            >
-              {agent.status.toUpperCase()}
-            </span>
-          </div>
-          <div className="flex items-center gap-2">
-            <span className="text-slate-500">Elapsed:</span>
-            <span className="text-slate-300">{elapsed}s</span>
-          </div>
-        </div>
-
-        {/* Log Content */}
-        <div ref={logContainerRef} className="h-80 overflow-y-auto p-4 space-y-1 bg-slate-950">
-          {agent.events.length === 0 ? (
-            <div className="text-slate-600 text-xs italic">Awaiting activity...</div>
-          ) : (
-            agent.events.map((event, idx) => <LogEntry key={idx} event={event} formatTime={formatTime} />)
-          )}
-        </div>
-
-        {/* Result Footer (if complete) */}
-        {agent.status === 'complete' && agent.result && (
-          <div className="px-4 py-3 bg-slate-800 border-t border-slate-700">
-            {agent.result.found ? (
-              <div className="space-y-2">
-                <div className="text-xs text-emerald-400 font-bold">RESOURCE FOUND:</div>
-                <div className="text-sm text-slate-200 truncate">{agent.result.topic}</div>
-                {agent.result.url && (
-                  <a
-                    href={agent.result.url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center gap-1 text-xs text-cyan-400 hover:text-cyan-300 transition-colors"
-                  >
-                    <ExternalLink size={12} />
-                    {agent.result.url}
-                  </a>
-                )}
-              </div>
-            ) : (
-              <div className="space-y-1">
-                <div className="text-xs text-red-400 font-bold">NOT FOUND:</div>
-                <div className="text-sm text-slate-400">{agent.result.reason}</div>
-              </div>
-            )}
-          </div>
-        )}
-
-        {agent.status === 'failed' && (
-          <div className="px-4 py-3 bg-slate-800 border-t border-red-900/50">
-            <div className="text-xs text-red-400 font-bold">ERROR:</div>
-            <div className="text-sm text-red-300">{agent.result?.reason || 'Unknown error'}</div>
-          </div>
-        )}
-      </div>
-    </div>,
-    document.body
-  );
-});
-
-// Individual log entry component
-interface LogEntryProps {
-  event: AgentEvent;
-  formatTime: (ts: number) => string;
-}
-
-const LogEntry = memo(function LogEntry({ event, formatTime }: LogEntryProps) {
-  const style = EVENT_STYLES[event.type] || { color: 'text-slate-400', label: event.type.toUpperCase() };
-
   // Extract display content based on event type
   let content = '';
   switch (event.type) {
@@ -181,7 +265,6 @@ const LogEntry = memo(function LogEntry({ event, formatTime }: LogEntryProps) {
       content = `"${event.data.query}"`;
       break;
     case 'fetch':
-      // Handle both web fetches (url) and YouTube fetches (videoId)
       if (event.data.source === 'youtube' && event.data.videoId) {
         content = `YouTube: ${event.data.videoId}`;
       } else {
@@ -205,12 +288,17 @@ const LogEntry = memo(function LogEntry({ event, formatTime }: LogEntryProps) {
   }
 
   return (
-    <div className="flex items-start gap-2 text-xs">
-      <span className="text-slate-600 shrink-0">{formatTime(event.timestamp)}</span>
-      <span className={`font-bold shrink-0 w-16 ${style.color}`}>{style.label}</span>
-      <span className="text-slate-400 truncate" title={content}>
+    <motion.div
+      initial={{ opacity: 0, x: -5 }}
+      animate={{ opacity: 1, x: 0 }}
+      transition={{ delay: index * 0.02 }}
+      className="flex items-start gap-3"
+    >
+      <span className="text-muted-foreground/60 shrink-0">{formatTime(event.timestamp)}</span>
+      <span className={cn('font-semibold shrink-0 w-14', style.color)}>{style.label}</span>
+      <span className="text-muted-foreground truncate" title={content}>
         {content}
       </span>
-    </div>
+    </motion.div>
   );
 });

@@ -138,7 +138,7 @@ export function LearningStreamTab({ slug, canModify = true }: LearningStreamTabP
   // No items yet - show Mission Dashboard (handles idle/deploying/active states)
   if (stats.total === 0) {
     return (
-      <div className="max-w-3xl mx-auto">
+      <div className="max-w-[1400px] mx-auto">
         <MissionDashboard
           slug={slug}
           onLaunch={handleLaunch}
@@ -151,17 +151,22 @@ export function LearningStreamTab({ slug, canModify = true }: LearningStreamTabP
   // Has items - show progress bar and items
   // Mission Dashboard will show itself when research is running (via SSE)
   return (
-    <div className="max-w-3xl mx-auto space-y-4">
-      {/* Mission Dashboard - only shows when swarm is active (hideWhenIdle hides it otherwise) */}
-      <MissionDashboard
-        slug={slug}
-        onLaunch={handleLaunch}
-        isLaunching={isRefreshing}
-        hideWhenIdle
-        pendingCount={stats.pending}
-      />
+    <div className="space-y-8">
+      {/* Mission Dashboard - full width */}
+      <div className="max-w-[1400px] mx-auto">
+        {/* Mission Dashboard - only shows when swarm is active (hideWhenIdle hides it otherwise) */}
+        <MissionDashboard
+          slug={slug}
+          onLaunch={handleLaunch}
+          isLaunching={isRefreshing}
+          hideWhenIdle
+          pendingCount={stats.pending}
+        />
+      </div>
 
-      <StreamProgressBar stats={stats} />
+      {/* Stream items - narrower container */}
+      <div className="max-w-3xl mx-auto space-y-4" data-learning-items>
+        <StreamProgressBar stats={stats} />
 
       {/* All items processed - show completion prompt */}
       {stats.pending === 0 ? (
@@ -194,7 +199,6 @@ export function LearningStreamTab({ slug, canModify = true }: LearningStreamTabP
                     onAnimationEnd={() => handleAnimationEnd(item.id)}
                   >
                     <StreamItemCard.Header />
-                    <StreamItemCard.Rationale />
                     <StreamItemCard.Actions
                       onBookmark={() => handleBookmark(item)}
                       onGrade={() => handleGradeClick(item)}
@@ -209,6 +213,7 @@ export function LearningStreamTab({ slug, canModify = true }: LearningStreamTabP
           </div>
         </>
       )}
+      </div>
 
       {/* Grade Modal */}
       <GradeModal
@@ -222,71 +227,59 @@ export function LearningStreamTab({ slug, canModify = true }: LearningStreamTabP
   );
 }
 
-// All processed state - matches mission control vibe
-import { CheckCircle, Radar, Loader2 as Loader } from 'lucide-react';
+// All processed state - editorial print aesthetic
+import { CheckCircle, Search, Loader2 as Loader } from 'lucide-react';
+import telescopeImg from '@/assets/bl_profile/telescope.webp';
+import { TactileButton } from '@/components/ui/tactile-button';
 
 function AllProcessedState({ onNewMission, isLaunching }: { onNewMission: () => void; isLaunching?: boolean }) {
   return (
-    <div className="bg-slate-950 border border-slate-800 rounded-xl overflow-hidden">
-      {/* Header bar */}
-      <div className="flex items-center gap-3 px-4 py-3 bg-slate-900 border-b border-slate-800">
-        <div className="flex items-center gap-1">
-          <div className="w-2 h-4 bg-emerald-600" />
-          <div className="w-2 h-4 bg-emerald-700" />
-          <div className="w-2 h-4 bg-emerald-800" />
-        </div>
-        <span className="font-mono text-xs text-slate-500 tracking-widest uppercase">
-          Queue Cleared
-        </span>
-      </div>
+    <div className="bg-card-elevated rounded-xl shadow-card overflow-hidden relative">
+      {/* Subtle background image */}
+      <div
+        className="absolute inset-0 opacity-[0.06] bg-no-repeat bg-center bg-contain pointer-events-none"
+        style={{ backgroundImage: `url(${telescopeImg})` }}
+      />
 
-      <div className="p-8">
+      <div className="relative p-12">
         <div className="flex flex-col items-center justify-center text-center">
           {/* Success indicator */}
-          <div className="relative mb-6">
-            <div className="w-20 h-20 rounded-full border-2 border-emerald-500/30 flex items-center justify-center bg-emerald-500/5">
-              <CheckCircle size={40} className="text-emerald-500" />
+          <div className="relative mb-8">
+            <div
+              className="w-16 h-16 rounded-full flex items-center justify-center"
+              style={{ border: '1px solid var(--border-hex)' }}
+            >
+              <CheckCircle size={32} className="text-success" />
             </div>
-            <div className="absolute inset-0 rounded-full bg-emerald-500/10 blur-xl" />
           </div>
 
-          <h3 className="font-mono text-lg font-bold text-slate-300 tracking-wide mb-2">
-            ALL RESOURCES PROCESSED
+          <h3 className="font-serif text-[28px] text-foreground mb-3">
+            All Resources Reviewed
           </h3>
-          <p className="font-mono text-sm text-slate-500 max-w-md mb-8">
-            Intelligence queue cleared. Deploy new units to continue research operations.
+          <p className="text-sm text-muted-foreground max-w-md mb-10 leading-relaxed">
+            You've processed all the research resources in your queue.
+            Launch a new swarm to discover more content.
           </p>
 
-          {/* New mission button */}
-          <button
+          {/* New swarm button */}
+          <TactileButton
+            variant="raised"
             onClick={onNewMission}
             disabled={isLaunching}
-            className={`
-              group relative px-8 py-4 font-mono text-sm font-bold tracking-widest uppercase
-              border-2 rounded-lg transition-all duration-300
-              ${isLaunching
-                ? 'border-emerald-600/50 bg-emerald-950/30 text-emerald-500/70 cursor-wait'
-                : 'border-emerald-500 bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20 hover:shadow-[0_0_20px_rgba(16,185,129,0.3)]'
-              }
-            `}
+            className="flex items-center gap-3 px-8 py-4 text-[14px]"
           >
-            <span className="absolute top-0 left-0 w-2 h-2 border-t-2 border-l-2 border-emerald-500" />
-            <span className="absolute top-0 right-0 w-2 h-2 border-t-2 border-r-2 border-emerald-500" />
-            <span className="absolute bottom-0 left-0 w-2 h-2 border-b-2 border-l-2 border-emerald-500" />
-            <span className="absolute bottom-0 right-0 w-2 h-2 border-b-2 border-r-2 border-emerald-500" />
-
             {isLaunching ? (
-              <span className="flex items-center gap-3">
+              <>
                 <Loader size={18} className="animate-spin" />
-                DEPLOYING...
-              </span>
+                Launching Swarm...
+              </>
             ) : (
-              <span className="flex items-center gap-3">
-                <Radar size={18} />
-                NEW RESEARCH MISSION
-              </span>
+              <>
+                <Search size={18} />
+                New Research Swarm
+              </>
             )}
-          </button>
+          </TactileButton>
         </div>
       </div>
     </div>

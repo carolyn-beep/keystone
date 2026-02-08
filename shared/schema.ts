@@ -165,38 +165,6 @@ export const contradictionClusters = pgTable("contradiction_clusters", {
   claims: text("claims").array().notNull(),
 });
 
-export const readingListItems = pgTable("reading_list_items", {
-  id: serial("id").primaryKey(),
-  brainliftId: integer("brainlift_id").notNull().references(() => brainlifts.id),
-  type: text("type").notNull(), // Twitter, Substack, etc.
-  author: text("author").notNull(),
-  topic: text("topic").notNull(),
-  time: text("time").notNull(),
-  facts: text("facts").notNull(), // "What it covers"
-  url: text("url").notNull(),
-});
-
-export const readingListGrades = pgTable("reading_list_grades", {
-  id: serial("id").primaryKey(),
-  readingListItemId: integer("reading_list_item_id").notNull().references(() => readingListItems.id),
-  aligns: text("aligns"), // "yes", "no", "partial"
-  contradicts: text("contradicts"), // "yes", "no"
-  newInfo: text("new_info"), // "yes", "no"
-  quality: integer("quality"), // 1-5
-});
-
-export const sourceFeedback = pgTable("source_feedback", {
-  id: serial("id").primaryKey(),
-  brainliftId: integer("brainlift_id").notNull().references(() => brainlifts.id),
-  sourceId: text("source_id").notNull(), // Unique ID: tweet ID or URL hash for research
-  sourceType: text("source_type").notNull(), // "tweet" or "research"
-  title: text("title").notNull(), // Author username for tweets, title for research
-  snippet: text("snippet").notNull(), // Tweet text or research snippet
-  url: text("url").notNull(),
-  decision: text("decision").notNull(), // "accepted" or "rejected"
-  createdAt: timestamp("created_at").defaultNow().notNull(),
-});
-
 export const brainliftVersions = pgTable("brainlift_versions", {
   id: serial("id").primaryKey(),
   brainliftId: integer("brainlift_id").notNull().references(() => brainlifts.id),
@@ -346,9 +314,7 @@ export const brainliftsRelations = relations(brainlifts, ({ one, many }) => ({
   }),
   facts: many(facts),
   contradictionClusters: many(contradictionClusters),
-  readingListItems: many(readingListItems),
   versions: many(brainliftVersions),
-  sourceFeedback: many(sourceFeedback),
   experts: many(experts),
   shares: many(brainliftShares),
   learningStreamItems: many(learningStreamItems),
@@ -372,13 +338,6 @@ export const brainliftSharesRelations = relations(brainliftShares, ({ one }) => 
 export const expertsRelations = relations(experts, ({ one }) => ({
   brainlift: one(brainlifts, {
     fields: [experts.brainliftId],
-    references: [brainlifts.id],
-  }),
-}));
-
-export const sourceFeedbackRelations = relations(sourceFeedback, ({ one }) => ({
-  brainlift: one(brainlifts, {
-    fields: [sourceFeedback.brainliftId],
     references: [brainlifts.id],
   }),
 }));
@@ -598,21 +557,6 @@ export const contradictionClustersRelations = relations(contradictionClusters, (
   }),
 }));
 
-export const readingListItemsRelations = relations(readingListItems, ({ one }) => ({
-  brainlift: one(brainlifts, {
-    fields: [readingListItems.brainliftId],
-    references: [brainlifts.id],
-  }),
-  grade: one(readingListGrades),
-}));
-
-export const readingListGradesRelations = relations(readingListGrades, ({ one }) => ({
-  readingListItem: one(readingListItems, {
-    fields: [readingListGrades.readingListItemId],
-    references: [readingListItems.id],
-  }),
-}));
-
 export const learningStreamItemsRelations = relations(learningStreamItems, ({ one }) => ({
   brainlift: one(brainlifts, {
     fields: [learningStreamItems.brainliftId],
@@ -625,9 +569,6 @@ export const learningStreamItemsRelations = relations(learningStreamItems, ({ on
 export const insertBrainliftSchema = createInsertSchema(brainlifts);
 export const insertFactSchema = createInsertSchema(facts).omit({ id: true });
 export const insertContradictionClusterSchema = createInsertSchema(contradictionClusters).omit({ id: true });
-export const insertReadingListItemSchema = createInsertSchema(readingListItems).omit({ id: true });
-export const insertReadingListGradeSchema = createInsertSchema(readingListGrades).omit({ id: true });
-export const insertSourceFeedbackSchema = createInsertSchema(sourceFeedback).omit({ id: true, createdAt: true });
 export const insertBrainliftVersionSchema = createInsertSchema(brainliftVersions).omit({ id: true, createdAt: true });
 export const insertExpertSchema = createInsertSchema(experts).omit({ id: true });
 export const insertFactVerificationSchema = createInsertSchema(factVerifications).omit({ id: true, createdAt: true, updatedAt: true });
@@ -654,11 +595,6 @@ export type InsertBrainlift = z.infer<typeof insertBrainliftSchema>;
 
 export type Fact = typeof facts.$inferSelect;
 export type ContradictionCluster = typeof contradictionClusters.$inferSelect;
-export type ReadingListItem = typeof readingListItems.$inferSelect;
-export type ReadingListGrade = typeof readingListGrades.$inferSelect;
-export type InsertReadingListGrade = z.infer<typeof insertReadingListGradeSchema>;
-export type SourceFeedback = typeof sourceFeedback.$inferSelect;
-export type InsertSourceFeedback = z.infer<typeof insertSourceFeedbackSchema>;
 export type BrainliftVersion = typeof brainliftVersions.$inferSelect;
 export type InsertBrainliftVersion = z.infer<typeof insertBrainliftVersionSchema>;
 export type Expert = typeof experts.$inferSelect;
@@ -687,7 +623,6 @@ export type InsertLearningStreamItem = z.infer<typeof insertLearningStreamItemSc
 export interface BrainliftData extends Brainlift {
   facts: Fact[];
   contradictionClusters: ContradictionCluster[];
-  readingList: ReadingListItem[];
   experts: Expert[];
   dok2Summaries?: Array<{
     id: number;

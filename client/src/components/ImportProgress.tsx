@@ -18,7 +18,6 @@ const ORDERED_STAGES: Exclude<ImportStage, 'complete' | 'error'>[] = [
   'grading',
   'grading_dok2',
   'contradictions',
-  'readingList',
   'saving',
   'experts',
   'redundancy',

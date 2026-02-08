@@ -62,29 +62,8 @@ export function HistoryModal({ show, onClose, versions }: HistoryModalProps) {
                   </p>
                   <div className="flex gap-4 text-[13px] text-muted-foreground">
                     <span>{snapshot?.facts?.length || 0} facts</span>
-                    <span>{snapshot?.readingList?.length || 0} reading items</span>
                     <span>Source: {version.sourceType}</span>
                   </div>
-                  {snapshot?.grades && snapshot.grades.length > 0 && (
-                    <div className="mt-3 pt-3" style={{ borderTop: `1px solid ${tokens.border}` }}>
-                      <p className="text-xs font-semibold text-muted-foreground mb-2">Preserved Grades:</p>
-                      <div className="flex flex-wrap gap-2">
-                        {snapshot.grades.filter((g: any) => g.aligns || g.quality).slice(0, 5).map((grade: any, i: number) => (
-                          <span
-                            key={i}
-                            className="px-2 py-1 bg-muted rounded text-[11px]"
-                          >
-                            {grade.readingListTopic?.substring(0, 30)}... {grade.quality ? `(${grade.quality}/5)` : ''}
-                          </span>
-                        ))}
-                        {snapshot.grades.filter((g: any) => g.aligns || g.quality).length > 5 && (
-                          <span className="text-[11px] text-muted-foreground">
-                            +{snapshot.grades.filter((g: any) => g.aligns || g.quality).length - 5} more
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                  )}
                 </div>
               );
             })}

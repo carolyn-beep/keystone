@@ -102,7 +102,6 @@ brainliftsRouter.post(
       },
       input.facts,
       input.contradictionClusters,
-      input.readingList,
       req.authContext!.userId
     );
     res.status(201).json(brainlift);
@@ -208,48 +207,6 @@ brainliftsRouter.post(
   }
 );
 
-// Get grades for a brainlift
-brainliftsRouter.get(
-  '/api/brainlifts/:slug/grades',
-  requireAuth,
-  requireBrainliftAccess,
-  asyncHandler(async (req, res) => {
-    const grades = await storage.getGradesByBrainliftId(req.brainlift!.id);
-    res.json(grades);
-  })
-);
-
-// Save a grade for a reading list item
-const gradeSchema = z.object({
-  readingListItemId: z.number(),
-  aligns: z.enum(['yes', 'no', 'partial']).nullable().optional(),
-  contradicts: z.enum(['yes', 'no']).nullable().optional(),
-  newInfo: z.enum(['yes', 'no']).nullable().optional(),
-  quality: z.number().min(1).max(5).nullable().optional(),
-});
-
-brainliftsRouter.post(
-  '/api/brainlifts/:slug/grades',
-  requireAuth,
-  requireBrainliftModify,
-  asyncHandler(async (req, res) => {
-    const parsed = gradeSchema.safeParse(req.body);
-    if (!parsed.success) {
-      throw new BadRequestError('Invalid grade data');
-    }
-    const { readingListItemId, aligns, contradicts, newInfo, quality } = parsed.data;
-
-    const grade = await storage.saveGrade({
-      readingListItemId,
-      aligns: aligns ?? null,
-      contradicts: contradicts ?? null,
-      newInfo: newInfo ?? null,
-      quality: quality ?? null,
-    });
-    res.json(grade);
-  })
-);
-
 // Update brainlift (import new version)
 brainliftsRouter.patch(
   '/api/brainlifts/:slug/update',
@@ -293,15 +250,6 @@ brainliftsRouter.patch(
       claims: c.claims,
     }));
 
-    const readingList = brainliftData.readingList.map((r) => ({
-      type: r.type,
-      author: r.author,
-      topic: r.topic,
-      time: r.time,
-      facts: r.facts,
-      url: r.url,
-    }));
-
     const updatedBrainlift = await storage.updateBrainlift(
       slug,
       {
@@ -318,8 +266,7 @@ brainliftsRouter.patch(
         sourceType: sourceType,
       },
       facts,
-      clusters,
-      readingList
+      clusters
     );
 
     // Run expert extraction and redundancy analysis in parallel after update
@@ -331,7 +278,6 @@ brainliftsRouter.patch(
       author: (brainliftData as any).author || null,
       facts: facts,
       originalContent: content,
-      readingList: readingList,
     });
 
     res.json(await storage.getBrainliftBySlug(slug));

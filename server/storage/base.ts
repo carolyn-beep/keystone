@@ -4,8 +4,8 @@ export { db } from "../db";
 // Re-export commonly used types
 export type {
   Brainlift, BrainliftData, InsertBrainlift,
-  Fact, ContradictionCluster, ReadingListItem, ReadingListGrade, InsertReadingListGrade,
-  BrainliftVersion, SourceFeedback, InsertSourceFeedback, Expert, InsertExpert,
+  Fact, ContradictionCluster,
+  BrainliftVersion, Expert, InsertExpert,
   FactVerification, InsertFactVerification, FactModelScore, InsertFactModelScore,
   FactWithVerification, LLMModel, LlmFeedback, ModelAccuracyStats,
   FactRedundancyGroup, InsertFactRedundancyGroup, RedundancyStatus,
@@ -14,8 +14,8 @@ export type {
 } from "@shared/schema";
 
 export {
-  brainlifts, facts, contradictionClusters, readingListItems, readingListGrades,
-  brainliftVersions, sourceFeedback, experts, factVerifications, factModelScores,
+  brainlifts, facts, contradictionClusters,
+  brainliftVersions, experts, factVerifications, factModelScores,
   llmFeedback, modelAccuracyStats, factRedundancyGroups, LLM_MODELS,
   dok2Summaries, dok2Points, dok2FactRelations, learningStreamItems
 } from "@shared/schema";

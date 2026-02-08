@@ -13,11 +13,6 @@ export const expertExtractionSchema = z.object({
 
 export type ExpertExtractionOutput = z.infer<typeof expertExtractionSchema>;
 
-export interface ReadingListItem {
-  author?: string;
-  topic?: string;
-}
-
 export interface ExtractionInput {
   brainliftId: number;
   title: string;
@@ -25,7 +20,6 @@ export interface ExtractionInput {
   author: string | null;
   facts: Fact[];
   originalContent?: string;
-  readingList?: ReadingListItem[];
 }
 
 export interface ExpertProfile {
@@ -35,7 +29,6 @@ export interface ExpertProfile {
   factCitations: number;
   noteCitations: number;
   sourceCitations: number;
-  readingListMentions: number;
   isInDok1Section: boolean;
   score5FactCitations: number;
 }

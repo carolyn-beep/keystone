@@ -2,10 +2,10 @@
 
 ## Overview
 
-- **Total Endpoints:** 36
-- **Production Endpoints:** 31
+- **Total Endpoints:** 30
+- **Production Endpoints:** 25
 - **Development-Only Endpoints:** 5
-- **Domain Routers:** 7
+- **Domain Routers:** 6
 
 ---
 
@@ -51,8 +51,6 @@ All API endpoints (except `/api/auth/*`) require authentication via Better Auth 
 | POST | `/api/brainlifts` | `requireAuth` | Create new brainlift |
 | DELETE | `/api/brainlifts/:id` | `requireAuth` | Delete brainlift |
 | POST | `/api/brainlifts/import` | `requireAuth` | Import from file/URL |
-| GET | `/api/brainlifts/:slug/grades` | `requireAuth` | Get reading list grades |
-| POST | `/api/brainlifts/:slug/grades` | `requireAuth` | Save grade for reading list item |
 | PATCH | `/api/brainlifts/:slug/update` | `requireAuth` | Update brainlift from new file/URL |
 | PATCH | `/api/brainlifts/:slug/author` | `requireAuth` | Update author/owner |
 | GET | `/api/brainlifts/:slug/versions` | `requireAuth` | Get version history |
@@ -117,18 +115,6 @@ All routes nested under `/api/brainlifts/:slug` for authorization context.
 | POST | `/api/brainlifts/:slug/analyze-redundancy` | `requireAuth` | Analyze facts for redundancy |
 | GET | `/api/brainlifts/:slug/redundancy` | `requireAuth` | Get redundancy groups |
 | PATCH | `/api/brainlifts/:slug/redundancy-groups/:groupId` | `requireAuth` | Update group status |
-
----
-
-## Research (`server/routes/research.ts`)
-
-| Method | Endpoint | Auth | Description |
-|--------|----------|------|-------------|
-| POST | `/api/brainlifts/:slug/research` | `requireAuth` | Search via Perplexity |
-| POST | `/api/brainlifts/:slug/reading-list` | `requireAuth` | Add to reading list |
-| POST | `/api/brainlifts/:slug/tweets` | `requireAuth` | Search Twitter for relevant tweets |
-| GET | `/api/brainlifts/:slug/feedback` | `requireAuth` | Get source feedback |
-| POST | `/api/brainlifts/:slug/feedback` | `requireAuth` | Save source feedback decision |
 
 ---
 

@@ -3,7 +3,6 @@ import type { Server } from "http";
 import { expertsRouter } from "./routes/experts";
 import { verificationsRouter } from "./routes/verifications";
 import { redundancyRouter } from "./routes/redundancy";
-import { researchRouter } from "./routes/research";
 import { analyticsRouter } from "./routes/analytics";
 import { brainliftsRouter } from "./routes/brainlifts";
 import { sharesRouter } from "./routes/shares";
@@ -21,7 +20,6 @@ export async function registerRoutes(
   app.use(expertsRouter);
   app.use(verificationsRouter);
   app.use(redundancyRouter);
-  app.use(researchRouter);
   app.use(analyticsRouter);
   app.use(brainliftsRouter);
   app.use(sharesRouter);
