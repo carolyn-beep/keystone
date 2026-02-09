@@ -126,34 +126,6 @@ brainliftsRouter.delete(
   })
 );
 
-// Import brainlift from file or URL
-brainliftsRouter.post(
-  '/api/brainlifts/import',
-  requireAuth,
-  upload.single('file'),
-  asyncHandler(async (req, res) => {
-    const sourceType = req.body.sourceType as SourceType;
-
-    const { content: rawContent, sourceLabel, hierarchy } = await extractContent({
-      sourceType,
-      file: req.file,
-      url: req.body.url,
-    });
-
-    const content = validateContent(rawContent);
-
-    console.log(`Processing ${sourceLabel}, content length: ${content.length} chars`);
-    if (hierarchy) {
-      console.log(`Hierarchy available: ${hierarchy.length} roots`);
-    }
-
-    const brainliftData = await extractBrainlift(content, sourceLabel, hierarchy);
-    const brainlift = await saveBrainliftFromAI(brainliftData, content, sourceType, req.authContext!.userId);
-
-    res.status(201).json(brainlift);
-  })
-);
-
 // Import brainlift with SSE progress streaming
 brainliftsRouter.post(
   '/api/brainlifts/import-stream',
