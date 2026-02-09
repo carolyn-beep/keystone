@@ -279,7 +279,8 @@ export function FactGradingPanel({
         })().map((stat, i) => (
           <div
             key={i}
-            className="w-[160px] py-6 px-5 bg-card-elevated rounded-lg  shadow-card flex flex-col"
+            className="w-[160px] py-6 px-5 bg-card-elevated rounded-lg  shadow-card flex flex-col animate-fade-slide-in"
+            style={{ animationDelay: `${i * 80}ms`, animationFillMode: 'backwards' }}
           >
             <div className="font-serif text-[54px] leading-none font-normal tracking-wide" style={{ color: stat.color }}>
               {stat.value}
@@ -294,9 +295,13 @@ export function FactGradingPanel({
       </div>
 
       {/* Redundancy Groups */}
-      {Array.from(groupedFacts.groups.entries()).map(([groupId, { group, facts: groupFacts }]) => (
-        <RedundancyGroupCard
+      {Array.from(groupedFacts.groups.entries()).map(([groupId, { group, facts: groupFacts }], groupIndex) => (
+        <div
           key={groupId}
+          className="animate-fade-slide-in"
+          style={{ animationDelay: `${(groupIndex + 5) * 80}ms`, animationFillMode: 'backwards' }}
+        >
+        <RedundancyGroupCard
           group={group}
           onReview={onShowRedundancyModal}
         >
@@ -323,11 +328,12 @@ export function FactGradingPanel({
             />
           ))}
         </RedundancyGroupCard>
+        </div>
       ))}
 
       {/* Individual Facts Section (Stack Ranked) - Virtualized */}
       {groupedFacts.allFactsSorted.length > 0 && (
-        <div className="mt-20">
+        <div className="mt-20 animate-fade-slide-in" style={{ animationDelay: '500ms', animationFillMode: 'backwards' }}>
           <div className="flex items-baseline justify-between">
             <h3 className="text-[24px] font-semibold text-foreground m-0">
               Individual Facts

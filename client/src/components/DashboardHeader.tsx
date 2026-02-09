@@ -119,7 +119,7 @@ export function DashboardHeader({
       <div className="flex items-start gap-2.5">
         {/* Profile Image */}
         <div
-          className="w-28 h-28 shrink-0 rounded-lg flex items-center justify-center bg-sidebar"
+          className="w-28 h-28 shrink-0 rounded-lg flex items-center justify-center"
         >
           <img
             src={getProfileImage(data.id, data.coverImageUrl)}

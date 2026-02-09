@@ -27,16 +27,17 @@ export function LearningStreamTab({ slug, canModify = true }: LearningStreamTabP
     isRefreshing,
   } = useLearningStream(slug);
 
-  const { isComplete: swarmComplete } = useSwarmEvents(slug);
+  // Single SSE connection — passed down to MissionDashboard as props
+  const swarmState = useSwarmEvents(slug, true);
   const hasRefetchedForCompletion = useRef(false);
 
   // Derive: when swarm completes, refetch data (once)
-  if (swarmComplete && !hasRefetchedForCompletion.current) {
+  if (swarmState.isComplete && !hasRefetchedForCompletion.current) {
     hasRefetchedForCompletion.current = true;
     refetch();
   }
   // Reset flag when swarm is no longer complete (new swarm starting)
-  if (!swarmComplete && hasRefetchedForCompletion.current) {
+  if (!swarmState.isComplete && hasRefetchedForCompletion.current) {
     hasRefetchedForCompletion.current = false;
   }
 
@@ -135,87 +136,70 @@ export function LearningStreamTab({ slug, canModify = true }: LearningStreamTabP
     );
   }
 
-  // No items yet - show Mission Dashboard (handles idle/deploying/active states)
-  if (stats.total === 0) {
-    return (
-      <div className="max-w-[1400px] mx-auto">
-        <MissionDashboard
-          slug={slug}
-          onLaunch={handleLaunch}
-          isLaunching={isRefreshing}
-        />
-      </div>
-    );
-  }
+  const hasItems = stats.total > 0;
 
-  // Has items - show progress bar and items
-  // Mission Dashboard will show itself when research is running (via SSE)
   return (
     <div className="space-y-8">
-      {/* Mission Dashboard - full width */}
+      {/* Mission Dashboard - always at same tree position */}
       <div className="max-w-[1400px] mx-auto">
-        {/* Mission Dashboard - only shows when swarm is active (hideWhenIdle hides it otherwise) */}
         <MissionDashboard
-          slug={slug}
+          swarmState={swarmState}
           onLaunch={handleLaunch}
           isLaunching={isRefreshing}
-          hideWhenIdle
+          hideWhenIdle={hasItems}
           pendingCount={stats.pending}
         />
       </div>
 
-      {/* Stream items - narrower container */}
-      <div className="max-w-3xl mx-auto space-y-4" data-learning-items>
-        <StreamProgressBar stats={stats} />
+      {hasItems && (
+        <div className="max-w-3xl mx-auto space-y-4" data-learning-items>
+          <StreamProgressBar stats={stats} />
 
-      {/* All items processed - show completion prompt */}
-      {stats.pending === 0 ? (
-        <AllProcessedState onNewMission={handleLaunch} isLaunching={isRefreshing} />
-      ) : (
-        <>
-          {/* Announcement region for screen readers */}
-          <div className="sr-only" aria-live="polite" aria-atomic="true">
-            {stats.pending} items remaining to process
-          </div>
+          {stats.pending === 0 ? (
+            <AllProcessedState onNewMission={handleLaunch} isLaunching={isRefreshing} />
+          ) : (
+            <>
+              <div className="sr-only" aria-live="polite" aria-atomic="true">
+                {stats.pending} items remaining to process
+              </div>
 
-          {/* Item list with staggered animation */}
-          <div className="flex flex-col gap-4">
-            {items.map((item, index) => {
-              const isExiting = exitingItem?.id === item.id;
-              const exitAnimation = isExiting ? exitingItem.animation : null;
+              <div className="flex flex-col gap-4">
+                {items.map((item, index) => {
+                  const isExiting = exitingItem?.id === item.id;
+                  const exitAnimation = isExiting ? exitingItem.animation : null;
 
-              return (
-                <div
-                  key={item.id}
-                  className={prefersReducedMotion ? '' : 'animate-fade-slide-in'}
-                  style={{
-                    animationDelay: prefersReducedMotion ? '0ms' : `${index * 80}ms`,
-                    animationFillMode: 'backwards',
-                  }}
-                >
-                  <StreamItemCard.Root
-                    item={item}
-                    exitAnimation={exitAnimation}
-                    onAnimationEnd={() => handleAnimationEnd(item.id)}
-                  >
-                    <StreamItemCard.Header />
-                    <StreamItemCard.Actions
-                      onBookmark={() => handleBookmark(item)}
-                      onGrade={() => handleGradeClick(item)}
-                      onDiscard={() => handleDiscard(item)}
-                      isBookmarking={isBookmarking}
-                      isProcessing={isDiscarding || isGrading}
-                    />
-                  </StreamItemCard.Root>
-                </div>
-              );
-            })}
-          </div>
-        </>
+                  return (
+                    <div
+                      key={item.id}
+                      className={prefersReducedMotion ? '' : 'animate-fade-slide-in'}
+                      style={{
+                        animationDelay: prefersReducedMotion ? '0ms' : `${index * 80}ms`,
+                        animationFillMode: 'backwards',
+                      }}
+                    >
+                      <StreamItemCard.Root
+                        item={item}
+                        exitAnimation={exitAnimation}
+                        onAnimationEnd={() => handleAnimationEnd(item.id)}
+                      >
+                        <StreamItemCard.Header />
+                        <StreamItemCard.Actions
+                          onBookmark={() => handleBookmark(item)}
+                          onGrade={() => handleGradeClick(item)}
+                          onDiscard={() => handleDiscard(item)}
+                          isBookmarking={isBookmarking}
+                          isProcessing={isDiscarding || isGrading}
+                        />
+                      </StreamItemCard.Root>
+                    </div>
+                  );
+                })}
+              </div>
+            </>
+          )}
+        </div>
       )}
-      </div>
 
-      {/* Grade Modal */}
       <GradeModal
         show={!!gradeModalItem}
         item={gradeModalItem}

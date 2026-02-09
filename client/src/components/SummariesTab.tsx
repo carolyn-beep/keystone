@@ -167,7 +167,6 @@ export function SummariesTab({ summaries, facts, setActiveTab }: SummariesTabPro
 
     return (
       <div
-        key={summary.id}
         className="bg-card-elevated rounded-xl shadow-card overflow-hidden"
       >
         {/* Header: Grade + Title + Meta */}
@@ -513,7 +512,8 @@ export function SummariesTab({ summaries, facts, setActiveTab }: SummariesTabPro
         })().map((stat, i) => (
           <div
             key={i}
-            className="w-[160px] py-6 px-5 bg-card-elevated rounded-lg shadow-card flex flex-col"
+            className="w-[160px] py-6 px-5 bg-card-elevated rounded-lg shadow-card flex flex-col animate-fade-slide-in"
+            style={{ animationDelay: `${i * 80}ms`, animationFillMode: 'backwards' }}
           >
             <div className="font-serif text-[54px] leading-none font-normal tracking-wide" style={{ color: stat.color }}>
               {stat.value}
@@ -528,7 +528,7 @@ export function SummariesTab({ summaries, facts, setActiveTab }: SummariesTabPro
       </div>
 
       {/* Section Header */}
-      <div className="flex items-baseline justify-between">
+      <div className="flex items-baseline justify-between animate-fade-slide-in" style={{ animationDelay: '400ms', animationFillMode: 'backwards' }}>
         <h3 className="text-[24px] font-semibold text-foreground m-0">
           Active Syntheses
         </h3>
@@ -555,12 +555,20 @@ export function SummariesTab({ summaries, facts, setActiveTab }: SummariesTabPro
       {sortMode === 'grade' ? (
         // Flat list sorted by grade
         <div className="flex flex-col gap-16">
-          {sortedByGrade.map(renderSummaryCard)}
+          {sortedByGrade.map((summary, index) => (
+            <div
+              key={summary.id}
+              className="animate-fade-slide-in"
+              style={{ animationDelay: `${(index + 6) * 80}ms`, animationFillMode: 'backwards' }}
+            >
+              {renderSummaryCard(summary)}
+            </div>
+          ))}
         </div>
       ) : (
         // Grouped by category
-        Array.from(groupedByCategory.entries()).map(([category, categorySummaries]) => (
-          <div key={category} className="mb-20">
+        Array.from(groupedByCategory.entries()).map(([category, categorySummaries], groupIndex) => (
+          <div key={category} className="mb-20 animate-fade-slide-in" style={{ animationDelay: `${(groupIndex + 6) * 80}ms`, animationFillMode: 'backwards' }}>
             {/* Category Header */}
             <div className="flex items-center gap-3 mb-8">
               <h3 className="text-lg font-semibold m-0 text-foreground">{category}</h3>
@@ -571,7 +579,15 @@ export function SummariesTab({ summaries, facts, setActiveTab }: SummariesTabPro
 
             {/* Source Cards */}
             <div className="flex flex-col gap-16">
-              {categorySummaries.map(renderSummaryCard)}
+              {categorySummaries.map((summary, cardIndex) => (
+                <div
+                  key={summary.id}
+                  className="animate-fade-slide-in"
+                  style={{ animationDelay: `${(groupIndex * 3 + cardIndex + 7) * 80}ms`, animationFillMode: 'backwards' }}
+                >
+                  {renderSummaryCard(summary)}
+                </div>
+              ))}
             </div>
           </div>
         ))

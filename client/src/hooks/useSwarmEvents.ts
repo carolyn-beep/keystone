@@ -44,6 +44,23 @@ export interface SwarmState {
   orchestratorLogs: OrchestratorLog[];
 }
 
+export interface SwarmEventState {
+  status: SwarmStatus;
+  agents: AgentInfo[];
+  agentsMap: Map<string, AgentInfo>;
+  startTime?: number;
+  completedCount: number;
+  totalCount: number;
+  error?: string;
+  orchestratorLogs: OrchestratorLog[];
+  isActive: boolean;
+  isComplete: boolean;
+  isError: boolean;
+  failedCount: number;
+  connect: () => void;
+  disconnect: () => void;
+}
+
 interface SwarmEvent {
   id: string;
   type: string;

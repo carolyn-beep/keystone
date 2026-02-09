@@ -1,7 +1,7 @@
 import { useState, useReducer, useCallback, useEffect, memo } from 'react';
 import { motion, AnimatePresence, LayoutGroup } from 'framer-motion';
 import { AlertTriangle, RefreshCw, Search, Loader2 } from 'lucide-react';
-import { useSwarmEvents, type AgentInfo, type OrchestratorLog, type SwarmStatus } from '@/hooks/useSwarmEvents';
+import { type AgentInfo, type OrchestratorLog, type SwarmEventState } from '@/hooks/useSwarmEvents';
 import { AgentCard } from './AgentCard';
 import { AgentInspectModal } from './AgentInspectModal';
 import { ActivityLog } from './ActivityLog';
@@ -82,7 +82,7 @@ function dashboardReducer(state: DashboardState, action: DashboardAction): Dashb
 }
 
 interface MissionDashboardProps {
-  slug: string;
+  swarmState: SwarmEventState;
   onLaunch?: () => Promise<void>;
   isLaunching?: boolean;
   hideWhenIdle?: boolean;
@@ -93,21 +93,29 @@ interface MissionDashboardProps {
  * Research Observatory dashboard - three-column editorial layout.
  * Uses Framer Motion LayoutGroup for shared layout animations.
  */
-export function MissionDashboard({ slug, onLaunch, isLaunching, hideWhenIdle, pendingCount = 0 }: MissionDashboardProps) {
+export function MissionDashboard({ swarmState, onLaunch, isLaunching, hideWhenIdle, pendingCount = 0 }: MissionDashboardProps) {
   const {
     status: sseStatus,
     agents,
     completedCount,
     totalCount,
-    isError: sseIsError,
     error,
     failedCount,
     orchestratorLogs,
     connect,
     startTime,
-  } = useSwarmEvents(slug, true);
+  } = swarmState;
 
-  const [state, dispatch] = useReducer(dashboardReducer, { phase: 'idle' });
+  const [state, dispatch] = useReducer(
+    dashboardReducer,
+    sseStatus,
+    (initialStatus): DashboardState => {
+      if (initialStatus === 'complete') return { phase: 'complete' };
+      if (initialStatus === 'running') return { phase: agents.length > 0 ? 'active' : 'deploying' };
+      if (initialStatus === 'error') return { phase: 'error' };
+      return { phase: 'idle' };
+    }
+  );
   const [inspectedAgentId, setInspectedAgentId] = useState<string | null>(null);
 
   // Look up the live agent from the agents array
@@ -165,49 +173,48 @@ export function MissionDashboard({ slug, onLaunch, isLaunching, hideWhenIdle, pe
     dispatch({ type: 'LAUNCH_COMPLETE' });
   }, [onLaunch]);
 
-  // Fade out state - triggers after completion with delay
-  const [hasFadedOut, setHasFadedOut] = useState(false);
-  const [shouldFadeOut, setShouldFadeOut] = useState(false);
+  // Fade out: complete → wait 2.5s → fade 700ms → done
+  const [fadePhase, setFadePhase] = useState<'none' | 'fading' | 'done'>('none');
 
   useEffect(() => {
-    if (state.phase !== 'complete') {
-      setHasFadedOut(false);
-      setShouldFadeOut(false);
-      return;
-    }
-
-    // When complete, wait a moment to show completion state, then fade out
-    const timer = setTimeout(() => {
-      setShouldFadeOut(true);
-    }, 2500); // Show completion for 2.5 seconds before fading
-
-    return () => clearTimeout(timer);
+    if (state.phase !== 'complete') { setFadePhase('none'); return; }
+    const t = setTimeout(() => setFadePhase('fading'), 2500);
+    return () => clearTimeout(t);
   }, [state.phase]);
+
+  useEffect(() => {
+    if (fadePhase !== 'fading') return;
+    const t = setTimeout(() => setFadePhase('done'), 700);
+    return () => clearTimeout(t);
+  }, [fadePhase]);
 
   // Auto-scroll to items after fade completes
   useEffect(() => {
-    if (hasFadedOut && pendingCount > 0) {
-      // Scroll to the items section
+    if (fadePhase === 'done' && pendingCount > 0) {
       const itemsSection = document.querySelector('[data-learning-items]');
       if (itemsSection) {
         itemsSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
       }
     }
-  }, [hasFadedOut, pendingCount]);
+  }, [fadePhase, pendingCount]);
 
   // Hide conditions (after all hooks)
   if (hideWhenIdle && state.phase === 'idle' && agents.length === 0) {
     return null;
   }
 
-  if (hasFadedOut) {
+  if (fadePhase === 'done') {
     return null;
   }
 
-  // Derive display conditions
-  const showIdleState = state.phase === 'idle';
-  const showDeployingState = state.phase === 'launching' || state.phase === 'waiting' || state.phase === 'deploying';
-  const showAgents = state.phase === 'active' || state.phase === 'complete' || (agents.length > 0);
+  // Single derived display state — exactly one branch matches at a time
+  type DisplayState = 'idle' | 'deploying' | 'active' | 'error';
+  const displayState: DisplayState = (() => {
+    if (state.phase === 'error' && agents.length === 0) return 'error';
+    if (state.phase === 'active' || state.phase === 'complete' || agents.length > 0) return 'active';
+    if (state.phase === 'launching' || state.phase === 'waiting' || state.phase === 'deploying') return 'deploying';
+    return 'idle';
+  })();
   const showError = state.phase === 'error';
 
   // Cycle number for display
@@ -218,14 +225,9 @@ export function MissionDashboard({ slug, onLaunch, isLaunching, hideWhenIdle, pe
       <motion.div
         layout
         className={cn(
-          'transition-all duration-700 ease-out',
-          shouldFadeOut && 'opacity-0 scale-95'
+          'transition-opacity duration-700 ease-out',
+          fadePhase === 'fading' && 'opacity-0'
         )}
-        onTransitionEnd={(e) => {
-          if (shouldFadeOut && e.propertyName === 'opacity' && e.target === e.currentTarget) {
-            setHasFadedOut(true);
-          }
-        }}
       >
         {/* Main Header */}
         <header className="mb-8">
@@ -258,8 +260,7 @@ export function MissionDashboard({ slug, onLaunch, isLaunching, hideWhenIdle, pe
 
         {/* Content Area */}
         <AnimatePresence mode="wait">
-          {/* Idle State */}
-          {showIdleState && (
+          {displayState === 'idle' && (
             <motion.div
               key="idle"
               initial={{ opacity: 0 }}
@@ -271,8 +272,7 @@ export function MissionDashboard({ slug, onLaunch, isLaunching, hideWhenIdle, pe
             </motion.div>
           )}
 
-          {/* Deploying State */}
-          {showDeployingState && !showAgents && (
+          {displayState === 'deploying' && (
             <motion.div
               key="deploying"
               initial={{ opacity: 0 }}
@@ -284,8 +284,7 @@ export function MissionDashboard({ slug, onLaunch, isLaunching, hideWhenIdle, pe
             </motion.div>
           )}
 
-          {/* Error State (without agents) */}
-          {showError && !showAgents && (
+          {displayState === 'error' && (
             <motion.div
               key="error"
               initial={{ opacity: 0 }}
@@ -297,8 +296,7 @@ export function MissionDashboard({ slug, onLaunch, isLaunching, hideWhenIdle, pe
             </motion.div>
           )}
 
-          {/* Active / Complete State - Three Column Layout */}
-          {showAgents && (
+          {displayState === 'active' && (
             <motion.div
               key="active"
               initial={{ opacity: 0 }}
@@ -335,7 +333,10 @@ export function MissionDashboard({ slug, onLaunch, isLaunching, hideWhenIdle, pe
                       phase={state.phase}
                       agentCount={agents.length}
                       completedCount={completedCount}
+                      totalCount={totalCount}
                       startTime={startTime}
+                      totalSearches={agents.reduce((sum, a) => sum + a.events.filter(e => e.type === 'search').length, 0)}
+                      resourcesFound={agents.filter(a => a.result?.found).length}
                     />
                   </section>
 
@@ -679,73 +680,3 @@ function ResearchCompleteFooter({ savedCount, failedCount, onNewMission, isLaunc
   );
 }
 
-// Compact version for embedding
-interface CompactMissionDashboardProps {
-  slug: string;
-  onExpand?: () => void;
-}
-
-export function CompactMissionDashboard({ slug, onExpand }: CompactMissionDashboardProps) {
-  const { status, agents, completedCount, totalCount, isActive, isError, failedCount } =
-    useSwarmEvents(slug, true);
-
-  if (status === 'idle' && agents.length === 0) {
-    return null;
-  }
-
-  const runningCount = agents.filter((a) => a.status === 'running').length;
-
-  return (
-    <div className="bg-card border border-border p-4 text-sm">
-      <div className="flex items-center justify-between mb-2">
-        <span className="text-muted-foreground text-xs uppercase tracking-wider">Research Status</span>
-        <div className="flex items-center gap-2">
-          <div
-            className={cn(
-              'w-2 h-2 rounded-full',
-              isError
-                ? 'bg-destructive animate-pulse'
-                : isActive
-                  ? 'bg-warning animate-pulse'
-                  : status === 'complete'
-                    ? 'bg-success'
-                    : 'bg-muted-foreground/50'
-            )}
-          />
-          <span
-            className={cn(
-              'text-xs',
-              isError
-                ? 'text-destructive'
-                : isActive
-                  ? 'text-warning'
-                  : status === 'complete'
-                    ? 'text-success'
-                    : 'text-muted-foreground'
-            )}
-          >
-            {isError ? 'Error' : isActive ? 'Running' : status === 'complete' ? 'Done' : 'Idle'}
-          </span>
-        </div>
-      </div>
-
-      <div className="flex items-center justify-between text-foreground">
-        <div className="flex items-center gap-4">
-          <span>
-            <span className="text-success">{completedCount}</span>
-            <span className="text-muted-foreground mx-1">/</span>
-            <span>{totalCount}</span>
-          </span>
-          {runningCount > 0 && <span className="text-warning text-xs">{runningCount} active</span>}
-          {failedCount > 0 && <span className="text-destructive text-xs">{failedCount} failed</span>}
-        </div>
-
-        {onExpand && (
-          <button onClick={onExpand} className="text-muted-foreground hover:text-foreground transition-colors text-xs">
-            Expand
-          </button>
-        )}
-      </div>
-    </div>
-  );
-}

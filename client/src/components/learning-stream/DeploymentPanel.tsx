@@ -10,7 +10,10 @@ interface DeploymentPanelProps {
   phase: DashboardState['phase'];
   agentCount: number;
   completedCount: number;
+  totalCount: number;
   startTime?: number;
+  totalSearches: number;
+  resourcesFound: number;
 }
 
 /**
@@ -21,7 +24,10 @@ export const DeploymentPanel = memo(function DeploymentPanel({
   phase,
   agentCount,
   completedCount,
+  totalCount,
   startTime,
+  totalSearches,
+  resourcesFound,
 }: DeploymentPanelProps) {
   const isActive = phase === 'active' || phase === 'deploying' || phase === 'launching' || phase === 'waiting';
   const isComplete = phase === 'complete';
@@ -43,9 +49,6 @@ export const DeploymentPanel = memo(function DeploymentPanel({
 
   // Select apparatus image based on state
   const apparatusImg = isActive ? apparatusActiveImg : apparatusIdleImg;
-
-  // Calculate depth level based on completed agents
-  const depthLevel = completedCount >= 8 ? 'Level 4' : completedCount >= 5 ? 'Level 3' : completedCount >= 2 ? 'Level 2' : 'Level 1';
 
   return (
     <div>
@@ -97,23 +100,32 @@ export const DeploymentPanel = memo(function DeploymentPanel({
               </motion.div>
             )}
           </motion.div>
-
-          <p className="mt-6 font-serif italic text-lg text-muted-foreground text-center">
-            Fig 1.1: Active Neural Apparatus
-          </p>
         </div>
 
         {/* Stats */}
         <div className="mt-6 space-y-3 pt-6 border-t border-border">
-          <StatRow label="Latency" value="12ms" />
-          <StatRow label="Depth" value={depthLevel} />
-          <StatRow label="Elapsed" value={formatElapsed(elapsed)} />
+          <StatRow
+            label="Agents"
+            value={totalCount > 0 ? `${completedCount} / ${totalCount}` : `${agentCount}`}
+            description="Completed / total deployed"
+          />
+          <StatRow
+            label="Web Searches"
+            value={String(totalSearches)}
+            description="Queries sent across all agents"
+          />
+          <StatRow
+            label="Resources Found"
+            value={String(resourcesFound)}
+            description="New learning resources discovered"
+            highlight={resourcesFound > 0}
+          />
+          <StatRow
+            label="Elapsed"
+            value={formatElapsed(elapsed)}
+            description="Time since swarm launch"
+          />
         </div>
-      </div>
-
-      {/* Mission Brief */}
-      <div className="mt-6 text-xs text-muted-foreground leading-relaxed pl-3 border-l border-border">
-        <span className="font-bold text-foreground">Mission Brief:</span> Execute comprehensive analysis with emphasis on scope definition and quality criteria validation.
       </div>
     </div>
   );
@@ -122,13 +134,24 @@ export const DeploymentPanel = memo(function DeploymentPanel({
 interface StatRowProps {
   label: string;
   value: string;
+  description: string;
+  highlight?: boolean;
 }
 
-function StatRow({ label, value }: StatRowProps) {
+function StatRow({ label, value, description, highlight }: StatRowProps) {
   return (
-    <div className="flex justify-between items-center text-xs">
+    <div className="group/stat relative flex justify-between items-center text-xs py-1">
       <span className="text-muted-foreground uppercase tracking-wider">{label}</span>
-      <span className="font-semibold text-foreground">{value}</span>
+      <span className={`font-semibold ${highlight ? 'text-success' : 'text-foreground'}`}>
+        {value}
+      </span>
+
+      {/* Tooltip on hover */}
+      <div className="absolute bottom-full left-0 right-0 mb-1 opacity-0 group-hover/stat:opacity-100 transition-opacity pointer-events-none z-10">
+        <div className="bg-foreground text-background text-[10px] px-2 py-1 rounded shadow-lg whitespace-nowrap w-fit">
+          {description}
+        </div>
+      </div>
     </div>
   );
 }
