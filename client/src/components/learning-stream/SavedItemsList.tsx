@@ -1,16 +1,8 @@
 import { ExternalLink, Star, Trash2, User, Clock, Loader2 } from 'lucide-react';
 import { tokens } from '@/lib/colors';
 import { TactileButton } from '@/components/ui/tactile-button';
+import { ResourceTypeBadge } from './ResourceTypeBadge';
 import type { LearningStreamItem } from '@/hooks/useLearningStream';
-
-const RESOURCE_TYPE_COLORS: Record<string, { bg: string; text: string }> = {
-  Podcast: { bg: tokens.secondarySoft, text: tokens.secondary },
-  Video: { bg: tokens.dangerSoft, text: tokens.danger },
-  'Academic Paper': { bg: tokens.successSoft, text: tokens.success },
-  Substack: { bg: tokens.warningSoft, text: tokens.warning },
-  Twitter: { bg: tokens.infoSoft, text: tokens.info },
-  Newsletter: { bg: tokens.warningSoft, text: tokens.warning },
-};
 
 interface SavedItemsListProps {
   items: LearningStreamItem[];
@@ -49,7 +41,6 @@ export function SavedItemsList({ items, isLoading, onGrade, onDiscard }: SavedIt
 
 function SavedCard({ item, onGrade, onDiscard }: { item: LearningStreamItem; onGrade: (item: LearningStreamItem) => void; onDiscard: (item: LearningStreamItem) => void }) {
   const resourceType = item.type || 'Unknown';
-  const typeColors = RESOURCE_TYPE_COLORS[resourceType] || { bg: tokens.surfaceAlt, text: tokens.textSecondary };
 
   return (
     <div className="bg-card-elevated rounded-xl shadow-card overflow-hidden opacity-90 hover:opacity-100 transition-opacity">
@@ -58,12 +49,7 @@ function SavedCard({ item, onGrade, onDiscard }: { item: LearningStreamItem; onG
         <div className="flex-1 px-8 py-6 basis-[70%]">
           {/* Type badge + metadata */}
           <div className="flex items-center gap-3 mb-3 flex-wrap">
-            <span
-              className="inline-flex px-2.5 py-1 rounded text-[10px] font-semibold uppercase tracking-wider"
-              style={{ backgroundColor: typeColors.bg, color: typeColors.text }}
-            >
-              {resourceType}
-            </span>
+            <ResourceTypeBadge type={resourceType} />
             {item.author && (
               <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
                 <User size={12} />

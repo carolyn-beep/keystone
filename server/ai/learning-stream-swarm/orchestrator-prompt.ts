@@ -49,6 +49,11 @@ function generateTaskAssignments(): string {
                   i === 1 ? 'conference talk, lecture, or presentation' :
                   'any educational video, explainer, or tutorial on the topic';
           break;
+        case 'News':
+          focus = i === 0 ? 'recent headline or breaking story' :
+                  i === 1 ? 'investigative or in-depth news report' :
+                  'industry news or announcement';
+          break;
         default:
           focus = 'general coverage';
       }
@@ -121,6 +126,7 @@ Return ONLY the JSON result.
 ## Agent Selection
 - For Video tasks: use subagent_type: "video-researcher" (uses YouTube metadata API)
 - For Podcast tasks: use subagent_type: "podcast-researcher" (searches for podcast episodes, verifies with WebFetch or YouTube API)
+- For News tasks: use subagent_type: "news-researcher" (finds recent news articles and headlines)
 - For all other tasks: use subagent_type: "web-researcher" (uses general web search)
 
 ## Step 3: Process Results

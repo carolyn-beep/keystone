@@ -1,15 +1,7 @@
 import { ExternalLink, Star, Loader2 } from 'lucide-react';
 import { tokens } from '@/lib/colors';
+import { ResourceTypeBadge } from './ResourceTypeBadge';
 import type { LearningStreamItem } from '@/hooks/useLearningStream';
-
-const RESOURCE_TYPE_COLORS: Record<string, { bg: string; text: string }> = {
-  Podcast: { bg: tokens.secondarySoft, text: tokens.secondary },
-  Video: { bg: tokens.dangerSoft, text: tokens.danger },
-  'Academic Paper': { bg: tokens.successSoft, text: tokens.success },
-  Substack: { bg: tokens.warningSoft, text: tokens.warning },
-  Twitter: { bg: tokens.infoSoft, text: tokens.info },
-  Newsletter: { bg: tokens.warningSoft, text: tokens.warning },
-};
 
 interface GradedItemsListProps {
   items: LearningStreamItem[];
@@ -49,17 +41,10 @@ export function GradedItemsList({ items, isLoading }: GradedItemsListProps) {
 
 function GradedRow({ item }: { item: LearningStreamItem }) {
   const resourceType = item.type || 'Unknown';
-  const typeColors = RESOURCE_TYPE_COLORS[resourceType] || { bg: tokens.surfaceAlt, text: tokens.textSecondary };
 
   return (
     <div className="px-8 py-4 flex items-center gap-4">
-      {/* Type badge */}
-      <span
-        className="inline-flex px-2 py-0.5 rounded text-[10px] font-semibold uppercase tracking-wider shrink-0"
-        style={{ backgroundColor: typeColors.bg, color: typeColors.text }}
-      >
-        {resourceType}
-      </span>
+      <ResourceTypeBadge type={resourceType} size="compact" className="shrink-0" />
 
       {/* Title */}
       <span className="font-serif italic text-[15px] text-foreground truncate flex-1 min-w-0">

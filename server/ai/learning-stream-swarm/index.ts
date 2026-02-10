@@ -19,6 +19,7 @@ import { createLearningStreamMcpServer } from './mcp-server';
 import { webResearcherAgent } from './web-researcher-agent';
 import { videoResearcherAgent } from './video-researcher-agent';
 import { podcastResearcherAgent } from './podcast-researcher-agent';
+import { newsResearcherAgent } from './news-researcher-agent';
 import { buildOrchestratorPrompt } from './orchestrator-prompt';
 import type { SwarmResult, AgentInfo, SwarmEvent } from './types';
 import * as swarmEmitter from './event-emitter';
@@ -338,6 +339,7 @@ export async function runLearningStreamSwarm(
           'web-researcher': webResearcherAgent,
           'video-researcher': videoResearcherAgent,
           'podcast-researcher': podcastResearcherAgent,
+          'news-researcher': newsResearcherAgent,
         },
         allowedTools: [
           'Task',
@@ -670,7 +672,7 @@ function extractResultText(result: unknown): string | null {
  * Extract resource type from task description.
  */
 function extractResourceType(text: string): string {
-  const types = ['Substack', 'Academic Paper', 'Twitter', 'Podcast', 'Video'];
+  const types = ['Substack', 'Academic Paper', 'Twitter', 'Podcast', 'Video', 'News'];
   for (const type of types) {
     if (text.toLowerCase().includes(type.toLowerCase())) {
       return type;

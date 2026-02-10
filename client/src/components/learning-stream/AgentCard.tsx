@@ -10,6 +10,7 @@ const RESOURCE_LABELS: Record<string, string> = {
   Twitter: 'Twitter Scrape',
   Podcast: 'Podcast Analysis',
   Video: 'Video Analysis',
+  News: 'News Headlines',
   Unknown: 'Unknown',
 };
 

@@ -23,7 +23,7 @@ export interface BrainliftContext {
 }
 
 export interface LearningResourceItem {
-  type: 'Substack' | 'Twitter' | 'Academic Paper' | 'Podcast' | 'Video';
+  type: 'Substack' | 'Twitter' | 'Academic Paper' | 'Podcast' | 'Video' | 'News';
   author: string;
   topic: string;
   time: string;
@@ -63,6 +63,7 @@ export const RESOURCE_TYPE_WEIGHTS = {
   Twitter: 5,
   Video: 5,
   Podcast: 5,
+  News: 5,
 } as const;
 
 export type ResourceType = keyof typeof RESOURCE_TYPE_WEIGHTS;

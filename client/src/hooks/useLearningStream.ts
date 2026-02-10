@@ -5,7 +5,7 @@ export interface LearningStreamItem {
   id: number;
   brainliftId: number;
   // DB field names (actual API response)
-  type: string;                     // "Substack", "Twitter", "Academic Paper", "Podcast", "Video"
+  type: string;                     // "Substack", "Twitter", "Academic Paper", "Podcast", "Video", "News"
   author: string;
   topic: string;                    // Title/topic of the resource
   time: string;                     // "5 min", "15 min"

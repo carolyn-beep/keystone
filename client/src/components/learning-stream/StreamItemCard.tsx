@@ -2,17 +2,8 @@ import { createContext, useContext, useState, ReactNode } from 'react';
 import { ChevronDown, ChevronUp, ExternalLink, Bookmark, Star, X, User, Clock } from 'lucide-react';
 import { tokens } from '@/lib/colors';
 import { TactileButton } from '@/components/ui/tactile-button';
+import { ResourceTypeBadge } from './ResourceTypeBadge';
 import type { LearningStreamItem } from '@/hooks/useLearningStream';
-
-// Resource type badge colors
-const RESOURCE_TYPE_COLORS: Record<string, { bg: string; text: string }> = {
-  Podcast: { bg: tokens.secondarySoft, text: tokens.secondary },
-  Video: { bg: tokens.dangerSoft, text: tokens.danger },
-  'Academic Paper': { bg: tokens.successSoft, text: tokens.success },
-  Substack: { bg: tokens.warningSoft, text: tokens.warning },
-  Twitter: { bg: tokens.infoSoft, text: tokens.info },
-  Newsletter: { bg: tokens.warningSoft, text: tokens.warning },
-};
 
 // Source label mapping
 const SOURCE_LABELS: Record<string, string> = {
@@ -83,7 +74,6 @@ function Header() {
   const { item, isExpanded, setIsExpanded } = useStreamItemContext();
 
   const resourceType = item.type || 'Unknown';
-  const typeColors = RESOURCE_TYPE_COLORS[resourceType] || { bg: tokens.surfaceAlt, text: tokens.textSecondary };
   const relevance = getRelevanceInfo(item.relevanceScore);
   const sourceLabel = SOURCE_LABELS[item.source] || item.source;
 
@@ -96,13 +86,7 @@ function Header() {
       <div className="flex-1 px-10 py-8 basis-[70%]">
         {/* Type badge + metadata row */}
         <div className="flex items-center gap-3 mb-4 flex-wrap">
-          {/* Resource type badge */}
-          <span
-            className="inline-flex px-2.5 py-1 rounded text-[10px] font-semibold uppercase tracking-wider"
-            style={{ backgroundColor: typeColors.bg, color: typeColors.text }}
-          >
-            {resourceType}
-          </span>
+          <ResourceTypeBadge type={resourceType} />
 
           {item.author && (
             <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
