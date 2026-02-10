@@ -7,11 +7,12 @@ import { StreamProgressBar, StreamItemCard, GradeModal, MissionDashboard } from 
 interface LearningStreamTabProps {
   slug: string;
   canModify?: boolean;
+  setActiveTab: (tab: string) => void;
 }
 
 type ExitAnimation = 'bookmark' | 'grade' | 'discard' | null;
 
-export function LearningStreamTab({ slug, canModify = true }: LearningStreamTabProps) {
+export function LearningStreamTab({ slug, canModify = true, setActiveTab }: LearningStreamTabProps) {
   const {
     items,
     stats,
@@ -127,6 +128,10 @@ export function LearningStreamTab({ slug, canModify = true }: LearningStreamTabP
     await refresh();
   }, [refresh, canModify]);
 
+  const handleNavigate = useCallback((page: 'saved' | 'graded') => {
+    setActiveTab(page === 'saved' ? 'learning-saved' : 'learning-graded');
+  }, [setActiveTab]);
+
   // Loading state
   if (isLoading) {
     return (
@@ -153,7 +158,10 @@ export function LearningStreamTab({ slug, canModify = true }: LearningStreamTabP
 
       {hasItems && (
         <div className="max-w-3xl mx-auto space-y-4" data-learning-items>
-          <StreamProgressBar stats={stats} />
+          <StreamProgressBar
+            stats={stats}
+            onNavigate={handleNavigate}
+          />
 
           {stats.pending === 0 ? (
             <AllProcessedState onNewMission={handleLaunch} isLaunching={isRefreshing} />

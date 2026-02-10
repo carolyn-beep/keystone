@@ -1,4 +1,4 @@
-import { ComponentType } from 'react';
+import { ComponentType, useState } from 'react';
 import { Link, useLocation } from 'wouter';
 import { LogOut, ChevronLeft } from 'lucide-react';
 import { authClient } from '@/lib/auth-client';
@@ -9,6 +9,7 @@ export interface NavItem {
   label: string;
   icon?: ComponentType<{ size?: number; className?: string }>;
   adminOnly?: boolean;
+  children?: NavItem[];
 }
 
 interface AppSidebarProps {
@@ -42,6 +43,8 @@ export function AppSidebar({
   // Filter nav items based on admin status
   const visibleNavItems = navItems.filter(item => !item.adminOnly || isAdmin);
 
+  const [hoveredNavId, setHoveredNavId] = useState<string | null>(null);
+
   // Get initials for avatar
   const initials = session?.user?.name?.charAt(0).toUpperCase() || 'U';
 
@@ -62,15 +65,66 @@ export function AppSidebar({
 
       {/* Navigation Items */}
       <nav className="flex-1 px-3 py-2 space-y-2">
-        {visibleNavItems.map(item => (
-          <SidebarNavItem
-            key={item.id}
-            icon={item.icon}
-            label={item.label}
-            isActive={activeNavId === item.id}
-            onClick={() => onNavChange(item.id)}
-          />
-        ))}
+        {visibleNavItems.map(item => {
+          const childIds = item.children?.map(c => c.id) ?? [];
+          const sectionActive = activeNavId === item.id || childIds.includes(activeNavId) || hoveredNavId === item.id;
+
+          return (
+            <div
+              key={item.id}
+              onMouseEnter={item.children ? () => setHoveredNavId(item.id) : undefined}
+              onMouseLeave={item.children ? () => setHoveredNavId(null) : undefined}
+            >
+              <SidebarNavItem
+                icon={item.icon}
+                label={item.label}
+                isActive={activeNavId === item.id}
+                onClick={() => onNavChange(item.id)}
+              />
+              {item.children && (() => {
+                const filtered = item.children.filter(child => !child.adminOnly || isAdmin);
+                return (
+                  <div className={`sidebar-children-wrap mt-0.5 ${sectionActive ? 'is-open' : ''}`}>
+                    <div>
+                    {filtered.map((child, i) => {
+                      const isLast = i === filtered.length - 1;
+                      const ChildIcon = child.icon;
+                      return (
+                        <div
+                          key={child.id}
+                          className="relative sidebar-child-item"
+                          style={{ transitionDelay: sectionActive ? `${i * 60 + 80}ms` : '0ms' }}
+                        >
+                          {/* Vertical line continuation for non-last items */}
+                          {!isLast && (
+                            <div className="absolute left-[21px] top-0 bottom-0 border-l-2 border-primary" />
+                          )}
+                          {/* L-shaped curved connector */}
+                          <div className="absolute left-[21px] top-0 h-1/2 w-3.5 border-l-2 border-b-2 border-primary rounded-bl-lg" />
+
+                          <button
+                            onClick={() => onNavChange(child.id)}
+                            className="group w-full text-left pl-[42px] pr-3 py-1.5 flex items-center"
+                          >
+                            <span className={`flex items-center gap-2 px-2.5 py-1 rounded-md text-[11px] font-medium tracking-wide transition-colors duration-300 ${
+                              activeNavId === child.id
+                                ? 'text-sidebar-accent-foreground bg-sidebar-primary/15'
+                                : 'text-muted-foreground hover:text-sidebar-foreground hover:bg-sidebar-accent/50'
+                            }`}>
+                              {ChildIcon && <ChildIcon size={14} className="shrink-0" />}
+                              <span>{child.label}</span>
+                            </span>
+                          </button>
+                        </div>
+                      );
+                    })}
+                    </div>
+                  </div>
+                );
+              })()}
+            </div>
+          );
+        })}
       </nav>
 
       {/* Footer: User Menu */}

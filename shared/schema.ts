@@ -443,7 +443,7 @@ export const learningStreamItems = pgTable("learning_stream_items", {
   brainliftId: integer("brainlift_id").notNull().references(() => brainlifts.id, { onDelete: "cascade" }),
 
   // Source metadata
-  type: text("type").notNull(), // "Substack", "Twitter", "Blog", "Research", "Academic Paper"
+  type: text("type").notNull(), // "Substack", "Twitter", "Academic Paper", "Podcast", "Video"
   author: text("author").notNull(),
   topic: text("topic").notNull(), // Title or brief description
   time: text("time").notNull(), // "5 min", "15 min"

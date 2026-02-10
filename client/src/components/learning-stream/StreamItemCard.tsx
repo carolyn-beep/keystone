@@ -6,10 +6,8 @@ import type { LearningStreamItem } from '@/hooks/useLearningStream';
 
 // Resource type badge colors
 const RESOURCE_TYPE_COLORS: Record<string, { bg: string; text: string }> = {
-  Blog: { bg: tokens.infoSoft, text: tokens.info },
   Podcast: { bg: tokens.secondarySoft, text: tokens.secondary },
   Video: { bg: tokens.dangerSoft, text: tokens.danger },
-  Research: { bg: tokens.successSoft, text: tokens.success },
   'Academic Paper': { bg: tokens.successSoft, text: tokens.success },
   Substack: { bg: tokens.warningSoft, text: tokens.warning },
   Twitter: { bg: tokens.infoSoft, text: tokens.info },

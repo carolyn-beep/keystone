@@ -634,6 +634,32 @@
   animation: exit-discard 0.35s ease-out forwards;
 }
 
+/* Sidebar sub-item reveal/collapse */
+.sidebar-children-wrap {
+  display: grid;
+  grid-template-rows: 0fr;
+  transition: grid-template-rows 0.25s ease-out;
+}
+
+.sidebar-children-wrap.is-open {
+  grid-template-rows: 1fr;
+}
+
+.sidebar-children-wrap > div {
+  overflow: hidden;
+}
+
+.sidebar-children-wrap .sidebar-child-item {
+  opacity: 0;
+  transform: translateX(-4px);
+  transition: opacity 0.2s ease-out, transform 0.2s ease-out;
+}
+
+.sidebar-children-wrap.is-open .sidebar-child-item {
+  opacity: 1;
+  transform: translateX(0);
+}
+
 /* Reduced motion support for Learning Stream */
 @media (prefers-reduced-motion: reduce) {
   .animate-shimmer,
@@ -642,6 +668,27 @@
   .animate-exit-grade,
   .animate-exit-discard {
     animation: none;
+  }
+
+  .sidebar-children-wrap,
+  .sidebar-children-wrap .sidebar-child-item {
+    transition: none;
+  }
+
+  .sidebar-children-wrap {
+    grid-template-rows: 0fr;
+  }
+
+  .sidebar-children-wrap.is-open {
+    grid-template-rows: 1fr;
+  }
+
+  .sidebar-children-wrap .sidebar-child-item {
+    opacity: 0;
+  }
+
+  .sidebar-children-wrap.is-open .sidebar-child-item {
+    opacity: 1;
   }
 
   .animate-exit-bookmark,

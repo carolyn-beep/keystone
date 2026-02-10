@@ -8,6 +8,7 @@ import { PiCompassToolFill } from 'react-icons/pi';
 import { RiQuillPenAiFill } from 'react-icons/ri';
 import { FaBalanceScale } from 'react-icons/fa';
 import { MdDynamicFeed } from 'react-icons/md';
+import { IoBookmarks, IoRibbon } from 'react-icons/io5';
 import { tokens } from '@/lib/colors';
 import { useToast } from '@/hooks/use-toast';
 import { useBrainlift } from '@/hooks/useBrainlift';
@@ -20,6 +21,7 @@ import { NotBrainliftView } from '@/components/NotBrainliftView';
 import { BrainliftTab } from '@/components/BrainliftTab';
 import { SummariesTab } from '@/components/SummariesTab';
 import { LearningStreamTab } from '@/components/LearningStreamTab';
+import { SavedItemsPage, GradedItemsPage } from '@/components/learning-stream';
 import { usePDFExport } from '@/hooks/usePDFExport';
 import { useShareToken } from '@/hooks/useShareToken';
 import { SidebarLayout, AppSidebar, type NavItem } from '@/components/layout';
@@ -29,7 +31,7 @@ interface DashboardProps {
   isSharedView?: boolean;
 }
 
-const VALID_TABS = ['brainlift', 'grading', 'contradictions', 'learning', 'summaries'] as const;
+const VALID_TABS = ['brainlift', 'grading', 'contradictions', 'learning', 'learning-saved', 'learning-graded', 'summaries'] as const;
 type TabKey = typeof VALID_TABS[number];
 
 const NAV_ITEMS: NavItem[] = [
@@ -37,7 +39,16 @@ const NAV_ITEMS: NavItem[] = [
   { id: 'grading', label: 'DOK1 Facts', icon: PiCompassToolFill },
   { id: 'summaries', label: 'DOK2 Summaries', icon: RiQuillPenAiFill },
   { id: 'contradictions', label: 'Contradictions', icon: FaBalanceScale },
-  { id: 'learning', label: 'Learning Stream', icon: MdDynamicFeed, adminOnly: true },
+  {
+    id: 'learning',
+    label: 'Learning Stream',
+    icon: MdDynamicFeed,
+    adminOnly: true,
+    children: [
+      { id: 'learning-saved', label: 'Saved Items', icon: IoBookmarks },
+      { id: 'learning-graded', label: 'Graded Items', icon: IoRibbon },
+    ],
+  },
 ];
 
 export default function Dashboard({ slug, isSharedView = false }: DashboardProps) {
@@ -294,7 +305,15 @@ const { downloadBrainliftPDF } = usePDFExport();
 
       {/* Learning Stream Tab - AI-curated resources (Admin only) */}
       {!isNotBrainlift && activeTab === 'learning' && isAdmin && (
-        <LearningStreamTab slug={slug} canModify={canModify} />
+        <LearningStreamTab slug={slug} canModify={canModify} setActiveTab={setActiveTab} />
+      )}
+
+      {/* Learning Stream Sub-Pages (Admin only) */}
+      {!isNotBrainlift && activeTab === 'learning-saved' && isAdmin && (
+        <SavedItemsPage slug={slug} canModify={canModify} />
+      )}
+      {!isNotBrainlift && activeTab === 'learning-graded' && isAdmin && (
+        <GradedItemsPage slug={slug} />
       )}
 
       {/* Update Modal */}

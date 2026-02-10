@@ -5,7 +5,7 @@ export interface LearningStreamItem {
   id: number;
   brainliftId: number;
   // DB field names (actual API response)
-  type: string;                     // "Blog", "Podcast", "Video", "Research", etc.
+  type: string;                     // "Substack", "Twitter", "Academic Paper", "Podcast", "Video"
   author: string;
   topic: string;                    // Title/topic of the resource
   time: string;                     // "5 min", "15 min"
@@ -56,6 +56,8 @@ export function useLearningStream(slug: string) {
   const invalidateAll = () => {
     queryClient.invalidateQueries({ queryKey: ['learning-stream', slug] });
     queryClient.invalidateQueries({ queryKey: ['learning-stream-stats', slug] });
+    queryClient.invalidateQueries({ queryKey: ['learning-stream-bookmarked', slug] });
+    queryClient.invalidateQueries({ queryKey: ['learning-stream-graded', slug] });
   };
 
   // Bookmark mutation

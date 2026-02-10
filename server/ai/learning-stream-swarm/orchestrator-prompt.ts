@@ -40,16 +40,6 @@ function generateTaskAssignments(): string {
                   i === 1 ? 'educational thread with data/evidence' :
                   'thread discussing a specific fact';
           break;
-        case 'Blog':
-          focus = i === 0 ? 'technical deep-dive' :
-                  i === 1 ? 'practical how-to or guide' :
-                  'thought leadership piece';
-          break;
-        case 'Research':
-          focus = i === 0 ? 'industry report or white paper' :
-                  i === 1 ? 'case study with real examples' :
-                  'data-driven analysis';
-          break;
         case 'Podcast':
           focus = i === 0 ? 'interview with expert in the field' :
                   'educational episode on core topic';

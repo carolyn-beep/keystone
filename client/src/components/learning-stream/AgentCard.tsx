@@ -6,10 +6,8 @@ import { cn } from '@/lib/utils';
 // Resource type to display label mapping
 const RESOURCE_LABELS: Record<string, string> = {
   Substack: 'Substack Analysis',
-  'Academic Paper': 'Paper Synthesis',
+  'Academic Paper': 'Research Paper',
   Twitter: 'Twitter Scrape',
-  Blog: 'Blog Analysis',
-  Research: 'Research Scan',
   Podcast: 'Podcast Analysis',
   Video: 'Video Analysis',
   Unknown: 'Unknown',

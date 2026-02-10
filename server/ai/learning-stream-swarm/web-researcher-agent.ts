@@ -44,8 +44,6 @@ export const webResearcherAgent: AgentDefinition = {
 ## Resource Types
 - Substack: Long-form newsletters
 - Twitter: Threads with insights or single insightful tweets.
-- Blog: Technical/educational posts
-- Research: White papers, reports
 - Academic Paper: Peer-reviewed or preprints from arXiv/SSRN
 - Podcast/Video: Educational videos, lectures, how-to, video-essays.
 
@@ -54,7 +52,7 @@ Return ONLY this JSON:
 {
   "found": true,
   "resource": {
-    "type": "Substack|Twitter|Blog|Research|Academic Paper|Podcast|Video",
+    "type": "Substack|Twitter|Academic Paper|Podcast|Video",
     "author": "Author name",
     "topic": "Brief title (max 100 chars)",
     "time": "5 min|10 min|15 min|30 min|1 hour",

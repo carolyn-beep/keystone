@@ -68,7 +68,7 @@ const saveLearningItemTool = tool(
   'Save a researched learning resource to the learning stream',
   {
     brainliftId: z.number().describe('The brainlift ID'),
-    type: z.enum(['Substack', 'Twitter', 'Blog', 'Research', 'Academic Paper', 'Podcast', 'Video'])
+    type: z.enum(['Substack', 'Twitter', 'Academic Paper', 'Podcast', 'Video'])
       .describe('Type of resource'),
     author: z.string().describe('Author name'),
     topic: z.string().max(100).describe('Brief title or topic (max 100 chars)'),

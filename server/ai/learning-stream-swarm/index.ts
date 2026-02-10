@@ -670,7 +670,7 @@ function extractResultText(result: unknown): string | null {
  * Extract resource type from task description.
  */
 function extractResourceType(text: string): string {
-  const types = ['Substack', 'Academic Paper', 'Twitter', 'Blog', 'Research', 'Podcast', 'Video'];
+  const types = ['Substack', 'Academic Paper', 'Twitter', 'Podcast', 'Video'];
   for (const type of types) {
     if (text.toLowerCase().includes(type.toLowerCase())) {
       return type;
