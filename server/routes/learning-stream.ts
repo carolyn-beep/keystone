@@ -183,6 +183,44 @@ learningStreamRouter.post(
 );
 
 /**
+ * GET /api/brainlifts/:slug/learning-stream/:itemId/content
+ * Get extracted content for inline viewing.
+ * If content hasn't been extracted yet (old items), queues an extraction job on-demand.
+ */
+learningStreamRouter.get(
+  '/api/brainlifts/:slug/learning-stream/:itemId/content',
+  requireAuth,
+  requireBrainliftAccess,
+  asyncHandler(async (req, res) => {
+    const brainlift = req.brainlift!;
+    const itemId = parseInt(req.params.itemId);
+
+    if (isNaN(itemId)) {
+      throw new BadRequestError('Invalid item ID');
+    }
+
+    const item = await storage.getLearningStreamItemById(itemId, brainlift.id);
+    if (!item) {
+      throw new NotFoundError('Item not found');
+    }
+
+    if (item.extractedContent) {
+      res.json(item.extractedContent);
+    } else {
+      // Queue extraction on-demand (idempotent via jobKey — safe to call repeatedly)
+      const { withJob } = await import('../utils/withJob');
+      withJob('learning-stream:extract-content')
+        .forPayload({ itemId, brainliftId: brainlift.id, url: item.url })
+        .withOptions({ jobKey: `extract-content-${itemId}` })
+        .queue()
+        .catch(err => console.error('[Content Extract] Failed to queue on-demand:', err));
+
+      res.json({ contentType: 'pending' });
+    }
+  })
+);
+
+/**
  * POST /api/brainlifts/:slug/learning-stream/refresh
  * Trigger research to get new sources (only if no pending items)
  */

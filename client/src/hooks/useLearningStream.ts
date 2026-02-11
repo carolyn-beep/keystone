@@ -1,6 +1,16 @@
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { queryClient, apiRequest } from '@/lib/queryClient';
 
+export type ExtractedContent =
+  | { contentType: 'embed'; embedType: 'youtube'; embedId: string }
+  | { contentType: 'embed'; embedType: 'spotify'; embedId: string }
+  | { contentType: 'embed'; embedType: 'apple-podcast'; embedUrl: string }
+  | { contentType: 'embed'; embedType: 'tweet'; tweetId: string }
+  | { contentType: 'article'; markdown: string; title?: string; siteName?: string }
+  | { contentType: 'pdf'; url: string }
+  | { contentType: 'fallback'; reason: string }
+  | { contentType: 'pending' };
+
 export interface LearningStreamItem {
   id: number;
   brainliftId: number;
@@ -17,6 +27,7 @@ export interface LearningStreamItem {
   aiRationale: string | null;       // Why AI suggested this
   quality: number | null;           // Grade (1-5)
   alignment: 'yes' | 'no' | null;
+  extractedContent: ExtractedContent | null;
   createdAt: string;
   updatedAt: string;
 }

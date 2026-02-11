@@ -85,6 +85,13 @@
       "when": 1770577009358,
       "tag": "0011_broken_bishop",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1770814230931,
+      "tag": "0012_graceful_misty_knight",
+      "breakpoints": true
     }
   ]
 }

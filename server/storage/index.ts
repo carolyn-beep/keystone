@@ -91,11 +91,13 @@ export const storage = {
   // Learning Stream
   addLearningStreamItem: learningStreamStorage.addLearningStreamItem,
   getLearningStreamItems: learningStreamStorage.getLearningStreamItems,
+  getLearningStreamItemById: learningStreamStorage.getLearningStreamItemById,
   updateLearningStreamItemStatus: learningStreamStorage.updateLearningStreamItemStatus,
   gradeLearningStreamItem: learningStreamStorage.gradeLearningStreamItem,
   getLearningStreamStats: learningStreamStorage.getLearningStreamStats,
   hasResearchJobPending: learningStreamStorage.hasResearchJobPending,
   checkLearningStreamDuplicate: learningStreamStorage.checkLearningStreamDuplicate,
+  cacheExtractedContent: learningStreamStorage.cacheExtractedContent,
 };
 
 // Export individual modules for direct access if needed

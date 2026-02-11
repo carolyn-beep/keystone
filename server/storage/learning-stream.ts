@@ -3,6 +3,8 @@ import {
   learningStreamItems,
   type LearningStreamItem, type NewLearningStreamItem
 } from './base';
+import type { ExtractedContent } from '@shared/schema';
+import { withJob } from '../utils/withJob';
 import { pool } from '../db';
 import { z } from 'zod';
 
@@ -51,6 +53,12 @@ export async function addLearningStreamItem(
       relevanceScore: item.relevanceScore || null,
       aiRationale: item.aiRationale || null,
     }).returning();
+
+    // Fire-and-forget: queue content extraction in background
+    withJob('learning-stream:extract-content')
+      .forPayload({ itemId: inserted.id, brainliftId, url: inserted.url })
+      .queue()
+      .catch(err => console.error('[Content Extract] Failed to queue:', err));
 
     return inserted;
   } catch (error: any) {
@@ -214,4 +222,39 @@ export async function checkLearningStreamDuplicate(
     .limit(1);
 
   return !!existing;
+}
+
+/**
+ * Get a single learning stream item by ID (IDOR-safe via brainliftId check).
+ */
+export async function getLearningStreamItemById(
+  itemId: number,
+  brainliftId: number
+): Promise<LearningStreamItem | null> {
+  const [item] = await db.select()
+    .from(learningStreamItems)
+    .where(and(
+      eq(learningStreamItems.id, itemId),
+      eq(learningStreamItems.brainliftId, brainliftId)
+    ))
+    .limit(1);
+
+  return item || null;
+}
+
+/**
+ * Cache extracted content for inline viewing.
+ * IDOR-safe: includes brainliftId in the WHERE clause.
+ */
+export async function cacheExtractedContent(
+  itemId: number,
+  brainliftId: number,
+  content: ExtractedContent
+): Promise<void> {
+  await db.update(learningStreamItems)
+    .set({ extractedContent: content, updatedAt: new Date() })
+    .where(and(
+      eq(learningStreamItems.id, itemId),
+      eq(learningStreamItems.brainliftId, brainliftId)
+    ));
 }

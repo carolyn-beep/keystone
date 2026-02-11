@@ -10,7 +10,7 @@ export type {
   FactWithVerification, LLMModel, LlmFeedback, ModelAccuracyStats,
   FactRedundancyGroup, InsertFactRedundancyGroup, RedundancyStatus,
   LearningStreamItem, NewLearningStreamItem,
-  AuthContext
+  ExtractedContent, AuthContext
 } from "@shared/schema";
 
 export {

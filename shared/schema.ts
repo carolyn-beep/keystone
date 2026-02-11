@@ -437,6 +437,16 @@ export const factRedundancyGroupsRelations = relations(factRedundancyGroups, ({ 
   }),
 }));
 
+// Learning Stream - Extracted content types (discriminated union)
+export type ExtractedContent =
+  | { contentType: 'embed'; embedType: 'youtube'; embedId: string }
+  | { contentType: 'embed'; embedType: 'spotify'; embedId: string }
+  | { contentType: 'embed'; embedType: 'apple-podcast'; embedUrl: string }
+  | { contentType: 'embed'; embedType: 'tweet'; tweetId: string }
+  | { contentType: 'article'; markdown: string; title?: string; siteName?: string }
+  | { contentType: 'pdf'; url: string }
+  | { contentType: 'fallback'; reason: string };
+
 // Learning Stream - Automated research feed items
 export const learningStreamItems = pgTable("learning_stream_items", {
   id: serial("id").primaryKey(),
@@ -463,6 +473,9 @@ export const learningStreamItems = pgTable("learning_stream_items", {
   // AI metadata
   relevanceScore: text("relevance_score"), // "0.85" from AI classification
   aiRationale: text("ai_rationale"), // Why AI suggested this
+
+  // Cached extracted content for inline viewing
+  extractedContent: jsonb("extracted_content").$type<ExtractedContent | null>(),
 
   // Timestamps
   createdAt: timestamp("created_at").defaultNow().notNull(),

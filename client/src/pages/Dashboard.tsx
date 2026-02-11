@@ -63,6 +63,13 @@ export default function Dashboard({ slug, isSharedView = false }: DashboardProps
     return tab && VALID_TABS.includes(tab as TabKey) ? tab : 'grading';
   }, [searchString]);
 
+  // URL-synced expanded item (?view=123)
+  const viewingItemId = useMemo(() => {
+    const params = new URLSearchParams(searchString);
+    const id = params.get('view');
+    return id ? parseInt(id, 10) : null;
+  }, [searchString]);
+
   const setActiveTab = useCallback((tab: string) => {
     const params = new URLSearchParams(window.location.search);
     if (tab === 'grading') {
@@ -70,10 +77,25 @@ export default function Dashboard({ slug, isSharedView = false }: DashboardProps
     } else {
       params.set('tab', tab);
     }
+    params.delete('view'); // Clear view when switching tabs
     const newSearch = params.toString();
     const newUrl = newSearch ? `?${newSearch}` : window.location.pathname;
     window.history.replaceState(null, '', newUrl);
     // Force re-render by dispatching a popstate event
+    window.dispatchEvent(new PopStateEvent('popstate'));
+  }, []);
+
+  const setViewingItemId = useCallback((id: number | null) => {
+    const params = new URLSearchParams(window.location.search);
+    if (id) {
+      params.set('view', String(id));
+    } else {
+      params.delete('view');
+    }
+    const newSearch = params.toString();
+    const newUrl = newSearch ? `?${newSearch}` : window.location.pathname;
+    // pushState so back button closes the expanded view
+    window.history.pushState(null, '', newUrl);
     window.dispatchEvent(new PopStateEvent('popstate'));
   }, []);
 
@@ -305,15 +327,15 @@ const { downloadBrainliftPDF } = usePDFExport();
 
       {/* Learning Stream Tab - AI-curated resources (Admin only) */}
       {!isNotBrainlift && activeTab === 'learning' && isAdmin && (
-        <LearningStreamTab slug={slug} canModify={canModify} setActiveTab={setActiveTab} />
+        <LearningStreamTab slug={slug} canModify={canModify} setActiveTab={setActiveTab} viewingItemId={viewingItemId} setViewingItemId={setViewingItemId} />
       )}
 
       {/* Learning Stream Sub-Pages (Admin only) */}
       {!isNotBrainlift && activeTab === 'learning-saved' && isAdmin && (
-        <SavedItemsPage slug={slug} canModify={canModify} />
+        <SavedItemsPage slug={slug} canModify={canModify} viewingItemId={viewingItemId} setViewingItemId={setViewingItemId} />
       )}
       {!isNotBrainlift && activeTab === 'learning-graded' && isAdmin && (
-        <GradedItemsPage slug={slug} />
+        <GradedItemsPage slug={slug} viewingItemId={viewingItemId} setViewingItemId={setViewingItemId} />
       )}
 
       {/* Update Modal */}

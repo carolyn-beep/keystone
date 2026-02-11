@@ -1,4 +1,5 @@
 import { createContext, useContext, useState, ReactNode } from 'react';
+import { motion } from 'framer-motion';
 import { ChevronDown, ChevronUp, ExternalLink, Bookmark, Star, X, User, Clock } from 'lucide-react';
 import { tokens } from '@/lib/colors';
 import { TactileButton } from '@/components/ui/tactile-button';
@@ -26,8 +27,8 @@ function getRelevanceInfo(score: string | null) {
 // Context for compound component
 interface StreamItemContextValue {
   item: LearningStreamItem;
-  isExpanded: boolean;
-  setIsExpanded: (expanded: boolean) => void;
+  isExpandedRationale: boolean;
+  setIsExpandedRationale: (expanded: boolean) => void;
 }
 
 const StreamItemContext = createContext<StreamItemContextValue | null>(null);
@@ -47,7 +48,7 @@ interface RootProps {
 }
 
 function Root({ item, children, exitAnimation, onAnimationEnd }: RootProps) {
-  const [isExpanded, setIsExpanded] = useState(false);
+  const [isExpandedRationale, setIsExpandedRationale] = useState(false);
 
   const animationClass = exitAnimation
     ? exitAnimation === 'bookmark'
@@ -58,7 +59,7 @@ function Root({ item, children, exitAnimation, onAnimationEnd }: RootProps) {
     : '';
 
   return (
-    <StreamItemContext.Provider value={{ item, isExpanded, setIsExpanded }}>
+    <StreamItemContext.Provider value={{ item, isExpandedRationale, setIsExpandedRationale }}>
       <div
         className={`bg-card-elevated rounded-xl shadow-card overflow-hidden transition-all duration-200 ${animationClass}`}
         onAnimationEnd={onAnimationEnd}
@@ -71,7 +72,7 @@ function Root({ item, children, exitAnimation, onAnimationEnd }: RootProps) {
 
 // Header component with 70/30 split
 function Header() {
-  const { item, isExpanded, setIsExpanded } = useStreamItemContext();
+  const { item, isExpandedRationale, setIsExpandedRationale } = useStreamItemContext();
 
   const resourceType = item.type || 'Unknown';
   const relevance = getRelevanceInfo(item.relevanceScore);
@@ -123,13 +124,13 @@ function Header() {
         {item.aiRationale && (
           <div>
             <button
-              onClick={() => setIsExpanded(!isExpanded)}
+              onClick={(e) => { e.stopPropagation(); setIsExpandedRationale(!isExpandedRationale); }}
               className="flex items-center gap-1.5 text-[10px] uppercase tracking-[0.35em] text-muted-foreground hover:text-foreground transition-colors bg-transparent border-none cursor-pointer p-0 font-semibold"
             >
-              {isExpanded ? 'Hide rationale' : 'Why this matters'}
-              {isExpanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+              {isExpandedRationale ? 'Hide rationale' : 'Why this matters'}
+              {isExpandedRationale ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
             </button>
-            {isExpanded && (
+            {isExpandedRationale && (
               <p className="mt-3 text-sm text-muted-foreground leading-relaxed m-0 pl-4 border-l-2 border-border">
                 {item.aiRationale}
               </p>
@@ -179,20 +180,20 @@ function Header() {
 
 // Rationale component (standalone, not in header)
 function Rationale() {
-  const { item, isExpanded, setIsExpanded } = useStreamItemContext();
+  const { item, isExpandedRationale, setIsExpandedRationale } = useStreamItemContext();
 
   if (!item.aiRationale) return null;
 
   return (
     <div className="px-10 pb-4">
       <button
-        onClick={() => setIsExpanded(!isExpanded)}
+        onClick={(e) => { e.stopPropagation(); setIsExpandedRationale(!isExpandedRationale); }}
         className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors bg-transparent border-none cursor-pointer p-0"
       >
         <span className="italic">Why this matters</span>
-        {isExpanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+        {isExpandedRationale ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
       </button>
-      {isExpanded && (
+      {isExpandedRationale && (
         <p className="mt-2 text-sm text-muted-foreground leading-relaxed m-0 pl-0.5 border-l-2 border-primary/20 ml-0.5 py-1">
           {item.aiRationale}
         </p>
@@ -215,37 +216,43 @@ function Actions({ onBookmark, onGrade, onDiscard, isBookmarking, isProcessing }
   const disabled = isBookmarking || isProcessing;
 
   return (
-    <div className="px-10 py-5 border-t border-border flex items-center justify-between bg-sidebar/30">
+    <div className="px-10 py-5 border-t border-border flex items-center justify-between bg-sidebar/30" onClick={(e) => e.stopPropagation()}>
       <div className="flex items-center gap-3">
-        <TactileButton
-          variant="raised"
-          onClick={onBookmark}
-          disabled={disabled}
-          aria-label="Save to reading list"
-          className="flex items-center gap-2 text-[13px]"
-        >
-          <Bookmark size={15} />
-          Save
-        </TactileButton>
-        <TactileButton
-          variant="raised"
-          onClick={onGrade}
-          disabled={disabled}
-          aria-label="Grade this resource"
-          className="flex items-center gap-2 text-[13px]"
-        >
-          <Star size={15} />
-          Grade
-        </TactileButton>
-        <button
-          onClick={onDiscard}
-          disabled={disabled}
-          aria-label="Skip this resource"
-          className="flex items-center gap-1.5 px-4 py-2.5 rounded-lg text-[13px] font-medium transition-all bg-transparent text-muted-foreground hover:bg-muted hover:text-foreground disabled:opacity-50 disabled:cursor-not-allowed border border-border"
-        >
-          <X size={15} />
-          Skip
-        </button>
+        <motion.div layoutId={`action-save-${item.id}`}>
+          <TactileButton
+            variant="raised"
+            onClick={onBookmark}
+            disabled={disabled}
+            aria-label="Save to reading list"
+            className="flex items-center gap-2 text-[13px]"
+          >
+            <Bookmark size={15} />
+            Save
+          </TactileButton>
+        </motion.div>
+        <motion.div layoutId={`action-grade-${item.id}`}>
+          <TactileButton
+            variant="raised"
+            onClick={onGrade}
+            disabled={disabled}
+            aria-label="Grade this resource"
+            className="flex items-center gap-2 text-[13px]"
+          >
+            <Star size={15} />
+            Grade
+          </TactileButton>
+        </motion.div>
+        <motion.div layoutId={`action-skip-${item.id}`}>
+          <button
+            onClick={onDiscard}
+            disabled={disabled}
+            aria-label="Discard this resource"
+            className="flex items-center gap-1.5 px-4 py-2.5 rounded-lg text-[13px] font-medium transition-all bg-transparent text-muted-foreground hover:bg-muted hover:text-foreground disabled:opacity-50 disabled:cursor-not-allowed border border-border"
+          >
+            <X size={15} />
+            Discard
+          </button>
+        </motion.div>
       </div>
 
       {item.url && (

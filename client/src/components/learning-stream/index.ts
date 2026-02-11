@@ -5,6 +5,8 @@ export { GradeModal } from './GradeModal';
 export { MissionDashboard } from './MissionDashboard';
 export { AgentUnit, PlaceholderUnit } from './AgentUnit';
 export { AgentInspectModal } from './AgentInspectModal';
+export { ContentViewer } from './ContentViewer';
+export { ExpandedItemView } from './ExpandedItemView';
 export { SavedItemsList } from './SavedItemsList';
 export { GradedItemsList } from './GradedItemsList';
 export { SavedItemsPage } from './SavedItemsPage';

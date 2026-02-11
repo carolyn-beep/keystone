@@ -1,7 +1,8 @@
+import { motion } from 'framer-motion';
 import { ExternalLink, Star, Trash2, User, Clock, Loader2 } from 'lucide-react';
-import { tokens } from '@/lib/colors';
 import { TactileButton } from '@/components/ui/tactile-button';
 import { ResourceTypeBadge } from './ResourceTypeBadge';
+import { ExpandedItemView } from './ExpandedItemView';
 import type { LearningStreamItem } from '@/hooks/useLearningStream';
 
 interface SavedItemsListProps {
@@ -9,9 +10,33 @@ interface SavedItemsListProps {
   isLoading: boolean;
   onGrade: (item: LearningStreamItem) => void;
   onDiscard: (item: LearningStreamItem) => void;
+  viewingItem: LearningStreamItem | null;
+  slug: string;
+  onCloseViewing: () => void;
+  onViewItem: (item: LearningStreamItem) => void;
+  onGradeFromExpanded: (item: LearningStreamItem) => void;
+  onDiscardFromExpanded: (item: LearningStreamItem) => void;
 }
 
-export function SavedItemsList({ items, isLoading, onGrade, onDiscard }: SavedItemsListProps) {
+const collapseTransition = {
+  opacity: { duration: 0.2 },
+  height: { duration: 0.35 },
+  marginBottom: { duration: 0.35 },
+  layout: { type: 'spring' as const, duration: 0.5, bounce: 0.15 },
+};
+
+export function SavedItemsList({
+  items,
+  isLoading,
+  onGrade,
+  onDiscard,
+  viewingItem,
+  slug,
+  onCloseViewing,
+  onViewItem,
+  onGradeFromExpanded,
+  onDiscardFromExpanded,
+}: SavedItemsListProps) {
   if (isLoading) {
     return (
       <div className="flex items-center justify-center py-12">
@@ -31,19 +56,64 @@ export function SavedItemsList({ items, isLoading, onGrade, onDiscard }: SavedIt
   }
 
   return (
-    <div className="flex flex-col gap-3">
-      {items.map((item) => (
-        <SavedCard key={item.id} item={item} onGrade={onGrade} onDiscard={onDiscard} />
-      ))}
+    <div className="flex flex-col">
+      {items.map((item, index) => {
+        const isSelected = viewingItem?.id === item.id;
+        const isCollapsing = !!viewingItem && !isSelected;
+        const prevItem = items[index - 1] ?? null;
+        const nextItem = items[index + 1] ?? null;
+
+        return (
+          <motion.div
+            key={item.id}
+            layoutId={`stream-item-${item.id}`}
+            animate={isCollapsing
+              ? { opacity: 0, height: 0, marginBottom: 0 }
+              : { opacity: 1, height: 'auto', marginBottom: 12 }}
+            style={{
+              overflow: isCollapsing ? 'hidden' : 'visible',
+              pointerEvents: isCollapsing ? 'none' : 'auto',
+            }}
+            transition={collapseTransition}
+          >
+            {isSelected ? (
+              <ExpandedItemView
+                item={item}
+                slug={slug}
+                onClose={onCloseViewing}
+                onGrade={onGradeFromExpanded}
+                onDiscard={onDiscardFromExpanded}
+                onBack={prevItem ? () => onViewItem(prevItem) : undefined}
+                onNext={nextItem ? () => onViewItem(nextItem) : undefined}
+              />
+            ) : (
+              <SavedCard
+                item={item}
+                onGrade={onGrade}
+                onDiscard={onDiscard}
+                onClick={() => onViewItem(item)}
+              />
+            )}
+          </motion.div>
+        );
+      })}
     </div>
   );
 }
 
-function SavedCard({ item, onGrade, onDiscard }: { item: LearningStreamItem; onGrade: (item: LearningStreamItem) => void; onDiscard: (item: LearningStreamItem) => void }) {
+function SavedCard({ item, onGrade, onDiscard, onClick }: {
+  item: LearningStreamItem;
+  onGrade: (item: LearningStreamItem) => void;
+  onDiscard: (item: LearningStreamItem) => void;
+  onClick: () => void;
+}) {
   const resourceType = item.type || 'Unknown';
 
   return (
-    <div className="bg-card-elevated rounded-xl shadow-card overflow-hidden opacity-90 hover:opacity-100 transition-opacity">
+    <div
+      className="bg-card-elevated rounded-xl shadow-card overflow-hidden opacity-90 hover:opacity-100 transition-opacity cursor-pointer"
+      onClick={onClick}
+    >
       <div className="flex">
         {/* Left: Content - 70% */}
         <div className="flex-1 px-8 py-6 basis-[70%]">
@@ -92,25 +162,29 @@ function SavedCard({ item, onGrade, onDiscard }: { item: LearningStreamItem; onG
       </div>
 
       {/* Footer strip */}
-      <div className="px-8 py-3 border-t border-border flex items-center justify-between bg-sidebar/20">
+      <div className="px-8 py-3 border-t border-border flex items-center justify-between bg-sidebar/20" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center gap-3">
-          <TactileButton
-            variant="raised"
-            onClick={() => onGrade(item)}
-            className="flex items-center gap-2 text-[12px] px-4 py-2"
-          >
-            <Star size={14} />
-            Grade
-          </TactileButton>
+          <motion.div layoutId={`action-grade-${item.id}`}>
+            <TactileButton
+              variant="raised"
+              onClick={() => onGrade(item)}
+              className="flex items-center gap-2 text-[12px] px-4 py-2"
+            >
+              <Star size={14} />
+              Grade
+            </TactileButton>
+          </motion.div>
 
-          <TactileButton
-            variant="inset"
-            onClick={() => onDiscard(item)}
-            className="flex items-center gap-2 text-[12px] px-4 py-2"
-          >
-            <Trash2 size={14} />
-            Discard
-          </TactileButton>
+          <motion.div layoutId={`action-skip-${item.id}`}>
+            <TactileButton
+              variant="inset"
+              onClick={() => onDiscard(item)}
+              className="flex items-center gap-2 text-[12px] px-4 py-2"
+            >
+              <Trash2 size={14} />
+              Discard
+            </TactileButton>
+          </motion.div>
         </div>
 
         {item.url && (
