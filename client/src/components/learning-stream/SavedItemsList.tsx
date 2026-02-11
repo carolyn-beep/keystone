@@ -1,5 +1,5 @@
 import { motion } from 'framer-motion';
-import { ExternalLink, Star, Trash2, User, Clock, Loader2 } from 'lucide-react';
+import { Star, Trash2, User, Clock, Loader2 } from 'lucide-react';
 import { TactileButton } from '@/components/ui/tactile-button';
 import { ResourceTypeBadge } from './ResourceTypeBadge';
 import { ExpandedItemView } from './ExpandedItemView';
@@ -187,17 +187,13 @@ function SavedCard({ item, onGrade, onDiscard, onClick }: {
           </motion.div>
         </div>
 
-        {item.url && (
-          <a
-            href={item.url}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="flex items-center gap-1.5 text-[12px] font-medium text-muted-foreground hover:text-foreground transition-colors"
-          >
-            <ExternalLink size={14} />
-            Open
-          </a>
-        )}
+        <TactileButton
+          variant="raised"
+          onClick={onClick}
+          className="flex items-center gap-2 text-[12px] px-4 py-2"
+        >
+          Open
+        </TactileButton>
       </div>
     </div>
   );

@@ -309,6 +309,7 @@ export function LearningStreamTab({ slug, canModify = true, setActiveTab, viewin
                                 onBookmark={() => handleBookmark(item)}
                                 onGrade={() => handleGradeClick(item)}
                                 onDiscard={() => handleDiscard(item)}
+                                onOpen={() => setViewingItem(item)}
                                 isBookmarking={isBookmarking}
                                 isProcessing={isDiscarding || isGrading}
                               />

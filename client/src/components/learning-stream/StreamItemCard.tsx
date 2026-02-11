@@ -1,6 +1,6 @@
 import { createContext, useContext, useState, ReactNode } from 'react';
 import { motion } from 'framer-motion';
-import { ChevronDown, ChevronUp, ExternalLink, Bookmark, Star, X, User, Clock } from 'lucide-react';
+import { ChevronDown, ChevronUp, Bookmark, Star, Trash2, User, Clock } from 'lucide-react';
 import { tokens } from '@/lib/colors';
 import { TactileButton } from '@/components/ui/tactile-button';
 import { ResourceTypeBadge } from './ResourceTypeBadge';
@@ -207,11 +207,12 @@ interface ActionsProps {
   onBookmark: () => void;
   onGrade: () => void;
   onDiscard: () => void;
+  onOpen: () => void;
   isBookmarking?: boolean;
   isProcessing?: boolean;
 }
 
-function Actions({ onBookmark, onGrade, onDiscard, isBookmarking, isProcessing }: ActionsProps) {
+function Actions({ onBookmark, onGrade, onDiscard, onOpen, isBookmarking, isProcessing }: ActionsProps) {
   const { item } = useStreamItemContext();
   const disabled = isBookmarking || isProcessing;
 
@@ -243,30 +244,27 @@ function Actions({ onBookmark, onGrade, onDiscard, isBookmarking, isProcessing }
           </TactileButton>
         </motion.div>
         <motion.div layoutId={`action-skip-${item.id}`}>
-          <button
+          <TactileButton
+            variant="inset"
             onClick={onDiscard}
             disabled={disabled}
             aria-label="Discard this resource"
-            className="flex items-center gap-1.5 px-4 py-2.5 rounded-lg text-[13px] font-medium transition-all bg-transparent text-muted-foreground hover:bg-muted hover:text-foreground disabled:opacity-50 disabled:cursor-not-allowed border border-border"
+            className="flex items-center gap-2 text-[13px]"
           >
-            <X size={15} />
+            <Trash2 size={15} />
             Discard
-          </button>
+          </TactileButton>
         </motion.div>
       </div>
 
-      {item.url && (
-        <a
-          href={item.url}
-          target="_blank"
-          rel="noopener noreferrer"
-          aria-label="Open source URL"
-          className="flex items-center gap-1.5 px-4 py-2.5 rounded-lg text-[13px] font-medium text-muted-foreground hover:text-foreground transition-colors"
-        >
-          <ExternalLink size={15} />
-          Open
-        </a>
-      )}
+      <TactileButton
+        variant="raised"
+        onClick={onOpen}
+        aria-label="Open inline"
+        className="flex items-center gap-2 text-[13px]"
+      >
+        Open
+      </TactileButton>
     </div>
   );
 }

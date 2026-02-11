@@ -79,10 +79,11 @@ export function ExpandedItemView({
                 href={item.url}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="p-2 text-muted-foreground hover:text-foreground hover:bg-muted rounded-lg transition-colors"
-                title="Open in new tab"
+                className="flex items-center gap-1.5 px-3 py-1.5 text-[12px] font-medium text-muted-foreground hover:text-foreground hover:bg-muted rounded-lg transition-colors"
+                title="Open original source"
               >
-                <ExternalLink size={16} />
+                <ExternalLink size={14} />
+                Access Source
               </a>
             )}
             <button

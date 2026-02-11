@@ -1,6 +1,7 @@
 import { motion } from 'framer-motion';
-import { ExternalLink, Star, Loader2 } from 'lucide-react';
+import { Star, Loader2 } from 'lucide-react';
 import { tokens } from '@/lib/colors';
+import { TactileButton } from '@/components/ui/tactile-button';
 import { ResourceTypeBadge } from './ResourceTypeBadge';
 import { ExpandedItemView } from './ExpandedItemView';
 import type { LearningStreamItem } from '@/hooks/useLearningStream';
@@ -145,19 +146,14 @@ function GradedRow({ item, onClick, isFirst, isLast }: {
         </span>
       )}
 
-      {/* Open link */}
-      {item.url && (
-        <a
-          href={item.url}
-          target="_blank"
-          rel="noopener noreferrer"
-          onClick={(e) => e.stopPropagation()}
-          className="flex items-center gap-1 text-[12px] text-muted-foreground hover:text-foreground transition-colors shrink-0"
-        >
-          <ExternalLink size={13} />
-          Open
-        </a>
-      )}
+      {/* Open inline */}
+      <TactileButton
+        variant="raised"
+        onClick={(e) => { e.stopPropagation(); onClick(); }}
+        className="flex items-center gap-2 text-[12px] px-4 py-1.5 shrink-0"
+      >
+        Open
+      </TactileButton>
     </div>
   );
 }
