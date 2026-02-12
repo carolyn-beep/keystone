@@ -46,7 +46,7 @@ const checkDuplicateTool = tool(
   'Check if a URL already exists in the learning stream for this brainlift',
   {
     brainliftId: z.number().describe('The brainlift ID'),
-    url: z.url().describe('The URL to check for duplicates'),
+    url: z.string().transform(s => s.trim()).pipe(z.url()).describe('The URL to check for duplicates'),
   },
   async (args) => {
     const isDuplicate = await storage.checkLearningStreamDuplicate(args.brainliftId, args.url);
@@ -74,7 +74,7 @@ const saveLearningItemTool = tool(
     topic: z.string().max(100).describe('Brief title or topic (max 100 chars)'),
     time: z.string().describe('Estimated consumption time (e.g., "5 min", "15 min", "1 hour")'),
     facts: z.string().describe('2-3 sentence summary of key insights'),
-    url: z.url().describe('URL of the resource'),
+    url: z.string().transform(s => s.trim()).pipe(z.url()).describe('URL of the resource'),
     relevanceScore: z.string().describe('Relevance score as string (e.g., "0.85")'),
     aiRationale: z.string().describe('Why this resource is valuable for learning'),
   },

@@ -134,12 +134,20 @@ Grade this claim based on available evidence OR your knowledge of educational re
     try {
       parsed = JSON.parse(jsonMatch[0]);
     } catch (parseErr) {
-      // Try to extract just the fields we need with a more targeted approach
+      // JSON.parse failed — fall back to regex extraction
+      console.warn('[FactVerifier] JSON.parse failed, using regex fallback', {
+        error: (parseErr as Error).message,
+        rawSnippet: jsonMatch[0].slice(0, 200),
+      });
+
       const scoreMatch = cleanContent.match(/"score"\s*:\s*(\d)/);
-      const rationaleMatch = cleanContent.match(/"rationale"\s*:\s*"([^"]+)"/);
+      const rationaleMatch = cleanContent.match(/"rationale"\s*:\s*"((?:[^"\\]|\\.)*)"/s);
       const nonGradeableMatch = cleanContent.match(/"isNonGradeable"\s*:\s*(true|false)/i);
 
       if (scoreMatch) {
+        if (!rationaleMatch) {
+          console.warn('[FactVerifier] Could not extract rationale via regex');
+        }
         parsed = {
           score: parseInt(scoreMatch[1]),
           rationale: rationaleMatch ? rationaleMatch[1] : 'Unable to parse full rationale',

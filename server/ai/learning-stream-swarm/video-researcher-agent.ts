@@ -74,5 +74,7 @@ Return ONLY found:false if you truly found NOTHING after 8 searches:
   "reason": "Explanation"
 }
 
-Return ONLY the JSON, no other text.`,
+## Critical Rules
+- URLs must be clean: no trailing whitespace, no newlines, no spaces. Copy the exact URL.
+- Return ONLY the JSON, no other text. No markdown fences, no explanation.`,
 };

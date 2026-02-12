@@ -72,5 +72,6 @@ ONLY return found:false if you truly found NOTHING after 10 searches:
 - ALWAYS return something. Your best find is better than nothing.
 - Count your searches. Stop at 10 and return your best result.
 - Prioritize RECENCY. News should be from the last few weeks or months if possible.
-- Return ONLY the JSON, no other text.`,
+- URLs must be clean: no trailing whitespace, no newlines, no spaces. Copy the exact URL from search results.
+- Return ONLY the JSON, no other text. No markdown fences, no explanation.`,
 };

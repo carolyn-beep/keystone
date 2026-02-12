@@ -74,5 +74,6 @@ ONLY return found:false if you truly found NOTHING after 10 searches:
 - ALWAYS return something. Your best find is better than nothing.
 - Count your searches. Stop at 10 and return your best result.
 - Do not obsesss over getting sources from the listed experts. If you don't find anything from them, return the best result on the topic.
-- Return ONLY the JSON, no other text.`,
+- URLs must be clean: no trailing whitespace, no newlines, no spaces. Copy the exact URL from search results.
+- Return ONLY the JSON, no other text. No markdown fences, no explanation.`,
 };

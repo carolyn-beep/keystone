@@ -712,15 +712,20 @@ function parseAgentResult(content: unknown): {
     // Try to parse JSON from the content
     const jsonMatch = jsonStr.match(/\{[\s\S]*\}/);
     if (jsonMatch) {
-      const parsed = JSON.parse(jsonMatch[0]);
-      if (parsed.found === false) {
+      // Fix literal newlines inside JSON string values before parsing
+      const sanitized = jsonMatch[0].replace(/(?<=:\s*"[^"]*)\n(?=[^"]*")/g, ' ');
+      const parsed = JSON.parse(sanitized);
+      const found = parsed.found === true || parsed.found === 'true';
+      const notFound = parsed.found === false || parsed.found === 'false';
+
+      if (notFound) {
         return { found: false, reason: parsed.reason || 'Unknown reason' };
       }
-      if (parsed.found === true && parsed.resource) {
+      if (found && parsed.resource) {
         return {
           found: true,
-          url: parsed.resource.url,
-          topic: parsed.resource.topic,
+          url: parsed.resource.url?.trim(),
+          topic: parsed.resource.topic?.trim(),
         };
       }
     }
