@@ -114,6 +114,52 @@ export async function saveDOK2Summaries(
 }
 
 /**
+ * Save a single DOK2 summary from the discussion agent.
+ * Accepts relatedFactIds directly (no factIdMap needed).
+ * Returns the new summary's database ID.
+ */
+export async function saveSingleDOK2Summary(input: {
+  brainliftId: number;
+  category: string;
+  sourceName: string;
+  sourceUrl: string;
+  points: string[];
+  relatedFactIds: number[];
+}): Promise<number> {
+  const [inserted] = await db.insert(dok2Summaries).values({
+    brainliftId: input.brainliftId,
+    category: input.category,
+    sourceName: input.sourceName,
+    sourceUrl: input.sourceUrl,
+    displayTitle: null,
+    workflowyNodeId: null,
+    sourceWorkflowyNodeId: null,
+  }).returning();
+
+  if (input.points.length > 0) {
+    await db.insert(dok2Points).values(
+      input.points.map((text, index) => ({
+        summaryId: inserted.id,
+        text,
+        sortOrder: index,
+      }))
+    );
+  }
+
+  if (input.relatedFactIds.length > 0) {
+    await db.insert(dok2FactRelations).values(
+      input.relatedFactIds.map(factId => ({
+        summaryId: inserted.id,
+        factId,
+      }))
+    );
+  }
+
+  console.log(`[DOK2 Storage] Saved discussion summary "${input.sourceName}" with ${input.points.length} points, ${input.relatedFactIds.length} related facts`);
+  return inserted.id;
+}
+
+/**
  * Get DOK2 summaries with points and related fact IDs for a brainlift
  */
 export async function getDOK2Summaries(brainliftId: number): Promise<DOK2SummaryWithPoints[]> {

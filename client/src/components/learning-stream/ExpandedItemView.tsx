@@ -1,9 +1,11 @@
 import { useEffect, useRef } from 'react';
 import { motion } from 'framer-motion';
 import { X, ExternalLink, Bookmark, Star, Trash2, User, Clock, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Panel, PanelGroup, PanelResizeHandle } from 'react-resizable-panels';
 import { TactileButton } from '@/components/ui/tactile-button';
 import { ResourceTypeBadge } from './ResourceTypeBadge';
 import { ContentViewer } from './ContentViewer';
+import { DiscussionPanel } from './DiscussionPanel';
 import { useItemContent } from '@/hooks/useItemContent';
 import type { LearningStreamItem } from '@/hooks/useLearningStream';
 
@@ -101,14 +103,27 @@ export function ExpandedItemView({
         </h3>
       </div>
 
-      {/* Content area (scrollable) */}
-      <div className="flex-1 min-h-0 overflow-y-auto p-6 scrollbar-styled">
-        {content ? (
-          <ContentViewer content={content} url={item.url} />
-        ) : (
-          <ContentViewer content={{ contentType: 'pending' }} url={item.url} />
-        )}
-      </div>
+      {/* Content + Discussion split */}
+      <PanelGroup direction="horizontal" className="flex-1 min-h-0">
+        {/* Left: Content viewer */}
+        <Panel defaultSize={60} minSize={30}>
+          <div className="h-full overflow-y-auto p-6 scrollbar-styled">
+            {content ? (
+              <ContentViewer content={content} url={item.url} />
+            ) : (
+              <ContentViewer content={{ contentType: 'pending' }} url={item.url} />
+            )}
+          </div>
+        </Panel>
+
+        {/* Resize handle */}
+        <PanelResizeHandle className="w-[3px] bg-border hover:bg-primary/40 transition-colors cursor-col-resize hidden lg:block" />
+
+        {/* Right: Discussion panel (hidden on small screens) */}
+        <Panel defaultSize={40} minSize={20} className="hidden lg:block">
+          <DiscussionPanel slug={slug} itemId={item.id} item={item} />
+        </Panel>
+      </PanelGroup>
 
       {/* Actions footer */}
       {(hasActions || hasNavigation) && (

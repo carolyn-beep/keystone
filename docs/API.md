@@ -2,10 +2,10 @@
 
 ## Overview
 
-- **Total Endpoints:** 30
-- **Production Endpoints:** 25
-- **Development-Only Endpoints:** 5
-- **Domain Routers:** 6
+- **Total Endpoints:** 41
+- **Production Endpoints:** 35
+- **Development-Only Endpoints:** 6
+- **Domain Routers:** 8
 
 ---
 
@@ -123,6 +123,50 @@ All routes nested under `/api/brainlifts/:slug` for authorization context.
 | Method | Endpoint | Auth | Description |
 |--------|----------|------|-------------|
 | GET | `/api/analytics/model-accuracy` | `requireAdmin` | LLM model accuracy stats (admin only) |
+
+---
+
+## Learning Stream (`server/routes/learning-stream.ts`)
+
+All routes nested under `/api/brainlifts/:slug/learning-stream` for authorization context.
+
+| Method | Endpoint | Auth | Description |
+|--------|----------|------|-------------|
+| GET | `/api/brainlifts/:slug/learning-stream` | `requireBrainliftAccess` | Get learning stream items (with filters) |
+| GET | `/api/brainlifts/:slug/learning-stream/stats` | `requireBrainliftAccess` | Get stream stats (pending/saved/graded counts) |
+| PATCH | `/api/brainlifts/:slug/learning-stream/:itemId/bookmark` | `requireBrainliftModify` | Bookmark/unbookmark an item |
+| PATCH | `/api/brainlifts/:slug/learning-stream/:itemId/discard` | `requireBrainliftModify` | Discard/undiscard an item |
+| POST | `/api/brainlifts/:slug/learning-stream/:itemId/grade` | `requireBrainliftModify` | Grade an item |
+| GET | `/api/brainlifts/:slug/learning-stream/:itemId/content` | `requireBrainliftAccess` | Get extracted content for an item |
+| POST | `/api/brainlifts/:slug/learning-stream/refresh` | `requireBrainliftModify` | Trigger research refill |
+| GET | `/api/brainlifts/:slug/learning-stream/swarm-events` | `requireBrainliftAccess` | SSE stream for swarm research progress |
+
+---
+
+## Discussion (`server/routes/discussion.ts`)
+
+| Method | Endpoint | Auth | Description |
+|--------|----------|------|-------------|
+| POST | `/api/brainlifts/:slug/discussion` | `requireBrainliftAccess` | Streaming discussion agent (SSE via Vercel AI SDK) |
+| GET | `/api/brainlifts/:slug/discussion/suggestions?itemId=X` | `requireBrainliftAccess` | AI-generated discussion starter suggestions (Haiku) |
+
+**Request body:**
+```json
+{
+  "messages": [{ "id": "1", "role": "user", "parts": [{ "type": "text", "text": "..." }] }],
+  "itemId": 123
+}
+```
+
+**Response:** Server-Sent Events stream (UIMessageStream format from Vercel AI SDK).
+
+**Agent tools (server-side, not API endpoints):**
+| Tool | Description |
+|------|-------------|
+| `save_dok1_fact` | Saves a DOK1 fact to the database, queues verification |
+| `save_dok2_summary` | Saves a DOK2 summary with related facts, queues grading |
+| `get_brainlift_context` | Retrieves existing facts, experts, and topics for cross-reference |
+| `read_article_section` | Reads extracted article content (triggers on-demand extraction if pending) |
 
 ---
 

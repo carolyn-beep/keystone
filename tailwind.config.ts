@@ -125,5 +125,12 @@ export default {
       },
     },
   },
-  plugins: [require("tailwindcss-animate"), require("@tailwindcss/typography")],
+  plugins: [
+    require("tailwindcss-animate"),
+    require("@tailwindcss/typography"),
+    require("@assistant-ui/react-ui/tailwindcss")({
+      components: ["thread"],
+      shadcn: true,
+    }),
+  ],
 } satisfies Config;

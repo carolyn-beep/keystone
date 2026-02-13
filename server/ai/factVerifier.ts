@@ -132,7 +132,11 @@ Grade this claim based on available evidence OR your knowledge of educational re
     // Try to parse, if it fails try to fix common issues
     let parsed;
     try {
-      parsed = JSON.parse(jsonMatch[0]);
+      // Sanitize control characters (newlines/tabs inside string values)
+      const sanitized = jsonMatch[0].replace(/[\x00-\x1F\x7F]/g, (ch) =>
+        ch === '\n' ? '\\n' : ch === '\t' ? '\\t' : ch === '\r' ? '\\r' : ''
+      );
+      parsed = JSON.parse(sanitized);
     } catch (parseErr) {
       // JSON.parse failed — fall back to regex extraction
       console.warn('[FactVerifier] JSON.parse failed, using regex fallback', {

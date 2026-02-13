@@ -2,6 +2,8 @@ import { exampleJob } from './exampleJob';
 import { learningStreamResearchJob } from './learningStreamResearchJob';
 import { brainliftImageJob } from './brainliftImageJob';
 import { contentExtractJob } from './contentExtractJob';
+import { discussionVerifyFactJob } from './discussionVerifyFactJob';
+import { discussionGradeDok2Job } from './discussionGradeDok2Job';
 
 /**
  * Central registry of all background jobs.
@@ -17,6 +19,8 @@ const tasks = {
   'learning-stream:research': learningStreamResearchJob,
   'learning-stream:extract-content': contentExtractJob,
   'brainlift:generate-image': brainliftImageJob,
+  'discussion:verify-fact': discussionVerifyFactJob,
+  'discussion:grade-dok2': discussionGradeDok2Job,
 } as const;
 
 export default tasks;

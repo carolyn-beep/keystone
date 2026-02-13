@@ -85,6 +85,7 @@ export const storage = {
 
   // DOK2 Summaries
   saveDOK2Summaries: dok2Storage.saveDOK2Summaries,
+  saveSingleDOK2Summary: dok2Storage.saveSingleDOK2Summary,
   getDOK2Summaries: dok2Storage.getDOK2Summaries,
   deleteDOK2Summaries: dok2Storage.deleteDOK2Summaries,
 

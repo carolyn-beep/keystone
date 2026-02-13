@@ -660,6 +660,118 @@
   transform: translateX(0);
 }
 
+/* Brain-dump icon — arrow slides down and fades out */
+@keyframes brain-dump-arrow {
+  0% {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  100% {
+    opacity: 0.4;
+    transform: translateY(0);
+  }
+}
+
+.animate-brain-dump-arrow {
+  animation: brain-dump-arrow 1.2s ease-out forwards;
+}
+
+/* ===== Discussion Panel — assistant-ui warm parchment overrides ===== */
+
+/* Thread root — match elevated card surface */
+.aui-thread-root {
+  background: hsl(var(--card-elevated));
+}
+
+.aui-thread-viewport-footer {
+  background: hsl(var(--card-elevated));
+}
+
+/* User message — warm muted bubble */
+.aui-user-message-content {
+  background: hsl(var(--sidebar));
+  color: hsl(var(--foreground));
+  border-radius: 0.75rem;
+}
+
+/* Assistant message — fill available width, readable body */
+.aui-assistant-message-content {
+  color: hsl(var(--foreground));
+  font-size: 14px;
+  line-height: 1.7;
+  max-width: none;
+}
+
+/* Running pulse — warm amber */
+.aui-text-running::after {
+  color: hsl(var(--warning));
+}
+
+/* Composer — warm card surface, shadow containment */
+.aui-composer-root {
+  border-color: hsl(var(--border));
+  background: hsl(var(--card));
+  box-shadow: var(--shadow-card);
+}
+
+/* Hide assistant avatar from messages — only show on welcome screen */
+:where(.aui-assistant-message-root) > .aui-avatar-root {
+  visibility: hidden;
+  width: 0;
+  margin: 0;
+}
+
+/* Action bar — reveal on hover */
+.aui-assistant-action-bar-root {
+  opacity: 0;
+  transition: opacity 0.15s ease;
+}
+
+.aui-assistant-message-root:hover .aui-assistant-action-bar-root {
+  opacity: 1;
+}
+
+/* Welcome message — serif italic, warm tone */
+.aui-thread-welcome-message {
+  font-family: var(--font-serif);
+  font-style: italic;
+  color: hsl(var(--muted-foreground));
+  font-size: 15px;
+}
+
+/* Suggestion chips — warm parchment style */
+.aui-thread-welcome-suggestions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: center;
+  padding: 0 16px;
+}
+
+.aui-thread-welcome-suggestion {
+  background: hsl(var(--card));
+  border: 1px solid hsl(var(--border));
+  border-radius: 9999px;
+  padding: 6px 14px;
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
+  box-shadow: var(--shadow-2xs);
+}
+
+.aui-thread-welcome-suggestion:hover {
+  background: hsl(var(--sidebar));
+  border-color: hsl(var(--input));
+  box-shadow: var(--shadow-xs);
+}
+
+.aui-thread-welcome-suggestion-text {
+  font-size: 13px;
+  color: hsl(var(--foreground));
+  line-height: 1.4;
+}
+
+/* ===== End Discussion Panel overrides ===== */
+
 /* Reduced motion support for Learning Stream */
 @media (prefers-reduced-motion: reduce) {
   .animate-shimmer,
