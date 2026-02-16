@@ -577,6 +577,27 @@ export const learningStreamItemsRelations = relations(learningStreamItems, ({ on
   }),
 }));
 
+// Swarm Usage - Tracks daily swarm runs per user for rate limiting
+export const swarmUsage = pgTable("swarm_usage", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull().references(() => user.id, { onDelete: "cascade" }),
+  brainliftId: integer("brainlift_id").notNull().references(() => brainlifts.id, { onDelete: "cascade" }),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+}, (table) => [
+  index("idx_swarm_usage_user_date").on(table.userId, table.createdAt),
+]);
+
+export const swarmUsageRelations = relations(swarmUsage, ({ one }) => ({
+  user: one(user, {
+    fields: [swarmUsage.userId],
+    references: [user.id],
+  }),
+  brainlift: one(brainlifts, {
+    fields: [swarmUsage.brainliftId],
+    references: [brainlifts.id],
+  }),
+}));
+
 // === SCHEMAS ===
 
 export const insertBrainliftSchema = createInsertSchema(brainlifts);

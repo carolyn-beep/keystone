@@ -226,6 +226,7 @@ export function LearningStreamTab({ slug, canModify = true, setActiveTab, viewin
             isLaunching={isRefreshing}
             hideWhenIdle={hasItems}
             pendingCount={stats.pending}
+            swarmQuota={stats.swarmQuota}
           />
         </motion.div>
 
@@ -253,7 +254,7 @@ export function LearningStreamTab({ slug, canModify = true, setActiveTab, viewin
                 transition={sectionCollapse}
                 style={{ overflow: viewingItem ? 'hidden' : 'visible', pointerEvents: viewingItem ? 'none' : 'auto' }}
               >
-                <AllProcessedState onNewMission={handleLaunch} isLaunching={isRefreshing} />
+                <AllProcessedState onNewMission={handleLaunch} isLaunching={isRefreshing} swarmQuota={stats.swarmQuota} />
               </motion.div>
             ) : (
               <>
@@ -342,7 +343,9 @@ import { CheckCircle, Search, Loader2 as Loader } from 'lucide-react';
 import telescopeImg from '@/assets/bl_profile/telescope.webp';
 import { TactileButton } from '@/components/ui/tactile-button';
 
-function AllProcessedState({ onNewMission, isLaunching }: { onNewMission: () => void; isLaunching?: boolean }) {
+function AllProcessedState({ onNewMission, isLaunching, swarmQuota }: { onNewMission: () => void; isLaunching?: boolean; swarmQuota?: { used: number; limit: number; remaining: number } | null }) {
+  const isAtLimit = swarmQuota?.remaining === 0;
+
   return (
     <div className="bg-card-elevated rounded-xl shadow-card overflow-hidden relative">
       {/* Subtle background image */}
@@ -367,15 +370,16 @@ function AllProcessedState({ onNewMission, isLaunching }: { onNewMission: () => 
             All Resources Reviewed
           </h3>
           <p className="text-sm text-muted-foreground max-w-md mb-10 leading-relaxed">
-            You've processed all the research resources in your queue.
-            Launch a new swarm to discover more content.
+            {isAtLimit
+              ? 'You\'ve used all your daily swarm runs. Come back tomorrow for more research.'
+              : 'You\'ve processed all the research resources in your queue. Launch a new swarm to discover more content.'}
           </p>
 
           {/* New swarm button */}
           <TactileButton
             variant="raised"
             onClick={onNewMission}
-            disabled={isLaunching}
+            disabled={isLaunching || isAtLimit}
             className="flex items-center gap-3 px-8 py-4 text-[14px]"
           >
             {isLaunching ? (
@@ -383,6 +387,8 @@ function AllProcessedState({ onNewMission, isLaunching }: { onNewMission: () => 
                 <Loader size={18} className="animate-spin" />
                 Launching Swarm...
               </>
+            ) : isAtLimit ? (
+              'Daily Limit Reached'
             ) : (
               <>
                 <Search size={18} />
@@ -390,6 +396,13 @@ function AllProcessedState({ onNewMission, isLaunching }: { onNewMission: () => 
               </>
             )}
           </TactileButton>
+
+          {/* Quota indicator */}
+          {swarmQuota && (
+            <p className="mt-4 text-xs text-muted-foreground">
+              {swarmQuota.used}/{swarmQuota.limit} daily runs used
+            </p>
+          )}
         </div>
       </div>
     </div>

@@ -1,6 +1,6 @@
 import {
   db, eq, and, sql,
-  learningStreamItems,
+  learningStreamItems, swarmUsage,
   type LearningStreamItem, type NewLearningStreamItem
 } from './base';
 import type { ExtractedContent } from '@shared/schema';
@@ -257,4 +257,55 @@ export async function cacheExtractedContent(
       eq(learningStreamItems.id, itemId),
       eq(learningStreamItems.brainliftId, brainliftId)
     ));
+}
+
+/**
+ * Clear cached extracted content so extraction can be retried.
+ * IDOR-safe: includes brainliftId in the WHERE clause.
+ */
+export async function clearExtractedContent(
+  itemId: number,
+  brainliftId: number
+): Promise<void> {
+  await db.update(learningStreamItems)
+    .set({ extractedContent: null, updatedAt: new Date() })
+    .where(and(
+      eq(learningStreamItems.id, itemId),
+      eq(learningStreamItems.brainliftId, brainliftId)
+    ));
+}
+
+// === Swarm Usage Rate Limiting ===
+
+const DAILY_SWARM_LIMIT = parseInt(process.env.DAILY_SWARM_LIMIT || '3', 10);
+
+/**
+ * Get swarm usage for today (UTC day boundary).
+ */
+export async function getSwarmUsageToday(userId: string): Promise<{
+  used: number;
+  limit: number;
+  remaining: number;
+}> {
+  const [result] = await db
+    .select({ count: sql<number>`count(*)::int` })
+    .from(swarmUsage)
+    .where(and(
+      eq(swarmUsage.userId, userId),
+      sql`${swarmUsage.createdAt} >= date_trunc('day', now() AT TIME ZONE 'UTC')`
+    ));
+
+  const used = result?.count ?? 0;
+  return {
+    used,
+    limit: DAILY_SWARM_LIMIT,
+    remaining: Math.max(0, DAILY_SWARM_LIMIT - used),
+  };
+}
+
+/**
+ * Record a swarm usage event.
+ */
+export async function recordSwarmUsage(userId: string, brainliftId: number): Promise<void> {
+  await db.insert(swarmUsage).values({ userId, brainliftId });
 }

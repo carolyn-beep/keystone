@@ -99,6 +99,9 @@ export const storage = {
   hasResearchJobPending: learningStreamStorage.hasResearchJobPending,
   checkLearningStreamDuplicate: learningStreamStorage.checkLearningStreamDuplicate,
   cacheExtractedContent: learningStreamStorage.cacheExtractedContent,
+  clearExtractedContent: learningStreamStorage.clearExtractedContent,
+  getSwarmUsageToday: learningStreamStorage.getSwarmUsageToday,
+  recordSwarmUsage: learningStreamStorage.recordSwarmUsage,
 };
 
 // Export individual modules for direct access if needed

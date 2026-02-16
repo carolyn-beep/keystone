@@ -30,7 +30,7 @@ export function ExpandedItemView({
   onBack,
   onNext,
 }: ExpandedItemViewProps) {
-  const { data: content } = useItemContent(slug, item);
+  const { data: content, retryExtraction } = useItemContent(slug, item);
   const containerRef = useRef<HTMLDivElement>(null);
 
   // Close on Escape key
@@ -109,7 +109,7 @@ export function ExpandedItemView({
         <Panel defaultSize={60} minSize={30}>
           <div className="h-full overflow-y-auto p-6 scrollbar-styled">
             {content ? (
-              <ContentViewer content={content} url={item.url} />
+              <ContentViewer content={content} url={item.url} onRetry={retryExtraction} />
             ) : (
               <ContentViewer content={{ contentType: 'pending' }} url={item.url} />
             )}

@@ -65,11 +65,15 @@ learningStreamRouter.get(
   requireBrainliftAccess,
   asyncHandler(async (req, res) => {
     const brainlift = req.brainlift!;
-    const [stats, isResearching] = await Promise.all([
+    const authContext = req.authContext!;
+    const [stats, isResearching, swarmQuota] = await Promise.all([
       storage.getLearningStreamStats(brainlift.id),
       storage.hasResearchJobPending(brainlift.id),
+      authContext.isAdmin
+        ? Promise.resolve(null)
+        : storage.getSwarmUsageToday(authContext.userId),
     ]);
-    res.json({ ...stats, isResearching });
+    res.json({ ...stats, isResearching, swarmQuota });
   })
 );
 
@@ -221,6 +225,40 @@ learningStreamRouter.get(
 );
 
 /**
+ * POST /api/brainlifts/:slug/learning-stream/:itemId/retry-extract
+ * Re-queue content extraction for a failed item
+ */
+learningStreamRouter.post(
+  '/api/brainlifts/:slug/learning-stream/:itemId/retry-extract',
+  requireAuth,
+  requireBrainliftModify,
+  asyncHandler(async (req, res) => {
+    const brainlift = req.brainlift!;
+    const itemId = parseInt(req.params.itemId);
+
+    if (isNaN(itemId)) {
+      throw new BadRequestError('Invalid item ID');
+    }
+
+    const item = await storage.getLearningStreamItemById(itemId, brainlift.id);
+    if (!item) {
+      throw new NotFoundError('Item not found');
+    }
+
+    await storage.clearExtractedContent(itemId, brainlift.id);
+
+    // Queue extraction
+    const { withJob } = await import('../utils/withJob');
+    await withJob('learning-stream:extract-content')
+      .forPayload({ itemId, brainliftId: brainlift.id, url: item.url })
+      .withOptions({ jobKey: `extract-content-${itemId}` })
+      .queue();
+
+    res.json({ contentType: 'pending' });
+  })
+);
+
+/**
  * POST /api/brainlifts/:slug/learning-stream/refresh
  * Trigger research to get new sources (only if no pending items)
  */
@@ -230,6 +268,7 @@ learningStreamRouter.post(
   requireBrainliftModify,
   asyncHandler(async (req, res) => {
     const brainlift = req.brainlift!;
+    const authContext = req.authContext!;
 
     // Check if pending items exist
     const stats = await storage.getLearningStreamStats(brainlift.id);
@@ -237,6 +276,17 @@ learningStreamRouter.post(
       throw new BadRequestError(
         `Cannot refresh: ${stats.pending} pending items. Bookmark, grade, or discard them first.`
       );
+    }
+
+    // Rate limit check (admins exempt)
+    if (!authContext.isAdmin) {
+      const quota = await storage.getSwarmUsageToday(authContext.userId);
+      if (quota.remaining <= 0) {
+        throw new BadRequestError(
+          `Daily swarm limit reached (${quota.limit}/${quota.limit}). Try again tomorrow.`
+        );
+      }
+      await storage.recordSwarmUsage(authContext.userId, brainlift.id);
     }
 
     // Queue research job

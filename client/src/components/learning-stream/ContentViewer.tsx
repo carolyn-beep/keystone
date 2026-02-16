@@ -1,4 +1,4 @@
-import { Loader2, ExternalLink } from 'lucide-react';
+import { Loader2, ExternalLink, RotateCcw } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import { Tweet } from 'react-tweet';
 import type { ExtractedContent } from '@/hooks/useLearningStream';
@@ -6,9 +6,10 @@ import type { ExtractedContent } from '@/hooks/useLearningStream';
 interface ContentViewerProps {
   content: ExtractedContent;
   url: string;
+  onRetry?: () => void;
 }
 
-export function ContentViewer({ content, url }: ContentViewerProps) {
+export function ContentViewer({ content, url, onRetry }: ContentViewerProps) {
   switch (content.contentType) {
     case 'embed':
       return <EmbedViewer content={content} />;
@@ -19,9 +20,9 @@ export function ContentViewer({ content, url }: ContentViewerProps) {
     case 'pending':
       return <PendingState />;
     case 'fallback':
-      return <FallbackState reason={content.reason} url={url} />;
+      return <FallbackState reason={content.reason} url={url} onRetry={onRetry} />;
     default:
-      return <FallbackState reason="Unknown content type" url={url} />;
+      return <FallbackState reason="Unknown content type" url={url} onRetry={onRetry} />;
   }
 }
 
@@ -140,21 +141,32 @@ function PendingState() {
 
 // === Fallback state ===
 
-function FallbackState({ reason, url }: { reason: string; url: string }) {
+function FallbackState({ reason, url, onRetry }: { reason: string; url: string; onRetry?: () => void }) {
   return (
     <div className="flex flex-col items-center justify-center py-20 gap-4">
       <p className="text-sm text-muted-foreground max-w-md text-center">
         {reason}
       </p>
-      <a
-        href={url}
-        target="_blank"
-        rel="noopener noreferrer"
-        className="flex items-center gap-2 px-5 py-2.5 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 transition-colors"
-      >
-        <ExternalLink size={15} />
-        Open in new tab
-      </a>
+      <div className="flex items-center gap-3">
+        {onRetry && (
+          <button
+            onClick={onRetry}
+            className="flex items-center gap-2 px-5 py-2.5 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 transition-colors"
+          >
+            <RotateCcw size={15} />
+            Retry extraction
+          </button>
+        )}
+        <a
+          href={url}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="flex items-center gap-2 px-5 py-2.5 rounded-lg bg-muted text-foreground text-sm font-medium hover:bg-muted/70 transition-colors"
+        >
+          <ExternalLink size={15} />
+          Open in new tab
+        </a>
+      </div>
     </div>
   );
 }

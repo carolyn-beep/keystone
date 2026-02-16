@@ -4,9 +4,10 @@ interface StreamEmptyStateProps {
   variant: 'generating' | 'all-processed' | 'no-data';
   onRefresh?: () => void;
   isRefreshing?: boolean;
+  swarmQuota?: { used: number; limit: number; remaining: number } | null;
 }
 
-export function StreamEmptyState({ variant, onRefresh, isRefreshing }: StreamEmptyStateProps) {
+export function StreamEmptyState({ variant, onRefresh, isRefreshing, swarmQuota }: StreamEmptyStateProps) {
   if (variant === 'generating') {
     return (
       <div className="bg-slate-950 border border-slate-800 rounded-xl p-8">
@@ -80,12 +81,12 @@ export function StreamEmptyState({ variant, onRefresh, isRefreshing }: StreamEmp
             {/* Launch button */}
             <button
               onClick={onRefresh}
-              disabled={isRefreshing}
+              disabled={isRefreshing || swarmQuota?.remaining === 0}
               className={`
                 group relative px-8 py-4 font-mono text-sm font-bold tracking-widest uppercase
                 border-2 rounded-lg transition-all duration-300
-                ${isRefreshing
-                  ? 'border-amber-600/50 bg-amber-950/30 text-amber-500/70 cursor-wait'
+                ${isRefreshing || swarmQuota?.remaining === 0
+                  ? 'border-amber-600/50 bg-amber-950/30 text-amber-500/70 cursor-not-allowed'
                   : 'border-amber-500 bg-amber-500/10 text-amber-400 hover:bg-amber-500/20 hover:shadow-[0_0_20px_rgba(245,158,11,0.3)]'
                 }
               `}
@@ -101,6 +102,8 @@ export function StreamEmptyState({ variant, onRefresh, isRefreshing }: StreamEmp
                   <Loader2 size={18} className="animate-spin" />
                   INITIALIZING...
                 </span>
+              ) : swarmQuota?.remaining === 0 ? (
+                <span>DAILY LIMIT REACHED</span>
               ) : (
                 <span className="flex items-center gap-3">
                   <Radar size={18} />
@@ -109,9 +112,11 @@ export function StreamEmptyState({ variant, onRefresh, isRefreshing }: StreamEmp
               )}
             </button>
 
-            {/* Hint text */}
+            {/* Quota text */}
             <p className="mt-4 font-mono text-[10px] text-slate-600 tracking-wide">
-              20 RESEARCH UNITS AVAILABLE FOR DEPLOYMENT
+              {swarmQuota
+                ? `${swarmQuota.used}/${swarmQuota.limit} DAILY RUNS USED`
+                : '20 RESEARCH UNITS AVAILABLE FOR DEPLOYMENT'}
             </p>
           </div>
         </div>
@@ -155,12 +160,12 @@ export function StreamEmptyState({ variant, onRefresh, isRefreshing }: StreamEmp
           {/* New mission button */}
           <button
             onClick={onRefresh}
-            disabled={isRefreshing}
+            disabled={isRefreshing || swarmQuota?.remaining === 0}
             className={`
               group relative px-8 py-4 font-mono text-sm font-bold tracking-widest uppercase
               border-2 rounded-lg transition-all duration-300
-              ${isRefreshing
-                ? 'border-emerald-600/50 bg-emerald-950/30 text-emerald-500/70 cursor-wait'
+              ${isRefreshing || swarmQuota?.remaining === 0
+                ? 'border-emerald-600/50 bg-emerald-950/30 text-emerald-500/70 cursor-not-allowed'
                 : 'border-emerald-500 bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20 hover:shadow-[0_0_20px_rgba(16,185,129,0.3)]'
               }
             `}
@@ -176,6 +181,8 @@ export function StreamEmptyState({ variant, onRefresh, isRefreshing }: StreamEmp
                 <Loader2 size={18} className="animate-spin" />
                 DEPLOYING...
               </span>
+            ) : swarmQuota?.remaining === 0 ? (
+              <span>DAILY LIMIT REACHED</span>
             ) : (
               <span className="flex items-center gap-3">
                 <Radar size={18} />
@@ -183,6 +190,13 @@ export function StreamEmptyState({ variant, onRefresh, isRefreshing }: StreamEmp
               </span>
             )}
           </button>
+
+          {/* Quota indicator */}
+          {swarmQuota && (
+            <p className="mt-4 font-mono text-[10px] text-slate-500 tracking-wide">
+              {swarmQuota.used}/{swarmQuota.limit} DAILY RUNS USED
+            </p>
+          )}
         </div>
       </div>
     </div>

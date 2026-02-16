@@ -43,7 +43,6 @@ const NAV_ITEMS: NavItem[] = [
     id: 'learning',
     label: 'Learning Stream',
     icon: MdDynamicFeed,
-    adminOnly: true,
     children: [
       { id: 'learning-saved', label: 'Saved Items', icon: IoBookmarks },
       { id: 'learning-graded', label: 'Graded Items', icon: IoRibbon },
@@ -60,7 +59,7 @@ export default function Dashboard({ slug, isSharedView = false }: DashboardProps
   const activeTab = useMemo(() => {
     const params = new URLSearchParams(searchString);
     const tab = params.get('tab');
-    return tab && VALID_TABS.includes(tab as TabKey) ? tab : 'grading';
+    return tab && VALID_TABS.includes(tab as TabKey) ? tab : 'brainlift';
   }, [searchString]);
 
   // URL-synced expanded item (?view=123)
@@ -72,7 +71,7 @@ export default function Dashboard({ slug, isSharedView = false }: DashboardProps
 
   const setActiveTab = useCallback((tab: string) => {
     const params = new URLSearchParams(window.location.search);
-    if (tab === 'grading') {
+    if (tab === 'brainlift') {
       params.delete('tab'); // Clean URL for default tab
     } else {
       params.set('tab', tab);
@@ -272,6 +271,7 @@ const { downloadBrainliftPDF } = usePDFExport();
           originalContent={data.originalContent}
           sourceType={data.sourceType}
           slug={data.slug}
+          summary={data.summary}
         />
       )}
 
@@ -325,16 +325,16 @@ const { downloadBrainliftPDF } = usePDFExport();
         />
       )}
 
-      {/* Learning Stream Tab - AI-curated resources (Admin only) */}
-      {!isNotBrainlift && activeTab === 'learning' && isAdmin && (
+      {/* Learning Stream Tab - AI-curated resources */}
+      {!isNotBrainlift && activeTab === 'learning' && (
         <LearningStreamTab slug={slug} canModify={canModify} setActiveTab={setActiveTab} viewingItemId={viewingItemId} setViewingItemId={setViewingItemId} />
       )}
 
-      {/* Learning Stream Sub-Pages (Admin only) */}
-      {!isNotBrainlift && activeTab === 'learning-saved' && isAdmin && (
+      {/* Learning Stream Sub-Pages */}
+      {!isNotBrainlift && activeTab === 'learning-saved' && (
         <SavedItemsPage slug={slug} canModify={canModify} viewingItemId={viewingItemId} setViewingItemId={setViewingItemId} />
       )}
-      {!isNotBrainlift && activeTab === 'learning-graded' && isAdmin && (
+      {!isNotBrainlift && activeTab === 'learning-graded' && (
         <GradedItemsPage slug={slug} viewingItemId={viewingItemId} setViewingItemId={setViewingItemId} />
       )}
 

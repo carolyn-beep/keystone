@@ -2,13 +2,25 @@ import { Download, FileText } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import { tokens } from '@/lib/colors';
 
+function getScoreColor(score: number): string {
+  if (score <= 0) return '#9ca3af';
+  if (score <= 2) return '#b83a3a';
+  if (score <= 3) return '#c47a2a';
+  if (score <= 3.5) return '#a89030';
+  if (score <= 4) return '#6a9a40';
+  if (score <= 4.5) return '#3a9a5a';
+  return '#2a8a4a';
+}
+
 interface BrainliftTabProps {
   originalContent: string | null | undefined;
   sourceType: string | null | undefined;
   slug: string;
+  summary?: { meanScore: string; totalFacts: number; score5Count: number; contradictionCount: number } | null;
 }
 
-export const BrainliftTab = ({ originalContent, sourceType, slug }: BrainliftTabProps) => {
+export const BrainliftTab = ({ originalContent, sourceType, slug, summary }: BrainliftTabProps) => {
+  const meanScore = parseFloat(summary?.meanScore || '0');
   const handleDownload = () => {
     const blob = new Blob([originalContent || ''], { type: 'text/plain' });
     const url = URL.createObjectURL(blob);
@@ -39,17 +51,37 @@ export const BrainliftTab = ({ originalContent, sourceType, slug }: BrainliftTab
           </div>
         </div>
 
-        {originalContent && (
-          <button
-            data-testid="button-download-original"
-            onClick={handleDownload}
-            className="flex items-center gap-1.5 px-4 py-2 rounded-md bg-card text-foreground cursor-pointer text-[13px] font-medium"
-            style={{ border: `1px solid ${tokens.border}` }}
-          >
-            <Download size={14} />
-            Download
-          </button>
-        )}
+        <div className="flex items-center gap-4">
+          {/* Mean Score */}
+          {summary && summary.totalFacts > 0 && meanScore > 0 && (
+            <div className="flex flex-col items-end">
+              <span className="leading-none">
+                <span
+                  className="font-serif text-[22px] font-normal"
+                  style={{ color: getScoreColor(meanScore) }}
+                >
+                  {parseFloat(meanScore.toFixed(2))}
+                </span>
+                <span className="text-[13px] text-muted-light font-normal">/ 5</span>
+              </span>
+              <span className="text-[10px] uppercase tracking-[0.3em] text-muted-foreground font-semibold mt-1">
+                Mean Score
+              </span>
+            </div>
+          )}
+
+          {originalContent && (
+            <button
+              data-testid="button-download-original"
+              onClick={handleDownload}
+              className="flex items-center gap-1.5 px-4 py-2 rounded-md bg-card text-foreground cursor-pointer text-[13px] font-medium"
+              style={{ border: `1px solid ${tokens.border}` }}
+            >
+              <Download size={14} />
+              Download
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Document Content */}

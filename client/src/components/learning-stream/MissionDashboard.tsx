@@ -81,19 +81,26 @@ function dashboardReducer(state: DashboardState, action: DashboardAction): Dashb
   }
 }
 
+interface SwarmQuota {
+  used: number;
+  limit: number;
+  remaining: number;
+}
+
 interface MissionDashboardProps {
   swarmState: SwarmEventState;
   onLaunch?: () => Promise<void>;
   isLaunching?: boolean;
   hideWhenIdle?: boolean;
   pendingCount?: number;
+  swarmQuota?: SwarmQuota | null;
 }
 
 /**
  * Research Observatory dashboard - three-column editorial layout.
  * Uses Framer Motion LayoutGroup for shared layout animations.
  */
-export function MissionDashboard({ swarmState, onLaunch, isLaunching, hideWhenIdle, pendingCount = 0 }: MissionDashboardProps) {
+export function MissionDashboard({ swarmState, onLaunch, isLaunching, hideWhenIdle, pendingCount = 0, swarmQuota }: MissionDashboardProps) {
   const {
     status: sseStatus,
     agents,
@@ -268,7 +275,7 @@ export function MissionDashboard({ swarmState, onLaunch, isLaunching, hideWhenId
               exit={{ opacity: 0 }}
               transition={{ duration: 0.3 }}
             >
-              <IdleLaunchState onLaunch={handleLaunch} />
+              <IdleLaunchState onLaunch={handleLaunch} swarmQuota={swarmQuota} />
             </motion.div>
           )}
 
@@ -363,6 +370,7 @@ export function MissionDashboard({ swarmState, onLaunch, isLaunching, hideWhenId
                         onNewMission={handleLaunch}
                         isLaunching={isLaunching}
                         hideLaunchButton={pendingCount > 0}
+                        swarmQuota={swarmQuota}
                       />
                     )}
                   </section>
@@ -457,9 +465,12 @@ function AgentList({ agents, onInspect, inspectedAgentId }: AgentListProps) {
 // Idle state with launch button
 interface IdleLaunchStateProps {
   onLaunch?: () => void;
+  swarmQuota?: SwarmQuota | null;
 }
 
-function IdleLaunchState({ onLaunch }: IdleLaunchStateProps) {
+function IdleLaunchState({ onLaunch, swarmQuota }: IdleLaunchStateProps) {
+  const isAtLimit = swarmQuota?.remaining === 0;
+
   return (
     <div className="py-16 relative border-t border-border">
       {/* Background image */}
@@ -494,7 +505,9 @@ function IdleLaunchState({ onLaunch }: IdleLaunchStateProps) {
           transition={{ delay: 0.15 }}
           className="text-sm text-muted-foreground max-w-md mb-10 leading-relaxed"
         >
-          Research Agent Swarm inactive. Launch a new swarm to scan for new learning resources.
+          {isAtLimit
+            ? 'You\'ve used all your daily swarm runs. Come back tomorrow for more research.'
+            : 'Research Agent Swarm inactive. Launch a new swarm to scan for new learning resources.'}
         </motion.p>
 
         <motion.div
@@ -505,12 +518,31 @@ function IdleLaunchState({ onLaunch }: IdleLaunchStateProps) {
           <TactileButton
             variant="raised"
             onClick={onLaunch}
+            disabled={isAtLimit}
             className="flex items-center gap-3 px-8 py-4 text-[14px]"
           >
-            <Search size={18} />
-            Launch Research Swarm
+            {isAtLimit ? (
+              'Daily Limit Reached'
+            ) : (
+              <>
+                <Search size={18} />
+                Launch Research Swarm
+              </>
+            )}
           </TactileButton>
         </motion.div>
+
+        {/* Quota indicator */}
+        {swarmQuota && (
+          <motion.p
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ delay: 0.25 }}
+            className="mt-4 text-xs text-muted-foreground"
+          >
+            {swarmQuota.used}/{swarmQuota.limit} daily runs used
+          </motion.p>
+        )}
       </div>
     </div>
   );
@@ -633,9 +665,11 @@ interface ResearchCompleteFooterProps {
   onNewMission?: () => void;
   isLaunching?: boolean;
   hideLaunchButton?: boolean;
+  swarmQuota?: SwarmQuota | null;
 }
 
-function ResearchCompleteFooter({ savedCount, failedCount, onNewMission, isLaunching, hideLaunchButton }: ResearchCompleteFooterProps) {
+function ResearchCompleteFooter({ savedCount, failedCount, onNewMission, isLaunching, hideLaunchButton, swarmQuota }: ResearchCompleteFooterProps) {
+  const isAtLimit = swarmQuota?.remaining === 0;
   return (
     <motion.div
       initial={{ opacity: 0, y: 10 }}
@@ -658,23 +692,32 @@ function ResearchCompleteFooter({ savedCount, failedCount, onNewMission, isLaunc
           </span>
         </div>
 
-        {onNewMission && !hideLaunchButton && (
-          <TactileButton
-            variant="raised"
-            onClick={onNewMission}
-            disabled={isLaunching}
-            className="text-[13px]"
-          >
-            {isLaunching ? (
-              <span className="flex items-center gap-2">
-                <Loader2 size={14} className="animate-spin" />
-                Starting...
-              </span>
-            ) : (
-              'New Swarm'
-            )}
-          </TactileButton>
-        )}
+        <div className="flex items-center gap-3">
+          {onNewMission && !hideLaunchButton && (
+            <TactileButton
+              variant="raised"
+              onClick={onNewMission}
+              disabled={isLaunching || isAtLimit}
+              className="text-[13px]"
+            >
+              {isLaunching ? (
+                <span className="flex items-center gap-2">
+                  <Loader2 size={14} className="animate-spin" />
+                  Starting...
+                </span>
+              ) : isAtLimit ? (
+                'Limit Reached'
+              ) : (
+                'New Swarm'
+              )}
+            </TactileButton>
+          )}
+          {swarmQuota && (
+            <span className="text-xs text-muted-foreground">
+              {swarmQuota.used}/{swarmQuota.limit} daily
+            </span>
+          )}
+        </div>
       </div>
     </motion.div>
   );

@@ -32,6 +32,12 @@ export interface LearningStreamItem {
   updatedAt: string;
 }
 
+export interface SwarmQuota {
+  used: number;
+  limit: number;
+  remaining: number;
+}
+
 export interface LearningStreamStats {
   total: number;
   pending: number;
@@ -39,6 +45,7 @@ export interface LearningStreamStats {
   graded: number;
   discarded: number;
   isResearching: boolean;
+  swarmQuota: SwarmQuota | null;
 }
 
 export function useLearningStream(slug: string) {
@@ -109,7 +116,7 @@ export function useLearningStream(slug: string) {
   return {
     // Data
     items: itemsQuery.data ?? [],
-    stats: statsQuery.data ?? { total: 0, pending: 0, bookmarked: 0, graded: 0, discarded: 0, isResearching: false },
+    stats: statsQuery.data ?? { total: 0, pending: 0, bookmarked: 0, graded: 0, discarded: 0, isResearching: false, swarmQuota: null },
     isLoading: itemsQuery.isLoading || statsQuery.isLoading,
     error: itemsQuery.error || statsQuery.error,
 

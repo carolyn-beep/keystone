@@ -1,5 +1,7 @@
+import { useCallback, useRef } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { queryClient } from '@/lib/queryClient';
+import { apiRequest } from '@/lib/queryClient';
 import type { ExtractedContent, LearningStreamItem } from './useLearningStream';
 
 /**
@@ -8,20 +10,27 @@ import type { ExtractedContent, LearningStreamItem } from './useLearningStream';
  * seeds the cache — zero network requests.
  */
 export function useItemContent(slug: string, item: LearningStreamItem | null) {
-  // Seed cache if item already has content
   const itemId = item?.id ?? null;
   const cacheKey = ['item-content', slug, itemId];
+  const retryingRef = useRef(false);
 
-  if (item?.extractedContent) {
+  // Seed cache from list data, but not while a retry is polling
+  if (item?.extractedContent && !retryingRef.current) {
     queryClient.setQueryData(cacheKey, item.extractedContent);
   }
 
-  return useQuery<ExtractedContent>({
+  const query = useQuery<ExtractedContent>({
     queryKey: cacheKey,
     queryFn: async () => {
       const res = await fetch(`/api/brainlifts/${slug}/learning-stream/${itemId}/content`);
       if (!res.ok) throw new Error('Failed to fetch content');
-      return res.json();
+      const data = await res.json();
+      // Extraction finished — stop blocking the seed and refresh the list
+      if (retryingRef.current && data.contentType !== 'pending') {
+        retryingRef.current = false;
+        queryClient.invalidateQueries({ queryKey: ['learning-stream', slug] });
+      }
+      return data;
     },
     enabled: itemId !== null,
     staleTime: Infinity,
@@ -30,4 +39,13 @@ export function useItemContent(slug: string, item: LearningStreamItem | null) {
       return data?.contentType === 'pending' ? 3000 : false;
     },
   });
+
+  const retryExtraction = useCallback(async () => {
+    if (!itemId) return;
+    retryingRef.current = true;
+    await apiRequest('POST', `/api/brainlifts/${slug}/learning-stream/${itemId}/retry-extract`);
+    queryClient.setQueryData(cacheKey, { contentType: 'pending' } as ExtractedContent);
+  }, [slug, itemId, cacheKey]);
+
+  return { ...query, retryExtraction };
 }
