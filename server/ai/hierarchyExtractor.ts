@@ -189,43 +189,53 @@ function extractFactsFromDOK1Node(
   const facts: HierarchyExtractedFact[] = [];
   let idCounter = startId;
 
-  // Facts are the children of the DOK1 marker node
-  for (const child of dok1Node.children) {
-    // Skip if it's a marker node (DOK2, etc.)
-    if (child.isDOK1Marker || child.isSourceMarker || child.isCategoryMarker) {
-      continue;
-    }
+  // Collect facts from a node's children, recursing into short-named labels
+  // (e.g. "fact 1", "fact 2") that wrap the actual content one level deeper
+  function collectFacts(node: HierarchyNode) {
+    for (const child of node.children) {
+      // Skip marker nodes (DOK2, etc.)
+      if (child.isDOK1Marker || child.isDOK2Marker || child.isSourceMarker || child.isCategoryMarker) {
+        continue;
+      }
 
-    const factText = child.name.trim();
-    if (factText.length < 10) {
-      // Skip very short entries (likely headers or bullets)
-      continue;
-    }
+      const factText = child.name.trim();
 
-    facts.push({
-      id: `${idCounter++}`,
-      fact: factText,
-      category: context.category || 'General',
-      source: context.source || 'Unknown',
-      sourceUrl: context.sourceUrl,
-      depth: child.depth,
-    });
+      if (factText.length < 10) {
+        // Short entry (e.g. "fact 1" label) — descend into its children
+        // to find the actual fact content one level deeper
+        if (child.children.length > 0) {
+          collectFacts(child);
+        }
+        continue;
+      }
 
-    // Also check grandchildren (nested facts under bullet points)
-    for (const grandchild of child.children) {
-      const grandchildText = grandchild.name.trim();
-      if (grandchildText.length >= 10 && !grandchild.isDOK1Marker) {
-        facts.push({
-          id: `${idCounter++}`,
-          fact: grandchildText,
-          category: context.category || 'General',
-          source: context.source || 'Unknown',
-          sourceUrl: context.sourceUrl,
-          depth: grandchild.depth,
-        });
+      facts.push({
+        id: `${idCounter++}`,
+        fact: factText,
+        category: context.category || 'General',
+        source: context.source || 'Unknown',
+        sourceUrl: context.sourceUrl,
+        depth: child.depth,
+      });
+
+      // Also check grandchildren (nested facts under bullet points)
+      for (const grandchild of child.children) {
+        const grandchildText = grandchild.name.trim();
+        if (grandchildText.length >= 10 && !grandchild.isDOK1Marker && !grandchild.isDOK2Marker) {
+          facts.push({
+            id: `${idCounter++}`,
+            fact: grandchildText,
+            category: context.category || 'General',
+            source: context.source || 'Unknown',
+            sourceUrl: context.sourceUrl,
+            depth: grandchild.depth,
+          });
+        }
       }
     }
   }
+
+  collectFacts(dok1Node);
 
   return facts;
 }
