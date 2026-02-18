@@ -19,6 +19,7 @@ const ORDERED_STAGES: Exclude<ImportStage, 'complete' | 'error'>[] = [
   'grading_dok2',
   'contradictions',
   'saving',
+  'dok3_linking',
   'experts',
   'redundancy',
 ];

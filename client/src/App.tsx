@@ -44,7 +44,7 @@ function Router() {
           </ProtectedRoute>
         )}
       </Route>
-      <Route path="/view/:slug">
+<Route path="/view/:slug">
         {(params) => <Dashboard slug={params.slug} isSharedView={true} />}
       </Route>
       <Route path="/:slug">

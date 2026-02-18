@@ -21,6 +21,7 @@ export interface ImportState {
   gradingDok2Progress: GradingProgress | null;
   error: string | null;
   slug: string | null;
+  dok3LinkingInfo: { dok3Count: number; slug: string } | null;
 }
 
 export function useImportWithProgress() {
@@ -33,11 +34,14 @@ export function useImportWithProgress() {
     gradingDok2Progress: null,
     error: null,
     slug: null,
+    dok3LinkingInfo: null,
   });
 
   const abortControllerRef = useRef<AbortController | null>(null);
+  const dok3LinkingRef = useRef<{ dok3Count: number; slug: string } | null>(null);
 
   const reset = useCallback(() => {
+    dok3LinkingRef.current = null;
     setState({
       isImporting: false,
       currentStage: null,
@@ -47,6 +51,7 @@ export function useImportWithProgress() {
       gradingDok2Progress: null,
       error: null,
       slug: null,
+      dok3LinkingInfo: null,
     });
   }, []);
 
@@ -71,6 +76,7 @@ export function useImportWithProgress() {
       gradingDok2Progress: null,
       error: null,
       slug: null,
+      dok3LinkingInfo: null,
     });
 
     try {
@@ -142,6 +148,14 @@ export function useImportWithProgress() {
                   event.stage === 'grading_dok2' && 'completed' in event && 'total' in event
                     ? { completed: event.completed, total: event.total }
                     : prev.gradingDok2Progress,
+                dok3LinkingInfo:
+                  event.stage === 'dok3_linking' && 'dok3Count' in event && 'slug' in event
+                    ? (() => {
+                        const info = { dok3Count: (event as any).dok3Count, slug: (event as any).slug };
+                        dok3LinkingRef.current = info;
+                        return info;
+                      })()
+                    : prev.dok3LinkingInfo,
                 error: event.stage === 'error' && 'error' in event ? event.error : null,
                 slug: event.stage === 'complete' && 'slug' in event ? event.slug : prev.slug,
               }));
@@ -198,5 +212,6 @@ export function useImportWithProgress() {
     importBrainlift,
     cancel,
     reset,
+    dok3LinkingRef,
   };
 }

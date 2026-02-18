@@ -6,6 +6,7 @@ export type ImportStage =
   | 'grading_dok2'
   | 'contradictions'
   | 'saving'
+  | 'dok3_linking'
   | 'experts'
   | 'redundancy'
   | 'complete'
@@ -40,6 +41,12 @@ export interface SavingProgress extends BaseProgressEvent {
   stage: 'saving';
 }
 
+export interface DOK3LinkingProgressEvent extends BaseProgressEvent {
+  stage: 'dok3_linking';
+  dok3Count: number;
+  slug: string;
+}
+
 export interface ExpertsProgress extends BaseProgressEvent {
   stage: 'experts';
 }
@@ -64,6 +71,7 @@ export type ImportProgress =
   | GradingDOK2Progress
   | ContradictionsProgress
   | SavingProgress
+  | DOK3LinkingProgressEvent
   | ExpertsProgress
   | RedundancyProgress
   | CompleteProgress
@@ -76,11 +84,33 @@ export const STAGE_LABELS: Record<ImportStage, string> = {
   grading_dok2: 'Grading DOK2 summaries...',
   contradictions: 'Detecting contradictions...',
   saving: 'Saving to database...',
+  dok3_linking: 'DOK3 insights ready for linking',
   experts: 'Extracting experts...',
   redundancy: 'Analyzing redundancies...',
   complete: 'Import complete!',
   error: 'Import failed',
 };
+
+// ─── DOK3 Grading Progress (separate from import pipeline) ─────────────────
+
+export type DOK3GradingStage =
+  | 'dok3:start'
+  | 'dok3:foundation'
+  | 'dok3:traceability'
+  | 'dok3:evaluation'
+  | 'dok3:complete'
+  | 'dok3:error'
+  | 'dok3:done';
+
+export interface DOK3GradingProgress {
+  stage: DOK3GradingStage;
+  message: string;
+  insightIndex?: number;
+  insightTotal?: number;
+  insightId?: number;
+  score?: number;
+  error?: string;
+}
 
 // Weights for progress bar calculation (must sum to 100)
 export const STAGE_WEIGHTS: Record<Exclude<ImportStage, 'complete' | 'error'>, number> = {
@@ -88,7 +118,8 @@ export const STAGE_WEIGHTS: Record<Exclude<ImportStage, 'complete' | 'error'>, n
   grading: 55,           // DOK1 grading takes the longest
   grading_dok2: 15,      // DOK2 grading (fewer items, runs in parallel)
   contradictions: 5,
-  saving: 5,
+  saving: 3,
+  dok3_linking: 2,       // Informational — signals DOK3 insights ready
   experts: 10,
   redundancy: 5,
 };
@@ -104,6 +135,7 @@ export function calculateProgress(event: ImportProgress): number {
     'grading_dok2',
     'contradictions',
     'saving',
+    'dok3_linking',
     'experts',
     'redundancy',
   ];

@@ -9,6 +9,7 @@ import * as analyticsStorage from './analytics';
 import * as dok2Storage from './dok2';
 import * as sharesStorage from './shares';
 import * as learningStreamStorage from './learning-stream';
+import * as dok3Storage from './dok3';
 
 // Re-export types from base
 export type {
@@ -72,6 +73,7 @@ export const storage = {
   getFactByIdForBrainlift: verificationsStorage.getFactByIdForBrainlift,
   getFactVerificationForBrainlift: verificationsStorage.getFactVerificationForBrainlift,
   setHumanOverrideForBrainlift: verificationsStorage.setHumanOverrideForBrainlift,
+  getDOK1MeanScore: verificationsStorage.getDOK1MeanScore,
 
   // Redundancy
   getRedundancyGroups: redundancyStorage.getRedundancyGroups,
@@ -88,6 +90,7 @@ export const storage = {
   saveSingleDOK2Summary: dok2Storage.saveSingleDOK2Summary,
   getDOK2Summaries: dok2Storage.getDOK2Summaries,
   deleteDOK2Summaries: dok2Storage.deleteDOK2Summaries,
+  getDOK2MeanScore: dok2Storage.getDOK2MeanScore,
 
   // Learning Stream
   addLearningStreamItem: learningStreamStorage.addLearningStreamItem,
@@ -102,7 +105,25 @@ export const storage = {
   clearExtractedContent: learningStreamStorage.clearExtractedContent,
   getSwarmUsageToday: learningStreamStorage.getSwarmUsageToday,
   recordSwarmUsage: learningStreamStorage.recordSwarmUsage,
+
+  // DOK3 Insights
+  saveDOK3Insights: dok3Storage.saveDOK3Insights,
+  getDOK3Insights: dok3Storage.getDOK3Insights,
+  getDOK3ScratchpadItems: dok3Storage.getDOK3ScratchpadItems,
+  seedDOK3Insight: dok3Storage.seedDOK3Insight,
+  deleteDOK3Data: dok3Storage.deleteDOK3Data,
+  getDOK3InsightForBrainlift: dok3Storage.getDOK3InsightForBrainlift,
+  validateMultiSourceLinks: dok3Storage.validateMultiSourceLinks,
+  linkDOK3Insight: dok3Storage.linkDOK3Insight,
+  scratchpadDOK3Insight: dok3Storage.scratchpadDOK3Insight,
+  unscratchpadDOK3Insight: dok3Storage.unscratchpadDOK3Insight,
+  checkFoundationGraded: dok3Storage.checkFoundationGraded,
+  getInsightEvaluationContext: dok3Storage.getInsightEvaluationContext,
+  saveDOK3GradeResult: dok3Storage.saveDOK3GradeResult,
+  updateDOK3InsightStatus: dok3Storage.updateDOK3InsightStatus,
+  updateDOK3SourceRankings: dok3Storage.updateDOK3SourceRankings,
+  getDOK3MeanScore: dok3Storage.getDOK3MeanScore,
 };
 
 // Export individual modules for direct access if needed
-export { brainliftsStorage, expertsStorage, verificationsStorage, redundancyStorage, analyticsStorage, dok2Storage, sharesStorage, learningStreamStorage };
+export { brainliftsStorage, expertsStorage, verificationsStorage, redundancyStorage, analyticsStorage, dok2Storage, sharesStorage, learningStreamStorage, dok3Storage };

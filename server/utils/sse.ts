@@ -7,6 +7,11 @@ export interface SSEWriter {
   error: (message: string) => void;
 }
 
+export interface GenericSSEWriter<T> {
+  send: (event: T) => void;
+  close: () => void;
+}
+
 /**
  * Create an SSE response helper for streaming progress events.
  * Sets appropriate headers and provides methods to send, close, or error.
@@ -69,6 +74,54 @@ export function createSSEResponse(res: Response): SSEWriter {
         res.end();
       } catch (err) {
         console.error('[SSE] Failed to send error:', err);
+      }
+    },
+  };
+}
+
+/**
+ * Create a generic SSE response helper for streaming typed events.
+ * Unlike createSSEResponse, this doesn't have an opinionated error method —
+ * the caller constructs error events using their own type and calls send() + close().
+ */
+export function createGenericSSE<T>(res: Response): GenericSSEWriter<T> {
+  res.setHeader('Content-Type', 'text/event-stream');
+  res.setHeader('Cache-Control', 'no-cache');
+  res.setHeader('Connection', 'keep-alive');
+  res.setHeader('X-Accel-Buffering', 'no');
+  res.flushHeaders();
+
+  res.write('event: connected\ndata: {}\n\n');
+
+  const heartbeat = setInterval(() => {
+    try {
+      res.write(':heartbeat\n\n');
+    } catch {
+      clearInterval(heartbeat);
+    }
+  }, 30000);
+
+  const cleanup = () => {
+    clearInterval(heartbeat);
+  };
+
+  return {
+    send(event: T) {
+      try {
+        res.write(`event: progress\ndata: ${JSON.stringify(event)}\n\n`);
+      } catch (err) {
+        console.error('[SSE] Failed to write event:', err);
+        cleanup();
+      }
+    },
+
+    close() {
+      cleanup();
+      try {
+        res.write('event: done\ndata: {}\n\n');
+        res.end();
+      } catch (err) {
+        console.error('[SSE] Failed to close:', err);
       }
     },
   };

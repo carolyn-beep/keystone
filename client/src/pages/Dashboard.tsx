@@ -9,6 +9,8 @@ import { RiQuillPenAiFill } from 'react-icons/ri';
 import { FaBalanceScale } from 'react-icons/fa';
 import { MdDynamicFeed } from 'react-icons/md';
 import { IoBookmarks, IoRibbon } from 'react-icons/io5';
+import { DeskLampIcon } from '@/assets/icons/DeskLampIcon';
+import { ScratchpadIcon } from '@/assets/icons/ScratchpadIcon';
 import { tokens } from '@/lib/colors';
 import { useToast } from '@/hooks/use-toast';
 import { useBrainlift } from '@/hooks/useBrainlift';
@@ -20,10 +22,15 @@ import { UpdateModal, FactDetailModal, HistoryModal, RedundancyModal, ShareModal
 import { NotBrainliftView } from '@/components/NotBrainliftView';
 import { BrainliftTab } from '@/components/BrainliftTab';
 import { SummariesTab } from '@/components/SummariesTab';
+import { InsightsTab } from '@/components/InsightsTab';
+import { ScratchpadTab } from '@/components/ScratchpadTab';
+import { DOK3LinkingUI } from '@/components/DOK3LinkingUI';
 import { LearningStreamTab } from '@/components/LearningStreamTab';
 import { SavedItemsPage, GradedItemsPage } from '@/components/learning-stream';
 import { usePDFExport } from '@/hooks/usePDFExport';
 import { useShareToken } from '@/hooks/useShareToken';
+import { useDOK3Insights } from '@/hooks/useDOK3Insights';
+import { useDOK3GradingEvents } from '@/hooks/useDOK3GradingEvents';
 import { SidebarLayout, AppSidebar, type NavItem } from '@/components/layout';
 
 interface DashboardProps {
@@ -31,13 +38,15 @@ interface DashboardProps {
   isSharedView?: boolean;
 }
 
-const VALID_TABS = ['brainlift', 'grading', 'contradictions', 'learning', 'learning-saved', 'learning-graded', 'summaries'] as const;
+const VALID_TABS = ['brainlift', 'grading', 'summaries', 'insights', 'scratchpad', 'contradictions', 'learning', 'learning-saved', 'learning-graded'] as const;
 type TabKey = typeof VALID_TABS[number];
 
 const NAV_ITEMS: NavItem[] = [
   { id: 'brainlift', label: 'Brainlift', icon: FileText },
   { id: 'grading', label: 'DOK1 Facts', icon: PiCompassToolFill },
   { id: 'summaries', label: 'DOK2 Summaries', icon: RiQuillPenAiFill },
+  { id: 'insights', label: 'DOK3 Insights', icon: DeskLampIcon },
+  { id: 'scratchpad', label: 'Scratchpad', icon: ScratchpadIcon },
   { id: 'contradictions', label: 'Contradictions', icon: FaBalanceScale },
   {
     id: 'learning',
@@ -107,6 +116,7 @@ export default function Dashboard({ slug, isSharedView = false }: DashboardProps
   const [selectedFactForModal, setSelectedFactForModal] = useState<Fact | null>(null);
   const [editingAuthor, setEditingAuthor] = useState(false);
   const [authorInput, setAuthorInput] = useState('');
+  const [showLinkingModal, setShowLinkingModal] = useState(false);
 
 const { toast } = useToast();
 
@@ -158,6 +168,10 @@ const { downloadBrainliftPDF } = usePDFExport();
     },
     enabled: !!slug
   });
+
+  // DOK3 Insights
+  const dok3 = useDOK3Insights(slug);
+  const dok3Events = useDOK3GradingEvents(slug, dok3.gradingInsights.length > 0);
 
   // Redundancy detection
   const [showRedundancyModal, setShowRedundancyModal] = useState(false);
@@ -317,6 +331,34 @@ const { downloadBrainliftPDF } = usePDFExport();
         />
       )}
 
+      {/* DOK3 Insights Tab */}
+      {!isNotBrainlift && activeTab === 'insights' && (
+        <InsightsTab
+          insights={dok3.insights}
+          isLoading={dok3.isLoading}
+          meanScore={dok3.meanScore}
+          totalCount={dok3.totalCount}
+          highQualityCount={dok3.highQualityCount}
+          needsWorkCount={dok3.needsWorkCount}
+          gradingInsights={dok3.gradingInsights}
+          errorInsights={dok3.errorInsights}
+          gradeAll={dok3.gradeAll}
+          isGrading={dok3.isGrading}
+          setActiveTab={setActiveTab}
+          latestEvent={dok3Events.latestEvent}
+          dok2Summaries={data.dok2Summaries ?? []}
+          onLinkNow={() => setShowLinkingModal(true)}
+        />
+      )}
+
+      {/* Scratchpad Tab */}
+      {!isNotBrainlift && activeTab === 'scratchpad' && (
+        <ScratchpadTab
+          items={dok3.scratchpadItems}
+          isLoading={dok3.isScratchpadLoading}
+        />
+      )}
+
       {/* Contradictions Tab - Card-based styled design */}
       {!isNotBrainlift && activeTab === 'contradictions' && (
         <ContradictionsTab
@@ -385,6 +427,37 @@ const { downloadBrainliftPDF } = usePDFExport();
         slug={slug}
         isOwner={isOwner}
       />
+
+      {/* DOK3 Linking Modal (standalone, outside import flow) */}
+      {showLinkingModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
+          <div className="bg-card rounded-xl shadow-lg border border-border flex flex-col w-[90vw] max-w-[1750px] h-[92vh] max-h-[1080px] overflow-hidden">
+            <div className="flex items-center justify-between px-6 py-3 border-b border-border shrink-0">
+              <h2 className="text-[14px] font-semibold text-foreground m-0">Link DOK3 Insights</h2>
+              <button
+                onClick={() => {
+                  setShowLinkingModal(false);
+                  dok3.invalidate();
+                }}
+                className="text-[11px] uppercase tracking-[0.2em] font-semibold text-muted-foreground bg-transparent border-0 cursor-pointer hover:text-foreground transition-colors"
+              >
+                Close
+              </button>
+            </div>
+            <div className="flex-1 min-h-0">
+              <DOK3LinkingUI
+                slug={slug}
+                dok3Count={dok3.pendingInsights.length}
+                onComplete={() => {
+                  setShowLinkingModal(false);
+                  dok3.invalidate();
+                  setActiveTab('insights');
+                }}
+              />
+            </div>
+          </div>
+        </div>
+      )}
     </SidebarLayout>
   );
 }

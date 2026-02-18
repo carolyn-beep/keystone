@@ -10,6 +10,7 @@ import { devRouter } from "./routes/dev";
 import { jobsRouter } from "./routes/jobs";
 import { learningStreamRouter } from "./routes/learning-stream";
 import { discussionRouter } from "./routes/discussion";
+import { dok3Router } from "./routes/dok3";
 import { errorHandler } from "./middleware/error-handler";
 import { seedDatabase, backfillOriginalContent } from "./seed";
 
@@ -28,6 +29,7 @@ export async function registerRoutes(
   app.use(jobsRouter);
   app.use(learningStreamRouter);
   app.use(discussionRouter);
+  app.use(dok3Router);
 
   // Global error handler - must be after all routes
   app.use(errorHandler);

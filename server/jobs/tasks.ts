@@ -4,6 +4,7 @@ import { brainliftImageJob } from './brainliftImageJob';
 import { contentExtractJob } from './contentExtractJob';
 import { discussionVerifyFactJob } from './discussionVerifyFactJob';
 import { discussionGradeDok2Job } from './discussionGradeDok2Job';
+import { dok3GradeJob } from './dok3GradeJob';
 
 /**
  * Central registry of all background jobs.
@@ -21,6 +22,7 @@ const tasks = {
   'brainlift:generate-image': brainliftImageJob,
   'discussion:verify-fact': discussionVerifyFactJob,
   'discussion:grade-dok2': discussionGradeDok2Job,
+  'dok3:grade': dok3GradeJob,
 } as const;
 
 export default tasks;

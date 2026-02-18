@@ -111,6 +111,55 @@ export async function runPostProcessingPipeline(
   }
 }
 
+/**
+ * Recompute the combined BrainLift meanScore from fresh DB data.
+ * Formula:
+ *   - If DOK3 graded insights exist: DOK1 * 0.33 + DOK2 * 0.34 + DOK3 * 0.33
+ *   - If no DOK3: (DOK1 + DOK2) / 2  (50/50)
+ *   - If only one category: use that single mean
+ */
+export async function recomputeBrainliftScore(brainliftId: number): Promise<void> {
+  const [dok1Mean, dok2Mean, dok3Mean] = await Promise.all([
+    storage.getDOK1MeanScore(brainliftId),
+    storage.getDOK2MeanScore(brainliftId),
+    storage.getDOK3MeanScore(brainliftId),
+  ]);
+
+  const brainlift = await storage.getBrainliftById(brainliftId);
+  if (!brainlift) return;
+
+  let combinedMeanScore: string;
+  const available: number[] = [];
+
+  if (dok3Mean !== null && dok1Mean !== null && dok2Mean !== null) {
+    // All three categories — weighted 33/34/33
+    combinedMeanScore = (dok1Mean * 0.33 + dok2Mean * 0.34 + dok3Mean * 0.33).toFixed(2);
+  } else if (dok1Mean !== null && dok2Mean !== null) {
+    // DOK1 + DOK2 only — 50/50
+    combinedMeanScore = ((dok1Mean + dok2Mean) / 2).toFixed(2);
+  } else {
+    // One or zero categories
+    if (dok1Mean !== null) available.push(dok1Mean);
+    if (dok2Mean !== null) available.push(dok2Mean);
+    if (dok3Mean !== null) available.push(dok3Mean);
+    combinedMeanScore = available.length > 0
+      ? (available.reduce((a, b) => a + b, 0) / available.length).toFixed(2)
+      : '0';
+  }
+
+  const existingSummary = (brainlift.summary as Record<string, unknown>) || {};
+  await storage.updateBrainliftFields(brainliftId, {
+    summary: {
+      totalFacts: (existingSummary.totalFacts as number) || 0,
+      meanScore: combinedMeanScore,
+      score5Count: (existingSummary.score5Count as number) || 0,
+      contradictionCount: (existingSummary.contradictionCount as number) || 0,
+    },
+  });
+
+  console.log(`[Score] Recomputed brainlift ${brainliftId}: DOK1=${dok1Mean?.toFixed(2) ?? 'n/a'}, DOK2=${dok2Mean?.toFixed(2) ?? 'n/a'}, DOK3=${dok3Mean?.toFixed(2) ?? 'n/a'}, Combined=${combinedMeanScore}`);
+}
+
 export async function saveBrainliftFromAI(
   data: BrainliftOutput,
   originalContent?: string,
@@ -132,15 +181,16 @@ export async function saveBrainliftFromAI(
   let completedCount = 0;
   const totalFacts = data.facts.length;
   const skipGrading = process.env.SKIP_GRADING === 'true';
+  const skipDok1Grading = skipGrading || process.env.SKIP_DOK1_GRADING === 'true';
 
-  if (skipGrading) {
-    console.log(`[Auto-Grade] SKIP_GRADING=true - skipping evidence fetch and LLM verification`);
+  if (skipDok1Grading) {
+    console.log(`[Auto-Grade] ${skipGrading ? 'SKIP_GRADING' : 'SKIP_DOK1_GRADING'}=true - skipping DOK1 evidence fetch and LLM verification`);
   }
 
   // Emit initial grading progress
   onProgress?.({
     stage: 'grading',
-    message: skipGrading ? 'Skipping grading (SKIP_GRADING=true)' : STAGE_LABELS.grading,
+    message: skipDok1Grading ? 'Skipping DOK1 grading' : STAGE_LABELS.grading,
     completed: 0,
     total: totalFacts,
   });
@@ -151,10 +201,10 @@ export async function saveBrainliftFromAI(
   // Run fact processing and contradiction detection in parallel
   const [factsWithSummaries, contradictionClusters] = await Promise.all([
     Promise.all(data.facts.map(fact => limit(async () => {
-      // Fast path: skip grading entirely
-      if (skipGrading) {
+      // Fast path: skip DOK1 grading entirely
+      if (skipDok1Grading) {
         completedCount++;
-        onProgress?.({ stage: 'grading', message: 'Skipping grading', completed: completedCount, total: totalFacts });
+        onProgress?.({ stage: 'grading', message: 'Skipping DOK1 grading', completed: completedCount, total: totalFacts });
         return {
           originalId: fact.id,
           category: fact.category,
@@ -453,38 +503,64 @@ export async function saveBrainliftFromAI(
       await storage.saveDOK2Summaries(brainlift.id, gradedDOK2Summaries, factIdMap);
       console.log(`[Auto-Grade] DOK2 summaries saved successfully with grades`);
 
-      // Recalculate mean score with DOK1 and DOK2 weighted equally (50/50)
-      const dok2Grades = gradedDOK2Summaries.filter(s => s.grade && s.grade > 0);
-      const dok2Sum = dok2Grades.reduce((sum, s) => sum + (s.grade || 0), 0);
-      const dok2Mean = dok2Grades.length > 0 ? dok2Sum / dok2Grades.length : 0;
+      // Save DOK3 insights if present (no grading — just persist with pending_linking status)
+      if (data.dok3Insights && data.dok3Insights.length > 0) {
+        console.log(`[Auto-Grade] Saving ${data.dok3Insights.length} DOK3 insights (pending_linking)...`);
+        await storage.saveDOK3Insights(
+          brainlift.id,
+          data.dok3Insights.map((insight: { text: string; workflowyNodeId: string }) => ({
+            text: insight.text,
+            workflowyNodeId: insight.workflowyNodeId,
+          }))
+        );
+        console.log(`[Auto-Grade] DOK3 insights saved successfully`);
 
-      const dok1Sum = gradeableFacts.reduce((sum, f) => sum + f.score, 0);
-      const dok1Mean = gradeableFacts.length > 0 ? dok1Sum / gradeableFacts.length : 0;
+        // Rank sources for insights before emitting dok3_linking
+        // This pre-computes relevance rankings so the linking UI can sort sources
+        try {
+          const { rankSourcesForInsights } = await import('../ai/dok3SourceRanker');
+          const savedInsights = await storage.getDOK3Insights(brainlift.id, []);
+          const insightInputs = savedInsights.map(i => ({ id: i.id, text: i.text }));
 
-      // Weight DOK1 and DOK2 equally: average the category means
-      let combinedMeanScore: string;
-      if (gradeableFacts.length > 0 && dok2Grades.length > 0) {
-        // Both categories have grades - average them 50/50
-        combinedMeanScore = ((dok1Mean + dok2Mean) / 2).toFixed(2);
-      } else if (gradeableFacts.length > 0) {
-        // Only DOK1 has grades
-        combinedMeanScore = dok1Mean.toFixed(2);
-      } else if (dok2Grades.length > 0) {
-        // Only DOK2 has grades
-        combinedMeanScore = dok2Mean.toFixed(2);
-      } else {
-        combinedMeanScore = "0";
+          // Gather sources grouped by sourceName (Workflowy source), with all DOK2 displayTitles
+          const dok2s = await storage.getDOK2Summaries(brainlift.id);
+          console.log(`[DOK3 Ranker] Total DOK2 summaries fetched: ${dok2s.length}`);
+          const sourceMap = new Map<string, { sourceName: string; dok2Titles: string[] }>();
+          for (const d of dok2s) {
+            // Group by sourceName — each Workflowy source can have multiple DOK2s with different URLs
+            const key = d.sourceName.toLowerCase().trim();
+            if (!sourceMap.has(key)) {
+              sourceMap.set(key, { sourceName: d.sourceName, dok2Titles: [] });
+            }
+            const title = d.displayTitle || d.category;
+            if (title) {
+              sourceMap.get(key)!.dok2Titles.push(title);
+            } else {
+              console.warn(`[DOK3 Ranker] DOK2 #${d.id} under source "${d.sourceName}" has no displayTitle or category`);
+            }
+          }
+          const sourceInputs = Array.from(sourceMap.values());
+          console.log(`[DOK3 Ranker] Grouped into ${sourceInputs.length} sources (from ${dok2s.length} DOK2 summaries)`);
+
+          if (sourceInputs.length >= 2 && insightInputs.length > 0) {
+            await rankSourcesForInsights(insightInputs, sourceInputs);
+            console.log(`[Auto-Grade] Source rankings computed for ${insightInputs.length} DOK3 insights`);
+          }
+        } catch (err) {
+          console.error('[Auto-Grade] Source ranking failed (non-blocking):', err);
+        }
+
+        // Emit dok3_linking event — informs client that DOK3 insights are ready for linking
+        onProgress?.({
+          stage: 'dok3_linking',
+          message: 'DOK3 insights ready for linking',
+          dok3Count: data.dok3Insights.length,
+          slug,
+        });
       }
 
-      // Update brainlift summary with combined mean score
-      await storage.updateBrainliftFields(brainlift.id, {
-        summary: {
-          ...dynamicSummary,
-          meanScore: combinedMeanScore,
-        },
-      });
-
-      console.log(`[Auto-Grade] Updated mean score: DOK1=${dok1Mean.toFixed(2)} (${gradeableFacts.length} facts), DOK2=${dok2Mean.toFixed(2)} (${dok2Grades.length} summaries), Combined=${combinedMeanScore} (50/50 weighted)`);
+      // Recompute combined score from fresh DB data (handles DOK1/DOK2/DOK3 weighting)
+      await recomputeBrainliftScore(brainlift.id);
     }
   } catch (err: any) {
     // Handle duplicate slug error with retry

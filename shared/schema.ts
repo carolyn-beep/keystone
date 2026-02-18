@@ -598,6 +598,90 @@ export const swarmUsageRelations = relations(swarmUsage, ({ one }) => ({
   }),
 }));
 
+// DOK3 Models — separate from LLM_MODELS (which is for fact verification)
+export const DOK3_MODELS = {
+  // Step 3: Quality-tier for conceptual coherence evaluation
+  OPUS: 'anthropic/claude-opus-4.6',
+  SONNET_FALLBACK: 'anthropic/claude-sonnet-4.5',
+  // Step 2: Mid-tier for traceability checks
+  GEMINI_FLASH: 'google/gemini-2.0-flash-001',
+  SONNET_TRACEABILITY_FALLBACK: 'anthropic/claude-sonnet-4.5',
+} as const;
+
+export type DOK3Model = typeof DOK3_MODELS[keyof typeof DOK3_MODELS];
+
+// DOK3 Insight Status
+export const DOK3_INSIGHT_STATUS = {
+  PENDING_LINKING: 'pending_linking',
+  LINKED: 'linked',
+  GRADING: 'grading',
+  GRADED: 'graded',
+  ERROR: 'error',
+  SCRATCHPADDED: 'scratchpadded',
+} as const;
+
+export type DOK3InsightStatus = typeof DOK3_INSIGHT_STATUS[keyof typeof DOK3_INSIGHT_STATUS];
+
+// DOK3 Insights - Cross-source insights linking multiple DOK2 summaries
+export const dok3Insights = pgTable("dok3_insights", {
+  id: serial("id").primaryKey(),
+  brainliftId: integer("brainlift_id").notNull().references(() => brainlifts.id, { onDelete: "cascade" }),
+  text: text("text").notNull(),
+  workflowyNodeId: text("workflowy_node_id"),
+  status: text("status").$type<DOK3InsightStatus>().notNull().default('pending_linking'),
+  score: integer("score"),
+  frameworkName: text("framework_name"),
+  frameworkDescription: text("framework_description"),
+  criteriaBreakdown: jsonb("criteria_breakdown"),
+  rationale: text("rationale"),
+  feedback: text("feedback"),
+  foundationIntegrityIndex: text("foundation_integrity_index"),
+  dok1FoundationScore: text("dok1_foundation_score"),
+  dok2SynthesisScore: text("dok2_synthesis_score"),
+  traceabilityFlagged: boolean("traceability_flagged").default(false),
+  traceabilityFlaggedSource: text("traceability_flagged_source"),
+  evaluatorModel: text("evaluator_model"),
+  sourceRankings: jsonb("source_rankings").$type<Record<string, number>>(),
+  gradedAt: timestamp("graded_at"),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => [
+  index("idx_dok3_insights_brainlift").on(table.brainliftId),
+]);
+
+// DOK3 Insight Links (many-to-many: insight ↔ dok2_summary)
+export const dok3InsightLinks = pgTable("dok3_insight_links", {
+  id: serial("id").primaryKey(),
+  insightId: integer("insight_id").notNull().references(() => dok3Insights.id, { onDelete: "cascade" }),
+  dok2SummaryId: integer("dok2_summary_id").notNull().references(() => dok2Summaries.id, { onDelete: "cascade" }),
+}, (table) => [
+  unique("dok3_insight_links_unique").on(table.insightId, table.dok2SummaryId),
+  index("idx_dok3_insight_links_insight").on(table.insightId),
+  index("idx_dok3_insight_links_dok2").on(table.dok2SummaryId),
+]);
+
+// DOK3 Scratchpad table removed in Phase 5 — scratchpad is now a soft-delete status on dok3_insights
+
+export const dok3InsightsRelations = relations(dok3Insights, ({ one, many }) => ({
+  brainlift: one(brainlifts, {
+    fields: [dok3Insights.brainliftId],
+    references: [brainlifts.id],
+  }),
+  links: many(dok3InsightLinks),
+}));
+
+export const dok3InsightLinksRelations = relations(dok3InsightLinks, ({ one }) => ({
+  insight: one(dok3Insights, {
+    fields: [dok3InsightLinks.insightId],
+    references: [dok3Insights.id],
+  }),
+  dok2Summary: one(dok2Summaries, {
+    fields: [dok3InsightLinks.dok2SummaryId],
+    references: [dok2Summaries.id],
+  }),
+}));
+
+// dok3Scratchpad relations removed in Phase 5
+
 // === SCHEMAS ===
 
 export const insertBrainliftSchema = createInsertSchema(brainlifts);
@@ -613,6 +697,8 @@ export const insertFactRedundancyGroupSchema = createInsertSchema(factRedundancy
 export const insertDok2SummarySchema = createInsertSchema(dok2Summaries).omit({ id: true, createdAt: true });
 export const insertDok2PointSchema = createInsertSchema(dok2Points).omit({ id: true });
 export const insertDok2FactRelationSchema = createInsertSchema(dok2FactRelations).omit({ id: true });
+export const insertDok3InsightSchema = createInsertSchema(dok3Insights).omit({ id: true, createdAt: true });
+export const insertDok3InsightLinkSchema = createInsertSchema(dok3InsightLinks).omit({ id: true });
 export const insertBrainliftShareSchema = createInsertSchema(brainliftShares).omit({ id: true, createdAt: true });
 export const insertLearningStreamItemSchema = createInsertSchema(learningStreamItems).omit({ id: true, createdAt: true, updatedAt: true });
 
@@ -649,6 +735,10 @@ export type Dok2Point = typeof dok2Points.$inferSelect;
 export type InsertDok2Point = z.infer<typeof insertDok2PointSchema>;
 export type Dok2FactRelation = typeof dok2FactRelations.$inferSelect;
 export type InsertDok2FactRelation = z.infer<typeof insertDok2FactRelationSchema>;
+export type DOK3Insight = typeof dok3Insights.$inferSelect;
+export type InsertDOK3Insight = z.infer<typeof insertDok3InsightSchema>;
+export type DOK3InsightLink = typeof dok3InsightLinks.$inferSelect;
+export type InsertDOK3InsightLink = z.infer<typeof insertDok3InsightLinkSchema>;
 export type BrainliftShare = typeof brainliftShares.$inferSelect;
 export type InsertBrainliftShare = z.infer<typeof insertBrainliftShareSchema>;
 export type InsertLearningStreamItem = z.infer<typeof insertLearningStreamItemSchema>;

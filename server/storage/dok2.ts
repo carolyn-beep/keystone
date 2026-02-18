@@ -6,7 +6,7 @@
  */
 
 import {
-  db, eq, inArray,
+  db, eq, and, inArray, sql,
   dok2Summaries, dok2Points, dok2FactRelations,
 } from './base';
 import type { DOK2SummaryGroup } from '@shared/hierarchy-types';
@@ -227,4 +227,20 @@ export async function deleteDOK2Summaries(brainliftId: number): Promise<void> {
   await db.delete(dok2Summaries).where(eq(dok2Summaries.brainliftId, brainliftId));
 
   console.log(`[DOK2 Storage] Deleted ${summaries.length} DOK2 summaries for brainlift ${brainliftId}`);
+}
+
+/**
+ * Get the mean DOK2 grade for a brainlift (only summaries with grade > 0).
+ * Returns null if no graded DOK2 summaries exist.
+ */
+export async function getDOK2MeanScore(brainliftId: number): Promise<number | null> {
+  const [result] = await db.select({
+    mean: sql<string | null>`AVG(${dok2Summaries.grade})`,
+  }).from(dok2Summaries)
+    .where(and(
+      eq(dok2Summaries.brainliftId, brainliftId),
+      sql`${dok2Summaries.grade} > 0`
+    ));
+
+  return result?.mean ? parseFloat(result.mean) : null;
 }

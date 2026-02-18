@@ -210,3 +210,20 @@ export async function setHumanOverrideForBrainlift(
 
   return setHumanOverride(verificationId, score, notes);
 }
+
+/**
+ * Get the mean DOK1 score for a brainlift (only gradeable facts with score > 0).
+ * Returns null if no gradeable facts exist.
+ */
+export async function getDOK1MeanScore(brainliftId: number): Promise<number | null> {
+  const [result] = await db.select({
+    mean: sql<string | null>`AVG(${facts.score})`,
+  }).from(facts)
+    .where(and(
+      eq(facts.brainliftId, brainliftId),
+      eq(facts.isGradeable, true),
+      sql`${facts.score} > 0`
+    ));
+
+  return result?.mean ? parseFloat(result.mean) : null;
+}

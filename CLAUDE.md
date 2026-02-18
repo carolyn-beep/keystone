@@ -105,6 +105,15 @@ app.use(verificationsRouter);
 - Services are framework-agnostic - no `req`/`res`
 - Validate with `npm run build` after changes
 
+### SSE Streaming
+
+Use `createGenericSSE<T>(res)` from `server/utils/sse.ts` for new SSE endpoints. It handles headers, heartbeat, and cleanup.
+
+- **`createGenericSSE<T>`** — Generic, typed. Returns `{ send(event: T), close() }`. Use for new endpoints.
+- **`createSSEResponse`** — Import-specific. Hardcoded to `ImportProgress` with an opinionated `.error()` method. Don't use for new endpoints.
+- **Learning stream** — Bespoke setup (EventEmitter push model with custom event names/IDs). Doesn't fit either helper.
+- SSE endpoints should **not** use `asyncHandler` — they manage their own response lifecycle.
+
 ### Database Migrations
 
 **⚠️ NEVER merge/push code with new migrations to main until those migrations are applied to Neon prod.**

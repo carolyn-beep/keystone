@@ -12,6 +12,7 @@ import type {
   HierarchyExtractionResult,
   DOK2SummaryGroup,
   DOK2SummaryPoint,
+  DOK3ExtractedInsight,
   FullHierarchyExtractionResult,
 } from '@shared/hierarchy-types';
 
@@ -53,8 +54,8 @@ export function buildParentMap(roots: HierarchyNode[]): Map<string, HierarchyNod
  * Excludes DOK1/DOK2 marker subtrees to avoid picking up unrelated URLs
  */
 function findUrlInSubtree(node: HierarchyNode): string | null {
-  // Don't search inside DOK1/DOK2 markers - those have their own content
-  if (node.isDOK1Marker || node.isDOK2Marker) {
+  // Don't search inside DOK1/DOK2/DOK3 markers - those have their own content
+  if (node.isDOK1Marker || node.isDOK2Marker || node.isDOK3Marker) {
     return null;
   }
 
@@ -194,7 +195,7 @@ function extractFactsFromDOK1Node(
   function collectFacts(node: HierarchyNode) {
     for (const child of node.children) {
       // Skip marker nodes (DOK2, etc.)
-      if (child.isDOK1Marker || child.isDOK2Marker || child.isSourceMarker || child.isCategoryMarker) {
+      if (child.isDOK1Marker || child.isDOK2Marker || child.isDOK3Marker || child.isSourceMarker || child.isCategoryMarker) {
         continue;
       }
 
@@ -221,7 +222,7 @@ function extractFactsFromDOK1Node(
       // Also check grandchildren (nested facts under bullet points)
       for (const grandchild of child.children) {
         const grandchildText = grandchild.name.trim();
-        if (grandchildText.length >= 10 && !grandchild.isDOK1Marker && !grandchild.isDOK2Marker) {
+        if (grandchildText.length >= 10 && !grandchild.isDOK1Marker && !grandchild.isDOK2Marker && !grandchild.isDOK3Marker) {
           facts.push({
             id: `${idCounter++}`,
             fact: grandchildText,
@@ -505,7 +506,7 @@ function collectNestedText(
   const results: { text: string; depth: number }[] = [];
 
   // Skip marker nodes entirely
-  if (node.isDOK1Marker || node.isDOK2Marker || node.isSourceMarker || node.isCategoryMarker) {
+  if (node.isDOK1Marker || node.isDOK2Marker || node.isDOK3Marker || node.isSourceMarker || node.isCategoryMarker) {
     return results;
   }
 
@@ -609,8 +610,69 @@ export function extractDOK2Summaries(
   return summaries;
 }
 
+// ============================================================================
+// DOK3 EXTRACTION
+// ============================================================================
+
 /**
- * Combined extraction - returns both DOK1 facts and DOK2 summaries
+ * Find all DOK3 marker nodes at any depth in the hierarchy
+ */
+export function findDOK3Nodes(roots: HierarchyNode[]): HierarchyNode[] {
+  const results: HierarchyNode[] = [];
+
+  function traverse(node: HierarchyNode) {
+    if (node.isDOK3Marker) {
+      results.push(node);
+    }
+    node.children.forEach(traverse);
+  }
+
+  roots.forEach(traverse);
+  return results;
+}
+
+/**
+ * Extract DOK3 insights from DOK3 marker children
+ * Each child of a DOK3 marker is treated as a separate cross-source insight
+ */
+export function extractDOK3Insights(roots: HierarchyNode[]): DOK3ExtractedInsight[] {
+  const dok3Nodes = findDOK3Nodes(roots);
+  const insights: DOK3ExtractedInsight[] = [];
+  let counter = 0;
+
+  console.log(`[DOK3Extractor] Found ${dok3Nodes.length} DOK3 marker nodes`);
+
+  for (const dok3Node of dok3Nodes) {
+    for (const child of dok3Node.children) {
+      // Skip marker nodes
+      if (child.isDOK1Marker || child.isDOK2Marker || child.isDOK3Marker ||
+          child.isSourceMarker || child.isCategoryMarker) {
+        continue;
+      }
+
+      // Collect the full text of this insight (including nested children)
+      const nestedParts = collectNestedText(child, 0, false);
+      const fullText = nestedParts.length > 0
+        ? nestedParts.map(p => '  '.repeat(p.depth) + p.text).join('\n')
+        : child.name.trim();
+
+      if (fullText.length < 10) continue; // Skip very short entries
+
+      counter++;
+      insights.push({
+        id: String(counter),
+        text: fullText,
+        workflowyNodeId: child.id,
+      });
+    }
+  }
+
+  console.log(`[DOK3Extractor] Extracted ${insights.length} DOK3 insights`);
+  return insights;
+}
+
+/**
+ * Combined extraction - returns DOK1 facts, DOK2 summaries, and DOK3 insights
  */
 export function extractAllFromHierarchy(roots: HierarchyNode[]): FullHierarchyExtractionResult {
   // Extract DOK1 first (existing logic)
@@ -619,14 +681,20 @@ export function extractAllFromHierarchy(roots: HierarchyNode[]): FullHierarchyEx
   // Extract DOK2, linking to DOK1s
   const dok2Summaries = extractDOK2Summaries(roots, dok1Result.facts);
 
+  // Extract DOK3 insights
+  const dok3Insights = extractDOK3Insights(roots);
+
   return {
     facts: dok1Result.facts,
     dok2Summaries,
+    dok3Insights,
     metadata: {
       dok1NodesFound: dok1Result.metadata.dok1NodesFound,
       dok2NodesFound: findDOK2Nodes(roots).length,
+      dok3NodesFound: findDOK3Nodes(roots).length,
       totalFactsExtracted: dok1Result.metadata.totalFactsExtracted,
       totalDOK2PointsExtracted: dok2Summaries.reduce((sum, g) => sum + g.points.length, 0),
+      totalDOK3InsightsExtracted: dok3Insights.length,
       sourcesAttributed: dok1Result.metadata.sourcesAttributed,
       categoriesFound: dok1Result.metadata.categoriesFound,
     },
