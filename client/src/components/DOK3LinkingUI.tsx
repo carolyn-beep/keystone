@@ -218,18 +218,6 @@ export function DOK3LinkingUI({ slug, dok3Count, importState, onComplete }: DOK3
     }
   };
 
-  // Skip all remaining
-  const handleSkipAll = async () => {
-    const pending = allInsights.filter(i => i.status === 'pending_linking');
-    for (const insight of pending) {
-      try {
-        await dok3.scratchpad(insight.id);
-      } catch {
-        // continue
-      }
-    }
-    setSelectedInsightId(null);
-  };
 
   return (
     <div className="flex flex-col h-full">
@@ -410,14 +398,14 @@ export function DOK3LinkingUI({ slug, dok3Count, importState, onComplete }: DOK3
             </AnimatePresence>
           </div>
 
-          {/* Skip all button */}
+          {/* Skip and link later */}
           {allInsights.some(i => i.status === 'pending_linking') && (
             <div className="px-5 py-3 border-t border-border">
               <button
-                onClick={handleSkipAll}
-                className="w-full text-[11px] uppercase tracking-[0.25em] font-semibold text-muted-light bg-transparent border-0 cursor-pointer hover:text-warning transition-colors py-2"
+                onClick={onComplete}
+                className="w-full text-[11px] uppercase tracking-[0.25em] font-semibold text-muted-light bg-transparent border-0 cursor-pointer hover:text-muted-foreground transition-colors py-2"
               >
-                Skip All to Scratchpad
+                Skip &amp; Link Later
               </button>
             </div>
           )}
