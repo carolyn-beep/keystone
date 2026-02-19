@@ -7,7 +7,10 @@ import { storage } from "../storage";
 
 export const auth = betterAuth({
   baseURL: process.env.BETTER_AUTH_URL || "http://localhost:5000",
-  trustedOrigins: (process.env.TRUSTED_ORIGINS || "").split(",").filter(Boolean),
+  trustedOrigins: [
+    ...(process.env.TRUSTED_ORIGINS || "").split(",").filter(Boolean),
+    process.env.BETTER_AUTH_URL || "http://localhost:5000",
+  ],
   database: drizzleAdapter(db, {
     provider: "pg",
   }),
