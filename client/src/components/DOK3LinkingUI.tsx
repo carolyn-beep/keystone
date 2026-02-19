@@ -56,6 +56,45 @@ function getBackgroundStageLabel(stage: ImportStage | null): string {
   return STAGE_LABELS[stage] || '';
 }
 
+/** Renders text with markdown links [label](url) and bare URLs converted to <a> tags */
+function RichInsightText({ text, className }: { text: string; className?: string }) {
+  // Match markdown links [text](url) or bare URLs
+  const pattern = /\[([^\]]*)\]\((https?:\/\/[^\s)]+)\)|(https?:\/\/[^\s)\]]+)/g;
+  const parts: React.ReactNode[] = [];
+  let lastIndex = 0;
+  let match: RegExpExecArray | null;
+
+  while ((match = pattern.exec(text)) !== null) {
+    // Text before this match
+    if (match.index > lastIndex) {
+      parts.push(text.slice(lastIndex, match.index));
+    }
+
+    const url = match[2] || match[3];
+    const label = match[1]?.trim() || new URL(url).hostname.replace(/^www\./, '');
+
+    parts.push(
+      <a
+        key={match.index}
+        href={url}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="text-primary hover:text-primary/80 underline underline-offset-2"
+        onClick={e => e.stopPropagation()}
+      >
+        {label || 'link'}
+      </a>
+    );
+    lastIndex = match.index + match[0].length;
+  }
+
+  if (lastIndex < text.length) {
+    parts.push(text.slice(lastIndex));
+  }
+
+  return <span className={className}>{parts}</span>;
+}
+
 // ─── Component ──────────────────────────────────────────────────────────────────
 
 export function DOK3LinkingUI({ slug, dok3Count, importState, onComplete }: DOK3LinkingUIProps) {
@@ -416,14 +455,16 @@ export function DOK3LinkingUI({ slug, dok3Count, importState, onComplete }: DOK3
           {selectedInsight ? (
             <>
               {/* Selected insight header */}
-              <div className="px-8 py-6 border-b border-border">
-                <span className="text-[11px] uppercase tracking-[0.2em] text-muted-light block mb-2">
-                  Selected Insight
-                </span>
-                <p className="font-serif text-[18px] leading-[1.6] text-foreground m-0 mb-5 italic">
-                  &ldquo;{selectedInsight.text}&rdquo;
-                </p>
-                <div className="flex items-center justify-between">
+              <div className="max-h-[40%] flex flex-col border-b border-border shrink-0">
+                <div className="flex-1 overflow-y-auto overflow-x-hidden px-8 py-6 scrollbar-styled">
+                  <span className="text-[11px] uppercase tracking-[0.2em] text-muted-light block mb-2">
+                    Selected Insight
+                  </span>
+                  <p className="font-serif text-[18px] leading-[1.6] text-foreground m-0 italic break-words">
+                    &ldquo;<RichInsightText text={selectedInsight.text} />&rdquo;
+                  </p>
+                </div>
+                <div className="flex items-center justify-between px-8 py-3 border-t border-border/50">
                   <span className="text-[13px] uppercase tracking-[0.3em] font-bold text-muted-foreground">
                     Evidence Pool
                   </span>
@@ -566,8 +607,8 @@ function InsightListItem({ insight, isSelected, onClick, eventInfo }: InsightLis
     >
       <div className="mt-1">{getStatusIndicator()}</div>
       <div className="min-w-0 flex-1">
-        <p className="font-serif text-[14px] leading-[1.6] text-foreground m-0 line-clamp-3">
-          {insight.text}
+        <p className="font-serif text-[14px] leading-[1.6] text-foreground m-0 line-clamp-3 break-words">
+          <RichInsightText text={insight.text} />
         </p>
         {eventInfo && (insight.status === 'grading' || insight.status === 'linked') && (
           <span className="font-serif italic text-[10px] text-muted-light mt-1 block truncate">

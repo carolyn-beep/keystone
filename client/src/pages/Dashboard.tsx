@@ -430,7 +430,7 @@ const { downloadBrainliftPDF } = usePDFExport();
 
       {/* DOK3 Linking Modal (standalone, outside import flow) */}
       {showLinkingModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm overflow-hidden">
           <div className="bg-card rounded-xl shadow-lg border border-border flex flex-col w-[90vw] max-w-[1750px] h-[92vh] max-h-[1080px] overflow-hidden">
             <div className="flex items-center justify-between px-6 py-3 border-b border-border shrink-0">
               <h2 className="text-[14px] font-semibold text-foreground m-0">Link DOK3 Insights</h2>

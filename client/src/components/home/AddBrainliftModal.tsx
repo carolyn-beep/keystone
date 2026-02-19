@@ -107,7 +107,7 @@ export function AddBrainliftModal({ show, onClose, onSuccess }: AddBrainliftModa
 
   return (
     <div
-      className="fixed inset-0 flex items-center justify-center z-[1000] p-5"
+      className="fixed inset-0 flex items-center justify-center z-[1000] p-5 overflow-hidden"
       style={{ backgroundColor: tokens.overlay }}
       onClick={isLinkingMode ? undefined : closeModal}
     >
