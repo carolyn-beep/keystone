@@ -1,4 +1,4 @@
-import { extractTextFromHTML } from "./file-extractors";
+import { extractTextFromHTML, isWorkflowyExportHTML, parseWorkflowyExportHTML } from "./file-extractors";
 import { fetchWorkflowyContent, fetchGoogleDocsContent } from "./external-sources";
 import type { HierarchyNode } from "@shared/hierarchy-types";
 
@@ -101,6 +101,16 @@ export async function extractContent(input: ContentExtractionInput): Promise<Con
         sourceLabel = 'Workflowy (from saved HTML)';
         try {
           const result = await fetchWorkflowyContent(workflowyUrl);
+          content = result.markdown;
+          hierarchy = result.hierarchy;
+        } catch (error) {
+          wrapExtractorError(error, sourceLabel);
+        }
+      } else if (isWorkflowyExportHTML(htmlContent)) {
+        // WorkFlowy native export (Export → HTML) — parse into hierarchy directly
+        sourceLabel = 'Workflowy (from export HTML)';
+        try {
+          const result = parseWorkflowyExportHTML(htmlContent);
           content = result.markdown;
           hierarchy = result.hierarchy;
         } catch (error) {
