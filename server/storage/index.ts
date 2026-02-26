@@ -10,6 +10,8 @@ import * as dok2Storage from './dok2';
 import * as sharesStorage from './shares';
 import * as learningStreamStorage from './learning-stream';
 import * as dok3Storage from './dok3';
+import * as importAgentStorage from './import-agent';
+import * as brainliftSourcesStorage from './brainlift-sources';
 
 // Re-export types from base
 export type {
@@ -123,7 +125,18 @@ export const storage = {
   updateDOK3InsightStatus: dok3Storage.updateDOK3InsightStatus,
   updateDOK3SourceRankings: dok3Storage.updateDOK3SourceRankings,
   getDOK3MeanScore: dok3Storage.getDOK3MeanScore,
+
+  // Import Agent
+  getImportConversation: importAgentStorage.getImportConversation,
+  saveImportConversation: importAgentStorage.saveImportConversation,
+  deleteImportConversation: importAgentStorage.deleteImportConversation,
+  updateImportStatus: importAgentStorage.updateImportStatus,
+
+  // Brainlift Sources
+  saveBrainliftSources: brainliftSourcesStorage.saveBrainliftSources,
+  getBrainliftSources: brainliftSourcesStorage.getBrainliftSources,
+  deleteBrainliftSources: brainliftSourcesStorage.deleteBrainliftSources,
 };
 
 // Export individual modules for direct access if needed
-export { brainliftsStorage, expertsStorage, verificationsStorage, redundancyStorage, analyticsStorage, dok2Storage, sharesStorage, learningStreamStorage, dok3Storage };
+export { brainliftsStorage, expertsStorage, verificationsStorage, redundancyStorage, analyticsStorage, dok2Storage, sharesStorage, learningStreamStorage, dok3Storage, importAgentStorage, brainliftSourcesStorage };

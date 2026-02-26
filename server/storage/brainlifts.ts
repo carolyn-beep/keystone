@@ -229,6 +229,7 @@ export async function updateBrainliftFields(id: number, fields: {
   sourceType?: string | null;
   author?: string | null;
   expertDiagnostics?: any | null;
+  importHierarchy?: unknown | null;
   summary?: {
     totalFacts: number;
     meanScore: string;

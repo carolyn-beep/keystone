@@ -24,6 +24,10 @@ import {
 } from '../ai/experts';
 import type { HierarchyNode } from '@shared/hierarchy-types';
 import { withJob } from '../utils/withJob';
+import { storage } from '../storage';
+import { isWorkflowyExportHTML, parseWorkflowyExportHTML } from '../utils/file-extractors';
+import { generateUniqueSlug } from '../utils/slug';
+import { auth } from '../lib/auth';
 
 export const devRouter = Router();
 
@@ -524,6 +528,262 @@ if (!isDev) {
       res.status(500).json({
         error: error.message || 'Failed to queue job',
       });
+    }
+  });
+
+  /**
+   * POST /dev/import-agent/test-storage
+   *
+   * Creates test conversation + test sources for a given brainlift ID.
+   * Returns the stored data for verification.
+   */
+  devRouter.post('/dev/import-agent/test-storage', async (req, res) => {
+    const { brainliftId } = req.body;
+
+    if (!brainliftId || typeof brainliftId !== 'number') {
+      return res.status(400).json({ success: false, error: 'Missing or invalid brainliftId' });
+    }
+
+    try {
+      const brainlift = await storage.getBrainliftById(brainliftId);
+      if (!brainlift) {
+        return res.status(404).json({ success: false, error: 'Brainlift not found' });
+      }
+
+      // Create test conversation
+      const conversation = await storage.saveImportConversation(
+        brainliftId,
+        [{ role: 'assistant', content: 'Test conversation message' }],
+        'init'
+      );
+
+      // Create test sources
+      const sources = await storage.saveBrainliftSources(brainliftId, [
+        { url: 'https://example.com/source-1', name: 'Test Source 1', category: 'Article' },
+        { url: 'https://example.com/source-2', name: 'Test Source 2', category: 'Research Paper' },
+        { url: 'https://example.com/source-3', name: 'Test Source 3' },
+      ]);
+
+      // Update import status
+      await storage.updateImportStatus(brainliftId, 'agent_in_progress');
+
+      res.json({
+        success: true,
+        data: { conversation, sources, importStatus: 'agent_in_progress' },
+      });
+    } catch (err: unknown) {
+      const error = err instanceof Error ? err.message : 'Unknown error';
+      res.status(500).json({ success: false, error });
+    }
+  });
+
+  /**
+   * GET /dev/import-agent/test-storage/:brainliftId
+   *
+   * Reads current import agent state for a brainlift.
+   */
+  devRouter.get('/dev/import-agent/test-storage/:brainliftId', async (req, res) => {
+    const brainliftId = parseInt(req.params.brainliftId);
+    if (isNaN(brainliftId)) {
+      return res.status(400).json({ success: false, error: 'Invalid brainliftId' });
+    }
+
+    try {
+      const brainlift = await storage.getBrainliftById(brainliftId);
+      const conversation = await storage.getImportConversation(brainliftId);
+      const sources = await storage.getBrainliftSources(brainliftId);
+
+      // Load entity counts
+      const factsData = await storage.getFactsForBrainlift(brainliftId);
+      const dok2Data = await storage.getDOK2Summaries(brainliftId);
+      const dok3Data = await storage.getDOK3Insights(brainliftId, []); // empty exclude = include all
+
+      // Build DOK3 status breakdown
+      const dok3StatusBreakdown: Record<string, number> = {};
+      for (const insight of dok3Data) {
+        dok3StatusBreakdown[insight.status] = (dok3StatusBreakdown[insight.status] || 0) + 1;
+      }
+
+      res.json({
+        success: true,
+        data: {
+          importStatus: brainlift?.importStatus ?? null,
+          hasHierarchy: !!brainlift?.importHierarchy,
+          conversation,
+          sources,
+          factsCount: factsData.length,
+          dok2Count: dok2Data.length,
+          dok3Count: dok3Data.length,
+          dok3StatusBreakdown,
+        },
+      });
+    } catch (err: unknown) {
+      const error = err instanceof Error ? err.message : 'Unknown error';
+      res.status(500).json({ success: false, error });
+    }
+  });
+
+  /**
+   * DELETE /dev/import-agent/test-storage/:brainliftId
+   *
+   * Cleans up all import agent test data for a brainlift.
+   */
+  devRouter.delete('/dev/import-agent/test-storage/:brainliftId', async (req, res) => {
+    const brainliftId = parseInt(req.params.brainliftId);
+    if (isNaN(brainliftId)) {
+      return res.status(400).json({ success: false, error: 'Invalid brainliftId' });
+    }
+
+    try {
+      await storage.deleteImportConversation(brainliftId);
+      const deletedSources = await storage.deleteBrainliftSources(brainliftId);
+      await storage.updateImportStatus(brainliftId, 'pending');
+
+      res.json({
+        success: true,
+        data: { conversationDeleted: true, sourcesDeleted: deletedSources },
+      });
+    } catch (err: unknown) {
+      const error = err instanceof Error ? err.message : 'Unknown error';
+      res.status(500).json({ success: false, error });
+    }
+  });
+
+  /**
+   * POST /dev/import-agent/init-hierarchy/:brainliftId
+   *
+   * Initialize importHierarchy for an existing brainlift by re-parsing its content.
+   * - If originalContent is Workflowy export HTML: parse directly via parseWorkflowyExportHTML
+   * - If a `url` is provided in body: re-fetch from Workflowy URL to get hierarchy
+   * - Otherwise: error
+   */
+  devRouter.post('/dev/import-agent/init-hierarchy/:brainliftId', async (req, res) => {
+    const brainliftId = parseInt(req.params.brainliftId);
+    if (isNaN(brainliftId)) {
+      return res.status(400).json({ success: false, error: 'Invalid brainliftId' });
+    }
+
+    const { url } = req.body as { url?: string };
+
+    try {
+      const brainlift = await storage.getBrainliftById(brainliftId);
+      if (!brainlift) {
+        return res.status(404).json({ success: false, error: 'Brainlift not found' });
+      }
+
+      let hierarchy: HierarchyNode[] | null = null;
+      let method = '';
+
+      // Strategy 1: If originalContent is Workflowy export HTML, parse directly
+      if (brainlift.originalContent && isWorkflowyExportHTML(brainlift.originalContent)) {
+        const result = parseWorkflowyExportHTML(brainlift.originalContent);
+        hierarchy = result.hierarchy;
+        method = 'parsed_from_html';
+      }
+      // Strategy 2: Re-fetch from Workflowy URL
+      else if (url) {
+        const result = await fetchWorkflowyContent(url);
+        hierarchy = result.hierarchy;
+        method = 'fetched_from_url';
+      }
+      // No viable path
+      else {
+        return res.status(400).json({
+          success: false,
+          error: 'Cannot initialize hierarchy: originalContent is not Workflowy HTML and no URL provided. Pass a Workflowy URL in the request body as { "url": "..." }.',
+        });
+      }
+
+      if (!hierarchy || hierarchy.length === 0) {
+        return res.status(400).json({ success: false, error: 'Parsing succeeded but no hierarchy nodes were found.' });
+      }
+
+      // Count hierarchy stats
+      let totalNodes = 0, dok1 = 0, dok2 = 0, dok3 = 0, sources = 0, categories = 0;
+      const countNodes = (node: HierarchyNode) => {
+        totalNodes++;
+        if (node.isDOK1Marker) dok1++;
+        if (node.isDOK2Marker) dok2++;
+        if (node.isDOK3Marker) dok3++;
+        if (node.isSourceMarker) sources++;
+        if (node.isCategoryMarker) categories++;
+        node.children.forEach(countNodes);
+      };
+      hierarchy.forEach(countNodes);
+
+      // Store in brainlift
+      await storage.updateBrainliftFields(brainliftId, { importHierarchy: hierarchy });
+
+      res.json({
+        success: true,
+        method,
+        stats: { totalNodes, roots: hierarchy.length, dok1, dok2, dok3, sources, categories },
+      });
+    } catch (err: unknown) {
+      const error = err instanceof Error ? err.message : 'Unknown error';
+      res.status(500).json({ success: false, error });
+    }
+  });
+
+  /**
+   * POST /dev/import-agent/create-from-url
+   *
+   * Create a fresh brainlift from a Workflowy URL with content + hierarchy populated.
+   * No facts, sources, or experts — a clean slate for testing extraction tools.
+   * Requires an authenticated session to assign ownership.
+   */
+  devRouter.post('/dev/import-agent/create-from-url', async (req, res) => {
+    const { url } = req.body as { url?: string };
+
+    if (!url || typeof url !== 'string') {
+      return res.status(400).json({ success: false, error: 'Missing or invalid "url" parameter' });
+    }
+
+    try {
+      // Get user from session for ownership
+      const session = await auth.api.getSession({ headers: req.headers as any });
+      const userId = session?.user?.id ?? null;
+
+      // Fetch content + hierarchy from Workflowy
+      const result = await fetchWorkflowyContent(url);
+
+      if (!result.hierarchy || result.hierarchy.length === 0) {
+        return res.status(400).json({ success: false, error: 'Fetched content but no hierarchy nodes found.' });
+      }
+
+      // Derive title from first root node
+      const title = result.hierarchy[0]?.name || 'Untitled Import';
+      const slug = await generateUniqueSlug(title);
+
+      // Create minimal brainlift with content + hierarchy, no facts/experts
+      const brainliftData = await storage.createBrainlift(
+        {
+          slug,
+          title,
+          description: `Import agent test — created from ${url}`,
+          summary: { totalFacts: 0, meanScore: '0', score5Count: 0, contradictionCount: 0 },
+          originalContent: result.markdown,
+          importHierarchy: result.hierarchy,
+          sourceType: 'Workflowy',
+          importStatus: 'pending',
+          expertDiagnostics: null,
+        } as any,
+        [], // no facts
+        [], // no clusters
+        userId ?? undefined
+      );
+
+      res.json({
+        success: true,
+        data: {
+          id: brainliftData.id,
+          slug: brainliftData.slug,
+          title: brainliftData.title,
+        },
+      });
+    } catch (err: unknown) {
+      const error = err instanceof Error ? err.message : 'Unknown error';
+      res.status(500).json({ success: false, error });
     }
   });
 }

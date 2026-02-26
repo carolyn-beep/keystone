@@ -10,7 +10,10 @@ export type {
   FactWithVerification, LLMModel, LlmFeedback, ModelAccuracyStats,
   FactRedundancyGroup, InsertFactRedundancyGroup, RedundancyStatus,
   LearningStreamItem, NewLearningStreamItem,
-  ExtractedContent, AuthContext
+  ExtractedContent, AuthContext,
+  ImportAgentConversation, InsertImportAgentConversation,
+  BrainliftSource, InsertBrainliftSource,
+  ImportPhase, ImportStatus, SourceStatus,
 } from "@shared/schema";
 
 export {
@@ -19,6 +22,7 @@ export {
   llmFeedback, modelAccuracyStats, factRedundancyGroups, LLM_MODELS,
   dok2Summaries, dok2Points, dok2FactRelations, learningStreamItems, swarmUsage,
   dok3Insights, dok3InsightLinks,
+  importAgentConversations, brainliftSources,
 } from "@shared/schema";
 
 export { eq, inArray, desc, and, sql, isNull, or } from "drizzle-orm";

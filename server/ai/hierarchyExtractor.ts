@@ -5,6 +5,9 @@
  * to find source/category ancestors for proper attribution.
  */
 
+const verbose = process.env.HIERARCHY_EXTRACTION_VERBOSE_LOG === 'true';
+const log = (...args: unknown[]) => { if (verbose) console.log(...args); };
+
 import type {
   HierarchyNode,
   AncestorContext,
@@ -131,17 +134,17 @@ export function findAncestorContext(
   // Walk up from the DOK1 node's parent to find category and potentially more sources
   let current = dok1Parent;
 
-  console.log(`[HierarchyExtractor] Walking ancestors for DOK1 "${dok1Node.name.substring(0, 30)}..."`);
-  console.log(`[HierarchyExtractor]   dok1Parent: ${dok1Parent?.name.substring(0, 40) || 'null'}, isSource: ${dok1Parent?.isSourceMarker}`);
-  console.log(`[HierarchyExtractor]   After sibling check: source="${source}", sourceUrl="${sourceUrl}"`);
+  log(`[HierarchyExtractor] Walking ancestors for DOK1 "${dok1Node.name.substring(0, 30)}..."`);
+  log(`[HierarchyExtractor]   dok1Parent: ${dok1Parent?.name.substring(0, 40) || 'null'}, isSource: ${dok1Parent?.isSourceMarker}`);
+  log(`[HierarchyExtractor]   After sibling check: source="${source}", sourceUrl="${sourceUrl}"`);
 
   while (current) {
-    console.log(`[HierarchyExtractor]   Checking ancestor: "${current.name.substring(0, 40)}", isSource: ${current.isSourceMarker}, isCat: ${current.isCategoryMarker}`);
+    log(`[HierarchyExtractor]   Checking ancestor: "${current.name.substring(0, 40)}", isSource: ${current.isSourceMarker}, isCat: ${current.isCategoryMarker}`);
 
     // Check for source marker in ancestors (closer ancestor takes precedence)
     if (current.isSourceMarker && !source) {
       source = current.name.replace(/^Source\s*:?\s*/i, '').trim() || current.name;
-      console.log(`[HierarchyExtractor]   -> Found source: "${source}"`);
+      log(`[HierarchyExtractor]   -> Found source: "${source}"`);
 
       // Recursively search source subtree for URL
       if (!sourceUrl) {
@@ -167,15 +170,15 @@ export function findAncestorContext(
       const grandparent = parentMap.get(dok1Parent.id);
       if (grandparent && !grandparent.isSourceMarker && !grandparent.isDOK1Marker) {
         category = grandparent.name;
-        console.log(`[HierarchyExtractor]   -> Inferred category from grandparent: "${category}"`);
+        log(`[HierarchyExtractor]   -> Inferred category from grandparent: "${category}"`);
       }
     } else if (!dok1Parent.isDOK1Marker) {
       category = dok1Parent.name;
-      console.log(`[HierarchyExtractor]   -> Inferred category from parent: "${category}"`);
+      log(`[HierarchyExtractor]   -> Inferred category from parent: "${category}"`);
     }
   }
 
-  console.log(`[HierarchyExtractor]   FINAL: category="${category}", source="${source}", url="${sourceUrl}"`);
+  log(`[HierarchyExtractor]   FINAL: category="${category}", source="${source}", url="${sourceUrl}"`);
   return { category, source, sourceUrl };
 }
 
@@ -265,7 +268,7 @@ export function extractFactsFromHierarchy(
   // Find all DOK1 marker nodes
   const dok1Nodes = findDOK1Nodes(roots);
 
-  console.log(`[HierarchyExtractor] Found ${dok1Nodes.length} DOK1 marker nodes`);
+  log(`[HierarchyExtractor] Found ${dok1Nodes.length} DOK1 marker nodes`);
 
   const allFacts: HierarchyExtractedFact[] = [];
   const categoriesFound = new Set<string>();
@@ -276,7 +279,7 @@ export function extractFactsFromHierarchy(
     // Find context by walking up the tree
     const context = findAncestorContext(dok1Node, parentMap);
 
-    console.log(`[HierarchyExtractor] DOK1 node "${dok1Node.name.substring(0, 30)}..." -> category: ${context.category}, source: ${context.source}`);
+    log(`[HierarchyExtractor] DOK1 node "${dok1Node.name.substring(0, 30)}..." -> category: ${context.category}, source: ${context.source}`);
 
     // Extract facts from this DOK1 node
     const facts = extractFactsFromDOK1Node(dok1Node, context, factIdCounter);
@@ -295,7 +298,7 @@ export function extractFactsFromHierarchy(
     allFacts.push(...facts);
   }
 
-  console.log(`[HierarchyExtractor] Extracted ${allFacts.length} facts from hierarchy`);
+  log(`[HierarchyExtractor] Extracted ${allFacts.length} facts from hierarchy`);
 
   return {
     facts: allFacts,
@@ -393,11 +396,11 @@ export function extractPurposeFromHierarchy(roots: HierarchyNode[]): ExtractedPu
   }
 
   if (!purposeNode) {
-    console.log('[PurposeExtractor] No Purpose marker node found');
+    log('[PurposeExtractor] No Purpose marker node found');
     return null;
   }
 
-  console.log(`[PurposeExtractor] Found Purpose node with ${purposeNode.children.length} children`);
+  log(`[PurposeExtractor] Found Purpose node with ${purposeNode.children.length} children`);
 
   // Find the first meaningful child (not In-scope/Out-of-scope headers)
   const scopePattern = /^(In-scope|Out-of-scope)\s*$/i;
@@ -427,11 +430,11 @@ export function extractPurposeFromHierarchy(roots: HierarchyNode[]): ExtractedPu
   }
 
   if (!mainPurpose) {
-    console.log('[PurposeExtractor] No meaningful purpose content found');
+    log('[PurposeExtractor] No meaningful purpose content found');
     return null;
   }
 
-  console.log(`[PurposeExtractor] Extracted purpose: "${mainPurpose.substring(0, 80)}..."`);
+  log(`[PurposeExtractor] Extracted purpose: "${mainPurpose.substring(0, 80)}..."`);
 
   return {
     mainPurpose,
@@ -547,7 +550,7 @@ export function extractDOK2Summaries(
   const summaries: DOK2SummaryGroup[] = [];
   let groupCounter = 0;
 
-  console.log(`[DOK2Extractor] Found ${dok2Nodes.length} DOK2 marker nodes`);
+  log(`[DOK2Extractor] Found ${dok2Nodes.length} DOK2 marker nodes`);
 
   for (const dok2Node of dok2Nodes) {
     // Reuse existing findAncestorContext() for source/category
@@ -572,7 +575,7 @@ export function extractDOK2Summaries(
 
     // Skip if no points extracted
     if (points.length === 0) {
-      console.log(`[DOK2Extractor] Skipping DOK2 node "${dok2Node.name.substring(0, 40)}..." - no valid points`);
+      log(`[DOK2Extractor] Skipping DOK2 node "${dok2Node.name.substring(0, 40)}..." - no valid points`);
       continue;
     }
 
@@ -601,11 +604,11 @@ export function extractDOK2Summaries(
       workflowyNodeId: dok2Node.id,
     };
 
-    console.log(`[DOK2Extractor] DOK2 group ${groupCounter}: source="${summary.sourceName}", points=${points.length}, relatedDOK1s=${relatedDOK1Ids.length}`);
+    log(`[DOK2Extractor] DOK2 group ${groupCounter}: source="${summary.sourceName}", points=${points.length}, relatedDOK1s=${relatedDOK1Ids.length}`);
     summaries.push(summary);
   }
 
-  console.log(`[DOK2Extractor] Extracted ${summaries.length} DOK2 groups with ${summaries.reduce((sum, g) => sum + g.points.length, 0)} total points`);
+  log(`[DOK2Extractor] Extracted ${summaries.length} DOK2 groups with ${summaries.reduce((sum, g) => sum + g.points.length, 0)} total points`);
 
   return summaries;
 }
@@ -640,7 +643,7 @@ export function extractDOK3Insights(roots: HierarchyNode[]): DOK3ExtractedInsigh
   const insights: DOK3ExtractedInsight[] = [];
   let counter = 0;
 
-  console.log(`[DOK3Extractor] Found ${dok3Nodes.length} DOK3 marker nodes`);
+  log(`[DOK3Extractor] Found ${dok3Nodes.length} DOK3 marker nodes`);
 
   for (const dok3Node of dok3Nodes) {
     for (const child of dok3Node.children) {
@@ -667,7 +670,7 @@ export function extractDOK3Insights(roots: HierarchyNode[]): DOK3ExtractedInsigh
     }
   }
 
-  console.log(`[DOK3Extractor] Extracted ${insights.length} DOK3 insights`);
+  log(`[DOK3Extractor] Extracted ${insights.length} DOK3 insights`);
   return insights;
 }
 
