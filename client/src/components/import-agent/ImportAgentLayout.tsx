@@ -4,9 +4,11 @@ import { useImportAgent } from '@/hooks/useImportAgent';
 import { ImportCanvas, type CanvasState, type CanvasCard } from './ImportCanvas';
 import { ImportAgentChat } from './ImportAgentChat';
 import { SelectionChipsProvider } from './SelectionChipsContext';
+import type { UIMessage } from 'ai';
 
 interface ImportAgentLayoutProps {
   slug: string;
+  initialMessages?: UIMessage[] | null;
 }
 
 // ── Derived canvas state from thread messages ────────────────────
@@ -101,8 +103,8 @@ function LayoutInner() {
   );
 }
 
-export function ImportAgentLayout({ slug }: ImportAgentLayoutProps) {
-  const runtime = useImportAgent(slug);
+export function ImportAgentLayout({ slug, initialMessages }: ImportAgentLayoutProps) {
+  const runtime = useImportAgent(slug, initialMessages);
 
   return (
     <AssistantRuntimeProvider runtime={runtime}>

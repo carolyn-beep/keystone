@@ -9,14 +9,17 @@ interface ImportProgressProps {
   progress: number;
   gradingProgress: GradingProgress | null;
   gradingDok2Progress: GradingProgress | null;
+  gradingDok3Progress?: GradingProgress | null;
   error: string | null;
   isVisible: boolean;
+  orderedStages?: Exclude<ImportStage, 'complete' | 'error'>[];
 }
 
-const ORDERED_STAGES: Exclude<ImportStage, 'complete' | 'error'>[] = [
+const DEFAULT_ORDERED_STAGES: Exclude<ImportStage, 'complete' | 'error'>[] = [
   'extracting',
   'grading',
   'grading_dok2',
+  'grading_dok3',
   'contradictions',
   'saving',
   'dok3_linking',
@@ -24,21 +27,22 @@ const ORDERED_STAGES: Exclude<ImportStage, 'complete' | 'error'>[] = [
   'redundancy',
 ];
 
-function getStageIndex(stage: ImportStage | null): number {
-  if (!stage || stage === 'complete' || stage === 'error') return -1;
-  return ORDERED_STAGES.indexOf(stage);
-}
-
 export function ImportProgress({
   currentStage,
   stageLabel,
   progress,
   gradingProgress,
   gradingDok2Progress,
+  gradingDok3Progress,
   error,
   isVisible,
+  orderedStages,
 }: ImportProgressProps) {
-  const currentIndex = getStageIndex(currentStage);
+  const stages = orderedStages ?? DEFAULT_ORDERED_STAGES;
+  const currentIndex = (() => {
+    if (!currentStage || currentStage === 'complete' || currentStage === 'error') return -1;
+    return stages.indexOf(currentStage);
+  })();
   const isComplete = currentStage === 'complete';
   const isError = currentStage === 'error' || !!error;
 
@@ -53,7 +57,7 @@ export function ImportProgress({
         }}
       >
         <div className="overflow-hidden">
-          <div className="pt-5 mt-5 border-t border-border space-y-4">
+          <div className="space-y-4">
             {/* Progress bar */}
             <div
               className="space-y-2 animate-fade-slide-in"
@@ -114,9 +118,31 @@ export function ImportProgress({
               </div>
             </div>
 
+            {/* DOK3 Grading counter with smooth number transition */}
+            <div
+              className="grid transition-all duration-300 ease-out"
+              style={{
+                gridTemplateRows: currentStage === 'grading_dok3' && gradingDok3Progress ? '1fr' : '0fr',
+                opacity: currentStage === 'grading_dok3' && gradingDok3Progress ? 1 : 0,
+              }}
+            >
+              <div className="overflow-hidden">
+                <div className="text-center text-sm text-muted-foreground py-1">
+                  <span className="tabular-nums font-medium text-foreground">
+                    {gradingDok3Progress?.completed ?? 0}
+                  </span>
+                  {' '}of{' '}
+                  <span className="tabular-nums font-medium text-foreground">
+                    {gradingDok3Progress?.total ?? 0}
+                  </span>
+                  {' '}insights graded
+                </div>
+              </div>
+            </div>
+
             {/* Stage list with staggered fade-in */}
             <div className="space-y-2 pt-2">
-              {ORDERED_STAGES.map((stage, index) => {
+              {stages.map((stage, index) => {
                 const isCurrentStage = stage === currentStage;
                 const isPastStage = index < currentIndex || isComplete;
 
@@ -162,6 +188,11 @@ export function ImportProgress({
                     {stage === 'grading_dok2' && isCurrentStage && gradingDok2Progress && (
                       <span className="text-primary text-xs ml-auto tabular-nums font-medium">
                         {gradingDok2Progress.completed}/{gradingDok2Progress.total}
+                      </span>
+                    )}
+                    {stage === 'grading_dok3' && isCurrentStage && gradingDok3Progress && (
+                      <span className="text-primary text-xs ml-auto tabular-nums font-medium">
+                        {gradingDok3Progress.completed}/{gradingDok3Progress.total}
                       </span>
                     )}
                   </div>

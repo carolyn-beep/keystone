@@ -76,6 +76,7 @@ export const storage = {
   getFactVerificationForBrainlift: verificationsStorage.getFactVerificationForBrainlift,
   setHumanOverrideForBrainlift: verificationsStorage.setHumanOverrideForBrainlift,
   getDOK1MeanScore: verificationsStorage.getDOK1MeanScore,
+  updateFactGrading: verificationsStorage.updateFactGrading,
 
   // Redundancy
   getRedundancyGroups: redundancyStorage.getRedundancyGroups,
@@ -93,6 +94,7 @@ export const storage = {
   getDOK2Summaries: dok2Storage.getDOK2Summaries,
   deleteDOK2Summaries: dok2Storage.deleteDOK2Summaries,
   getDOK2MeanScore: dok2Storage.getDOK2MeanScore,
+  updateDOK2Grading: dok2Storage.updateDOK2Grading,
 
   // Learning Stream
   addLearningStreamItem: learningStreamStorage.addLearningStreamItem,

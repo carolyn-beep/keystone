@@ -209,6 +209,33 @@ export async function getDOK2Summaries(brainliftId: number): Promise<DOK2Summary
 }
 
 /**
+ * Update a DOK2 summary's grading fields in place (for agent import cascade).
+ * Uses brainliftId in WHERE clause for IDOR safety.
+ */
+export async function updateDOK2Grading(
+  summaryId: number,
+  brainliftId: number,
+  data: {
+    displayTitle: string | null;
+    grade: number;
+    diagnosis: string;
+    feedback: string;
+    failReason: DOK2FailReason | null;
+    sourceVerified: boolean;
+  }
+): Promise<void> {
+  await db.update(dok2Summaries).set({
+    displayTitle: data.displayTitle,
+    grade: data.grade,
+    diagnosis: data.diagnosis,
+    feedback: data.feedback,
+    failReason: data.failReason,
+    sourceVerified: data.sourceVerified,
+    gradedAt: new Date(),
+  }).where(and(eq(dok2Summaries.id, summaryId), eq(dok2Summaries.brainliftId, brainliftId)));
+}
+
+/**
  * Delete all DOK2 data for a brainlift (used during re-imports)
  */
 export async function deleteDOK2Summaries(brainliftId: number): Promise<void> {

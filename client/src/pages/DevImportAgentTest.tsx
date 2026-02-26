@@ -8,10 +8,14 @@
  * Phase 5: Gen UI tool cards + canvas panel
  */
 
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiRequest } from '@/lib/queryClient';
 import { ImportAgentLayout } from '@/components/import-agent/ImportAgentLayout';
+import { ImportAgentProvider } from '@/components/import-agent/ImportAgentContext';
+import { ImportProgress } from '@/components/ImportProgress';
+import { useGradingProgress } from '@/hooks/useGradingProgress';
+import type { ImportStage } from '@shared/import-progress';
 
 interface BrainliftOption {
   id: number;
@@ -43,11 +47,21 @@ interface StorageState {
   dok3StatusBreakdown: Record<string, number>;
 }
 
+const CASCADE_ORDERED_STAGES: Exclude<ImportStage, 'complete' | 'error'>[] = [
+  'grading',
+  'grading_dok2',
+  'grading_dok3',
+  'experts',
+  'redundancy',
+];
+
 export default function DevImportAgentTest() {
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [activeTab, setActiveTab] = useState<'chat' | 'storage'>('chat');
   const [createUrl, setCreateUrl] = useState('');
+  const [isGradingMode, setIsGradingMode] = useState(false);
   const queryClient = useQueryClient();
+  const grading = useGradingProgress();
 
   // Fetch user's brainlifts
   const brainliftsQuery = useQuery<BrainliftOption[]>({
@@ -232,7 +246,34 @@ export default function DevImportAgentTest() {
             Select a brainlift to start testing
           </div>
         ) : activeTab === 'chat' && selectedBrainlift ? (
-          <ImportAgentLayout key={selectedBrainlift.slug} slug={selectedBrainlift.slug} />
+          isGradingMode ? (
+            <div className="flex items-center justify-center h-full px-6">
+              <div className="w-full max-w-md">
+                <ImportProgress
+                  currentStage={grading.currentStage}
+                  stageLabel={grading.stageLabel}
+                  progress={grading.progress}
+                  gradingProgress={grading.gradingProgress}
+                  gradingDok2Progress={grading.gradingDok2Progress}
+                  gradingDok3Progress={grading.gradingDok3Progress}
+                  error={grading.error}
+                  isVisible={true}
+                  orderedStages={CASCADE_ORDERED_STAGES}
+                />
+              </div>
+            </div>
+          ) : (
+            <ImportAgentProvider
+              value={{
+                startGrading: () => {
+                  setIsGradingMode(true);
+                  grading.startGrading(selectedBrainlift.slug);
+                },
+              }}
+            >
+              <ImportAgentLayout key={selectedBrainlift.slug} slug={selectedBrainlift.slug} />
+            </ImportAgentProvider>
+          )
         ) : (
           <StorageInspector
             selectedId={selectedId}

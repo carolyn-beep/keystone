@@ -14,7 +14,6 @@ import {
   findAncestorContext,
 } from '../hierarchyExtractor';
 import { storage } from '../../storage';
-import { withJob } from '../../utils/withJob';
 import { importLog } from './logger';
 import { extractContent } from '../../services/content-extractor';
 
@@ -414,7 +413,7 @@ export function buildImportAgentTools(
   });
 
   const link_dok3_insight = tool({
-    description: 'Link a DOK3 insight to DOK2 summaries (min 2 from different sources). Queues grading.',
+    description: 'Link a DOK3 insight to DOK2 summaries (min 2 from different sources). Grading runs in the cascade after all linking is done.',
     inputSchema: z.object({
       insightId: z.number(), dok2SummaryIds: z.array(z.number()),
     }),
@@ -426,9 +425,23 @@ export function buildImportAgentTools(
         return { status: 'error', message: validation.error };
       }
       await storage.linkDOK3Insight(insightId, brainlift.id, dok2SummaryIds);
-      await withJob('dok3:grade').forPayload({ insightId, brainliftId: brainlift.id }).queue();
-      importLog(brainlift.id, 'Tool: link_dok3_insight → ok, grading queued', { insightId });
+      importLog(brainlift.id, 'Tool: link_dok3_insight → ok, grading deferred to cascade', { insightId });
       return { status: 'ok', linked: true, insightId };
+    },
+  });
+
+  const confirm_and_start_grading = tool({
+    description: 'Present final summary and request confirmation to start grading. UI-only.',
+    inputSchema: z.object({
+      sourcesCount: z.number(),
+      dok1Count: z.number(),
+      dok2Count: z.number(),
+      dok3Count: z.number(),
+      dok3LinkedCount: z.number(),
+    }),
+    execute: async (params) => {
+      importLog(brainlift.id, 'Tool: confirm_and_start_grading', params);
+      return { ...params, action: 'awaiting_user_confirmation' };
     },
   });
 
@@ -470,7 +483,7 @@ export function buildImportAgentTools(
       return { ...always, link_dok3_insight, scratchpad_dok3_insight, get_saved_dok2s, get_saved_dok3s };
 
     case 'final':
-      return { ...always, get_saved_dok1s, get_saved_dok2s, get_saved_dok3s };
+      return { ...always, get_saved_dok1s, get_saved_dok2s, get_saved_dok3s, confirm_and_start_grading };
 
     default:
       return { ...always };

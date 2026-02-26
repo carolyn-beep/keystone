@@ -44,11 +44,6 @@ export const DOK3LinkUI = makeAssistantToolUI<DOK3LinkArgs, DOK3LinkResult>({
           <p className="text-[13px] text-foreground m-0">
             {isRunning ? 'Linking' : 'Linked'} to {sourceCount} DOK2 summar{sourceCount !== 1 ? 'ies' : 'y'}
           </p>
-          {!isRunning && (
-            <p className="text-[11px] text-muted-foreground mt-1 m-0 italic">
-              Grading job queued
-            </p>
-          )}
         </div>
       </div>
     );

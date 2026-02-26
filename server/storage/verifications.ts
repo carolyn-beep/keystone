@@ -212,6 +212,23 @@ export async function setHumanOverrideForBrainlift(
 }
 
 /**
+ * Update a fact's grading fields in place (for agent import cascade).
+ * Uses brainliftId in WHERE clause for IDOR safety.
+ */
+export async function updateFactGrading(
+  factId: number,
+  brainliftId: number,
+  data: { score: number; note: string; isGradeable: boolean; summary: string }
+): Promise<void> {
+  await db.update(facts).set({
+    score: data.score,
+    note: data.note,
+    isGradeable: data.isGradeable,
+    summary: data.summary,
+  }).where(and(eq(facts.id, factId), eq(facts.brainliftId, brainliftId)));
+}
+
+/**
  * Get the mean DOK1 score for a brainlift (only gradeable facts with score > 0).
  * Returns null if no gradeable facts exist.
  */

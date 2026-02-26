@@ -4,6 +4,7 @@ export type ImportStage =
   | 'extracting'
   | 'grading'
   | 'grading_dok2'
+  | 'grading_dok3'
   | 'contradictions'
   | 'saving'
   | 'dok3_linking'
@@ -29,6 +30,12 @@ export interface GradingProgress extends BaseProgressEvent {
 
 export interface GradingDOK2Progress extends BaseProgressEvent {
   stage: 'grading_dok2';
+  completed: number;
+  total: number;
+}
+
+export interface GradingDOK3Progress extends BaseProgressEvent {
+  stage: 'grading_dok3';
   completed: number;
   total: number;
 }
@@ -69,6 +76,7 @@ export type ImportProgress =
   | ExtractingProgress
   | GradingProgress
   | GradingDOK2Progress
+  | GradingDOK3Progress
   | ContradictionsProgress
   | SavingProgress
   | DOK3LinkingProgressEvent
@@ -82,6 +90,7 @@ export const STAGE_LABELS: Record<ImportStage, string> = {
   extracting: 'Extracting content from document...',
   grading: 'Grading DOK1 facts...',
   grading_dok2: 'Grading DOK2 summaries...',
+  grading_dok3: 'Grading DOK3 insights...',
   contradictions: 'Detecting contradictions...',
   saving: 'Saving to database...',
   dok3_linking: 'DOK3 insights ready for linking',
@@ -115,8 +124,9 @@ export interface DOK3GradingProgress {
 // Weights for progress bar calculation (must sum to 100)
 export const STAGE_WEIGHTS: Record<Exclude<ImportStage, 'complete' | 'error'>, number> = {
   extracting: 5,
-  grading: 55,           // DOK1 grading takes the longest
-  grading_dok2: 15,      // DOK2 grading (fewer items, runs in parallel)
+  grading: 47,           // DOK1 grading takes the longest
+  grading_dok2: 13,      // DOK2 grading (fewer items, runs in parallel)
+  grading_dok3: 10,      // DOK3 grading (cross-source insights)
   contradictions: 5,
   saving: 3,
   dok3_linking: 2,       // Informational — signals DOK3 insights ready
@@ -133,6 +143,7 @@ export function calculateProgress(event: ImportProgress): number {
     'extracting',
     'grading',
     'grading_dok2',
+    'grading_dok3',
     'contradictions',
     'saving',
     'dok3_linking',
@@ -151,7 +162,7 @@ export function calculateProgress(event: ImportProgress): number {
 
   // Add partial progress for current stage
   const currentWeight = STAGE_WEIGHTS[event.stage as keyof typeof STAGE_WEIGHTS];
-  if ((event.stage === 'grading' || event.stage === 'grading_dok2') && 'completed' in event && 'total' in event) {
+  if ((event.stage === 'grading' || event.stage === 'grading_dok2' || event.stage === 'grading_dok3') && 'completed' in event && 'total' in event) {
     const gradingProgress = event.total > 0 ? event.completed / event.total : 0;
     progress += currentWeight * gradingProgress;
   } else {

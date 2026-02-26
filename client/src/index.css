@@ -772,6 +772,18 @@
 
 /* ===== End Discussion Panel overrides ===== */
 
+/* ===== Import Agent — semi-transparent thread to show background image ===== */
+
+.import-agent-chat .aui-thread-root {
+  background: hsl(var(--card-elevated) / 0.88);
+}
+
+.import-agent-chat .aui-thread-viewport-footer {
+  background: hsl(var(--card-elevated) / 0.88);
+}
+
+/* ===== End Import Agent overrides ===== */
+
 /* Reduced motion support for Learning Stream */
 @media (prefers-reduced-motion: reduce) {
   .animate-shimmer,

@@ -2,12 +2,14 @@ import type { Brainlift, BrainliftSource } from '../../storage/base';
 import type { ImportPhase } from '@shared/schema';
 
 interface ImportAgentContext {
-  brainlift: Pick<Brainlift, 'title' | 'displayPurpose' | 'description' | 'sourceType' | 'originalContent'>;
+  brainlift: Pick<Brainlift, 'title' | 'displayPurpose' | 'description' | 'sourceType' | 'originalContent' | 'author'>;
   currentPhase: ImportPhase;
   confirmedSources?: BrainliftSource[];
   savedFactsCount?: number;
   savedDOK2Count?: number;
   savedDOK3Count?: number;
+  userName?: string;
+  userRole?: string;
 }
 
 /**
@@ -37,9 +39,17 @@ Your behavior depends on what the extractors find:
 
 Your job is structural. If structure is sound, move content through without commentary — don't second-guess what the user wrote. If structure is broken or missing, you can be more opinionated to help the user get things into shape, but remember: you're preparing data for a grading agent that handles the actual quality assessment.
 
+## WHO YOU'RE TALKING TO
+
+- **Name**: ${ctx.userName || 'Unknown'}
+- **Platform Role**: ${ctx.userRole || 'user'}
+
+Address this person by their first name. They may or may not be the BrainLift owner — the owner is a separate field below. Do NOT greet the BrainLift owner; greet the user above.
+
 ## BRAINLIFT CONTEXT
 
 - **Title**: ${brainlift.title}
+- **Owner**: ${brainlift.author || 'Not yet extracted'}
 - **Purpose**: ${purpose}
 - **Source Type**: ${brainlift.sourceType || 'Unknown'}
 - **Content Available**: ${hasContent ? `Yes (~${contentWordCount} words)` : 'No content loaded'}
@@ -161,7 +171,7 @@ ${buildPhaseInstructions(currentPhase, ctx)}
 - \`bash\` is a helper — use it to read content, explore structure, verify details, or find what extractors missed. Any read-only bash command should work.
 - \`display_in_canvas\` with \`selectable: true\` cards when the user needs to pick items (shows checkboxes + confirm button). Use markdown mode when showing raw content for manual selection.
 - \`read_source_content\` fetches actual article content from a URL for DOK1 verification only when needed.
-- \`phase_transition\` to advance phases. Never skip. After calling \`phase_transition\`, STOP. Do not begin the next phase's work in the same turn. Wait for the user to respond — their next message triggers the new phase with the correct tools and instructions.
+- \`phase_transition\` to advance phases. Never skip. Call this tool when the current phase's work is done. AFTER calling it, always ask the user to confirm they're ready to begin the next phase. Do not start the next phase's work until the user confirms.
 - \`get_saved_dok1s\` / \`get_saved_dok2s\` / \`get_saved_dok3s\` for DB lookups (especially after session resume).
 - Don't generate facts — extract or let the user select.`;
 }

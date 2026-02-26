@@ -27,11 +27,13 @@ import { ScratchpadTab } from '@/components/ScratchpadTab';
 import { DOK3LinkingUI } from '@/components/DOK3LinkingUI';
 import { LearningStreamTab } from '@/components/LearningStreamTab';
 import { SavedItemsPage, GradedItemsPage } from '@/components/learning-stream';
+import { ImportAgentModal } from '@/components/import-agent/ImportAgentModal';
 import { usePDFExport } from '@/hooks/usePDFExport';
 import { useShareToken } from '@/hooks/useShareToken';
 import { useDOK3Insights } from '@/hooks/useDOK3Insights';
 import { useDOK3GradingEvents } from '@/hooks/useDOK3GradingEvents';
 import { SidebarLayout, AppSidebar, type NavItem } from '@/components/layout';
+import { TactileButton } from '@/components/ui/tactile-button';
 
 interface DashboardProps {
   slug: string;
@@ -117,6 +119,7 @@ export default function Dashboard({ slug, isSharedView = false }: DashboardProps
   const [editingAuthor, setEditingAuthor] = useState(false);
   const [authorInput, setAuthorInput] = useState('');
   const [showLinkingModal, setShowLinkingModal] = useState(false);
+  const [showAgentModal, setShowAgentModal] = useState(false);
 
 const { toast } = useToast();
 
@@ -227,6 +230,49 @@ const { downloadBrainliftPDF } = usePDFExport();
   );
 
   const { facts, contradictionClusters } = data;
+
+  // Gate: if import is in-progress via agent, show resume banner instead of dashboard
+  const isAgentInProgress = data.importStatus === 'pending' || data.importStatus === 'agent_in_progress';
+
+  if (isAgentInProgress) {
+    return (
+      <>
+        <div className="min-h-screen flex items-center justify-center bg-background p-6">
+          <div className="bg-card rounded-xl border border-border shadow-card p-8 max-w-md w-full text-center">
+            <h2 className="text-lg font-semibold text-foreground mb-2">
+              Import In Progress
+            </h2>
+            <p className="text-sm text-muted-foreground mb-6">
+              This BrainLift is being imported via the Import Agent. Resume the conversation to continue extracting and grading content.
+            </p>
+            <div className="flex flex-col gap-3 items-center">
+              <TactileButton
+                variant="raised"
+                onClick={() => setShowAgentModal(true)}
+              >
+                Resume Import
+              </TactileButton>
+              <Link href="/" className="text-xs text-muted-foreground hover:text-foreground transition-colors">
+                Back to all Brainlifts
+              </Link>
+            </div>
+          </div>
+        </div>
+
+        {showAgentModal && (
+          <ImportAgentModal
+            brainliftSlug={slug}
+            onClose={() => setShowAgentModal(false)}
+            onComplete={(completedSlug) => {
+              setShowAgentModal(false);
+              // Reload page with complete data
+              window.location.href = `/grading/${completedSlug}`;
+            }}
+          />
+        )}
+      </>
+    );
+  }
 
   return (
     <SidebarLayout

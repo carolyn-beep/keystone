@@ -28,6 +28,7 @@ import { storage } from '../storage';
 import { isWorkflowyExportHTML, parseWorkflowyExportHTML } from '../utils/file-extractors';
 import { generateUniqueSlug } from '../utils/slug';
 import { auth } from '../lib/auth';
+import { createBrainliftForAgent } from '../services/import-agent';
 
 export const devRouter = Router();
 
@@ -729,7 +730,7 @@ if (!isDev) {
    * POST /dev/import-agent/create-from-url
    *
    * Create a fresh brainlift from a Workflowy URL with content + hierarchy populated.
-   * No facts, sources, or experts — a clean slate for testing extraction tools.
+   * Extracts metadata (purpose, owner) via createBrainliftForAgent service.
    * Requires an authenticated session to assign ownership.
    */
   devRouter.post('/dev/import-agent/create-from-url', async (req, res) => {
@@ -744,43 +745,9 @@ if (!isDev) {
       const session = await auth.api.getSession({ headers: req.headers as any });
       const userId = session?.user?.id ?? null;
 
-      // Fetch content + hierarchy from Workflowy
-      const result = await fetchWorkflowyContent(url);
+      const data = await createBrainliftForAgent(url, userId ?? undefined);
 
-      if (!result.hierarchy || result.hierarchy.length === 0) {
-        return res.status(400).json({ success: false, error: 'Fetched content but no hierarchy nodes found.' });
-      }
-
-      // Derive title from first root node
-      const title = result.hierarchy[0]?.name || 'Untitled Import';
-      const slug = await generateUniqueSlug(title);
-
-      // Create minimal brainlift with content + hierarchy, no facts/experts
-      const brainliftData = await storage.createBrainlift(
-        {
-          slug,
-          title,
-          description: `Import agent test — created from ${url}`,
-          summary: { totalFacts: 0, meanScore: '0', score5Count: 0, contradictionCount: 0 },
-          originalContent: result.markdown,
-          importHierarchy: result.hierarchy,
-          sourceType: 'Workflowy',
-          importStatus: 'pending',
-          expertDiagnostics: null,
-        } as any,
-        [], // no facts
-        [], // no clusters
-        userId ?? undefined
-      );
-
-      res.json({
-        success: true,
-        data: {
-          id: brainliftData.id,
-          slug: brainliftData.slug,
-          title: brainliftData.title,
-        },
-      });
+      res.json({ success: true, data });
     } catch (err: unknown) {
       const error = err instanceof Error ? err.message : 'Unknown error';
       res.status(500).json({ success: false, error });
