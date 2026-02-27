@@ -103,7 +103,10 @@ export function buildImportAgentTools(
     execute: async ({ fromPhase, toPhase, completedItems, summary }) => {
       importLog(brainlift.id, 'Tool: phase_transition', { fromPhase, toPhase, completedItems, summary });
       phaseRef.value = toPhase as ImportPhase;
-      return { fromPhase, toPhase, completedItems, summary, action: 'confirm_required' };
+      return {
+        fromPhase, toPhase, completedItems, summary, action: 'confirm_required',
+        ...(toPhase === 'final' && { reminder: 'You MUST call confirm_and_start_grading in the final phase. Do not end your message without it.' }),
+      };
     },
   });
 

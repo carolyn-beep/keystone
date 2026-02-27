@@ -261,16 +261,17 @@ Link each DOK3 insight to the DOK2 summaries it draws from.
 - Each insight must link to at least 2 DOK2 summaries from different sources
 - Use \`link_dok3_insight\` for each linking
 - Use \`scratchpad_dok3_insight\` for insights that can't be properly linked
+- **Clean structure** → link all insights yourself in one pass. Don't ask per-insight — just do it.
+- **Broken or bloated structure** → link the obvious ones yourself, then work through ambiguous ones with the user.
 - When all linking is done, call \`phase_transition\` to final`;
 
     case 'final':
       return `### Phase: Final Review
-Present a summary of everything that was extracted and saved:
-- Sources confirmed
-- DOK1 facts saved
-- DOK2 summaries saved
-- DOK3 insights linked
-Ask the user to confirm and start grading via \`confirm_and_start_grading\`.`;
+Your ONLY job in this phase is:
+1. Present a summary of what was saved (sources, DOK1s, DOK2s, DOK3s)
+2. Call \`confirm_and_start_grading\` with the counts
+
+Do NOT end your message without calling \`confirm_and_start_grading\`.`;
 
     default:
       return '';
