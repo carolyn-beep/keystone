@@ -1,4 +1,4 @@
-# DOK Grader
+# Brainlift Platform
 
 A knowledge verification and learning platform built around the Depth of Knowledge (DOK) framework. Students build structured knowledge artifacts called BrainLifts — curated collections of facts, summaries, insights, and spiky points of view — and the platform evaluates the quality of that knowledge at every level.
 
