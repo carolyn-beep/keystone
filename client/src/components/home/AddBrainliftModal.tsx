@@ -56,6 +56,9 @@ export function AddBrainliftModal({ show, onClose, onSuccess }: AddBrainliftModa
   const isLinkingMode = !!importWithProgress.dok3LinkingInfo;
   const isExpanded = isLinkingMode || !!agentSlug;
 
+  // Holds the completed slug when import finishes while user is still linking
+  const pendingSlugRef = useRef<string | null>(null);
+
   const resetAll = useCallback(() => {
     setActiveTab('workflowy');
     setUrl('');
@@ -80,11 +83,20 @@ export function AddBrainliftModal({ show, onClose, onSuccess }: AddBrainliftModa
   }, [isLinkingMode, isGradingMode, grading.isGrading, importWithProgress, resetAll, onClose]);
 
   const handleLinkingComplete = useCallback(() => {
-    // Don't navigate away — the import is still running (experts, redundancy, score).
-    // Just dismiss the linking UI so the modal shrinks back to show SSE progress.
-    // When the `complete` event arrives, handleSubmit's await resolves and navigates.
     importWithProgress.dismissLinking();
-  }, [importWithProgress]);
+
+    // If the import already completed while user was linking, navigate now
+    if (pendingSlugRef.current) {
+      const slug = pendingSlugRef.current;
+      pendingSlugRef.current = null;
+      importWithProgress.reset();
+      resetAll();
+      onClose();
+      onSuccess(slug);
+    }
+    // Otherwise, modal shrinks back to show SSE progress for remaining stages.
+    // When complete arrives, handleSubmit's await resolves and navigates.
+  }, [importWithProgress, resetAll, onClose, onSuccess]);
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -117,10 +129,15 @@ export function AddBrainliftModal({ show, onClose, onSuccess }: AddBrainliftModa
 
     const slug = await importWithProgress.importBrainlift(formData);
     if (slug) {
-      importWithProgress.reset();
-      resetAll();
-      onClose();
-      onSuccess(slug);
+      // If user is still in linking UI, defer navigation until they finish
+      if (importWithProgress.dok3LinkingInfo) {
+        pendingSlugRef.current = slug;
+      } else {
+        importWithProgress.reset();
+        resetAll();
+        onClose();
+        onSuccess(slug);
+      }
     }
   };
 

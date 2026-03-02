@@ -10,6 +10,7 @@ import { type BrainliftOutput } from "../ai/brainliftExtractor";
 import { type BrainliftData } from "@shared/schema";
 import { type ImportProgress, STAGE_LABELS } from "@shared/import-progress";
 import pLimit from "p-limit";
+import { withRetryTimeout } from "../utils/timeout";
 
 interface PostProcessingInput {
   brainliftId: number;
@@ -222,104 +223,76 @@ export async function saveBrainliftFromAI(
       const factStart = Date.now();
       console.log(`[Auto-Grade] START fact ${fact.id} (${completedCount}/${data.facts.length} done)`);
 
-      const summary = await summarizeFact(fact.fact);
-
-      // Auto-grading logic
-      let evidenceContent = "";
-      let finalScore = 0;
-      let finalNote = fact.aiNotes || "";
-
-      // If source exists, fetch evidence
-      let linkFailed = false;
-      const hasSource = fact.aiNotes && fact.aiNotes.includes("Source: ");
-      console.log(`[Auto-Grade] Fact ${fact.id} hasSource check: ${hasSource}`);
-
-      if (hasSource) {
-        const sourceUrl = fact.aiNotes.split("Source: ")[1]?.trim();
-        console.log(`[Auto-Grade] Fact ${fact.id} extracted source: "${sourceUrl?.substring(0, 80)}..."`);
-        if (sourceUrl) {
-          try {
-            const evidence = await fetchEvidenceForFact(fact.fact, sourceUrl, failedUrlCache);
-            evidenceContent = evidence.content || "";
-
-            // Clear logging about what happened
-            if (evidenceContent) {
-              if (evidence.error) {
-                console.log(`[Auto-Grade] Fact ${fact.id}: GOT ${evidenceContent.length} chars via AI fallback (direct fetch failed: ${evidence.error})`);
-              } else {
-                console.log(`[Auto-Grade] Fact ${fact.id}: GOT ${evidenceContent.length} chars from direct URL fetch`);
-              }
-            } else {
-              console.log(`[Auto-Grade] Fact ${fact.id}: FAILED to get evidence - ${evidence.error || 'unknown error'}`);
-              linkFailed = true;
-            }
-          } catch (err) {
-            console.error(`[Auto-Grade] Fact ${fact.id}: EXCEPTION during evidence fetch:`, err);
-            linkFailed = true;
-          }
-        }
-      }
-
-      // Verify with LLMs
       try {
-        const verification = await verifyFactWithAllModels(fact.fact, fact.source || "", evidenceContent, linkFailed);
-        finalScore = verification.consensus.consensusScore;
+        const result = await withRetryTimeout(async () => {
+          const summary = await summarizeFact(fact.fact);
 
-        // Get the rationale directly from consensus notes
-        let rationale = verification.consensus.verificationNotes;
-        let isGradeable = true;
+          // Auto-grading logic
+          let evidenceContent = "";
 
-        if (verification.consensus.isNonGradeable) {
-          rationale = `As the source link is not accessible, this DOK1 could not be graded - ${rationale}`;
-          isGradeable = false;
-          finalScore = 0;
-        }
+          // If source exists, fetch evidence
+          let linkFailed = false;
+          const hasSource = fact.aiNotes && fact.aiNotes.includes("Source: ");
 
-        // Format note: Rationale first, then hyperlinked source at the end
-        let sourceHyperlink = "";
-        if (fact.aiNotes && fact.aiNotes.includes("Source: ")) {
-          const sourceUrl = fact.aiNotes.split("Source: ")[1]?.trim();
-          if (sourceUrl) {
-            sourceHyperlink = `Source: [${sourceUrl}](${sourceUrl})`;
+          if (hasSource) {
+            const sourceUrl = fact.aiNotes.split("Source: ")[1]?.trim();
+            if (sourceUrl) {
+              try {
+                const evidence = await fetchEvidenceForFact(fact.fact, sourceUrl, failedUrlCache);
+                evidenceContent = evidence.content || "";
+                if (!evidenceContent) linkFailed = true;
+              } catch {
+                linkFailed = true;
+              }
+            }
           }
-        } else if (fact.source && fact.source.startsWith("http")) {
-          sourceHyperlink = `Source: [${fact.source}](${fact.source})`;
-        } else {
-          sourceHyperlink = "No sources have been linked to this fact";
-        }
 
-        finalNote = `${rationale}\n\n${sourceHyperlink}`;
+          const verification = await verifyFactWithAllModels(fact.fact, fact.source || "", evidenceContent, linkFailed);
+          let finalScore = verification.consensus.consensusScore;
+          let rationale = verification.consensus.verificationNotes;
+          let isGradeable = true;
+
+          if (verification.consensus.isNonGradeable) {
+            rationale = `As the source link is not accessible, this DOK1 could not be graded - ${rationale}`;
+            isGradeable = false;
+            finalScore = 0;
+          }
+
+          // Format note: Rationale first, then hyperlinked source at the end
+          let sourceHyperlink = "";
+          if (fact.aiNotes && fact.aiNotes.includes("Source: ")) {
+            const sourceUrl = fact.aiNotes.split("Source: ")[1]?.trim();
+            if (sourceUrl) {
+              sourceHyperlink = `Source: [${sourceUrl}](${sourceUrl})`;
+            }
+          } else if (fact.source && fact.source.startsWith("http")) {
+            sourceHyperlink = `Source: [${fact.source}](${fact.source})`;
+          } else {
+            sourceHyperlink = "No sources have been linked to this fact";
+          }
+
+          return {
+            originalId: fact.id,
+            category: fact.category,
+            source: fact.source || null,
+            fact: fact.fact,
+            summary,
+            score: finalScore,
+            contradicts: fact.contradicts,
+            note: `${rationale}\n\n${sourceHyperlink}`,
+            flags: fact.flags || [],
+            isGradeable,
+          };
+        }, 30_000, `fact ${fact.id}`);
 
         completedCount++;
-        onProgress?.({
-          stage: 'grading',
-          message: STAGE_LABELS.grading,
-          completed: completedCount,
-          total: totalFacts,
-        });
+        onProgress?.({ stage: 'grading', message: STAGE_LABELS.grading, completed: completedCount, total: totalFacts });
         const factElapsed = ((Date.now() - factStart) / 1000).toFixed(1);
-        console.log(`[Auto-Grade] DONE fact ${fact.id} in ${factElapsed}s - score: ${finalScore}/5 (${completedCount}/${data.facts.length})`);
-
-        return {
-          originalId: fact.id,
-          category: fact.category,
-          source: fact.source || null,
-          fact: fact.fact,
-          summary,
-          score: finalScore,
-          contradicts: fact.contradicts,
-          note: finalNote,
-          flags: fact.flags || [],
-          isGradeable,
-        };
+        console.log(`[Auto-Grade] DONE fact ${fact.id} in ${factElapsed}s - score: ${result.score}/5 (${completedCount}/${data.facts.length})`);
+        return result;
       } catch (err) {
         completedCount++;
-        onProgress?.({
-          stage: 'grading',
-          message: STAGE_LABELS.grading,
-          completed: completedCount,
-          total: totalFacts,
-        });
+        onProgress?.({ stage: 'grading', message: STAGE_LABELS.grading, completed: completedCount, total: totalFacts });
         const factElapsed = ((Date.now() - factStart) / 1000).toFixed(1);
         console.error(`[Auto-Grade] FAILED fact ${fact.id} in ${factElapsed}s:`, err);
         return {
@@ -327,7 +300,7 @@ export async function saveBrainliftFromAI(
           category: fact.category,
           source: fact.source || null,
           fact: fact.fact,
-          summary,
+          summary: fact.fact.substring(0, 100),
           score: 0,
           contradicts: fact.contradicts,
           note: `Verification failed due to a system error.\n\n${fact.aiNotes || "No sources have been linked to this fact"}`,

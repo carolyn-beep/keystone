@@ -20,6 +20,7 @@ import { gradeDOK3Insight } from '../ai/dok3Grader';
 import { recomputeBrainliftScore, runPostProcessingPipeline } from '../services/brainlift';
 import { createBrainliftForAgent } from '../services/import-agent';
 import { STAGE_LABELS } from '@shared/import-progress';
+import { withRetryTimeout } from '../utils/timeout';
 import type { ImportPhase } from '@shared/schema';
 
 export const importAgentRouter = Router();
@@ -288,66 +289,66 @@ importAgentRouter.post(
 
       await Promise.all(ungradedFacts.map(fact => dok1Limit(async () => {
         try {
-          const summary = await summarizeFact(fact.fact);
+          await withRetryTimeout(async () => {
+            const summary = await summarizeFact(fact.fact);
 
-          // Extract URL from fact.source — agent stores as "SourceName (https://...)"
-          let sourceUrl: string | null = null;
-          if (fact.source) {
-            const urlMatch = fact.source.match(/\((https?:\/\/[^\s)]+)\)/);
-            if (urlMatch) {
-              sourceUrl = urlMatch[1];
+            // Extract URL from fact.source — agent stores as "SourceName (https://...)"
+            let sourceUrl: string | null = null;
+            if (fact.source) {
+              const urlMatch = fact.source.match(/\((https?:\/\/[^\s)]+)\)/);
+              if (urlMatch) {
+                sourceUrl = urlMatch[1];
+              } else {
+                const bareMatch = fact.source.match(/https?:\/\/[^\s]+/);
+                if (bareMatch) sourceUrl = bareMatch[0];
+              }
+            }
+
+            let evidenceContent = '';
+            let linkFailed = false;
+
+            if (sourceUrl) {
+              try {
+                const evidence = await fetchEvidenceForFact(fact.fact, sourceUrl, failedUrlCache);
+                evidenceContent = evidence.content || '';
+                if (!evidenceContent) linkFailed = true;
+              } catch {
+                linkFailed = true;
+              }
+            }
+
+            const verification = await verifyFactWithAllModels(
+              fact.fact,
+              fact.source || '',
+              evidenceContent,
+              linkFailed
+            );
+
+            let finalScore = verification.consensus.consensusScore;
+            let rationale = verification.consensus.verificationNotes;
+            let isGradeable = true;
+
+            if (verification.consensus.isNonGradeable) {
+              rationale = `As the source link is not accessible, this DOK1 could not be graded - ${rationale}`;
+              isGradeable = false;
+              finalScore = 0;
+            }
+
+            let sourceHyperlink = '';
+            if (sourceUrl) {
+              sourceHyperlink = `Source: [${sourceUrl}](${sourceUrl})`;
             } else {
-              // Try bare URL in source field
-              const bareMatch = fact.source.match(/https?:\/\/[^\s]+/);
-              if (bareMatch) sourceUrl = bareMatch[0];
+              sourceHyperlink = 'No sources have been linked to this fact';
             }
-          }
+            const note = `${rationale}\n\n${sourceHyperlink}`;
 
-          let evidenceContent = '';
-          let linkFailed = false;
-
-          if (sourceUrl) {
-            try {
-              const evidence = await fetchEvidenceForFact(fact.fact, sourceUrl, failedUrlCache);
-              evidenceContent = evidence.content || '';
-              if (!evidenceContent) linkFailed = true;
-            } catch {
-              linkFailed = true;
-            }
-          }
-
-          const verification = await verifyFactWithAllModels(
-            fact.fact,
-            fact.source || '',
-            evidenceContent,
-            linkFailed
-          );
-
-          let finalScore = verification.consensus.consensusScore;
-          let rationale = verification.consensus.verificationNotes;
-          let isGradeable = true;
-
-          if (verification.consensus.isNonGradeable) {
-            rationale = `As the source link is not accessible, this DOK1 could not be graded - ${rationale}`;
-            isGradeable = false;
-            finalScore = 0;
-          }
-
-          // Format note with source hyperlink
-          let sourceHyperlink = '';
-          if (sourceUrl) {
-            sourceHyperlink = `Source: [${sourceUrl}](${sourceUrl})`;
-          } else {
-            sourceHyperlink = 'No sources have been linked to this fact';
-          }
-          const note = `${rationale}\n\n${sourceHyperlink}`;
-
-          await storage.updateFactGrading(fact.id, brainlift.id, {
-            score: finalScore,
-            note,
-            isGradeable,
-            summary,
-          });
+            await storage.updateFactGrading(fact.id, brainlift.id, {
+              score: finalScore,
+              note,
+              isGradeable,
+              summary,
+            });
+          }, 30_000, `cascade fact ${fact.id}`);
         } catch (err: any) {
           console.error(`[Cascade] DOK1 fact ${fact.id} failed:`, err.message);
           await storage.updateFactGrading(fact.id, brainlift.id, {
