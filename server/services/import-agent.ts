@@ -154,7 +154,7 @@ export async function createBrainliftForAgent(
       originalContent: result.markdown,
       importHierarchy: result.hierarchy,
       sourceType: 'Workflowy',
-      importStatus: 'pending',
+      importStatus: 'agent_in_progress',
       expertDiagnostics: null,
     } as any,
     [], // no facts — agent will extract them
