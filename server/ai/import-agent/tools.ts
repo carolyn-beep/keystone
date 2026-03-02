@@ -313,7 +313,7 @@ export function buildImportAgentTools(
   });
 
   const save_confirmed_sources = tool({
-    description: 'Save user-confirmed sources to DB. Sets import status to agent_in_progress. URL is optional — never fabricate URLs. Sources without URLs are valid but get less consistent grading.',
+    description: 'Save user-confirmed sources to DB. URL is optional — never fabricate URLs. Sources without URLs are valid but get less consistent grading.',
     inputSchema: z.object({
       confirmedSources: z.array(z.object({
         url: z.string().optional().describe('Source URL if available. NEVER fabricate — omit if no real URL exists.'),
@@ -324,7 +324,6 @@ export function buildImportAgentTools(
       importLog(brainlift.id, 'Tool: save_confirmed_sources', { confirmedCount: confirmedSources.length, confirmedSources });
       if (confirmedSources.length === 0) return { status: 'error', message: 'At least one source must be confirmed.' };
       await storage.saveBrainliftSources(brainlift.id, confirmedSources.map(s => ({ url: s.url ?? null, name: s.name ?? null, category: s.category ?? null })), 'confirmed');
-      await storage.updateImportStatus(brainlift.id, 'agent_in_progress');
       importLog(brainlift.id, 'Tool: save_confirmed_sources → ok', { confirmed: confirmedSources.length });
       return { status: 'ok', confirmed: confirmedSources.length };
     },

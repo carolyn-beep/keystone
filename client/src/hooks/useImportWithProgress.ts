@@ -63,6 +63,12 @@ export function useImportWithProgress() {
     reset();
   }, [reset]);
 
+  /** Clear linking UI without killing the SSE stream — import continues in background */
+  const dismissLinking = useCallback(() => {
+    dok3LinkingRef.current = null;
+    setState((prev) => ({ ...prev, dok3LinkingInfo: null }));
+  }, []);
+
   const importBrainlift = useCallback(async (formData: FormData): Promise<string | null> => {
     const abortController = new AbortController();
     abortControllerRef.current = abortController;
@@ -212,6 +218,6 @@ export function useImportWithProgress() {
     importBrainlift,
     cancel,
     reset,
-    dok3LinkingRef,
+    dismissLinking,
   };
 }

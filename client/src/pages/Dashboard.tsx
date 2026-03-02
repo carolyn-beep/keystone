@@ -231,8 +231,8 @@ const { downloadBrainliftPDF } = usePDFExport();
 
   const { facts, contradictionClusters } = data;
 
-  // Gate: if import is in-progress via agent, show resume banner instead of dashboard
-  const isAgentInProgress = data.importStatus === 'agent_in_progress';
+  // Gate: if import hasn't completed, show resume banner instead of dashboard.
+  const isAgentInProgress = data.importStatus === 'pending';
 
   if (isAgentInProgress) {
     return (

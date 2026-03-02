@@ -80,14 +80,11 @@ export function AddBrainliftModal({ show, onClose, onSuccess }: AddBrainliftModa
   }, [isLinkingMode, isGradingMode, grading.isGrading, importWithProgress, resetAll, onClose]);
 
   const handleLinkingComplete = useCallback(() => {
-    const linkingSlug = importWithProgress.dok3LinkingInfo?.slug || importWithProgress.dok3LinkingRef.current?.slug;
-    importWithProgress.reset();
-    resetAll();
-    onClose();
-    if (linkingSlug) {
-      onSuccess(linkingSlug);
-    }
-  }, [importWithProgress, resetAll, onClose, onSuccess]);
+    // Don't navigate away — the import is still running (experts, redundancy, score).
+    // Just dismiss the linking UI so the modal shrinks back to show SSE progress.
+    // When the `complete` event arrives, handleSubmit's await resolves and navigates.
+    importWithProgress.dismissLinking();
+  }, [importWithProgress]);
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -119,7 +116,7 @@ export function AddBrainliftModal({ show, onClose, onSuccess }: AddBrainliftModa
     }
 
     const slug = await importWithProgress.importBrainlift(formData);
-    if (slug && !importWithProgress.dok3LinkingRef.current) {
+    if (slug) {
       importWithProgress.reset();
       resetAll();
       onClose();

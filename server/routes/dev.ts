@@ -566,11 +566,9 @@ if (!isDev) {
       ]);
 
       // Update import status
-      await storage.updateImportStatus(brainliftId, 'agent_in_progress');
-
       res.json({
         success: true,
-        data: { conversation, sources, importStatus: 'agent_in_progress' },
+        data: { conversation, sources, importStatus: 'pending' },
       });
     } catch (err: unknown) {
       const error = err instanceof Error ? err.message : 'Unknown error';

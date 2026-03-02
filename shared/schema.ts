@@ -703,7 +703,6 @@ export type ImportPhase = typeof IMPORT_PHASE[keyof typeof IMPORT_PHASE];
 // Import Status enum (on brainlifts table)
 export const IMPORT_STATUS = {
   PENDING: 'pending',
-  AGENT_IN_PROGRESS: 'agent_in_progress',
   COMPLETE: 'complete',
 } as const;
 

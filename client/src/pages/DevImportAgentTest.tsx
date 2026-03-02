@@ -356,10 +356,10 @@ function StorageInspector({
             <div className="bg-card rounded-lg border p-4">
               <h2 className="text-sm font-semibold text-foreground mb-2">Import Status</h2>
               <span className={`inline-block px-3 py-1 rounded-full text-xs font-medium ${
-                storageQuery.data.importStatus === 'agent_in_progress'
-                  ? 'bg-warning/20 text-warning'
-                  : storageQuery.data.importStatus === 'complete'
-                    ? 'bg-success/20 text-success'
+                storageQuery.data.importStatus === 'complete'
+                  ? 'bg-success/20 text-success'
+                  : storageQuery.data.importStatus === 'pending'
+                    ? 'bg-warning/20 text-warning'
                     : 'bg-muted text-muted-foreground'
               }`}>
                 {storageQuery.data.importStatus ?? 'pending'}

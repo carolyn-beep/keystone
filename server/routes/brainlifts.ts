@@ -164,6 +164,9 @@ brainliftsRouter.post(
         sse.send
       );
 
+      // Mark import as complete
+      await storage.updateImportStatus(brainlift.id, 'complete');
+
       // Emit complete with slug
       sse.send({
         stage: 'complete',

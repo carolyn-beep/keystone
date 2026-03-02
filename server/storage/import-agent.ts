@@ -9,7 +9,7 @@ import {
   db, eq,
   importAgentConversations, brainlifts,
 } from './base';
-import type { ImportPhase } from '@shared/schema';
+import type { ImportPhase, ImportStatus } from '@shared/schema';
 
 /** Get the import agent conversation for a brainlift, or null if none exists */
 export async function getImportConversation(brainliftId: number) {
@@ -56,7 +56,7 @@ export async function deleteImportConversation(brainliftId: number) {
 }
 
 /** Update the brainlift's import status */
-export async function updateImportStatus(brainliftId: number, importStatus: string) {
+export async function updateImportStatus(brainliftId: number, importStatus: ImportStatus) {
   await db
     .update(brainlifts)
     .set({ importStatus })

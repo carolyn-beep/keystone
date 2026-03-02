@@ -5,17 +5,22 @@ export interface SSEWriter {
   send: (event: ImportProgress) => void;
   close: () => void;
   error: (message: string) => void;
+  /** True if the client has disconnected */
+  disconnected: boolean;
 }
 
 export interface GenericSSEWriter<T> {
   send: (event: T) => void;
   close: () => void;
+  /** True if the client has disconnected */
+  disconnected: boolean;
 }
 
 /**
  * Create an SSE response helper for streaming progress events.
  * Sets appropriate headers and provides methods to send, close, or error.
  * Includes a heartbeat to prevent proxy/browser timeouts on long-running imports.
+ * Logs client disconnections with the last event that was successfully sent.
  */
 export function createSSEResponse(res: Response): SSEWriter {
   // Set headers for SSE
@@ -37,14 +42,44 @@ export function createSSEResponse(res: Response): SSEWriter {
     }
   }, 30000);
 
+  // Track connection state and last event for disconnect logging
+  let disconnected = false;
+  let lastEvent: ImportProgress | null = null;
+  let eventCount = 0;
+
+  res.on('close', () => {
+    if (!disconnected) {
+      disconnected = true;
+      clearInterval(heartbeat);
+      console.warn(
+        `[SSE] Client disconnected mid-stream | events sent: ${eventCount} | last event: ${
+          lastEvent
+            ? `stage=${lastEvent.stage}${
+                'completed' in lastEvent && 'total' in lastEvent
+                  ? ` (${lastEvent.completed}/${lastEvent.total})`
+                  : ''
+              }`
+            : 'none'
+        }`
+      );
+    }
+  });
+
   const cleanup = () => {
     clearInterval(heartbeat);
   };
 
-  return {
+  const writer: SSEWriter = {
+    get disconnected() {
+      return disconnected;
+    },
+
     send(event: ImportProgress) {
+      if (disconnected) return;
       try {
         res.write(`event: progress\ndata: ${JSON.stringify(event)}\n\n`);
+        lastEvent = event;
+        eventCount++;
       } catch (err) {
         console.error('[SSE] Failed to write event:', err);
         cleanup();
@@ -53,6 +88,7 @@ export function createSSEResponse(res: Response): SSEWriter {
 
     close() {
       cleanup();
+      if (disconnected) return;
       try {
         res.write('event: done\ndata: {}\n\n');
         res.end();
@@ -63,6 +99,7 @@ export function createSSEResponse(res: Response): SSEWriter {
 
     error(message: string) {
       cleanup();
+      if (disconnected) return;
       try {
         const errorEvent: ImportProgress = {
           stage: 'error',
@@ -77,6 +114,8 @@ export function createSSEResponse(res: Response): SSEWriter {
       }
     },
   };
+
+  return writer;
 }
 
 /**
@@ -101,14 +140,38 @@ export function createGenericSSE<T>(res: Response): GenericSSEWriter<T> {
     }
   }, 30000);
 
+  let disconnected = false;
+  let eventCount = 0;
+  let lastEventStr = 'none';
+
+  res.on('close', () => {
+    if (!disconnected) {
+      disconnected = true;
+      clearInterval(heartbeat);
+      console.warn(
+        `[SSE] Client disconnected mid-stream | events sent: ${eventCount} | last event: ${lastEventStr}`
+      );
+    }
+  });
+
   const cleanup = () => {
     clearInterval(heartbeat);
   };
 
   return {
+    get disconnected() {
+      return disconnected;
+    },
+
     send(event: T) {
+      if (disconnected) return;
       try {
-        res.write(`event: progress\ndata: ${JSON.stringify(event)}\n\n`);
+        const json = JSON.stringify(event);
+        res.write(`event: progress\ndata: ${json}\n\n`);
+        eventCount++;
+        // Capture a short summary for logging
+        const obj = event as Record<string, unknown>;
+        lastEventStr = obj.stage ? `stage=${obj.stage}` : json.substring(0, 80);
       } catch (err) {
         console.error('[SSE] Failed to write event:', err);
         cleanup();
@@ -117,6 +180,7 @@ export function createGenericSSE<T>(res: Response): GenericSSEWriter<T> {
 
     close() {
       cleanup();
+      if (disconnected) return;
       try {
         res.write('event: done\ndata: {}\n\n');
         res.end();
