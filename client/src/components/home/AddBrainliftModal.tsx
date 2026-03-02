@@ -129,8 +129,9 @@ export function AddBrainliftModal({ show, onClose, onSuccess }: AddBrainliftModa
 
     const slug = await importWithProgress.importBrainlift(formData);
     if (slug) {
-      // If user is still in linking UI, defer navigation until they finish
-      if (importWithProgress.dok3LinkingInfo) {
+      // Check the REF (not state) — state is stale in this closure since handleSubmit
+      // was called before linking started. The ref is always current.
+      if (importWithProgress.dok3LinkingRef.current) {
         pendingSlugRef.current = slug;
       } else {
         importWithProgress.reset();

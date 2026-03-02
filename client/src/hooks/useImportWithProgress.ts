@@ -219,5 +219,6 @@ export function useImportWithProgress() {
     cancel,
     reset,
     dismissLinking,
+    dok3LinkingRef,
   };
 }
