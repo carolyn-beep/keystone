@@ -18,10 +18,8 @@ interface ImportProgressProps {
 const DEFAULT_ORDERED_STAGES: Exclude<ImportStage, 'complete' | 'error'>[] = [
   'extracting',
   'grading',
-  'grading_dok2',
-  'grading_dok3',
   'contradictions',
-  'saving',
+  'grading_dok2',
   'dok3_linking',
   'experts',
   'redundancy',

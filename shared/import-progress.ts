@@ -6,7 +6,6 @@ export type ImportStage =
   | 'grading_dok2'
   | 'grading_dok3'
   | 'contradictions'
-  | 'saving'
   | 'dok3_linking'
   | 'experts'
   | 'redundancy'
@@ -44,10 +43,6 @@ export interface ContradictionsProgress extends BaseProgressEvent {
   stage: 'contradictions';
 }
 
-export interface SavingProgress extends BaseProgressEvent {
-  stage: 'saving';
-}
-
 export interface DOK3LinkingProgressEvent extends BaseProgressEvent {
   stage: 'dok3_linking';
   dok3Count: number;
@@ -78,7 +73,6 @@ export type ImportProgress =
   | GradingDOK2Progress
   | GradingDOK3Progress
   | ContradictionsProgress
-  | SavingProgress
   | DOK3LinkingProgressEvent
   | ExpertsProgress
   | RedundancyProgress
@@ -92,7 +86,6 @@ export const STAGE_LABELS: Record<ImportStage, string> = {
   grading_dok2: 'Grading DOK2 summaries...',
   grading_dok3: 'Grading DOK3 insights...',
   contradictions: 'Detecting contradictions...',
-  saving: 'Saving to database...',
   dok3_linking: 'DOK3 insights ready for linking',
   experts: 'Extracting experts...',
   redundancy: 'Analyzing redundancies...',
@@ -122,16 +115,16 @@ export interface DOK3GradingProgress {
 }
 
 // Weights for progress bar calculation (must sum to 100)
+// Order matches actual execution: extract → DOK1 + contradictions → DOK2 → DOK3 linking → experts + redundancy
 export const STAGE_WEIGHTS: Record<Exclude<ImportStage, 'complete' | 'error'>, number> = {
   extracting: 5,
-  grading: 47,           // DOK1 grading takes the longest
-  grading_dok2: 13,      // DOK2 grading (fewer items, runs in parallel)
-  grading_dok3: 10,      // DOK3 grading (cross-source insights)
+  grading: 50,           // DOK1 grading takes the longest
   contradictions: 5,
-  saving: 3,
+  grading_dok2: 15,      // DOK2 grading (fewer items, runs in parallel)
+  grading_dok3: 0,       // Happens via background job after linking, or in agent cascade — not during import-stream
   dok3_linking: 2,       // Informational — signals DOK3 insights ready
-  experts: 10,
-  redundancy: 5,
+  experts: 15,
+  redundancy: 8,
 };
 
 // Calculate cumulative progress for a given stage
@@ -139,13 +132,13 @@ export function calculateProgress(event: ImportProgress): number {
   if (event.stage === 'complete') return 100;
   if (event.stage === 'error') return 0;
 
+  // Order matches actual execution in the legacy pipeline
   const stages: Exclude<ImportStage, 'complete' | 'error'>[] = [
     'extracting',
     'grading',
+    'contradictions',
     'grading_dok2',
     'grading_dok3',
-    'contradictions',
-    'saving',
     'dok3_linking',
     'experts',
     'redundancy',

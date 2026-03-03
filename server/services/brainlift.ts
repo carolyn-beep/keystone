@@ -350,9 +350,6 @@ export async function saveBrainliftFromAI(
   // Run expert format diagnostics on the original content
   const expertDiagnostics = originalContent ? await diagnoseExpertFormat(originalContent) : null;
 
-  // Emit saving progress
-  onProgress?.({ stage: 'saving', message: STAGE_LABELS.saving });
-
   let brainlift;
   try {
     brainlift = await storage.createBrainlift(

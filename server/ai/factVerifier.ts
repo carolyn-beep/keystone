@@ -101,6 +101,23 @@ Grade this claim based on available evidence OR your knowledge of educational re
         ],
         temperature: 0.1,
         max_tokens: 800,
+        response_format: {
+          type: 'json_schema',
+          json_schema: {
+            name: 'fact_verification',
+            strict: true,
+            schema: {
+              type: 'object',
+              properties: {
+                score: { type: 'number', description: 'Score from 1-5' },
+                rationale: { type: 'string', description: 'Substantive explanation referencing research/evidence' },
+                isNonGradeable: { type: 'boolean', description: 'True only for highly obscure claims that cannot be evaluated' },
+              },
+              required: ['score', 'rationale', 'isNonGradeable'],
+              additionalProperties: false,
+            },
+          },
+        },
       }),
     });
 
@@ -132,12 +149,19 @@ Grade this claim based on available evidence OR your knowledge of educational re
     // Try to parse, if it fails try to fix common issues
     let parsed;
     try {
-      // Sanitize control characters (newlines/tabs inside string values)
-      const sanitized = jsonMatch[0].replace(/[\x00-\x1F\x7F]/g, (ch) =>
-        ch === '\n' ? '\\n' : ch === '\t' ? '\\t' : ch === '\r' ? '\\r' : ''
-      );
-      parsed = JSON.parse(sanitized);
-    } catch (parseErr) {
+      parsed = JSON.parse(jsonMatch[0]);
+    } catch {
+      // Raw parse failed — escape control chars only inside JSON string values
+      // (preserving structural whitespace between properties)
+      try {
+        const sanitized = jsonMatch[0].replace(
+          /"(?:[^"\\]|\\.)*"/g,
+          (str: string) => str.replace(/[\x00-\x1F\x7F]/g, (ch: string) =>
+            ch === '\n' ? '\\n' : ch === '\t' ? '\\t' : ch === '\r' ? '\\r' : ''
+          )
+        );
+        parsed = JSON.parse(sanitized);
+      } catch (parseErr) {
       // JSON.parse failed — fall back to regex extraction
       console.warn('[FactVerifier] JSON.parse failed, using regex fallback', {
         error: (parseErr as Error).message,
@@ -160,7 +184,7 @@ Grade this claim based on available evidence OR your knowledge of educational re
       } else {
         throw new Error('Could not parse JSON response');
       }
-    }
+    }}
     
     return {
       score: parsed.score,
