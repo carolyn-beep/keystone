@@ -9,6 +9,7 @@ import { RiQuillPenAiFill } from 'react-icons/ri';
 import { FaBalanceScale } from 'react-icons/fa';
 import { MdDynamicFeed } from 'react-icons/md';
 import { IoBookmarks, IoRibbon } from 'react-icons/io5';
+import { TbTargetArrow } from 'react-icons/tb';
 import { DeskLampIcon } from '@/assets/icons/DeskLampIcon';
 import { ScratchpadIcon } from '@/assets/icons/ScratchpadIcon';
 import { tokens } from '@/lib/colors';
@@ -32,6 +33,9 @@ import { usePDFExport } from '@/hooks/usePDFExport';
 import { useShareToken } from '@/hooks/useShareToken';
 import { useDOK3Insights } from '@/hooks/useDOK3Insights';
 import { useDOK3GradingEvents } from '@/hooks/useDOK3GradingEvents';
+import { useDOK4 } from '@/hooks/useDOK4';
+import { useDOK4GradingEvents } from '@/hooks/useDOK4GradingEvents';
+import { DOK4Tab } from '@/components/DOK4Tab';
 import { SidebarLayout, AppSidebar, type NavItem } from '@/components/layout';
 import { TactileButton } from '@/components/ui/tactile-button';
 
@@ -40,7 +44,7 @@ interface DashboardProps {
   isSharedView?: boolean;
 }
 
-const VALID_TABS = ['brainlift', 'grading', 'summaries', 'insights', 'scratchpad', 'contradictions', 'learning', 'learning-saved', 'learning-graded'] as const;
+const VALID_TABS = ['brainlift', 'grading', 'summaries', 'insights', 'dok4', 'scratchpad', 'contradictions', 'learning', 'learning-saved', 'learning-graded'] as const;
 type TabKey = typeof VALID_TABS[number];
 
 const NAV_ITEMS: NavItem[] = [
@@ -48,6 +52,7 @@ const NAV_ITEMS: NavItem[] = [
   { id: 'grading', label: 'DOK1 Facts', icon: PiCompassToolFill },
   { id: 'summaries', label: 'DOK2 Summaries', icon: RiQuillPenAiFill },
   { id: 'insights', label: 'DOK3 Insights', icon: DeskLampIcon },
+  { id: 'dok4', label: 'DOK4 SPOVs', icon: TbTargetArrow as NavItem['icon'] },
   { id: 'scratchpad', label: 'Scratchpad', icon: ScratchpadIcon },
   { id: 'contradictions', label: 'Contradictions', icon: FaBalanceScale },
   {
@@ -175,6 +180,10 @@ const { downloadBrainliftPDF } = usePDFExport();
   // DOK3 Insights
   const dok3 = useDOK3Insights(slug);
   const dok3Events = useDOK3GradingEvents(slug, dok3.gradingInsights.length > 0);
+
+  // DOK4 SPOVs
+  const dok4 = useDOK4(slug);
+  const dok4Events = useDOK4GradingEvents(slug, dok4.gradingSpovs.length > 0);
 
   // Redundancy detection
   const [showRedundancyModal, setShowRedundancyModal] = useState(false);
@@ -394,6 +403,27 @@ const { downloadBrainliftPDF } = usePDFExport();
           latestEvent={dok3Events.latestEvent}
           dok2Summaries={data.dok2Summaries ?? []}
           onLinkNow={() => setShowLinkingModal(true)}
+        />
+      )}
+
+      {/* DOK4 SPOVs Tab */}
+      {!isNotBrainlift && activeTab === 'dok4' && (
+        <DOK4Tab
+          spovs={dok4.spovs}
+          isLoading={dok4.isLoading}
+          meanScore={dok4.meanScore}
+          totalCount={dok4.totalCount}
+          highQualityCount={dok4.highQualityCount}
+          needsWorkCount={dok4.needsWorkCount}
+          gradedSpovs={dok4.gradedSpovs}
+          rejectedSpovs={dok4.rejectedSpovs}
+          pendingSpovs={dok4.pendingSpovs}
+          errorSpovs={dok4.errorSpovs}
+          gradingSpovs={dok4.gradingSpovs}
+          gradeAll={dok4.gradeAll}
+          isGrading={dok4.isGrading}
+          retryOne={dok4.retryOne}
+          latestEvent={dok4Events.latestEvent}
         />
       )}
 
