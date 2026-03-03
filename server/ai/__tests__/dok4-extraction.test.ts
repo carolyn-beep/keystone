@@ -153,9 +153,9 @@ describe('extractDOK4Spovs', () => {
           name: 'DOK4 - SPOVs',
           isDOK4Marker: true,
           children: [
-            makeNode({ name: 'SPOV A' }),
-            makeNode({ name: 'SPOV B' }),
-            makeNode({ name: 'SPOV C' }),
+            makeNode({ name: 'First spiky point of view about education' }),
+            makeNode({ name: 'Second spiky point of view about technology' }),
+            makeNode({ name: 'Third spiky point of view about learning' }),
           ],
         }),
       ];

@@ -4,6 +4,7 @@ import type { HierarchyNode } from '@shared/hierarchy-types';
 const DOK1_PATTERN = /DOK\s*1\b/i;
 const DOK2_PATTERN = /^DOK\s*2\b/i;
 const DOK3_PATTERN = /^DOK\s*3\b/i;
+const DOK4_PATTERN = /^DOK\s*4\b/i;
 const SOURCE_PATTERN = /^Source\s*\d*/i;
 const CATEGORY_PATTERN = /^Category\s*\d*/i;
 const PURPOSE_PATTERN = /^Purpose\s*$/i;
@@ -98,6 +99,7 @@ export function parseWorkflowyExportHTML(htmlContent: string): { markdown: strin
           isDOK1Marker: false,
           isDOK2Marker: false,
           isDOK3Marker: false,
+          isDOK4Marker: false,
           isSourceMarker: false,
           isCategoryMarker: false,
           isPurposeMarker: false,
@@ -124,6 +126,7 @@ export function parseWorkflowyExportHTML(htmlContent: string): { markdown: strin
         closed.node.isDOK1Marker = DOK1_PATTERN.test(name);
         closed.node.isDOK2Marker = DOK2_PATTERN.test(name);
         closed.node.isDOK3Marker = DOK3_PATTERN.test(name);
+        closed.node.isDOK4Marker = DOK4_PATTERN.test(name);
         closed.node.isSourceMarker = SOURCE_PATTERN.test(name);
         closed.node.isCategoryMarker = CATEGORY_PATTERN.test(name);
         closed.node.isPurposeMarker = PURPOSE_PATTERN.test(name);
