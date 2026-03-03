@@ -199,7 +199,8 @@ describe('FR1: DOK4 Model Constants and Shared Utilities', () => {
     });
 
     it('throws when response has no content', async () => {
-      mockFetch.mockResolvedValueOnce({
+      // Use mockResolvedValue (not Once) so all retry attempts get the same response
+      mockFetch.mockResolvedValue({
         ok: true,
         status: 200,
         json: () => Promise.resolve({ choices: [{ message: {} }] }),
