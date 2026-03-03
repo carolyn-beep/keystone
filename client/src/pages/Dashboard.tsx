@@ -241,47 +241,48 @@ const { downloadBrainliftPDF } = usePDFExport();
   const { facts, contradictionClusters } = data;
 
   // Gate: if import hasn't completed, show resume banner instead of dashboard.
-  const isAgentInProgress = data.importStatus === 'pending';
-
-  if (isAgentInProgress) {
-    return (
-      <>
-        <div className="min-h-screen flex items-center justify-center bg-background p-6">
-          <div className="bg-card rounded-xl border border-border shadow-card p-8 max-w-md w-full text-center">
-            <h2 className="text-lg font-semibold text-foreground mb-2">
-              Import In Progress
-            </h2>
-            <p className="text-sm text-muted-foreground mb-6">
-              This BrainLift is being imported via the Import Agent. Resume the conversation to continue extracting and grading content.
-            </p>
-            <div className="flex flex-col gap-3 items-center">
-              <TactileButton
-                variant="raised"
-                onClick={() => setShowAgentModal(true)}
-              >
-                Resume Import
-              </TactileButton>
-              <Link href="/" className="text-xs text-muted-foreground hover:text-foreground transition-colors">
-                Back to all Brainlifts
-              </Link>
-            </div>
-          </div>
-        </div>
-
-        {showAgentModal && (
-          <ImportAgentModal
-            brainliftSlug={slug}
-            onClose={() => setShowAgentModal(false)}
-            onComplete={(completedSlug) => {
-              setShowAgentModal(false);
-              // Reload page with complete data
-              window.location.href = `/grading/${completedSlug}`;
-            }}
-          />
-        )}
-      </>
-    );
-  }
+  // DISABLED: allowing dashboard to render even during pending imports
+  // const isAgentInProgress = data.importStatus === 'pending';
+  //
+  // if (isAgentInProgress) {
+  //   return (
+  //     <>
+  //       <div className="min-h-screen flex items-center justify-center bg-background p-6">
+  //         <div className="bg-card rounded-xl border border-border shadow-card p-8 max-w-md w-full text-center">
+  //           <h2 className="text-lg font-semibold text-foreground mb-2">
+  //             Import In Progress
+  //           </h2>
+  //           <p className="text-sm text-muted-foreground mb-6">
+  //             This BrainLift is being imported via the Import Agent. Resume the conversation to continue extracting and grading content.
+  //           </p>
+  //           <div className="flex flex-col gap-3 items-center">
+  //             <TactileButton
+  //               variant="raised"
+  //               onClick={() => setShowAgentModal(true)}
+  //             >
+  //               Resume Import
+  //             </TactileButton>
+  //             <Link href="/" className="text-xs text-muted-foreground hover:text-foreground transition-colors">
+  //               Back to all Brainlifts
+  //             </Link>
+  //           </div>
+  //         </div>
+  //       </div>
+  //
+  //       {showAgentModal && (
+  //         <ImportAgentModal
+  //           brainliftSlug={slug}
+  //           onClose={() => setShowAgentModal(false)}
+  //           onComplete={(completedSlug) => {
+  //             setShowAgentModal(false);
+  //             // Reload page with complete data
+  //             window.location.href = `/grading/${completedSlug}`;
+  //           }}
+  //         />
+  //       )}
+  //     </>
+  //   );
+  // }
 
   return (
     <SidebarLayout
