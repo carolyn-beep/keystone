@@ -27,12 +27,13 @@ let testDok3InsightId1: number;
 let testDok3InsightId2: number;
 
 beforeAll(async () => {
-  // Create test brainlifts
+  // Create test brainlifts (summary is NOT NULL)
+  const defaultSummary = { totalFacts: 0, meanScore: '0', score5Count: 0, contradictionCount: 0 };
   const [bl1] = await db.insert(brainlifts).values({
     title: 'DOK4 Test Brainlift',
     slug: 'dok4-test-' + Date.now(),
     description: 'Test brainlift for DOK4 storage tests',
-    ownerId: 'test-user',
+    summary: defaultSummary,
   }).returning({ id: brainlifts.id });
   testBrainliftId = bl1.id;
 
@@ -40,7 +41,7 @@ beforeAll(async () => {
     title: 'DOK4 Test Brainlift 2',
     slug: 'dok4-test-2-' + Date.now(),
     description: 'Second test brainlift for IDOR tests',
-    ownerId: 'test-user',
+    summary: defaultSummary,
   }).returning({ id: brainlifts.id });
   testBrainliftId2 = bl2.id;
 
