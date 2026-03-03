@@ -212,15 +212,24 @@ export async function dok4GradeJob(
 
     helpers.logger.info(`[DOK4 Grade] SPOV ${spovId} graded: score=${finalScore} (raw=${qualityResult.score}, ceiling=${context.foundationCeiling})`);
   } catch (err: any) {
-    helpers.logger.error(`[DOK4 Grade] Grading failed for SPOV ${spovId}:`, { err });
-    await storage.updateDOK4SpovStatus(spovId, brainliftId, 'error');
-    dok4GradingEmitter.emitEvent(brainliftId, {
-      type: 'dok4:error',
-      spovId,
-      brainliftId,
-      message: `Grading failed: ${err.message}`,
-      error: err.message,
-    });
+    const attempts = helpers.job.attempts;
+    const maxAttempts = helpers.job.max_attempts;
+    const isLastAttempt = attempts >= maxAttempts;
+
+    helpers.logger.error(`[DOK4 Grade] Grading failed for SPOV ${spovId} (attempt ${attempts}/${maxAttempts}):`, { err });
+
+    if (isLastAttempt) {
+      await storage.updateDOK4SpovStatus(spovId, brainliftId, 'error');
+      dok4GradingEmitter.emitEvent(brainliftId, {
+        type: 'dok4:error',
+        spovId,
+        brainliftId,
+        message: `Grading failed after ${maxAttempts} attempts: ${err.message}`,
+        error: err.message,
+      });
+    } else {
+      throw err;
+    }
   }
 
   // Recompute brainlift score after each SPOV is graded

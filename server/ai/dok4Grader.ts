@@ -5,7 +5,7 @@
  *   Step 1: POV Validation (mid-tier) — gate classifier
  *   Step 3: Source Traceability (mid-tier) — parallel per-source checks
  *   Step 4: LLM Divergence Check (mid-tier) — neutral question + vanilla response
- *   Step 5: Quality Evaluation (quality-tier) — 8 criteria, 3 dimensions, score 1-5
+ *   Step 5: Quality Evaluation (quality-tier) — 7 criteria, 2 dimensions, score 1-5
  *   Step 6: Antimemetic Assessment (quality-tier) — barrier diagnosis + strategy
  *
  * Step 2 (Foundation Integrity) is pure math in shared/dok4-foundation.ts.
@@ -80,7 +80,6 @@ const qualityEvaluationSchema = z.object({
     S3: criterionSchema,
     S4: criterionSchema,
     S5: criterionSchema,
-    D1: criterionSchema,
     O1: criterionSchema,
     O2: criterionSchema,
   }),
@@ -109,6 +108,7 @@ export function extractJSON(raw: string): unknown {
 
   const jsonMatch = clean.match(/\{[\s\S]*\}/);
   if (!jsonMatch) {
+    console.error('[DOK4-Grade] Failed to extract JSON from LLM response:', raw.substring(0, 500));
     throw new Error('Could not find JSON in response');
   }
 
@@ -146,6 +146,7 @@ export async function callDOK4Model(
         ],
         temperature,
         max_tokens: maxTokens,
+        response_format: { type: 'json_object' },
       }),
     });
 
@@ -351,7 +352,7 @@ export async function checkLLMDivergence(
       DOK4_MODELS.GEMINI_FLASH,
       DOK4_DIVERGENCE_VANILLA_SYSTEM_PROMPT,
       vanillaPrompt,
-      1000,
+      2000,
       0.3,
     );
   } catch (primaryErr: any) {
@@ -360,7 +361,7 @@ export async function checkLLMDivergence(
       DOK4_MODELS.SONNET_FALLBACK,
       DOK4_DIVERGENCE_VANILLA_SYSTEM_PROMPT,
       vanillaPrompt,
-      1000,
+      2000,
       0.3,
     );
   }
@@ -376,7 +377,7 @@ export async function checkLLMDivergence(
 // ─── Step 5: Quality Evaluation ──────────────────────────────────────────────
 
 /**
- * Evaluate SPOV quality across 8 criteria, 3 dimensions. Score 1-5.
+ * Evaluate SPOV quality across 7 criteria, 2 dimensions. Score 1-5.
  */
 export async function evaluateDOK4Quality(
   context: DOK4EvaluationContext,

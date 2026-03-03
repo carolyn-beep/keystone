@@ -36,14 +36,6 @@ const DOK4_CRITERIA_AXES: AxisMeta[] = [
     ],
   },
   {
-    id: 'D',
-    label: 'Defensibility',
-    question: 'Can it withstand challenge?',
-    criteria: [
-      { key: 'D1', name: 'Substantive Counterarguments', description: 'Can the student anticipate and address the strongest objections?' },
-    ],
-  },
-  {
     id: 'O',
     label: 'Ownership',
     question: 'Is this the student\'s thinking?',
@@ -232,7 +224,7 @@ export function DOK4Tab({
           </div>
         </div>
         <p className="text-[15px] text-muted-light m-0 max-w-2xl font-serif italic">
-          Your defensible positions built on DOK1-3 evidence. Grades reflect originality, defensibility, and intellectual ownership.
+          Your defensible positions built on DOK1-3 evidence. Grades reflect originality, spikiness, and intellectual ownership.
         </p>
       </div>
 
@@ -631,9 +623,12 @@ function SpovCard({ spov, expanded, onToggle, onRetry, animationDelay, latestEve
                 {/* LLM Divergence Comparison */}
                 {(spov.divergenceQuestion || spov.divergenceVanillaResponse) && (
                   <div className="mb-12">
-                    <span className="text-[13px] uppercase tracking-[0.3em] font-bold text-muted-foreground block mb-8">
+                    <span className="text-[13px] uppercase tracking-[0.3em] font-bold text-muted-foreground block mb-3">
                       LLM Divergence Comparison
                     </span>
+                    <p className="font-serif text-[13px] leading-[1.7] text-muted-foreground mt-0 mb-8">
+                      We converted your SPOV into a neutral question and asked an AI with no context to take a position. The more your stance diverges from this vanilla response, the spikier your thinking.
+                    </p>
                     <div className="space-y-6">
                       {spov.divergenceQuestion && (
                         <div className="rounded-xl p-8 bg-sidebar border border-border">
@@ -723,11 +718,10 @@ function SpovCard({ spov, expanded, onToggle, onRetry, animationDelay, latestEve
                   </div>
                 )}
 
-                {/* Evaluator Model */}
-                {spov.evaluatorModel && (
+                {/* Graded date */}
+                {spov.gradedAt && (
                   <div className="text-[10px] text-muted-light uppercase tracking-[0.2em]">
-                    Evaluated by {spov.evaluatorModel}
-                    {spov.gradedAt && ` \u00B7 ${new Date(spov.gradedAt).toLocaleDateString()}`}
+                    Graded {new Date(spov.gradedAt).toLocaleDateString()}
                   </div>
                 )}
 

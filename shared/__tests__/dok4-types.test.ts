@@ -68,21 +68,20 @@ describe('DOK4 Shared Types', () => {
   });
 
   describe('DOK4CriteriaBreakdown', () => {
-    it('has all 8 criteria keys (S1-S5, D1, O1, O2)', () => {
+    it('has all 7 criteria keys (S1-S5, O1, O2)', () => {
       const breakdown: DOK4CriteriaBreakdown = {
         S1: { assessment: 'strong', evidence: 'Contested topic' },
         S2: { assessment: 'partial', evidence: 'Some divergence' },
         S3: { assessment: 'strong', evidence: 'Well grounded' },
         S4: { assessment: 'strong', evidence: 'Clear position' },
         S5: { assessment: 'weak', evidence: 'Limited synthesis' },
-        D1: { assessment: 'strong', evidence: 'Strong counterarguments' },
         O1: { assessment: 'partial', evidence: 'Some causal reasoning' },
         O2: { assessment: 'strong', evidence: 'Distinct voice' },
       };
 
-      expect(Object.keys(breakdown)).toHaveLength(8);
+      expect(Object.keys(breakdown)).toHaveLength(7);
       expect(breakdown.S1.assessment).toBe('strong');
-      expect(breakdown.D1.evidence).toBe('Strong counterarguments');
+      expect(breakdown.O1.evidence).toBe('Some causal reasoning');
     });
   });
 
@@ -153,7 +152,6 @@ describe('DOK4 Shared Types', () => {
           S3: { assessment: 'strong', evidence: 'e' },
           S4: { assessment: 'strong', evidence: 'e' },
           S5: { assessment: 'partial', evidence: 'e' },
-          D1: { assessment: 'strong', evidence: 'e' },
           O1: { assessment: 'strong', evidence: 'e' },
           O2: { assessment: 'strong', evidence: 'e' },
         },

@@ -563,21 +563,20 @@ describe('FR5: Quality Evaluation', () => {
       S3: { assessment: 'strong', evidence: 'Clear chain from DOK1 facts through DOK2 synthesis to position.' },
       S4: { assessment: 'strong', evidence: 'Commits to replacement, no hedging.' },
       S5: { assessment: 'partial', evidence: 'Draws from educational measurement and skill development domains.' },
-      D1: { assessment: 'partial', evidence: 'Acknowledges cost concerns but could strengthen implementation arguments.' },
       O1: { assessment: 'strong', evidence: 'Explains mechanism of compound skill emergence over time.' },
       O2: { assessment: 'strong', evidence: 'Voice distinct from sources, uses original framing.' },
     },
     score: 4,
     rationale: 'The student presents an original, well-grounded position that diverges from consensus. Foundation Index of 3.65 supports confidence in the evidence chain. Source traceability is clear with no flags.',
-    feedback: 'Strengthen the defensibility dimension by articulating specific counterarguments from assessment professionals.',
+    feedback: 'Strengthen the ownership dimension by explaining the causal mechanism behind compound skill emergence more precisely.',
   };
 
-  it('returns all 8 criteria with strong/partial/weak assessments', async () => {
+  it('returns all 7 criteria with strong/partial/weak assessments', async () => {
     mockFetch.mockResolvedValueOnce(makeOpenRouterResponse(JSON.stringify(qualityResponse)));
 
     const result = await mod.evaluateDOK4Quality(FIXTURE_EVALUATION_CONTEXT);
 
-    const criteriaKeys = ['S1', 'S2', 'S3', 'S4', 'S5', 'D1', 'O1', 'O2'];
+    const criteriaKeys = ['S1', 'S2', 'S3', 'S4', 'S5', 'O1', 'O2'];
     for (const key of criteriaKeys) {
       const criterion = result.criteria[key as keyof typeof result.criteria];
       expect(['strong', 'partial', 'weak']).toContain(criterion.assessment);

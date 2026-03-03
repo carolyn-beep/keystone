@@ -4,7 +4,7 @@ import type { HierarchyNode } from '@shared/hierarchy-types';
 const DOK1_PATTERN = /DOK\s*1\b/i;
 const DOK2_PATTERN = /^DOK\s*2\b/i;
 const DOK3_PATTERN = /^DOK\s*3\b/i;
-const DOK4_PATTERN = /^DOK\s*4\b/i;
+const DOK4_PATTERN = /^(DOK\s*4\b|SPOVs?\b(?!\s*\d)|Spiky\s+POVs?\b(?!\s*\d))/i;
 const SOURCE_PATTERN = /^Source\s*\d*/i;
 const CATEGORY_PATTERN = /^Category\s*\d*/i;
 const PURPOSE_PATTERN = /^Purpose\s*$/i;

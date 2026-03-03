@@ -55,5 +55,11 @@ export function computeDOK4FoundationIntegrity(
     ceiling = 2;
   }
 
-  return { index, dok1Score, dok2Score, dok3Score, ceiling };
+  return {
+    index: Math.round(index * 100) / 100,
+    dok1Score: Math.round(dok1Score * 100) / 100,
+    dok2Score: Math.round(dok2Score * 100) / 100,
+    dok3Score: Math.round(dok3Score * 100) / 100,
+    ceiling,
+  };
 }

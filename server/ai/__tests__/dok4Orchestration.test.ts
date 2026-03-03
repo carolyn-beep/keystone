@@ -108,7 +108,6 @@ const FIXTURE_QUALITY_RESULT = {
     S3: { assessment: 'strong' as const, evidence: 'Grounded in multiple DOK2 sources.' },
     S4: { assessment: 'strong' as const, evidence: 'Clear position: replace standardized testing.' },
     S5: { assessment: 'partial' as const, evidence: 'Synthesizes education and skills research.' },
-    D1: { assessment: 'partial' as const, evidence: 'Acknowledges cost concerns.' },
     O1: { assessment: 'strong' as const, evidence: 'Novel causal reasoning about compound skills.' },
     O2: { assessment: 'strong' as const, evidence: 'Distinct voice with clear perspective.' },
   },

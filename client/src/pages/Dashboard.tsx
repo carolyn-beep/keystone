@@ -179,11 +179,11 @@ const { downloadBrainliftPDF } = usePDFExport();
 
   // DOK3 Insights
   const dok3 = useDOK3Insights(slug);
-  const dok3Events = useDOK3GradingEvents(slug, dok3.gradingInsights.length > 0);
+  const dok3Events = useDOK3GradingEvents(slug, dok3.gradingInsights.length > 0 || dok3.linkedInsights.length > 0);
 
   // DOK4 SPOVs
   const dok4 = useDOK4(slug);
-  const dok4Events = useDOK4GradingEvents(slug, dok4.gradingSpovs.length > 0);
+  const dok4Events = useDOK4GradingEvents(slug, dok4.gradingSpovs.length > 0 || dok4.pendingSpovs.length > 0);
 
   // Redundancy detection
   const [showRedundancyModal, setShowRedundancyModal] = useState(false);

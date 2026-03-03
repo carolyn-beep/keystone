@@ -45,7 +45,6 @@ export interface DOK4CriteriaBreakdown {
   S3: DOK4CriterionResult; // Grounded & Traceable
   S4: DOK4CriterionResult; // Clear Side
   S5: DOK4CriterionResult; // Cross-Domain Synthesis
-  D1: DOK4CriterionResult; // Substantive Counterarguments
   O1: DOK4CriterionResult; // Causal Reasoning
   O2: DOK4CriterionResult; // Distinct Voice
 }

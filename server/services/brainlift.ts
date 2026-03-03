@@ -536,6 +536,7 @@ export async function saveBrainliftFromAI(
       }
 
       // Save DOK4 SPOVs if present and run auto-linking
+      console.log(`[Auto-Grade] DOK4 SPOVs in extraction output: ${data.dok4Spovs?.length ?? 0}`);
       if (data.dok4Spovs && data.dok4Spovs.length > 0) {
         console.log(`[Auto-Grade] Saving ${data.dok4Spovs.length} DOK4 SPOVs (pending_linking)...`);
         const dok4SavedIds = await storage.saveDOK4Spovs(

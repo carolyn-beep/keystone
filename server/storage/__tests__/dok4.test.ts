@@ -266,7 +266,6 @@ describe('saveDOK4GradeResult', () => {
         S3: { assessment: 'strong', evidence: 'Grounded' },
         S4: { assessment: 'strong', evidence: 'Clear side' },
         S5: { assessment: 'partial', evidence: 'Some synthesis' },
-        D1: { assessment: 'strong', evidence: 'Counterarguments' },
         O1: { assessment: 'strong', evidence: 'Causal reasoning' },
         O2: { assessment: 'strong', evidence: 'Distinct voice' },
       },

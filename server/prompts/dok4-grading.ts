@@ -138,11 +138,11 @@ Respond ONLY with this JSON. No markdown. No backticks. No preamble.
   "question": "the neutral question"
 }`;
 
-export const DOK4_DIVERGENCE_VANILLA_SYSTEM_PROMPT = `You are a knowledgeable assistant answering a question. Give a thoughtful, balanced response based on general knowledge. Do not take a strong position — provide a mainstream, well-reasoned answer that represents conventional thinking on the topic.
+export const DOK4_DIVERGENCE_VANILLA_SYSTEM_PROMPT = `You are a knowledgeable assistant answering a question. Commit to one stance and defend it briefly in 2-3 sentences.
 
 Respond ONLY with this JSON. No markdown. No backticks. No preamble.
 {
-  "response": "your balanced response"
+  "response": "2-3 sentence response"
 }`;
 
 export function buildDivergenceQuestionPrompt(spovText: string): string {
@@ -173,9 +173,9 @@ A BrainLift is a student's organized body of knowledge:
 - DOK3: Cross-source insights — patterns the student sees across multiple DOK2 summaries
 - DOK4: Spiky Point of View — a clear, defensible position the student commits to, built on their DOK1-3 foundation
 
-A DOK4 SPOV is where the student stops observing patterns and starts committing to a stance they're willing to defend. Your job is to evaluate whether that stance is genuinely spiky, defensible, and cognitively owned by the student.
+A DOK4 SPOV is where the student stops observing patterns and starts committing to a stance they're willing to defend. Your job is to evaluate whether that stance is genuinely spiky and cognitively owned by the student.
 
-EVALUATION CRITERIA (3 dimensions, 8 criteria):
+EVALUATION CRITERIA (2 dimensions, 7 criteria):
 
 Dimension 1 — Spikiness (Is this a real SPOV?)
   S1 — Contested: Would knowledgeable practitioners push back on this position?
@@ -184,10 +184,7 @@ Dimension 1 — Spikiness (Is this a real SPOV?)
   S4 — Clear Side: Does the position commit to a stance? No hedging, no both-sides equivocation.
   S5 — Cross-Domain Synthesis: Does the position draw from multiple domains rather than going deeper within a single one?
 
-Dimension 2 — Defensibility (Can it withstand challenge?)
-  D1 — Substantive Counterarguments: Are the anticipated counterarguments real objections a practitioner would raise, or strawmen?
-
-Dimension 3 — Ownership (Is this the student's thinking?)
+Dimension 2 — Ownership (Is this the student's thinking?)
   O1 — Causal Reasoning: Does the student explain *why* something works, not just *that* it works? Pattern-matching with correct citations is not the same as understanding the mechanism.
   O2 — Distinct Voice: Is the student's voice distinguishable from their sources? Does the writing sound like the student thinking, or like reassembled source language?
 
@@ -199,18 +196,18 @@ QUALITY LEVELS (1-5):
   2 — Borrowed Spikiness
       The position restates a contrarian view from one of the student's sources rather than constructing an original stance.
 
-  3 — Original, Weak Defense
-      Genuine position that diverges from consensus, but reasoning has gaps. Evidence trail incomplete or counterarguments are strawmen.
+  3 — Original, Shallow Reasoning
+      Genuine position that diverges from consensus, but reasoning has gaps. Evidence trail is incomplete or the student asserts without explaining the causal mechanism.
 
-  4 — Defensible Spiky POV
-      Original, well-grounded, reasoning holds together. Student has identified substantive counterarguments.
+  4 — Well-Grounded Spiky POV
+      Original, well-grounded, evidence trail is complete and traceable. Student demonstrates causal reasoning — explains *why*, not just *what* — and writes in a distinct voice.
 
   5 — Field-Advancing POV
       Everything in 4, plus generates implications beyond the immediate claim. Reframes a domain question, predicts outcomes, or reveals a previously invisible trade-off. Rare.
 
 SCORING INSTRUCTIONS:
 
-- Reason through all 8 criteria before arriving at a score.
+- Reason through all 7 criteria before arriving at a score.
 - The quality level descriptions are your primary anchor. Pick the level that best matches, then use the criteria to justify or adjust.
 - You MUST reference the Foundation Integrity Index in your rationale. If the foundation is weak, explain how that affects confidence.
 - If SOURCE TRACEABILITY is flagged, weigh this seriously. A position that restates a single source is at best a 2 unless the student demonstrably extends beyond that source.
@@ -229,7 +226,6 @@ Respond ONLY with this JSON. No markdown. No backticks. No preamble.
     "S3": { "assessment": "strong|partial|weak", "evidence": "one sentence" },
     "S4": { "assessment": "strong|partial|weak", "evidence": "one sentence" },
     "S5": { "assessment": "strong|partial|weak", "evidence": "one sentence" },
-    "D1": { "assessment": "strong|partial|weak", "evidence": "one sentence" },
     "O1": { "assessment": "strong|partial|weak", "evidence": "one sentence" },
     "O2": { "assessment": "strong|partial|weak", "evidence": "one sentence" }
   },

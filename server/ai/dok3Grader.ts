@@ -102,6 +102,7 @@ async function callOpenRouterModel(
         ],
         temperature: 0.1,
         max_tokens: maxTokens,
+        response_format: { type: 'json_object' },
       }),
     });
 
@@ -142,6 +143,7 @@ function extractJSON(raw: string): unknown {
 
   const jsonMatch = clean.match(/\{[\s\S]*\}/);
   if (!jsonMatch) {
+    console.error('[DOK3-Grade] Failed to extract JSON from LLM response:', raw.substring(0, 500));
     throw new Error('Could not find JSON in response');
   }
 
