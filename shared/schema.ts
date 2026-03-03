@@ -685,6 +685,104 @@ export const dok3InsightLinksRelations = relations(dok3InsightLinks, ({ one }) =
 
 // dok3Scratchpad relations removed in Phase 5
 
+// === DOK4 TABLES ===
+
+// DOK4 SPOV Status
+export const DOK4_SPOV_STATUS = {
+  PENDING_LINKING: 'pending_linking',
+  LINKED: 'linked',
+  GRADING: 'grading',
+  GRADED: 'graded',
+  REJECTED: 'rejected',
+  ERROR: 'error',
+} as const;
+
+export type DOK4SpovStatus = typeof DOK4_SPOV_STATUS[keyof typeof DOK4_SPOV_STATUS];
+
+// DOK4 SPOVs - Spiky Points of View (apex-level knowledge claims)
+export const dok4Spovs = pgTable("dok4_spovs", {
+  id: serial("id").primaryKey(),
+  brainliftId: integer("brainlift_id").notNull().references(() => brainlifts.id, { onDelete: "cascade" }),
+  text: text("text").notNull(),
+  workflowyNodeId: text("workflowy_node_id"),
+
+  // Status
+  status: text("status").$type<DOK4SpovStatus>().notNull().default('pending_linking'),
+
+  // POV Validation (Step 1)
+  rejectionReason: text("rejection_reason"),
+  rejectionCategory: text("rejection_category"),
+
+  // Foundation Integrity (Step 2)
+  foundationIntegrityIndex: text("foundation_integrity_index"),
+  dok1FoundationScore: text("dok1_foundation_score"),
+  dok2FoundationScore: text("dok2_foundation_score"),
+  dok3FoundationScore: text("dok3_foundation_score"),
+  foundationCeiling: integer("foundation_ceiling"),
+
+  // Traceability (Step 3)
+  traceabilityFlagged: boolean("traceability_flagged").default(false),
+  traceabilityFlaggedSource: text("traceability_flagged_source"),
+  traceabilityOverlapSummary: text("traceability_overlap_summary"),
+
+  // Divergence (Step 4)
+  divergenceQuestion: text("divergence_question"),
+  divergenceVanillaResponse: text("divergence_vanilla_response"),
+
+  // Quality Evaluation (Step 5)
+  qualityScoreRaw: integer("quality_score_raw"),
+  score: integer("score"),
+  positionSummary: text("position_summary"),
+  frameworkDependency: text("framework_dependency"),
+  keyEvidence: jsonb("key_evidence"),
+  vulnerabilityPoints: jsonb("vulnerability_points"),
+  criteriaBreakdown: jsonb("criteria_breakdown"),
+  rationale: text("rationale"),
+  feedback: text("feedback"),
+
+  // Antimemetic Assessment (Step 6)
+  antimemeticAssessment: jsonb("antimemetic_assessment"),
+
+  // Metadata
+  evaluatorModel: text("evaluator_model"),
+  gradedAt: timestamp("graded_at"),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => [
+  index("idx_dok4_spovs_brainlift").on(table.brainliftId),
+]);
+
+// DOK4 -> DOK3 Links (many-to-many with primary designation)
+export const dok4Dok3Links = pgTable("dok4_dok3_links", {
+  id: serial("id").primaryKey(),
+  spovId: integer("spov_id").notNull().references(() => dok4Spovs.id, { onDelete: "cascade" }),
+  dok3InsightId: integer("dok3_insight_id").notNull().references(() => dok3Insights.id, { onDelete: "cascade" }),
+  isPrimary: boolean("is_primary").notNull().default(false),
+}, (table) => [
+  unique("dok4_dok3_links_unique").on(table.spovId, table.dok3InsightId),
+  index("idx_dok4_dok3_links_spov").on(table.spovId),
+  index("idx_dok4_dok3_links_dok3").on(table.dok3InsightId),
+]);
+
+// DOK4 Relations
+export const dok4SpovsRelations = relations(dok4Spovs, ({ one, many }) => ({
+  brainlift: one(brainlifts, {
+    fields: [dok4Spovs.brainliftId],
+    references: [brainlifts.id],
+  }),
+  dok3Links: many(dok4Dok3Links),
+}));
+
+export const dok4Dok3LinksRelations = relations(dok4Dok3Links, ({ one }) => ({
+  spov: one(dok4Spovs, {
+    fields: [dok4Dok3Links.spovId],
+    references: [dok4Spovs.id],
+  }),
+  dok3Insight: one(dok3Insights, {
+    fields: [dok4Dok3Links.dok3InsightId],
+    references: [dok3Insights.id],
+  }),
+}));
+
 // === IMPORT AGENT TABLES ===
 
 // Import Agent Phase enum
@@ -779,6 +877,8 @@ export const insertBrainliftShareSchema = createInsertSchema(brainliftShares).om
 export const insertLearningStreamItemSchema = createInsertSchema(learningStreamItems).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertImportAgentConversationSchema = createInsertSchema(importAgentConversations).omit({ id: true, updatedAt: true });
 export const insertBrainliftSourceSchema = createInsertSchema(brainliftSources).omit({ id: true, createdAt: true });
+export const insertDok4SpovSchema = createInsertSchema(dok4Spovs).omit({ id: true, createdAt: true });
+export const insertDok4Dok3LinkSchema = createInsertSchema(dok4Dok3Links).omit({ id: true });
 
 // === TYPES ===
 
@@ -824,6 +924,10 @@ export type ImportAgentConversation = typeof importAgentConversations.$inferSele
 export type InsertImportAgentConversation = z.infer<typeof insertImportAgentConversationSchema>;
 export type BrainliftSource = typeof brainliftSources.$inferSelect;
 export type InsertBrainliftSource = z.infer<typeof insertBrainliftSourceSchema>;
+export type DOK4Spov = typeof dok4Spovs.$inferSelect;
+export type InsertDOK4Spov = z.infer<typeof insertDok4SpovSchema>;
+export type DOK4Dok3Link = typeof dok4Dok3Links.$inferSelect;
+export type InsertDOK4Dok3Link = z.infer<typeof insertDok4Dok3LinkSchema>;
 
 // Full brainlift data with nested relations (for API response)
 export interface BrainliftData extends Brainlift {
