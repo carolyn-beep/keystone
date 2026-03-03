@@ -114,6 +114,30 @@ export interface DOK3GradingProgress {
   error?: string;
 }
 
+// ─── DOK4 Grading Progress (separate from import pipeline) ─────────────────
+
+export type DOK4GradingStage =
+  | 'dok4:start'
+  | 'dok4:validation'
+  | 'dok4:foundation'
+  | 'dok4:traceability'
+  | 'dok4:divergence'
+  | 'dok4:evaluation'
+  | 'dok4:antimemetic'
+  | 'dok4:complete'
+  | 'dok4:rejected'
+  | 'dok4:error'
+  | 'dok4:done';
+
+export interface DOK4GradingProgress {
+  stage: DOK4GradingStage;
+  message: string;
+  spovId?: number;
+  brainliftId?: number;
+  score?: number;
+  error?: string;
+}
+
 // Weights for progress bar calculation (must sum to 100)
 // Order matches actual execution: extract → DOK1 + contradictions → DOK2 → DOK3 linking → experts + redundancy
 export const STAGE_WEIGHTS: Record<Exclude<ImportStage, 'complete' | 'error'>, number> = {

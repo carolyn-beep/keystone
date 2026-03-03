@@ -3,6 +3,7 @@ import { storage } from '../storage';
 import { dok3GradingEmitter } from '../events/dok3GradingEmitter';
 import { gradeDOK3Insight } from '../ai/dok3Grader';
 import { recomputeBrainliftScore } from '../services/brainlift';
+import { triggerDependentDOK4Grading } from '../storage/dok4';
 
 const GATE_TIMEOUT_MS = 15 * 60 * 1000; // 15 minutes
 const INITIAL_POLL_MS = 2000;
@@ -116,5 +117,15 @@ export async function dok3GradeJob(
     await recomputeBrainliftScore(brainliftId);
   } catch (err: any) {
     helpers.logger.error(`[DOK3 Grade] Score recomputation failed:`, { err });
+  }
+
+  // Trigger dependent DOK4 grading (reactive: checks if all linked DOK3s are now graded)
+  try {
+    const dok4Queued = await triggerDependentDOK4Grading(insightId, brainliftId);
+    if (dok4Queued > 0) {
+      helpers.logger.info(`[DOK3 Grade] Queued ${dok4Queued} DOK4 grading jobs after insight ${insightId}`);
+    }
+  } catch (err: any) {
+    helpers.logger.error(`[DOK3 Grade] DOK4 trigger failed:`, { err });
   }
 }
