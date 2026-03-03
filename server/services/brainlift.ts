@@ -535,7 +535,63 @@ export async function saveBrainliftFromAI(
         });
       }
 
-      // Recompute combined score from fresh DB data (handles DOK1/DOK2/DOK3 weighting)
+      // Save DOK4 SPOVs if present and run auto-linking
+      if (data.dok4Spovs && data.dok4Spovs.length > 0) {
+        console.log(`[Auto-Grade] Saving ${data.dok4Spovs.length} DOK4 SPOVs (pending_linking)...`);
+        const dok4SavedIds = await storage.saveDOK4Spovs(
+          brainlift.id,
+          data.dok4Spovs.map(spov => ({
+            text: spov.text,
+            workflowyNodeId: spov.workflowyNodeId,
+          }))
+        );
+        console.log(`[Auto-Grade] DOK4 SPOVs saved: ${dok4SavedIds.length} IDs`);
+
+        onProgress?.({
+          stage: 'dok4_extraction',
+          message: `DOK4 SPOVs extracted: ${dok4SavedIds.length}`,
+          dok4Count: dok4SavedIds.length,
+        });
+
+        // Auto-link DOK4 SPOVs to DOK3 insights
+        try {
+          const { autoLinkDOK4Spovs } = await import('../ai/dok4AutoLinker');
+          const savedInsights = await storage.getDOK3Insights(brainlift.id, []);
+
+          if (savedInsights.length > 0) {
+            const dok3Inputs = savedInsights.map(i => ({ id: i.id, text: i.text }));
+            const spovTexts = data.dok4Spovs.map(s => s.text);
+            const explicitRefs = data.dok4Spovs.map(s => s.explicitDok3Refs);
+
+            await autoLinkDOK4Spovs(
+              brainlift.id,
+              dok4SavedIds,
+              spovTexts,
+              dok3Inputs,
+              explicitRefs,
+            );
+
+            console.log(`[Auto-Grade] DOK4 auto-linking complete`);
+          } else {
+            console.log(`[Auto-Grade] No DOK3 insights to link DOK4 SPOVs to`);
+          }
+
+          onProgress?.({
+            stage: 'dok4_linking',
+            message: 'DOK4 auto-linking complete',
+            dok4Count: dok4SavedIds.length,
+          });
+        } catch (err) {
+          console.error('[Auto-Grade] DOK4 auto-linking failed (non-blocking):', err);
+          onProgress?.({
+            stage: 'dok4_linking',
+            message: 'DOK4 auto-linking failed (non-blocking)',
+            dok4Count: dok4SavedIds.length,
+          });
+        }
+      }
+
+      // Recompute combined score from fresh DB data (handles DOK1/DOK2/DOK3/DOK4 weighting)
       await recomputeBrainliftScore(brainlift.id);
     }
   } catch (err: any) {

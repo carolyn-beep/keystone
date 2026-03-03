@@ -7,6 +7,8 @@ export type ImportStage =
   | 'grading_dok3'
   | 'contradictions'
   | 'dok3_linking'
+  | 'dok4_extraction'
+  | 'dok4_linking'
   | 'experts'
   | 'redundancy'
   | 'complete'
@@ -49,6 +51,16 @@ export interface DOK3LinkingProgressEvent extends BaseProgressEvent {
   slug: string;
 }
 
+export interface DOK4ExtractionProgress extends BaseProgressEvent {
+  stage: 'dok4_extraction';
+  dok4Count: number;
+}
+
+export interface DOK4LinkingProgress extends BaseProgressEvent {
+  stage: 'dok4_linking';
+  dok4Count: number;
+}
+
 export interface ExpertsProgress extends BaseProgressEvent {
   stage: 'experts';
 }
@@ -74,6 +86,8 @@ export type ImportProgress =
   | GradingDOK3Progress
   | ContradictionsProgress
   | DOK3LinkingProgressEvent
+  | DOK4ExtractionProgress
+  | DOK4LinkingProgress
   | ExpertsProgress
   | RedundancyProgress
   | CompleteProgress
@@ -87,6 +101,8 @@ export const STAGE_LABELS: Record<ImportStage, string> = {
   grading_dok3: 'Grading DOK3 insights...',
   contradictions: 'Detecting contradictions...',
   dok3_linking: 'DOK3 insights ready for linking',
+  dok4_extraction: 'DOK4 SPOVs extracted',
+  dok4_linking: 'DOK4 auto-linking complete',
   experts: 'Extracting experts...',
   redundancy: 'Analyzing redundancies...',
   complete: 'Import complete!',
@@ -115,14 +131,16 @@ export interface DOK3GradingProgress {
 }
 
 // Weights for progress bar calculation (must sum to 100)
-// Order matches actual execution: extract → DOK1 + contradictions → DOK2 → DOK3 linking → experts + redundancy
+// Order matches actual execution: extract → DOK1 + contradictions → DOK2 → DOK3 linking → DOK4 → experts + redundancy
 export const STAGE_WEIGHTS: Record<Exclude<ImportStage, 'complete' | 'error'>, number> = {
   extracting: 5,
-  grading: 50,           // DOK1 grading takes the longest
+  grading: 48,           // DOK1 grading takes the longest
   contradictions: 5,
-  grading_dok2: 15,      // DOK2 grading (fewer items, runs in parallel)
+  grading_dok2: 14,      // DOK2 grading (fewer items, runs in parallel)
   grading_dok3: 0,       // Happens via background job after linking, or in agent cascade — not during import-stream
   dok3_linking: 2,       // Informational — signals DOK3 insights ready
+  dok4_extraction: 1,    // Informational — DOK4 SPOVs found during extraction
+  dok4_linking: 2,       // DOK4 auto-linking (LLM semantic matching)
   experts: 15,
   redundancy: 8,
 };
@@ -140,6 +158,8 @@ export function calculateProgress(event: ImportProgress): number {
     'grading_dok2',
     'grading_dok3',
     'dok3_linking',
+    'dok4_extraction',
+    'dok4_linking',
     'experts',
     'redundancy',
   ];
