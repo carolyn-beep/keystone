@@ -46,25 +46,41 @@ export interface ContradictionsProgress extends BaseProgressEvent {
   stage: 'contradictions';
 }
 
-export interface DOK3LinkingProgressEvent extends BaseProgressEvent {
+// Auto mode: counter-based progress (no manual UI triggers)
+export interface DOK3LinkingAutoProgress extends BaseProgressEvent {
+  stage: 'dok3_linking';
+  completed: number;
+  total: number;
+}
+
+// Manual mode: triggers DOK3LinkingUI (no counters)
+export interface DOK3LinkingManualProgress extends BaseProgressEvent {
   stage: 'dok3_linking';
   dok3Count: number;
   slug: string;
-  completed?: number;
-  total?: number;
 }
+
+export type DOK3LinkingProgressEvent = DOK3LinkingAutoProgress | DOK3LinkingManualProgress;
 
 export interface DOK4ExtractionProgress extends BaseProgressEvent {
   stage: 'dok4_extraction';
+  dok4Count?: number;
+}
+
+// Auto mode: counter-based progress
+export interface DOK4LinkingAutoProgress extends BaseProgressEvent {
+  stage: 'dok4_linking';
+  completed: number;
+  total: number;
+}
+
+// Manual mode: informational (no counters)
+export interface DOK4LinkingManualProgress extends BaseProgressEvent {
+  stage: 'dok4_linking';
   dok4Count: number;
 }
 
-export interface DOK4LinkingProgress extends BaseProgressEvent {
-  stage: 'dok4_linking';
-  dok4Count: number;
-  completed?: number;
-  total?: number;
-}
+export type DOK4LinkingProgress = DOK4LinkingAutoProgress | DOK4LinkingManualProgress;
 
 export interface GradingDOK4Progress extends BaseProgressEvent {
   stage: 'grading_dok4';
@@ -112,9 +128,9 @@ export const STAGE_LABELS: Record<ImportStage, string> = {
   grading_dok2: 'Grading DOK2 summaries...',
   grading_dok3: 'Grading DOK3 insights...',
   contradictions: 'Detecting contradictions...',
-  dok3_linking: 'DOK3 insights ready for linking',
-  dok4_extraction: 'DOK4 SPOVs extracted',
-  dok4_linking: 'DOK4 auto-linking complete',
+  dok3_linking: 'Auto-linking DOK3 insights...',
+  dok4_extraction: 'Extracting DOK4 SPOVs...',
+  dok4_linking: 'Auto-linking DOK4 SPOVs...',
   grading_dok4: 'Grading DOK4 SPOVs...',
   experts: 'Extracting experts...',
   redundancy: 'Analyzing redundancies...',

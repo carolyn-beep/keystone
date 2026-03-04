@@ -58,9 +58,7 @@ export async function runDOK3DOK4Pipeline(
 
     onProgress?.({
       stage: 'dok3_linking',
-      message: 'Auto-linking DOK3 insights to DOK2 summaries...',
-      dok3Count: insights.length,
-      slug,
+      message: 'Auto-linking DOK3 insights...',
       completed: 0,
       total: insights.length,
     });
@@ -69,9 +67,7 @@ export async function runDOK3DOK4Pipeline(
 
     onProgress?.({
       stage: 'dok3_linking',
-      message: `DOK3 auto-linking complete: ${linkResults.length}/${insights.length} linked`,
-      dok3Count: insights.length,
-      slug,
+      message: `Auto-linking DOK3 insights...`,
       completed: linkResults.length,
       total: insights.length,
     });
@@ -119,8 +115,7 @@ export async function runDOK3DOK4Pipeline(
   if (spovs.length > 0) {
     onProgress?.({
       stage: 'dok4_extraction',
-      message: `DOK4 SPOVs: ${spovs.length}`,
-      dok4Count: spovs.length,
+      message: `Extracting DOK4 SPOVs...`,
     });
 
     // Re-fetch DOK3 insights for linking (may have new graded ones)
@@ -139,8 +134,7 @@ export async function runDOK3DOK4Pipeline(
 
     onProgress?.({
       stage: 'dok4_linking',
-      message: 'DOK4 auto-linking complete',
-      dok4Count: spovs.length,
+      message: 'Auto-linking DOK4 SPOVs...',
       completed: spovs.length,
       total: spovs.length,
     });
