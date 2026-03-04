@@ -437,6 +437,7 @@ describe('DOK3 Auto-Linker', () => {
 
   describe('Edge Cases', () => {
     it('returns empty array when insights is empty', async () => {
+      globalThis.fetch = vi.fn();
       const results = await autoLinkDOK3Insights(1, [], DOK2_FIXTURES);
 
       expect(results).toEqual([]);
@@ -444,6 +445,7 @@ describe('DOK3 Auto-Linker', () => {
     });
 
     it('returns empty array when dok2Summaries is empty', async () => {
+      globalThis.fetch = vi.fn();
       const results = await autoLinkDOK3Insights(1, INSIGHT_FIXTURES, []);
 
       expect(results).toEqual([]);
