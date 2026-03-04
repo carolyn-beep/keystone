@@ -386,7 +386,7 @@ export function AddBrainliftModal({ show, onClose, onSuccess }: AddBrainliftModa
                 />
               </div>
 
-              <div className="relative z-10 h-[150px]">
+              <div className={`relative z-10 pb-4 ${importState.isImporting ? 'opacity-50 pointer-events-none' : ''}`}>
                 {activeTab === 'html' && (
                   <div>
                     <input
@@ -396,10 +396,11 @@ export function AddBrainliftModal({ show, onClose, onSuccess }: AddBrainliftModa
                       onChange={handleFileSelect}
                       className="hidden"
                       data-testid="input-file"
+                      disabled={importState.isImporting}
                     />
                     <div
-                      onClick={() => fileInputRef.current?.click()}
-                      className="border-2 border-dashed rounded-lg py-6 px-5 text-center cursor-pointer h-full flex flex-col items-center justify-center"
+                      onClick={() => !importState.isImporting && fileInputRef.current?.click()}
+                      className="border-2 border-dashed rounded-lg py-6 px-5 text-center cursor-pointer flex flex-col items-center justify-center"
                       style={{
                         borderColor: tokens.border,
                         backgroundColor: selectedFile ? tokens.surfaceAlt : 'transparent',
@@ -438,8 +439,9 @@ export function AddBrainliftModal({ show, onClose, onSuccess }: AddBrainliftModa
                       data-testid="input-url"
                       value={url}
                       onChange={(e) => setUrl(e.target.value)}
+                      disabled={importState.isImporting}
                       placeholder={activeTab === 'workflowy' ? 'https://workflowy.com/s/...' : 'https://docs.google.com/document/d/...'}
-                      className="w-full p-3 rounded-lg text-sm box-border border-none outline-none"
+                      className="w-full p-3 rounded-lg text-sm box-border border-none outline-none disabled:cursor-not-allowed"
                       style={{
                         backgroundColor: tokens.surfaceAlt,
                         boxShadow: 'inset 0 2px 4px rgba(0,0,0,0.06), inset 0 1px 2px rgba(0,0,0,0.08)',
@@ -455,10 +457,11 @@ export function AddBrainliftModal({ show, onClose, onSuccess }: AddBrainliftModa
               </div>
 
               {/* Auto-link toggle */}
-              <div className="relative z-10 flex items-center gap-3 mt-3 mb-2">
+              <div className={`relative z-10 flex items-center gap-3 py-3 ${importState.isImporting ? 'opacity-50 pointer-events-none' : ''}`}>
                 <button
-                  onClick={() => setAutoLink(!autoLink)}
-                  className={`relative w-10 h-5 rounded-full transition-colors duration-200 border-0 cursor-pointer ${
+                  onClick={() => !importState.isImporting && setAutoLink(!autoLink)}
+                  disabled={importState.isImporting}
+                  className={`relative w-10 h-5 rounded-full transition-colors duration-200 border-0 cursor-pointer disabled:cursor-not-allowed ${
                     autoLink ? 'bg-primary' : 'bg-muted-foreground/30'
                   }`}
                   data-testid="toggle-auto-link"
@@ -471,7 +474,7 @@ export function AddBrainliftModal({ show, onClose, onSuccess }: AddBrainliftModa
                 </button>
                 <label
                   className="text-sm text-muted-foreground cursor-pointer select-none"
-                  onClick={() => setAutoLink(!autoLink)}
+                  onClick={() => !importState.isImporting && setAutoLink(!autoLink)}
                 >
                   Auto-link DOK3s and DOK4s
                 </label>
@@ -508,35 +511,38 @@ export function AddBrainliftModal({ show, onClose, onSuccess }: AddBrainliftModa
                 >
                   {importState.isImporting ? 'Cancel Import' : 'Cancel'}
                 </TactileButton>
-                <TactileButton
-                      variant={activeTab === 'workflowy' ? 'inset' : 'raised'}
-                      data-testid="button-submit-import"
-                      onClick={handleSubmit}
-                      className={activeTab === 'workflowy' ? 'text-xs' : ''}
-                    >
-                      {activeTab === 'workflowy' ? 'Import & Analyze (Legacy)' : 'Import & Analyze'}
-                    </TactileButton>
-                {!importState.isImporting && (
-                  <>
-                    {activeTab === 'workflowy' && (
-                      <TactileButton
-                        variant="raised"
-                        onClick={handleRunAgent}
-                        disabled={createForAgent.isPending}
-                      >
-                        {createForAgent.isPending ? (
-                          <span className="flex items-center gap-2">
-                            <Loader2 size={14} className="animate-spin" />
-                            Creating...
-                          </span>
-                        ) : (
-                          'Run Import Agent'
-                        )}
-                      </TactileButton>
+                {!importState.isImporting && activeTab === 'workflowy' && (
+                  <TactileButton
+                    variant="inset"
+                    onClick={handleRunAgent}
+                    disabled={createForAgent.isPending}
+                    className="text-xs"
+                  >
+                    {createForAgent.isPending ? (
+                      <span className="flex items-center gap-2">
+                        <Loader2 size={14} className="animate-spin" />
+                        Creating...
+                      </span>
+                    ) : (
+                      'Run Import Agent (Beta)'
                     )}
-
-                  </>
+                  </TactileButton>
                 )}
+                <TactileButton
+                  variant="raised"
+                  data-testid="button-submit-import"
+                  onClick={handleSubmit}
+                  disabled={importState.isImporting}
+                >
+                  {importState.isImporting ? (
+                    <span className="flex items-center gap-2">
+                      <Loader2 size={14} className="animate-spin" />
+                      Importing...
+                    </span>
+                  ) : (
+                    'Import & Analyze'
+                  )}
+                </TactileButton>
               </div>
             </motion.div>
           )}
