@@ -18,6 +18,8 @@ interface ImportProgressProps {
   orderedStages?: Exclude<ImportStage, 'complete' | 'error'>[];
 }
 
+// DOK4 extraction is not a visible step — it happens during initial extraction.
+// Linking stages have no per-item progress (only start/end), so no counters.
 const DEFAULT_ORDERED_STAGES: Exclude<ImportStage, 'complete' | 'error'>[] = [
   'extracting',
   'grading',
@@ -25,12 +27,27 @@ const DEFAULT_ORDERED_STAGES: Exclude<ImportStage, 'complete' | 'error'>[] = [
   'grading_dok2',
   'dok3_linking',
   'grading_dok3',
-  'dok4_extraction',
   'dok4_linking',
   'grading_dok4',
   'experts',
   'redundancy',
 ];
+
+// Stages that have per-item grading counters (displayed as "X of Y" below progress bar)
+const COUNTER_STAGES: Record<string, { prop: keyof ImportProgressProps; label: string }> = {
+  grading: { prop: 'gradingProgress', label: 'facts graded' },
+  grading_dok2: { prop: 'gradingDok2Progress', label: 'summaries graded' },
+  grading_dok3: { prop: 'gradingDok3Progress', label: 'insights graded' },
+  grading_dok4: { prop: 'gradingDok4Progress', label: 'SPOVs graded' },
+};
+
+// Stages that show inline counters in the checklist (right-aligned "X/Y")
+const INLINE_COUNTER_STAGES: Record<string, keyof ImportProgressProps> = {
+  grading: 'gradingProgress',
+  grading_dok2: 'gradingDok2Progress',
+  grading_dok3: 'gradingDok3Progress',
+  grading_dok4: 'gradingDok4Progress',
+};
 
 export function ImportProgress({
   currentStage,
@@ -40,11 +57,10 @@ export function ImportProgress({
   gradingDok2Progress,
   gradingDok3Progress,
   gradingDok4Progress,
-  linkingDok3Progress,
-  linkingDok4Progress,
   error,
   isVisible,
   orderedStages,
+  ...props
 }: ImportProgressProps) {
   const stages = orderedStages ?? DEFAULT_ORDERED_STAGES;
   const currentIndex = (() => {
@@ -53,6 +69,9 @@ export function ImportProgress({
   })();
   const isComplete = currentStage === 'complete';
   const isError = currentStage === 'error' || !!error;
+
+  // Collect all counter props for lookup
+  const allProps = { gradingProgress, gradingDok2Progress, gradingDok3Progress, gradingDok4Progress, ...props };
 
   return (
     <>
@@ -82,55 +101,26 @@ export function ImportProgress({
               <Progress value={progress} className="h-2" />
             </div>
 
-            {/* DOK1 Grading counter with smooth number transition */}
-            <GradingCounter
-              stage="grading"
-              currentStage={currentStage}
-              progress={gradingProgress}
-              label="facts graded"
-            />
+            {/* Active grading counter — only rendered for the current stage if it has counter data */}
+            {currentStage && COUNTER_STAGES[currentStage] && (() => {
+              const config = COUNTER_STAGES[currentStage];
+              const counterProgress = allProps[config.prop] as GradingProgress | null | undefined;
+              if (!counterProgress) return null;
+              return (
+                <div className="text-center text-sm text-muted-foreground py-1 animate-fade-slide-in">
+                  <span className="tabular-nums font-medium text-foreground">
+                    {counterProgress.completed}
+                  </span>
+                  {' '}of{' '}
+                  <span className="tabular-nums font-medium text-foreground">
+                    {counterProgress.total}
+                  </span>
+                  {' '}{config.label}
+                </div>
+              );
+            })()}
 
-            {/* DOK2 Grading counter */}
-            <GradingCounter
-              stage="grading_dok2"
-              currentStage={currentStage}
-              progress={gradingDok2Progress}
-              label="summaries graded"
-            />
-
-            {/* DOK3 Linking counter (auto mode) */}
-            <GradingCounter
-              stage="dok3_linking"
-              currentStage={currentStage}
-              progress={linkingDok3Progress}
-              label="insights linked"
-            />
-
-            {/* DOK3 Grading counter */}
-            <GradingCounter
-              stage="grading_dok3"
-              currentStage={currentStage}
-              progress={gradingDok3Progress}
-              label="insights graded"
-            />
-
-            {/* DOK4 Linking counter (auto mode) */}
-            <GradingCounter
-              stage="dok4_linking"
-              currentStage={currentStage}
-              progress={linkingDok4Progress}
-              label="SPOVs linked"
-            />
-
-            {/* DOK4 Grading counter */}
-            <GradingCounter
-              stage="grading_dok4"
-              currentStage={currentStage}
-              progress={gradingDok4Progress}
-              label="SPOVs graded"
-            />
-
-            {/* Stage list with staggered fade-in */}
+            {/* Stage checklist with staggered fade-in */}
             <div className="space-y-2 pt-2">
               {stages.map((stage, index) => {
                 const isCurrentStage = stage === currentStage;
@@ -153,15 +143,12 @@ export function ImportProgress({
                   icon = <div className="w-5 h-5 rounded-full bg-muted/50" />;
                 }
 
-                // Determine inline counter for this stage
-                const inlineCounter = getInlineCounter(stage, isCurrentStage, {
-                  gradingProgress,
-                  gradingDok2Progress,
-                  gradingDok3Progress,
-                  gradingDok4Progress,
-                  linkingDok3Progress,
-                  linkingDok4Progress,
-                });
+                // Inline counter for grading stages only
+                let inlineCounter: string | null = null;
+                if (isCurrentStage && INLINE_COUNTER_STAGES[stage]) {
+                  const p = allProps[INLINE_COUNTER_STAGES[stage]] as GradingProgress | null | undefined;
+                  if (p) inlineCounter = `${p.completed}/${p.total}`;
+                }
 
                 return (
                   <div
@@ -191,105 +178,23 @@ export function ImportProgress({
             </div>
 
             {/* Error message with animation */}
-            <div
-              className="grid transition-all duration-300 ease-out"
-              style={{
-                gridTemplateRows: error ? '1fr' : '0fr',
-                opacity: error ? 1 : 0,
-              }}
-            >
-              <div className="overflow-hidden">
-                <div className="flex items-start gap-2 p-3 rounded-lg bg-destructive/10 text-destructive text-sm animate-fade-slide-in">
-                  <AlertCircle size={16} className="mt-0.5 shrink-0" />
-                  <span>{error}</span>
-                </div>
+            {error && (
+              <div className="flex items-start gap-2 p-3 rounded-lg bg-destructive/10 text-destructive text-sm animate-fade-slide-in">
+                <AlertCircle size={16} className="mt-0.5 shrink-0" />
+                <span>{error}</span>
               </div>
-            </div>
+            )}
 
             {/* Success message with animation */}
-            <div
-              className="grid transition-all duration-300 ease-out"
-              style={{
-                gridTemplateRows: isComplete && !error ? '1fr' : '0fr',
-                opacity: isComplete && !error ? 1 : 0,
-              }}
-            >
-              <div className="overflow-hidden">
-                <div className="flex items-center gap-2 p-3 rounded-lg bg-success/10 text-success text-sm animate-fade-slide-in">
-                  <Check size={16} />
-                  <span>Import complete! Redirecting...</span>
-                </div>
+            {isComplete && !error && (
+              <div className="flex items-center gap-2 p-3 rounded-lg bg-success/10 text-success text-sm animate-fade-slide-in">
+                <Check size={16} />
+                <span>Import complete! Redirecting...</span>
               </div>
-            </div>
+            )}
           </div>
         </div>
       </div>
     </>
   );
-}
-
-// ─── Helper Components ──────────────────────────────────────────────────────
-
-function GradingCounter({
-  stage,
-  currentStage,
-  progress,
-  label,
-}: {
-  stage: ImportStage;
-  currentStage: ImportStage | null;
-  progress: GradingProgress | null | undefined;
-  label: string;
-}) {
-  const isActive = currentStage === stage && progress;
-  return (
-    <div
-      className="grid transition-all duration-300 ease-out"
-      style={{
-        gridTemplateRows: isActive ? '1fr' : '0fr',
-        opacity: isActive ? 1 : 0,
-      }}
-    >
-      <div className="overflow-hidden">
-        <div className="text-center text-sm text-muted-foreground py-1">
-          <span className="tabular-nums font-medium text-foreground">
-            {progress?.completed ?? 0}
-          </span>
-          {' '}of{' '}
-          <span className="tabular-nums font-medium text-foreground">
-            {progress?.total ?? 0}
-          </span>
-          {' '}{label}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function getInlineCounter(
-  stage: string,
-  isCurrentStage: boolean,
-  counters: {
-    gradingProgress: GradingProgress | null;
-    gradingDok2Progress: GradingProgress | null;
-    gradingDok3Progress?: GradingProgress | null;
-    gradingDok4Progress?: GradingProgress | null;
-    linkingDok3Progress?: GradingProgress | null;
-    linkingDok4Progress?: GradingProgress | null;
-  },
-): string | null {
-  if (!isCurrentStage) return null;
-
-  const map: Record<string, GradingProgress | null | undefined> = {
-    grading: counters.gradingProgress,
-    grading_dok2: counters.gradingDok2Progress,
-    grading_dok3: counters.gradingDok3Progress,
-    grading_dok4: counters.gradingDok4Progress,
-    dok3_linking: counters.linkingDok3Progress,
-    dok4_linking: counters.linkingDok4Progress,
-  };
-
-  const p = map[stage];
-  if (p) return `${p.completed}/${p.total}`;
-  return null;
 }
