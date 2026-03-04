@@ -1,6 +1,6 @@
 import { useState, useMemo } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
-import { RefreshCw, Loader2, ChevronDown, ChevronUp, Info, ShieldAlert, Radio, Weight } from 'lucide-react';
+import { RefreshCw, Loader2, ChevronDown, ChevronUp, Info, ShieldAlert, Radio, Weight, Link2, ArrowRight } from 'lucide-react';
 import { PiFootprintsFill } from 'react-icons/pi';
 import type { DOK4SpovWithLinks, DOK4CriteriaBreakdown, DOK4BarrierType } from '@shared/dok4-types';
 import type { DOK4GradingSSEEvent } from '@/hooks/useDOK4GradingEvents';
@@ -118,6 +118,14 @@ interface DOK4TabProps {
   isGrading: boolean;
   retryOne: (spovId: number) => Promise<unknown>;
   latestEvent: DOK4GradingSSEEvent | null;
+  /** Number of DOK3 insights still pending_linking (blocks DOK4 linking) */
+  dok3PendingLinkingCount: number;
+  /** Number of DOK4 SPOVs still pending_linking */
+  pendingLinkingCount: number;
+  /** Callback to open DOK3 linking modal (navigate user to DOK3 tab) */
+  onLinkDok3: () => void;
+  /** Callback to open DOK4 linking modal */
+  onLinkDok4: () => void;
 }
 
 type SortMode = 'score' | 'status';
@@ -135,6 +143,10 @@ export function DOK4Tab({
   isGrading,
   retryOne,
   latestEvent,
+  dok3PendingLinkingCount,
+  pendingLinkingCount,
+  onLinkDok3,
+  onLinkDok4,
 }: DOK4TabProps) {
   const [expandedIds, setExpandedIds] = useState<Record<number, boolean>>({});
   const [sortMode, setSortMode] = useState<SortMode>('score');
@@ -252,6 +264,69 @@ export function DOK4Tab({
           </div>
         ))}
       </div>
+
+      {/* Pending Linking Banner — state-aware based on DOK3 dependency */}
+      {pendingLinkingCount > 0 && (
+        <motion.div
+          initial={{ opacity: 0, y: 12 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.35 }}
+          className="bg-card-elevated rounded-xl shadow-card overflow-hidden mb-16"
+        >
+          <div className="py-14 px-12">
+            <div className="flex flex-col items-center text-center">
+              <div className="w-16 h-16 rounded-full flex items-center justify-center border border-border mb-8">
+                <Link2 size={28} className="text-muted-foreground" />
+              </div>
+
+              {dok3PendingLinkingCount > 0 ? (
+                <>
+                  <h3 className="font-serif text-[28px] text-foreground m-0 mb-3">
+                    DOK3 Insights Must Be Linked First
+                  </h3>
+                  <p className="text-sm text-muted-foreground max-w-lg mb-4 leading-relaxed">
+                    You have {pendingLinkingCount} DOK4 SPOV{pendingLinkingCount !== 1 ? 's' : ''} waiting to be linked,
+                    but {dok3PendingLinkingCount} DOK3 insight{dok3PendingLinkingCount !== 1 ? 's' : ''} still
+                    need to be linked to DOK2 sources first.
+                  </p>
+                  <p className="text-sm text-muted-foreground max-w-lg mb-10 leading-relaxed">
+                    DOK4 SPOVs are grounded in DOK3 insights — you need to link and grade your DOK3 insights
+                    before you can connect your SPOVs to them.
+                  </p>
+                  <TactileButton
+                    variant="raised"
+                    onClick={onLinkDok3}
+                    className="flex items-center gap-3 px-8 py-4 text-[14px]"
+                  >
+                    <Link2 size={18} />
+                    Link DOK3 Insights First
+                    <ArrowRight size={16} />
+                  </TactileButton>
+                </>
+              ) : (
+                <>
+                  <h3 className="font-serif text-[28px] text-foreground m-0 mb-3">
+                    {pendingLinkingCount} SPOV{pendingLinkingCount !== 1 ? 's' : ''} Awaiting Linking
+                  </h3>
+                  <p className="text-sm text-muted-foreground max-w-lg mb-10 leading-relaxed">
+                    Each SPOV needs to be linked to the DOK3 insights it builds upon.
+                    You'll designate one insight as the primary foundation for each position.
+                    Once linked, grading will evaluate how well each SPOV stands on its evidence.
+                  </p>
+                  <TactileButton
+                    variant="raised"
+                    onClick={onLinkDok4}
+                    className="flex items-center gap-3 px-8 py-4 text-[14px]"
+                  >
+                    <Link2 size={18} />
+                    Link SPOVs
+                  </TactileButton>
+                </>
+              )}
+            </div>
+          </div>
+        </motion.div>
+      )}
 
       {/* Section Header + Actions + Cards */}
       {sortedSpovs.length > 0 && (

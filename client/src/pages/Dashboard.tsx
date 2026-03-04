@@ -26,6 +26,7 @@ import { SummariesTab } from '@/components/SummariesTab';
 import { InsightsTab } from '@/components/InsightsTab';
 import { ScratchpadTab } from '@/components/ScratchpadTab';
 import { DOK3LinkingUI } from '@/components/DOK3LinkingUI';
+import { DOK4LinkingUI } from '@/components/DOK4LinkingUI';
 import { LearningStreamTab } from '@/components/LearningStreamTab';
 import { SavedItemsPage, GradedItemsPage } from '@/components/learning-stream';
 import { ImportAgentModal } from '@/components/import-agent/ImportAgentModal';
@@ -124,6 +125,7 @@ export default function Dashboard({ slug, isSharedView = false }: DashboardProps
   const [editingAuthor, setEditingAuthor] = useState(false);
   const [authorInput, setAuthorInput] = useState('');
   const [showLinkingModal, setShowLinkingModal] = useState(false);
+  const [showDok4LinkingModal, setShowDok4LinkingModal] = useState(false);
   const [showAgentModal, setShowAgentModal] = useState(false);
 
 const { toast } = useToast();
@@ -425,6 +427,12 @@ const { downloadBrainliftPDF } = usePDFExport();
           isGrading={dok4.isGrading}
           retryOne={dok4.retryOne}
           latestEvent={dok4Events.latestEvent}
+          dok3PendingLinkingCount={dok3.pendingInsights.length}
+          pendingLinkingCount={dok4.spovs.filter(s => s.status === 'pending_linking').length}
+          onLinkDok3={() => {
+            setShowLinkingModal(true);
+          }}
+          onLinkDok4={() => setShowDok4LinkingModal(true)}
         />
       )}
 
@@ -528,7 +536,44 @@ const { downloadBrainliftPDF } = usePDFExport();
                 onComplete={() => {
                   setShowLinkingModal(false);
                   dok3.invalidate();
-                  setActiveTab('insights');
+                  // If opened from DOK4 tab, transition to DOK4 linking
+                  const hasPendingDok4 = dok4.spovs.some(s => s.status === 'pending_linking');
+                  if (activeTab === 'dok4' && hasPendingDok4) {
+                    setShowDok4LinkingModal(true);
+                  } else {
+                    setActiveTab('insights');
+                  }
+                }}
+              />
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* DOK4 Linking Modal (standalone, outside import flow) */}
+      {showDok4LinkingModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm overflow-hidden">
+          <div className="bg-card rounded-xl shadow-lg border border-border flex flex-col w-[90vw] max-w-[1750px] h-[92vh] max-h-[1080px] overflow-hidden">
+            <div className="flex items-center justify-between px-6 py-3 border-b border-border shrink-0">
+              <h2 className="text-[14px] font-semibold text-foreground m-0">Link DOK4 SPOVs</h2>
+              <button
+                onClick={() => {
+                  setShowDok4LinkingModal(false);
+                  dok4.invalidate();
+                }}
+                className="text-[11px] uppercase tracking-[0.2em] font-semibold text-muted-foreground bg-transparent border-0 cursor-pointer hover:text-foreground transition-colors"
+              >
+                Close
+              </button>
+            </div>
+            <div className="flex-1 min-h-0">
+              <DOK4LinkingUI
+                slug={slug}
+                spovCount={dok4.spovs.filter(s => s.status === 'pending_linking').length}
+                onComplete={() => {
+                  setShowDok4LinkingModal(false);
+                  dok4.invalidate();
+                  setActiveTab('dok4');
                 }}
               />
             </div>
