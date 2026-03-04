@@ -128,6 +128,7 @@ export const storage = {
   updateDOK3InsightStatus: dok3Storage.updateDOK3InsightStatus,
   updateDOK3SourceRankings: dok3Storage.updateDOK3SourceRankings,
   getDOK3MeanScore: dok3Storage.getDOK3MeanScore,
+  setDOK3LinkingFlagged: dok3Storage.setDOK3LinkingFlagged,
 
   // DOK4 SPOVs
   saveDOK4Spovs: dok4Storage.saveDOK4Spovs,

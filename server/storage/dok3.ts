@@ -240,6 +240,19 @@ export async function linkDOK3Insight(
 }
 
 /**
+ * Set linkingFlagged=true on a DOK3 insight (IDOR-safe via brainliftId).
+ * Used by the auto-linker when the multi-source constraint cannot be satisfied.
+ */
+export async function setDOK3LinkingFlagged(
+  insightId: number,
+  brainliftId: number,
+): Promise<void> {
+  await db.update(dok3Insights)
+    .set({ linkingFlagged: true })
+    .where(and(eq(dok3Insights.id, insightId), eq(dok3Insights.brainliftId, brainliftId)));
+}
+
+/**
  * Soft-delete: set insight status to 'scratchpadded' (IDOR-safe via brainliftId).
  */
 export async function scratchpadDOK3Insight(

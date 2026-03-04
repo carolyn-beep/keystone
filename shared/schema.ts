@@ -653,6 +653,7 @@ export const dok3Insights = pgTable("dok3_insights", {
   foundationIntegrityIndex: text("foundation_integrity_index"),
   dok1FoundationScore: text("dok1_foundation_score"),
   dok2SynthesisScore: text("dok2_synthesis_score"),
+  linkingFlagged: boolean("linking_flagged").default(false).notNull(),
   traceabilityFlagged: boolean("traceability_flagged").default(false),
   traceabilityFlaggedSource: text("traceability_flagged_source"),
   evaluatorModel: text("evaluator_model"),
