@@ -5,6 +5,7 @@ import { tokens } from '@/lib/colors';
 import { useImportWithProgress } from '@/hooks/useImportWithProgress';
 import { ImportProgress } from '@/components/ImportProgress';
 import { DOK3LinkingUI } from '@/components/DOK3LinkingUI';
+import { DOK4LinkingUI } from '@/components/DOK4LinkingUI';
 import { TactileButton } from '@/components/ui/tactile-button';
 import { ImportAgentLayout } from '@/components/import-agent/ImportAgentLayout';
 import { ImportAgentProvider } from '@/components/import-agent/ImportAgentContext';
@@ -41,6 +42,7 @@ export function AddBrainliftModal({ show, onClose, onSuccess }: AddBrainliftModa
   const [url, setUrl] = useState('');
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [error, setError] = useState('');
+  const [autoLink, setAutoLink] = useState(true);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Legacy import flow
@@ -53,7 +55,13 @@ export function AddBrainliftModal({ show, onClose, onSuccess }: AddBrainliftModa
   const grading = useGradingProgress();
   const conversation = useImportConversation(agentSlug);
 
-  const isLinkingMode = !!importWithProgress.dok3LinkingInfo;
+  // DOK3 linking complete -> transition to DOK4 linking (manual mode)
+  const [dok3LinkingComplete, setDok3LinkingComplete] = useState(false);
+
+  const isDok3LinkingMode = !!importWithProgress.dok3LinkingInfo;
+  // DOK4 linking mode: DOK3 linking done + DOK4 SPOVs exist
+  const isDok4LinkingMode = dok3LinkingComplete && (importWithProgress.dok4ExtractionInfo?.dok4Count ?? 0) > 0;
+  const isLinkingMode = isDok3LinkingMode || isDok4LinkingMode;
   const isExpanded = isLinkingMode || !!agentSlug;
 
   // Holds the completed slug when import finishes while user is still linking
@@ -64,8 +72,10 @@ export function AddBrainliftModal({ show, onClose, onSuccess }: AddBrainliftModa
     setUrl('');
     setSelectedFile(null);
     setError('');
+    setAutoLink(true);
     setAgentSlug(null);
     setIsGradingMode(false);
+    setDok3LinkingComplete(false);
     createForAgent.reset();
   }, [createForAgent]);
 
@@ -82,10 +92,31 @@ export function AddBrainliftModal({ show, onClose, onSuccess }: AddBrainliftModa
     onClose();
   }, [isLinkingMode, isGradingMode, grading.isGrading, importWithProgress, resetAll, onClose]);
 
-  const handleLinkingComplete = useCallback(() => {
+  // DOK3 linking complete handler: transition to DOK4 linking or finish
+  const handleDok3LinkingComplete = useCallback(() => {
     importWithProgress.dismissLinking();
+    setDok3LinkingComplete(true);
 
-    // If the import already completed while user was linking, navigate now
+    // If no DOK4 SPOVs exist, go to final completion
+    const dok4Count = importWithProgress.dok4ExtractionInfo?.dok4Count ?? 0;
+    if (dok4Count === 0) {
+      // No DOK4 linking needed -- check if import completed
+      if (pendingSlugRef.current) {
+        const slug = pendingSlugRef.current;
+        pendingSlugRef.current = null;
+        importWithProgress.reset();
+        resetAll();
+        onClose();
+        onSuccess(slug);
+      }
+      // Otherwise modal shrinks back to SSE progress
+    }
+  }, [importWithProgress, resetAll, onClose, onSuccess]);
+
+  // DOK4 linking complete handler: finish the flow
+  const handleDok4LinkingComplete = useCallback(() => {
+    setDok3LinkingComplete(false);
+
     if (pendingSlugRef.current) {
       const slug = pendingSlugRef.current;
       pendingSlugRef.current = null;
@@ -94,8 +125,7 @@ export function AddBrainliftModal({ show, onClose, onSuccess }: AddBrainliftModa
       onClose();
       onSuccess(slug);
     }
-    // Otherwise, modal shrinks back to show SSE progress for remaining stages.
-    // When complete arrives, handleSubmit's await resolves and navigates.
+    // Otherwise modal shrinks back to SSE progress
   }, [importWithProgress, resetAll, onClose, onSuccess]);
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -112,6 +142,7 @@ export function AddBrainliftModal({ show, onClose, onSuccess }: AddBrainliftModa
 
     const formData = new FormData();
     formData.append('sourceType', activeTab);
+    formData.append('autoLink', String(autoLink));
 
     if (activeTab === 'html') {
       if (!selectedFile) {
@@ -129,7 +160,7 @@ export function AddBrainliftModal({ show, onClose, onSuccess }: AddBrainliftModa
 
     const slug = await importWithProgress.importBrainlift(formData);
     if (slug) {
-      // Check the REF (not state) — state is stale in this closure since handleSubmit
+      // Check the REF (not state) -- state is stale in this closure since handleSubmit
       // was called before linking started. The ref is always current.
       if (importWithProgress.dok3LinkingRef.current) {
         pendingSlugRef.current = slug;
@@ -196,9 +227,25 @@ export function AddBrainliftModal({ show, onClose, onSuccess }: AddBrainliftModa
         onClick={(e) => e.stopPropagation()}
       >
         <AnimatePresence mode="wait">
-          {isLinkingMode ? (
+          {isDok4LinkingMode ? (
             <motion.div
-              key="linking"
+              key="dok4-linking"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.3 }}
+              className="flex flex-col h-full"
+            >
+              <DOK4LinkingUI
+                slug={importWithProgress.dok3LinkingInfo?.slug ?? importWithProgress.slug ?? ''}
+                spovCount={importWithProgress.dok4ExtractionInfo?.dok4Count ?? 0}
+                importState={importWithProgress}
+                onComplete={handleDok4LinkingComplete}
+              />
+            </motion.div>
+          ) : isDok3LinkingMode ? (
+            <motion.div
+              key="dok3-linking"
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
@@ -209,7 +256,7 @@ export function AddBrainliftModal({ show, onClose, onSuccess }: AddBrainliftModa
                 slug={importWithProgress.dok3LinkingInfo!.slug}
                 dok3Count={importWithProgress.dok3LinkingInfo!.dok3Count}
                 importState={importWithProgress}
-                onComplete={handleLinkingComplete}
+                onComplete={handleDok3LinkingComplete}
               />
             </motion.div>
           ) : agentSlug ? (
@@ -404,11 +451,34 @@ export function AddBrainliftModal({ show, onClose, onSuccess }: AddBrainliftModa
                     />
                     <p className="mt-2 text-muted-foreground text-[13px]">
                       {activeTab === 'workflowy'
-                        ? 'Must be a secret link (contains /s/ in URL). Link must point directly to your brainlift\'s root node — no parent nodes, notes, or other content should be visible.'
+                        ? 'Must be a secret link (contains /s/ in URL). Link must point directly to your brainlift\'s root node -- no parent nodes, notes, or other content should be visible.'
                         : 'Make sure your Google Doc has link sharing enabled (anyone with the link can view).'}
                     </p>
                   </div>
                 )}
+              </div>
+
+              {/* Auto-link toggle */}
+              <div className="relative z-10 flex items-center gap-3 mt-3 mb-2">
+                <button
+                  onClick={() => setAutoLink(!autoLink)}
+                  className={`relative w-10 h-5 rounded-full transition-colors duration-200 border-0 cursor-pointer ${
+                    autoLink ? 'bg-primary' : 'bg-muted-foreground/30'
+                  }`}
+                  data-testid="toggle-auto-link"
+                >
+                  <span
+                    className={`absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform duration-200 ${
+                      autoLink ? 'translate-x-5' : 'translate-x-0'
+                    }`}
+                  />
+                </button>
+                <label
+                  className="text-sm text-muted-foreground cursor-pointer select-none"
+                  onClick={() => setAutoLink(!autoLink)}
+                >
+                  Auto-link DOK3s and DOK4s
+                </label>
               </div>
 
               {/* Show local error, agent creation error, or import error */}
@@ -425,6 +495,10 @@ export function AddBrainliftModal({ show, onClose, onSuccess }: AddBrainliftModa
                 progress={importWithProgress.progress}
                 gradingProgress={importWithProgress.gradingProgress}
                 gradingDok2Progress={importWithProgress.gradingDok2Progress}
+                gradingDok3Progress={importWithProgress.gradingDok3Progress}
+                gradingDok4Progress={importWithProgress.gradingDok4Progress}
+                linkingDok3Progress={importWithProgress.linkingDok3Progress}
+                linkingDok4Progress={importWithProgress.linkingDok4Progress}
                 error={importWithProgress.error}
                 isVisible={importWithProgress.isImporting}
               />
@@ -464,7 +538,7 @@ export function AddBrainliftModal({ show, onClose, onSuccess }: AddBrainliftModa
                         )}
                       </TactileButton>
                     )}
-                   
+
                   </>
                 )}
               </div>
