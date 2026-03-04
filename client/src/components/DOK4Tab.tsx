@@ -155,18 +155,22 @@ export function DOK4Tab({
     setExpandedIds(prev => ({ ...prev, [id]: !prev[id] }));
   };
 
-  // Sort non-pending SPOVs: graded (score desc) → rejected → grading → linked → error
+  // Separate rejected from active SPOVs
+  const rejectedSpovsList = useMemo(() =>
+    spovs.filter(s => s.status === 'rejected'),
+  [spovs]);
+
+  // Sort active SPOVs (non-pending, non-rejected)
   const sortedSpovs = useMemo(() => {
-    const displayable = spovs.filter(s => s.status !== 'pending_linking');
+    const displayable = spovs.filter(s => s.status !== 'pending_linking' && s.status !== 'rejected');
     if (sortMode === 'status') {
       const statusOrder: Record<string, number> = {
-        graded: 0, rejected: 1, grading: 2, linked: 3, error: 4,
+        graded: 0, grading: 1, linked: 2, error: 3,
       };
       return [...displayable].sort((a, b) => {
         return (statusOrder[a.status] ?? 99) - (statusOrder[b.status] ?? 99);
       });
     }
-    // Default: score descending, then status
     return [...displayable].sort((a, b) => {
       if (a.status === 'graded' && b.status === 'graded') {
         return (b.score ?? 0) - (a.score ?? 0);
@@ -174,7 +178,7 @@ export function DOK4Tab({
       if (a.status === 'graded') return -1;
       if (b.status === 'graded') return 1;
       const statusOrder: Record<string, number> = {
-        rejected: 0, grading: 1, linked: 2, error: 3,
+        grading: 0, linked: 1, error: 2,
       };
       return (statusOrder[a.status] ?? 99) - (statusOrder[b.status] ?? 99);
     });
@@ -247,6 +251,7 @@ export function DOK4Tab({
           { label: ['MEAN', 'SCORE'], value: meanScore !== null ? meanScore.toFixed(2) : '\u2014', color: meanScore !== null ? getMeanScoreColor(meanScore) : tokens.textMuted },
           { label: ['HIGH', 'QUALITY'], value: highQualityCount, color: tokens.success },
           { label: ['NEEDS', 'WORK'], value: needsWorkCount, color: needsWorkCount > 0 ? tokens.warning : tokens.textMuted },
+          ...(rejectedSpovsList.length > 0 ? [{ label: ['REJECTED', ''], value: rejectedSpovsList.length, color: tokens.danger }] : []),
         ].map((stat, i) => (
           <div
             key={i}
@@ -380,28 +385,42 @@ export function DOK4Tab({
 
           {/* SPOV Cards */}
           <div className="flex flex-col gap-16">
-            {sortedSpovs.map((spov, index) => {
-              if (spov.status === 'rejected') {
-                return (
-                  <RejectedSpovCard
-                    key={spov.id}
-                    spov={spov}
-                    animationDelay={(index + 6) * 80}
-                  />
-                );
-              }
-              return (
-                <SpovCard
-                  key={spov.id}
-                  spov={spov}
-                  expanded={expandedIds[spov.id] ?? false}
-                  onToggle={() => toggleExpanded(spov.id)}
-                  onRetry={() => retryOne(spov.id)}
-                  animationDelay={(index + 6) * 80}
-                  latestEvent={spov.status === 'grading' ? latestEvent : null}
-                />
-              );
-            })}
+            {sortedSpovs.map((spov, index) => (
+              <SpovCard
+                key={spov.id}
+                spov={spov}
+                expanded={expandedIds[spov.id] ?? false}
+                onToggle={() => toggleExpanded(spov.id)}
+                onRetry={() => retryOne(spov.id)}
+                animationDelay={(index + 6) * 80}
+                latestEvent={spov.status === 'grading' ? latestEvent : null}
+              />
+            ))}
+          </div>
+        </>
+      )}
+
+      {/* ── Rejected SPOVs — separate section ── */}
+      {rejectedSpovsList.length > 0 && (
+        <>
+          <div className="flex items-baseline justify-between mt-16 animate-fade-slide-in" style={{ animationDelay: '500ms', animationFillMode: 'backwards' }}>
+            <h3 className="text-[24px] font-semibold text-foreground m-0">
+              Rejected SPOVs
+            </h3>
+            <span className="text-[11px] uppercase tracking-[0.35em] font-semibold" style={{ color: tokens.danger }}>
+              {rejectedSpovsList.length} REJECTED
+            </span>
+          </div>
+          <hr className="border-t border-border mt-4 mb-12" />
+
+          <div className="flex flex-col gap-10">
+            {rejectedSpovsList.map((spov, index) => (
+              <RejectedSpovCard
+                key={spov.id}
+                spov={spov}
+                animationDelay={(index + 8) * 80}
+              />
+            ))}
           </div>
         </>
       )}
@@ -838,31 +857,31 @@ function RejectedSpovCard({ spov, animationDelay }: RejectedSpovCardProps) {
       className="animate-fade-slide-in"
       style={{ animationDelay: `${animationDelay}ms`, animationFillMode: 'backwards' }}
     >
-      <div className="rounded-xl overflow-hidden shadow-card border border-border bg-card">
-        {/* Rejection header */}
-        <div className="py-6 px-10 bg-primary/5 border-b border-border flex items-center gap-4">
+      <div className="rounded-xl overflow-hidden shadow-card" style={{ backgroundColor: tokens.dangerSoft }}>
+        {/* Header — category badge + label */}
+        <div className="py-8 px-10 flex items-center gap-3 border-b border-border">
           <span
-            className="px-[8px] py-[3px] rounded text-[9px] uppercase tracking-[0.25em] font-semibold"
-            style={{ backgroundColor: tokens.dangerSoft, color: tokens.danger }}
+            className="px-[6px] py-[2px] rounded text-[9px] uppercase tracking-[0.25em] font-semibold"
+            style={{ backgroundColor: tokens.danger, color: '#fff' }}
           >
             Rejected
           </span>
-          <span className="text-[11px] uppercase tracking-[0.2em] font-semibold text-muted-foreground">
+          <span className="text-[11px] uppercase tracking-[0.35em] font-semibold" style={{ color: tokens.danger }}>
             {categoryLabel}
           </span>
         </div>
 
-        {/* SPOV text (subdued) */}
+        {/* SPOV text — the student's words, quoted and subdued */}
         <div className="px-10 py-8 border-b border-border">
-          <p className="font-serif text-[16px] leading-[1.6] text-muted-foreground m-0 italic">
-            {spov.text}
+          <p className="font-serif text-[16px] leading-[1.7] text-foreground/60 m-0 italic">
+            &ldquo;{spov.text}&rdquo;
           </p>
         </div>
 
-        {/* Rejection reason (prominent) */}
+        {/* Rejection reason — why it failed */}
         {spov.rejectionReason && (
           <div className="px-10 py-8 border-b border-border bg-card-elevated">
-            <span className="text-[10px] uppercase tracking-[0.35em] font-semibold text-muted-foreground block mb-4">
+            <span className="text-[10px] uppercase tracking-[0.35em] font-semibold block mb-4" style={{ color: tokens.danger }}>
               Why This Was Rejected
             </span>
             <p className="font-serif text-[15px] leading-[1.8] text-foreground m-0">
@@ -871,11 +890,11 @@ function RejectedSpovCard({ spov, animationDelay }: RejectedSpovCardProps) {
           </div>
         )}
 
-        {/* Guidance */}
+        {/* Guidance — how to fix, in a contrasting panel */}
         {guidance && (
-          <div className="px-10 py-8 bg-card">
-            <span className="text-[10px] uppercase tracking-[0.35em] font-semibold block mb-4" style={{ color: tokens.info }}>
-              What to Do Next
+          <div className="px-10 py-8 bg-card-elevated rounded-b-xl">
+            <span className="text-[10px] uppercase tracking-[0.35em] font-semibold block mb-4" style={{ color: tokens.success }}>
+              How to Fix It
             </span>
             <p className="font-serif text-[14px] leading-[1.8] text-muted-foreground m-0 italic">
               {guidance}
