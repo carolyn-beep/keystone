@@ -31,6 +31,14 @@ const CASCADE_ORDERED_STAGES: Exclude<ImportStage, 'complete' | 'error'>[] = [
   'redundancy',
 ];
 
+// Manual mode: only stages up to DOK2 grading (linking UIs handle the rest)
+const MANUAL_ORDERED_STAGES: Exclude<ImportStage, 'complete' | 'error'>[] = [
+  'extracting',
+  'grading',
+  'contradictions',
+  'grading_dok2',
+];
+
 interface AddBrainliftModalProps {
   show: boolean;
   onClose: () => void;
@@ -63,23 +71,35 @@ export function AddBrainliftModal({ show, onClose, onSuccess }: AddBrainliftModa
   // Holds the completed slug when import finishes while user is still linking
   const pendingSlugRef = useRef<string | null>(null);
 
-  // Auto-navigate when phase reaches 'complete'
+  // Auto-navigate when import is done and we're not in manual linking
   useEffect(() => {
+    // Phase 'complete' from SSE — navigate if not manually linking
     if (importPhase === 'complete' && importState.slug) {
       const slug = importState.slug;
       importState.reset();
       resetAll();
       onClose();
       onSuccess(slug);
+      return;
     }
-  }, [importPhase, importState.slug]);
+    // Finishing phase with pending slug — SSE already completed before we got here
+    if (importPhase === 'finishing' && pendingSlugRef.current && !importState.isImporting) {
+      const slug = pendingSlugRef.current;
+      pendingSlugRef.current = null;
+      importState.reset();
+      resetAll();
+      onClose();
+      onSuccess(slug);
+    }
+  }, [importPhase, importState.slug, importState.isImporting]);
 
-  // When in manual linking and SSE completes, store slug for later
+  // When in manual linking/finishing and SSE completes, store slug for later
+  const isManualFlow = isManualLinking || importPhase === 'finishing';
   useEffect(() => {
-    if (isManualLinking && importState.slug && !importState.isImporting) {
+    if (isManualFlow && importState.slug && !importState.isImporting) {
       pendingSlugRef.current = importState.slug;
     }
-  }, [isManualLinking, importState.slug, importState.isImporting]);
+  }, [isManualFlow, importState.slug, importState.isImporting]);
 
   const resetAll = useCallback(() => {
     setActiveTab('workflowy');
@@ -157,8 +177,9 @@ export function AddBrainliftModal({ show, onClose, onSuccess }: AddBrainliftModa
 
     const slug = await importState.importBrainlift(formData);
     if (slug) {
-      // Check the ref — if we're in manual linking, store slug for later
-      if (importState.phaseRef.current === 'dok3_manual_linking' || importState.phaseRef.current === 'dok4_manual_linking') {
+      const phase = importState.phaseRef.current;
+      // If we're in any manual linking or finishing phase, hold the slug for later navigation
+      if (phase === 'dok3_manual_linking' || phase === 'dok4_manual_linking' || phase === 'finishing') {
         pendingSlugRef.current = slug;
       } else {
         importState.reset();
@@ -500,6 +521,7 @@ export function AddBrainliftModal({ show, onClose, onSuccess }: AddBrainliftModa
                 linkingDok4Progress={importState.linkingDok4Progress}
                 error={importState.error}
                 isVisible={importState.isImporting || importPhase === 'finishing'}
+                orderedStages={autoLink ? undefined : MANUAL_ORDERED_STAGES}
               />
 
               <div className="flex gap-3 mt-5 justify-end">
