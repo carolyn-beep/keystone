@@ -10,6 +10,9 @@ interface ImportProgressProps {
   gradingProgress: GradingProgress | null;
   gradingDok2Progress: GradingProgress | null;
   gradingDok3Progress?: GradingProgress | null;
+  gradingDok4Progress?: GradingProgress | null;
+  linkingDok3Progress?: GradingProgress | null;
+  linkingDok4Progress?: GradingProgress | null;
   error: string | null;
   isVisible: boolean;
   orderedStages?: Exclude<ImportStage, 'complete' | 'error'>[];
@@ -21,6 +24,10 @@ const DEFAULT_ORDERED_STAGES: Exclude<ImportStage, 'complete' | 'error'>[] = [
   'contradictions',
   'grading_dok2',
   'dok3_linking',
+  'grading_dok3',
+  'dok4_extraction',
+  'dok4_linking',
+  'grading_dok4',
   'experts',
   'redundancy',
 ];
@@ -32,6 +39,9 @@ export function ImportProgress({
   gradingProgress,
   gradingDok2Progress,
   gradingDok3Progress,
+  gradingDok4Progress,
+  linkingDok3Progress,
+  linkingDok4Progress,
   error,
   isVisible,
   orderedStages,
@@ -73,70 +83,52 @@ export function ImportProgress({
             </div>
 
             {/* DOK1 Grading counter with smooth number transition */}
-            <div
-              className="grid transition-all duration-300 ease-out"
-              style={{
-                gridTemplateRows: currentStage === 'grading' && gradingProgress ? '1fr' : '0fr',
-                opacity: currentStage === 'grading' && gradingProgress ? 1 : 0,
-              }}
-            >
-              <div className="overflow-hidden">
-                <div className="text-center text-sm text-muted-foreground py-1">
-                  <span className="tabular-nums font-medium text-foreground">
-                    {gradingProgress?.completed ?? 0}
-                  </span>
-                  {' '}of{' '}
-                  <span className="tabular-nums font-medium text-foreground">
-                    {gradingProgress?.total ?? 0}
-                  </span>
-                  {' '}facts graded
-                </div>
-              </div>
-            </div>
+            <GradingCounter
+              stage="grading"
+              currentStage={currentStage}
+              progress={gradingProgress}
+              label="facts graded"
+            />
 
-            {/* DOK2 Grading counter with smooth number transition */}
-            <div
-              className="grid transition-all duration-300 ease-out"
-              style={{
-                gridTemplateRows: currentStage === 'grading_dok2' && gradingDok2Progress ? '1fr' : '0fr',
-                opacity: currentStage === 'grading_dok2' && gradingDok2Progress ? 1 : 0,
-              }}
-            >
-              <div className="overflow-hidden">
-                <div className="text-center text-sm text-muted-foreground py-1">
-                  <span className="tabular-nums font-medium text-foreground">
-                    {gradingDok2Progress?.completed ?? 0}
-                  </span>
-                  {' '}of{' '}
-                  <span className="tabular-nums font-medium text-foreground">
-                    {gradingDok2Progress?.total ?? 0}
-                  </span>
-                  {' '}summaries graded
-                </div>
-              </div>
-            </div>
+            {/* DOK2 Grading counter */}
+            <GradingCounter
+              stage="grading_dok2"
+              currentStage={currentStage}
+              progress={gradingDok2Progress}
+              label="summaries graded"
+            />
 
-            {/* DOK3 Grading counter with smooth number transition */}
-            <div
-              className="grid transition-all duration-300 ease-out"
-              style={{
-                gridTemplateRows: currentStage === 'grading_dok3' && gradingDok3Progress ? '1fr' : '0fr',
-                opacity: currentStage === 'grading_dok3' && gradingDok3Progress ? 1 : 0,
-              }}
-            >
-              <div className="overflow-hidden">
-                <div className="text-center text-sm text-muted-foreground py-1">
-                  <span className="tabular-nums font-medium text-foreground">
-                    {gradingDok3Progress?.completed ?? 0}
-                  </span>
-                  {' '}of{' '}
-                  <span className="tabular-nums font-medium text-foreground">
-                    {gradingDok3Progress?.total ?? 0}
-                  </span>
-                  {' '}insights graded
-                </div>
-              </div>
-            </div>
+            {/* DOK3 Linking counter (auto mode) */}
+            <GradingCounter
+              stage="dok3_linking"
+              currentStage={currentStage}
+              progress={linkingDok3Progress}
+              label="insights linked"
+            />
+
+            {/* DOK3 Grading counter */}
+            <GradingCounter
+              stage="grading_dok3"
+              currentStage={currentStage}
+              progress={gradingDok3Progress}
+              label="insights graded"
+            />
+
+            {/* DOK4 Linking counter (auto mode) */}
+            <GradingCounter
+              stage="dok4_linking"
+              currentStage={currentStage}
+              progress={linkingDok4Progress}
+              label="SPOVs linked"
+            />
+
+            {/* DOK4 Grading counter */}
+            <GradingCounter
+              stage="grading_dok4"
+              currentStage={currentStage}
+              progress={gradingDok4Progress}
+              label="SPOVs graded"
+            />
 
             {/* Stage list with staggered fade-in */}
             <div className="space-y-2 pt-2">
@@ -161,6 +153,16 @@ export function ImportProgress({
                   icon = <div className="w-5 h-5 rounded-full bg-muted/50" />;
                 }
 
+                // Determine inline counter for this stage
+                const inlineCounter = getInlineCounter(stage, isCurrentStage, {
+                  gradingProgress,
+                  gradingDok2Progress,
+                  gradingDok3Progress,
+                  gradingDok4Progress,
+                  linkingDok3Progress,
+                  linkingDok4Progress,
+                });
+
                 return (
                   <div
                     key={stage}
@@ -178,19 +180,9 @@ export function ImportProgress({
                   >
                     <div className="transition-transform duration-200">{icon}</div>
                     <span className="transition-colors duration-200">{STAGE_LABELS[stage]}</span>
-                    {stage === 'grading' && isCurrentStage && gradingProgress && (
+                    {inlineCounter && (
                       <span className="text-primary text-xs ml-auto tabular-nums font-medium">
-                        {gradingProgress.completed}/{gradingProgress.total}
-                      </span>
-                    )}
-                    {stage === 'grading_dok2' && isCurrentStage && gradingDok2Progress && (
-                      <span className="text-primary text-xs ml-auto tabular-nums font-medium">
-                        {gradingDok2Progress.completed}/{gradingDok2Progress.total}
-                      </span>
-                    )}
-                    {stage === 'grading_dok3' && isCurrentStage && gradingDok3Progress && (
-                      <span className="text-primary text-xs ml-auto tabular-nums font-medium">
-                        {gradingDok3Progress.completed}/{gradingDok3Progress.total}
+                        {inlineCounter}
                       </span>
                     )}
                   </div>
@@ -234,4 +226,70 @@ export function ImportProgress({
       </div>
     </>
   );
+}
+
+// ─── Helper Components ──────────────────────────────────────────────────────
+
+function GradingCounter({
+  stage,
+  currentStage,
+  progress,
+  label,
+}: {
+  stage: ImportStage;
+  currentStage: ImportStage | null;
+  progress: GradingProgress | null | undefined;
+  label: string;
+}) {
+  const isActive = currentStage === stage && progress;
+  return (
+    <div
+      className="grid transition-all duration-300 ease-out"
+      style={{
+        gridTemplateRows: isActive ? '1fr' : '0fr',
+        opacity: isActive ? 1 : 0,
+      }}
+    >
+      <div className="overflow-hidden">
+        <div className="text-center text-sm text-muted-foreground py-1">
+          <span className="tabular-nums font-medium text-foreground">
+            {progress?.completed ?? 0}
+          </span>
+          {' '}of{' '}
+          <span className="tabular-nums font-medium text-foreground">
+            {progress?.total ?? 0}
+          </span>
+          {' '}{label}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function getInlineCounter(
+  stage: string,
+  isCurrentStage: boolean,
+  counters: {
+    gradingProgress: GradingProgress | null;
+    gradingDok2Progress: GradingProgress | null;
+    gradingDok3Progress?: GradingProgress | null;
+    gradingDok4Progress?: GradingProgress | null;
+    linkingDok3Progress?: GradingProgress | null;
+    linkingDok4Progress?: GradingProgress | null;
+  },
+): string | null {
+  if (!isCurrentStage) return null;
+
+  const map: Record<string, GradingProgress | null | undefined> = {
+    grading: counters.gradingProgress,
+    grading_dok2: counters.gradingDok2Progress,
+    grading_dok3: counters.gradingDok3Progress,
+    grading_dok4: counters.gradingDok4Progress,
+    dok3_linking: counters.linkingDok3Progress,
+    dok4_linking: counters.linkingDok4Progress,
+  };
+
+  const p = map[stage];
+  if (p) return `${p.completed}/${p.total}`;
+  return null;
 }
