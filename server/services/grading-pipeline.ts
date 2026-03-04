@@ -116,11 +116,6 @@ export async function runDOK3DOK4Pipeline(
     : (await storage.getDOK4Spovs(brainliftId)).filter((s: any) => s.status === 'pending_linking');
 
   if (spovs.length > 0) {
-    onProgress?.({
-      stage: 'dok4_extraction',
-      message: `Extracting DOK4 SPOVs...`,
-    });
-
     // Re-fetch DOK3 insights for linking (may have new graded ones)
     const gradedInsights = (await storage.getDOK3Insights(brainliftId, []))
       .filter((i: any) => i.status === 'graded' || i.status === 'linked');

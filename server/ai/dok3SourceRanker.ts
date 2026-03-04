@@ -46,7 +46,6 @@ async function callModel(
       { role: 'user', content: userPrompt },
     ],
     temperature: 0,
-    max_tokens: 512,
   };
 
   console.log(`[DOK3 Ranker] API request to ${MODEL}, prompt length: ${systemPrompt.length + userPrompt.length} chars`);
