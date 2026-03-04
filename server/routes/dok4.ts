@@ -44,6 +44,82 @@ dok4Router.get(
 );
 
 /**
+ * POST /api/brainlifts/:slug/dok4-spovs/:id/link
+ * Manually link a DOK4 SPOV to DOK3 insights with primary designation.
+ * Body: { links: Array<{ dok3InsightId: number; isPrimary: boolean }> }
+ * Validates: non-empty links, exactly one isPrimary=true.
+ * If all linked DOK3s are graded, queues dok4:grade job.
+ */
+dok4Router.post(
+  '/api/brainlifts/:slug/dok4-spovs/:id/link',
+  requireAuth,
+  requireBrainliftModify,
+  asyncHandler(async (req, res) => {
+    const spovId = parseInt(req.params.id);
+    if (isNaN(spovId)) throw new BadRequestError('Invalid SPOV ID');
+
+    const { links } = req.body;
+    if (!Array.isArray(links) || links.length === 0) {
+      throw new BadRequestError('links must be a non-empty array');
+    }
+
+    // Validate link structure
+    for (const link of links) {
+      if (typeof link !== 'object' || link === null) {
+        throw new BadRequestError('Each link must be an object with dok3InsightId and isPrimary');
+      }
+      if (typeof link.dok3InsightId !== 'number' || typeof link.isPrimary !== 'boolean') {
+        throw new BadRequestError('Each link must have dok3InsightId (number) and isPrimary (boolean)');
+      }
+    }
+
+    // Validate exactly one isPrimary
+    const primaryCount = links.filter((l: { isPrimary: boolean }) => l.isPrimary).length;
+    if (primaryCount !== 1) {
+      throw new BadRequestError('Exactly one link must have isPrimary=true');
+    }
+
+    const brainliftId = req.brainlift!.id;
+
+    // IDOR check: SPOV must belong to brainlift
+    const spovs = await storage.getDOK4Spovs(brainliftId);
+    const spov = spovs.find(s => s.id === spovId);
+    if (!spov) throw new NotFoundError('SPOV not found');
+
+    if (spov.status !== 'pending_linking') {
+      throw new BadRequestError('SPOV is not in pending_linking status');
+    }
+
+    // Link the SPOV
+    await storage.linkDOK4Spov(spovId, brainliftId, links);
+
+    // Check if all linked DOK3 insights are graded to determine if we should queue grading
+    const dok3Ids = links.map((l: { dok3InsightId: number }) => l.dok3InsightId);
+    const allInsights = await storage.getDOK3Insights(brainliftId);
+    const linkedInsights = allInsights.filter(i => dok3Ids.includes(i.id));
+    const allGraded = linkedInsights.length > 0 && linkedInsights.every(i => i.status === 'graded');
+
+    let gradingQueued = false;
+    if (allGraded) {
+      try {
+        await withJob('dok4:grade')
+          .forPayload({ spovId, brainliftId })
+          .queue();
+        gradingQueued = true;
+      } catch (err) {
+        console.error(`[DOK4 Route] Failed to queue grade job for SPOV ${spovId}:`, err);
+      }
+    }
+
+    // Return the updated SPOV
+    const updatedSpovs = await storage.getDOK4Spovs(brainliftId);
+    const updatedSpov = updatedSpovs.find(s => s.id === spovId);
+
+    res.json({ spov: updatedSpov, gradingQueued });
+  })
+);
+
+/**
  * POST /api/brainlifts/:slug/dok4-spovs/grade
  * Queue grading for all linked (ungraded) DOK4 SPOVs. Returns 202.
  */
