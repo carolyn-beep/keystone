@@ -44,7 +44,6 @@ async function callModel(
       { role: 'user', content: userPrompt },
     ],
     temperature: 0,
-    max_tokens: 512,
   };
 
   const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {

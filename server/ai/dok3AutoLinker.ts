@@ -150,7 +150,32 @@ ${dok2List}`;
       { role: 'user', content: userPrompt },
     ],
     temperature: 0,
-    max_tokens: 1024,
+    response_format: {
+      type: 'json_schema',
+      json_schema: {
+        name: 'dok3_rankings',
+        strict: true,
+        schema: {
+          type: 'object',
+          properties: {
+            rankings: {
+              type: 'array',
+              items: {
+                type: 'object',
+                properties: {
+                  dok2Id: { type: 'number' },
+                  score: { type: 'number' },
+                },
+                required: ['dok2Id', 'score'],
+                additionalProperties: false,
+              },
+            },
+          },
+          required: ['rankings'],
+          additionalProperties: false,
+        },
+      },
+    },
   };
 
   const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
@@ -174,11 +199,7 @@ ${dok2List}`;
   const content = data.choices?.[0]?.message?.content;
   if (!content) throw new Error('No response content');
 
-  // Parse JSON from response (may be wrapped in markdown code block)
-  const jsonMatch = content.match(/\{[\s\S]*\}/);
-  if (!jsonMatch) throw new Error('No JSON found in response');
-
-  const parsed = JSON.parse(jsonMatch[0]) as { rankings: { dok2Id: number; score: number }[] };
+  const parsed = JSON.parse(content) as { rankings: { dok2Id: number; score: number }[] };
   return parsed.rankings || [];
 }
 
