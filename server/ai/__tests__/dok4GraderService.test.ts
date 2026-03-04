@@ -190,8 +190,7 @@ describe('FR2: DOK4 Grading Service - gradeDOK4Spov()', () => {
     const onProgress = vi.fn();
     await gradeDOK4Spov(1, 100, onProgress);
 
-    // Should receive multiple progress messages
-    expect(onProgress).toHaveBeenCalledTimes(expect.any(Number));
+    // Should receive multiple progress messages (at least 3 steps)
     expect(onProgress.mock.calls.length).toBeGreaterThanOrEqual(3);
     // Each call receives a string message
     for (const call of onProgress.mock.calls) {
