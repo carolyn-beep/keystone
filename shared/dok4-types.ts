@@ -92,6 +92,7 @@ export interface DOK4SpovWithLinks {
   evaluatorModel: string | null;
   gradedAt: string | null;
   createdAt: string;
+  insightRankings: Record<string, number> | null;
   linkedDok3InsightIds: number[];
   primaryDok3InsightId: number | null;
 }

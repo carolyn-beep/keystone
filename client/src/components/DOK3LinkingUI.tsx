@@ -156,17 +156,24 @@ export function DOK3LinkingUI({ slug, dok3Count, importState, onComplete }: DOK3
   );
   const importComplete = !importState || importState.currentStage === 'complete';
 
+  // Stable ref for onComplete to avoid effect cleanup killing the timer
+  const onCompleteRef = useRef(onComplete);
+  onCompleteRef.current = onComplete;
+
   // Auto-close when all resolved + import complete
   useEffect(() => {
     if (allResolved && importComplete && !successTimerRef.current) {
       successTimerRef.current = setTimeout(() => {
-        onComplete();
+        onCompleteRef.current();
       }, 2000);
     }
     return () => {
-      if (successTimerRef.current) clearTimeout(successTimerRef.current);
+      if (successTimerRef.current) {
+        clearTimeout(successTimerRef.current);
+        successTimerRef.current = null;
+      }
     };
-  }, [allResolved, importComplete, onComplete]);
+  }, [allResolved, importComplete]);
 
   const selectedInsight = allInsights.find(i => i.id === selectedInsightId) ?? null;
 
@@ -296,7 +303,7 @@ export function DOK3LinkingUI({ slug, dok3Count, importState, onComplete }: DOK3
               <Check size={48} className="text-success mx-auto mb-4" />
               <h3 className="font-serif text-[24px] text-foreground m-0 mb-2">All Insights Resolved</h3>
               <p className="text-[14px] text-muted-foreground m-0">
-                {importComplete ? 'Redirecting to Insights tab...' : 'Waiting for import to finish...'}
+                {importComplete ? 'Continuing...' : 'Waiting for import to finish...'}
               </p>
             </div>
           </motion.div>
@@ -663,7 +670,7 @@ function DOK2Card({ card, isSelected, onToggle, showRelevance, index }: DOK2Card
           {isSelected && <Check size={12} className="text-primary-foreground" />}
         </div>
 
-        {/* Title + Category */}
+        {/* Title + Category + Relevance */}
         <div className="flex-1 min-w-0">
           <p className={`font-serif text-[16px] font-semibold leading-snug text-foreground m-0 ${expanded ? '' : 'line-clamp-2'}`}>
             {card.displayTitle || card.sourceName}
@@ -671,28 +678,26 @@ function DOK2Card({ card, isSelected, onToggle, showRelevance, index }: DOK2Card
           <span className="text-[10px] uppercase tracking-[0.15em] text-muted-light font-semibold mt-1 block">
             {card.category}
           </span>
+          {showRelevance && (
+            <span
+              className="inline-block mt-1 text-[10px] font-semibold px-2 py-0.5 rounded-full"
+              style={{
+                backgroundColor: relevancePct >= 70
+                  ? tokens.successSoft
+                  : relevancePct >= 40
+                    ? tokens.warningSoft
+                    : tokens.dangerSoft,
+                color: relevancePct >= 70
+                  ? tokens.success
+                  : relevancePct >= 40
+                    ? tokens.warning
+                    : tokens.danger,
+              }}
+            >
+              {relevancePct}% match
+            </span>
+          )}
         </div>
-
-        {/* Relevance % */}
-        {showRelevance && (
-          <span
-            className="text-[10px] uppercase tracking-[0.2em] font-semibold rounded-full px-2.5 py-1 shrink-0 mt-0.5"
-            style={{
-              backgroundColor: relevancePct >= 70
-                ? tokens.successSoft
-                : relevancePct >= 40
-                  ? tokens.warningSoft
-                  : tokens.dangerSoft,
-              color: relevancePct >= 70
-                ? tokens.success
-                : relevancePct >= 40
-                  ? tokens.warning
-                  : tokens.danger,
-            }}
-          >
-            {relevancePct}%
-          </span>
-        )}
       </button>
 
       {/* Expand toggle */}

@@ -89,6 +89,7 @@ export async function getDOK4Spovs(brainliftId: number): Promise<DOK4SpovWithLin
     evaluatorModel: spov.evaluatorModel,
     gradedAt: spov.gradedAt?.toISOString() ?? null,
     createdAt: spov.createdAt!.toISOString(),
+    insightRankings: spov.insightRankings as Record<string, number> | null,
     linkedDok3InsightIds: links
       .filter(l => l.spovId === spov.id)
       .map(l => l.dok3InsightId),
@@ -492,4 +493,16 @@ export async function triggerDependentDOK4Grading(
   }
 
   return queued;
+}
+
+/**
+ * Set insight relevance rankings for a DOK4 SPOV (pre-computed by dok4InsightRanker).
+ */
+export async function setDOK4InsightRankings(
+  spovId: number,
+  rankings: Record<string, number>,
+): Promise<void> {
+  await db.update(dok4Spovs)
+    .set({ insightRankings: rankings })
+    .where(eq(dok4Spovs.id, spovId));
 }

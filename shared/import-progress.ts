@@ -9,6 +9,7 @@ export type ImportStage =
   | 'dok3_linking'
   | 'dok4_extraction'
   | 'dok4_linking'
+  | 'grading_dok4'
   | 'experts'
   | 'redundancy'
   | 'complete'
@@ -45,20 +46,46 @@ export interface ContradictionsProgress extends BaseProgressEvent {
   stage: 'contradictions';
 }
 
-export interface DOK3LinkingProgressEvent extends BaseProgressEvent {
+// Auto mode: counter-based progress (no manual UI triggers)
+export interface DOK3LinkingAutoProgress extends BaseProgressEvent {
+  stage: 'dok3_linking';
+  completed: number;
+  total: number;
+}
+
+// Manual mode: triggers DOK3LinkingUI (no counters)
+export interface DOK3LinkingManualProgress extends BaseProgressEvent {
   stage: 'dok3_linking';
   dok3Count: number;
   slug: string;
 }
 
+export type DOK3LinkingProgressEvent = DOK3LinkingAutoProgress | DOK3LinkingManualProgress;
+
 export interface DOK4ExtractionProgress extends BaseProgressEvent {
   stage: 'dok4_extraction';
+  dok4Count?: number;
+}
+
+// Auto mode: counter-based progress
+export interface DOK4LinkingAutoProgress extends BaseProgressEvent {
+  stage: 'dok4_linking';
+  completed: number;
+  total: number;
+}
+
+// Manual mode: informational (no counters)
+export interface DOK4LinkingManualProgress extends BaseProgressEvent {
+  stage: 'dok4_linking';
   dok4Count: number;
 }
 
-export interface DOK4LinkingProgress extends BaseProgressEvent {
-  stage: 'dok4_linking';
-  dok4Count: number;
+export type DOK4LinkingProgress = DOK4LinkingAutoProgress | DOK4LinkingManualProgress;
+
+export interface GradingDOK4Progress extends BaseProgressEvent {
+  stage: 'grading_dok4';
+  completed: number;
+  total: number;
 }
 
 export interface ExpertsProgress extends BaseProgressEvent {
@@ -88,6 +115,7 @@ export type ImportProgress =
   | DOK3LinkingProgressEvent
   | DOK4ExtractionProgress
   | DOK4LinkingProgress
+  | GradingDOK4Progress
   | ExpertsProgress
   | RedundancyProgress
   | CompleteProgress
@@ -100,9 +128,10 @@ export const STAGE_LABELS: Record<ImportStage, string> = {
   grading_dok2: 'Grading DOK2 summaries...',
   grading_dok3: 'Grading DOK3 insights...',
   contradictions: 'Detecting contradictions...',
-  dok3_linking: 'DOK3 insights ready for linking',
-  dok4_extraction: 'DOK4 SPOVs extracted',
-  dok4_linking: 'DOK4 auto-linking complete',
+  dok3_linking: 'Auto-linking DOK3 insights...',
+  dok4_extraction: 'Extracting DOK4 SPOVs...',
+  dok4_linking: 'Auto-linking DOK4 SPOVs...',
+  grading_dok4: 'Grading DOK4 SPOVs...',
   experts: 'Extracting experts...',
   redundancy: 'Analyzing redundancies...',
   complete: 'Import complete!',
@@ -157,16 +186,17 @@ export interface DOK4GradingProgress {
 // Weights for progress bar calculation (must sum to 100)
 // Order matches actual execution: extract → DOK1 + contradictions → DOK2 → DOK3 linking → DOK4 → experts + redundancy
 export const STAGE_WEIGHTS: Record<Exclude<ImportStage, 'complete' | 'error'>, number> = {
-  extracting: 5,
-  grading: 48,           // DOK1 grading takes the longest
-  contradictions: 5,
-  grading_dok2: 14,      // DOK2 grading (fewer items, runs in parallel)
-  grading_dok3: 0,       // Happens via background job after linking, or in agent cascade — not during import-stream
-  dok3_linking: 2,       // Informational — signals DOK3 insights ready
+  extracting: 3,
+  grading: 30,           // DOK1 grading takes the longest
+  contradictions: 3,
+  grading_dok2: 10,      // DOK2 grading (fewer items, runs in parallel)
+  dok3_linking: 5,       // DOK3 auto-linking (auto mode: with completed/total)
+  grading_dok3: 18,      // DOK3 grading (auto mode: parallel, pLimit 5)
   dok4_extraction: 1,    // Informational — DOK4 SPOVs found during extraction
-  dok4_linking: 2,       // DOK4 auto-linking (LLM semantic matching)
-  experts: 15,
-  redundancy: 8,
+  dok4_linking: 3,       // DOK4 auto-linking (LLM semantic matching)
+  grading_dok4: 15,      // DOK4 grading (auto mode: parallel, pLimit 5)
+  experts: 8,
+  redundancy: 4,
 };
 
 // Calculate cumulative progress for a given stage
@@ -174,16 +204,17 @@ export function calculateProgress(event: ImportProgress): number {
   if (event.stage === 'complete') return 100;
   if (event.stage === 'error') return 0;
 
-  // Order matches actual execution in the legacy pipeline
+  // Order matches actual execution in the auto-mode pipeline
   const stages: Exclude<ImportStage, 'complete' | 'error'>[] = [
     'extracting',
     'grading',
     'contradictions',
     'grading_dok2',
-    'grading_dok3',
     'dok3_linking',
+    'grading_dok3',
     'dok4_extraction',
     'dok4_linking',
+    'grading_dok4',
     'experts',
     'redundancy',
   ];
@@ -197,13 +228,15 @@ export function calculateProgress(event: ImportProgress): number {
     progress += STAGE_WEIGHTS[stages[i]];
   }
 
-  // Add partial progress for current stage
+  // Add partial progress for current stage if it has completed/total counters
   const currentWeight = STAGE_WEIGHTS[event.stage as keyof typeof STAGE_WEIGHTS];
-  if ((event.stage === 'grading' || event.stage === 'grading_dok2' || event.stage === 'grading_dok3') && 'completed' in event && 'total' in event) {
-    const gradingProgress = event.total > 0 ? event.completed / event.total : 0;
-    progress += currentWeight * gradingProgress;
+  if ('completed' in event && 'total' in event) {
+    const total = (event as any).total;
+    const completed = (event as any).completed;
+    const stageProgress = total > 0 ? completed / total : 0;
+    progress += currentWeight * stageProgress;
   } else {
-    // For other stages, assume 50% through when we receive the event
+    // For stages without counters, assume 50% through when we receive the event
     progress += currentWeight * 0.5;
   }
 

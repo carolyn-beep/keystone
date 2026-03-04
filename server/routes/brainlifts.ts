@@ -155,13 +155,16 @@ brainliftsRouter.post(
 
       const brainliftData = await extractBrainlift(content, sourceLabel, hierarchy);
 
+      const autoLink = req.body.autoLink !== 'false'; // default: true
+
       const brainlift = await saveBrainliftFromAI(
         brainliftData,
         content,
         sourceType,
         req.authContext!.userId,
         0,
-        sse.send
+        sse.send,
+        autoLink,
       );
 
       // Mark import as complete
