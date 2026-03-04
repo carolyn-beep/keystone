@@ -8,9 +8,11 @@
  * Pattern follows dok4AutoLinker.ts: Haiku via OpenRouter, fetch-based.
  */
 
+import pLimit from 'p-limit';
 import { storage } from '../storage';
 
 const MODEL = 'anthropic/claude-haiku-4.5';
+const LINK_CONCURRENCY = 60;
 
 // Minimum semantic relevance score to create a link
 const SEMANTIC_LINK_THRESHOLD = 0.5;
@@ -58,21 +60,23 @@ export async function autoLinkDOK3Insights(
 
   console.log(`[DOK3 AutoLinker] Linking ${insights.length} insights to ${dok2Summaries.length} DOK2 summaries`);
 
-  const results: LinkResult[] = [];
+  const limit = pLimit(LINK_CONCURRENCY);
 
-  for (const insight of insights) {
-    try {
-      const result = await linkSingleInsight(brainliftId, insight, dok2Summaries);
-      if (result) {
-        results.push(result);
-      }
-    } catch (err) {
-      console.error(`[DOK3 AutoLinker] Failed to link insight ${insight.id}:`, err);
-      // Non-throwing: insight stays pending_linking
-    }
-  }
+  const results = await Promise.all(
+    insights.map(insight =>
+      limit(async () => {
+        try {
+          return await linkSingleInsight(brainliftId, insight, dok2Summaries);
+        } catch (err) {
+          console.error(`[DOK3 AutoLinker] Failed to link insight ${insight.id}:`, err);
+          // Non-throwing: insight stays pending_linking
+          return null;
+        }
+      })
+    )
+  );
 
-  return results;
+  return results.filter((r): r is LinkResult => r !== null);
 }
 
 /**

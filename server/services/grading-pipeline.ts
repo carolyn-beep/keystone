@@ -38,8 +38,8 @@ export async function runDOK3DOK4Pipeline(
   slug: string,
   onProgress?: ProgressCallback,
 ): Promise<void> {
-  const dok3GradeLimit = pLimit(10);
-  const dok4GradeLimit = pLimit(5);
+  const dok3GradeLimit = pLimit(20);
+  const dok4GradeLimit = pLimit(10);
 
   // ── Phase 1: Auto-link DOK3 insights to DOK2 summaries ──
 

@@ -8,9 +8,11 @@
  * Pattern follows dok3SourceRanker.ts: Haiku via OpenRouter, fetch-based.
  */
 
+import pLimit from 'p-limit';
 import { storage } from '../storage';
 
 const MODEL = 'anthropic/claude-haiku-4.5';
+const LINK_CONCURRENCY = 60;
 
 // Minimum semantic relevance score to create a link
 const SEMANTIC_LINK_THRESHOLD = 0.5;
@@ -50,18 +52,23 @@ export async function autoLinkDOK4Spovs(
 
   console.log(`[DOK4 AutoLinker] Linking ${spovIds.length} SPOVs to ${dok3Insights.length} DOK3 insights`);
 
-  for (let i = 0; i < spovIds.length; i++) {
-    const spovId = spovIds[i];
-    const spovText = spovTexts[i];
-    const refs = explicitLinkRefs[i];
+  const limit = pLimit(LINK_CONCURRENCY);
 
-    try {
-      await linkSingleSpov(brainliftId, spovId, spovText, dok3Insights, refs);
-    } catch (err) {
-      console.error(`[DOK4 AutoLinker] Failed to link SPOV ${spovId}:`, err);
-      // Non-throwing: SPOV stays pending_linking
-    }
-  }
+  await Promise.all(
+    spovIds.map((spovId, i) =>
+      limit(async () => {
+        const spovText = spovTexts[i];
+        const refs = explicitLinkRefs[i];
+
+        try {
+          await linkSingleSpov(brainliftId, spovId, spovText, dok3Insights, refs);
+        } catch (err) {
+          console.error(`[DOK4 AutoLinker] Failed to link SPOV ${spovId}:`, err);
+          // Non-throwing: SPOV stays pending_linking
+        }
+      })
+    )
+  );
 }
 
 /**
