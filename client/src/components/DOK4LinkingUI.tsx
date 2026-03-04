@@ -13,7 +13,7 @@ import { STAGE_LABELS, type ImportStage } from '@shared/import-progress';
 import { TactileButton } from '@/components/ui/tactile-button';
 import type { DOK4SpovWithLinks } from '@shared/dok4-types';
 
-import linkingBg from '@/assets/textures/research_apparatus.webp';
+import linkingBg from '@/assets/textures/dok4_linking_bg.webp';
 
 // ─── Types ──────────────────────────────────────────────────────────────────────
 
@@ -61,12 +61,24 @@ export function DOK4LinkingUI({ slug, spovCount, importState, onComplete }: DOK4
     return map;
   }, [gradingEvents.events]);
 
-  // DOK3 insights for the picker (only graded ones are ideal, but show all linked+graded)
+  const selectedSpov = allSpovs.find(s => s.id === selectedSpovId) ?? null;
+
+  // DOK3 insights for the picker, sorted by relevance to selected SPOV
   const availableDok3Insights = useMemo(() => {
-    return dok3.insights.filter(i =>
-      i.status === 'graded' || i.status === 'linked' || i.status === 'grading'
-    );
-  }, [dok3.insights]);
+    const filtered = dok3.insights;
+
+    // Sort by insight rankings if the selected SPOV has them
+    const rankings = selectedSpov?.insightRankings;
+    if (rankings) {
+      return [...filtered].sort((a, b) => {
+        const scoreA = rankings[String(a.id)] ?? 0;
+        const scoreB = rankings[String(b.id)] ?? 0;
+        return scoreB - scoreA;
+      });
+    }
+
+    return filtered;
+  }, [dok3.insights, selectedSpov?.insightRankings]);
 
   // Auto-select first unresolved SPOV
   useEffect(() => {
@@ -91,19 +103,24 @@ export function DOK4LinkingUI({ slug, spovCount, importState, onComplete }: DOK4
   );
   const importComplete = !importState || importState.currentStage === 'complete';
 
+  // Stable ref for onComplete to avoid effect cleanup killing the timer
+  const onCompleteRef = useRef(onComplete);
+  onCompleteRef.current = onComplete;
+
   // Auto-close when all resolved + import complete
   useEffect(() => {
     if (allResolved && importComplete && !successTimerRef.current) {
       successTimerRef.current = setTimeout(() => {
-        onComplete();
+        onCompleteRef.current();
       }, 2000);
     }
     return () => {
-      if (successTimerRef.current) clearTimeout(successTimerRef.current);
+      if (successTimerRef.current) {
+        clearTimeout(successTimerRef.current);
+        successTimerRef.current = null;
+      }
     };
-  }, [allResolved, importComplete, onComplete]);
-
-  const selectedSpov = allSpovs.find(s => s.id === selectedSpovId) ?? null;
+  }, [allResolved, importComplete]);
 
   // Validation: >=1 DOK3 selected + primary designated
   const canLink = selectedDok3Ids.size >= 1 && primaryDok3Id !== null && selectedDok3Ids.has(primaryDok3Id);
@@ -357,6 +374,7 @@ export function DOK4LinkingUI({ slug, spovCount, importState, onComplete }: DOK4
                         insight={insight}
                         isSelected={selectedDok3Ids.has(insight.id)}
                         isPrimary={primaryDok3Id === insight.id}
+                        relevanceScore={selectedSpov?.insightRankings?.[String(insight.id)] ?? null}
                         onToggle={() => toggleDok3(insight.id)}
                         onSetPrimary={() => {
                           if (selectedDok3Ids.has(insight.id)) {
@@ -502,12 +520,14 @@ interface DOK3InsightCardProps {
   };
   isSelected: boolean;
   isPrimary: boolean;
+  relevanceScore: number | null;
   onToggle: () => void;
   onSetPrimary: () => void;
   index: number;
 }
 
-function DOK3InsightCard({ insight, isSelected, isPrimary, onToggle, onSetPrimary, index }: DOK3InsightCardProps) {
+function DOK3InsightCard({ insight, isSelected, isPrimary, relevanceScore, onToggle, onSetPrimary, index }: DOK3InsightCardProps) {
+  const relevancePct = relevanceScore !== null ? Math.round(relevanceScore * 100) : null;
   return (
     <motion.div
       layout
@@ -538,47 +558,51 @@ function DOK3InsightCard({ insight, isSelected, isPrimary, onToggle, onSetPrimar
           {isSelected && <Check size={12} className="text-primary-foreground" />}
         </div>
 
-        {/* Insight text + score */}
+        {/* Insight text + relevance */}
         <div className="flex-1 min-w-0">
           <p className="font-serif text-[14px] leading-[1.6] text-foreground m-0 line-clamp-3 break-words">
             {insight.text}
           </p>
-          <div className="flex items-center gap-2 mt-1">
-            {insight.score !== null ? (
-              <span
-                className="text-[10px] font-semibold px-2 py-0.5 rounded-full"
-                style={{
-                  ...getScoreChipColors(insight.score),
-                  backgroundColor: getScoreChipColors(insight.score).bg,
-                  color: getScoreChipColors(insight.score).text,
-                }}
-              >
-                Score: {insight.score}
-              </span>
-            ) : (
-              <span className="text-[10px] text-muted-light italic">
-                {insight.status === 'grading' ? 'Grading...' : 'Pending'}
-              </span>
-            )}
-          </div>
+          {relevancePct !== null && (
+            <span
+              className="inline-block mt-1 text-[10px] font-semibold px-2 py-0.5 rounded-full"
+              style={{
+                backgroundColor: relevancePct >= 70
+                  ? tokens.successSoft
+                  : relevancePct >= 40
+                    ? tokens.warningSoft
+                    : tokens.dangerSoft,
+                color: relevancePct >= 70
+                  ? tokens.success
+                  : relevancePct >= 40
+                    ? tokens.warning
+                    : tokens.danger,
+              }}
+            >
+              {relevancePct}% match
+            </span>
+          )}
         </div>
 
         {/* Primary designation */}
         {isSelected && (
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              onSetPrimary();
-            }}
-            className={`shrink-0 w-7 h-7 rounded-full flex items-center justify-center transition-all border-0 cursor-pointer ${
-              isPrimary
-                ? 'bg-primary text-primary-foreground'
-                : 'bg-muted/50 text-muted-foreground hover:bg-muted'
-            }`}
-            title={isPrimary ? 'Primary insight' : 'Set as primary'}
-          >
-            <span className="text-[11px] font-bold">P</span>
-          </button>
+          <div className="shrink-0 flex items-center">
+            {isPrimary ? (
+              <span className="text-[10px] uppercase tracking-[0.2em] font-bold text-primary bg-primary/15 px-2.5 py-1 rounded">
+                Primary
+              </span>
+            ) : (
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onSetPrimary();
+                }}
+                className="text-[10px] uppercase tracking-[0.15em] font-semibold text-primary-foreground bg-primary/60 hover:bg-primary px-3 py-1.5 rounded-md border border-primary/30 cursor-pointer transition-all shadow-sm"
+              >
+                Set as Primary
+              </button>
+            )}
+          </div>
         )}
       </button>
     </motion.div>
