@@ -756,6 +756,9 @@ export const dok4Spovs = pgTable("dok4_spovs", {
   // Antimemetic Assessment (Step 6)
   antimemeticAssessment: jsonb("antimemetic_assessment"),
 
+  // Insight rankings for manual linking UI (pre-computed by dok4InsightRanker)
+  insightRankings: jsonb("insight_rankings").$type<Record<string, number>>(),
+
   // Metadata
   evaluatorModel: text("evaluator_model"),
   gradedAt: timestamp("graded_at"),

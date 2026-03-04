@@ -140,6 +140,7 @@ export const storage = {
   getDOK4MeanScore: dok4Storage.getDOK4MeanScore,
   getSpovEvaluationContext: dok4Storage.getSpovEvaluationContext,
   triggerDependentDOK4Grading: dok4Storage.triggerDependentDOK4Grading,
+  setDOK4InsightRankings: dok4Storage.setDOK4InsightRankings,
 
   // Import Agent
   getImportConversation: importAgentStorage.getImportConversation,

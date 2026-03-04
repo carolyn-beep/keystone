@@ -1,4 +1,5 @@
 import type { JobHelpers } from 'graphile-worker';
+import { storage } from '../storage';
 import { dok4GradingEmitter } from '../events/dok4GradingEmitter';
 import { gradeDOK4Spov } from '../ai/dok4GraderService';
 import { recomputeBrainliftScore } from '../services/brainlift';
@@ -15,6 +16,14 @@ export async function dok4GradeJob(
 ): Promise<void> {
   const { spovId, brainliftId } = payload;
   helpers.logger.info(`[DOK4 Grade] Starting job for SPOV ${spovId}, brainlift ${brainliftId}`);
+
+  // Guard: skip if SPOV is already graded/grading/rejected (prevents duplicate work)
+  const spovs = await storage.getDOK4Spovs(brainliftId);
+  const spov = spovs.find((s: any) => s.id === spovId);
+  if (!spov || (spov.status !== 'linked' && spov.status !== 'pending_linking')) {
+    helpers.logger.info(`[DOK4 Grade] SPOV ${spovId} status is '${spov?.status ?? 'not found'}', skipping`);
+    return;
+  }
 
   // Ensure grading session is tracked
   if (!dok4GradingEmitter.isGradingActive(brainliftId)) {

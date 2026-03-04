@@ -560,6 +560,20 @@ export async function saveBrainliftFromAI(
         }
 
         if (data.dok4Spovs && data.dok4Spovs.length > 0) {
+          // Pre-compute DOK3 insight relevance rankings for DOK4 linking UI
+          try {
+            const savedSpovs = await storage.getDOK4Spovs(brainlift.id);
+            const savedInsights = await storage.getDOK3Insights(brainlift.id, []);
+            if (savedSpovs.length > 0 && savedInsights.length > 0) {
+              const { rankInsightsForSpovs } = await import('../ai/dok4InsightRanker');
+              const spovInputs = savedSpovs.map(s => ({ id: s.id, text: s.text }));
+              const insightInputs = savedInsights.map(i => ({ id: i.id, text: i.text }));
+              await rankInsightsForSpovs(spovInputs, insightInputs);
+            }
+          } catch (err) {
+            console.error('[Auto-Grade] DOK4 insight ranking failed (non-blocking):', err);
+          }
+
           onProgress?.({
             stage: 'dok4_extraction',
             message: `DOK4 SPOVs extracted: ${data.dok4Spovs.length}`,
