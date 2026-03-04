@@ -702,6 +702,60 @@ export function findDOK4Nodes(roots: HierarchyNode[]): HierarchyNode[] {
  * Sub-points are NOT included in the SPOV text.
  * Explicit link references ("Links" -> "Insight N") are parsed when present.
  */
+// Matches intermediate container labels like "Spiky POV 1", "SPOV1", "Truth", "Myth", "Truths", "Myths"
+const SPOV_CONTAINER_PATTERN = /^(spiky\s*pov\s*\d*|spov\s*\d*|truths?|myths?)[\s:.\-()?\d]*$/i;
+
+function isMarkerNode(node: HierarchyNode): boolean {
+  return node.isDOK1Marker || node.isDOK2Marker || node.isDOK3Marker ||
+    node.isDOK4Marker || node.isSourceMarker || node.isCategoryMarker;
+}
+
+// Nodes to skip when collecting supporting child text
+const LINKS_PATTERN = /^links$/i;
+
+/**
+ * Extract a single SPOV from a content node.
+ * Includes direct child text as supporting detail (skips Links nodes and markers).
+ * Returns null if the node should be skipped.
+ */
+function extractSingleSpov(node: HierarchyNode): { text: string; nodeId: string; explicitDok3Refs: number[] } | null {
+  if (isMarkerNode(node)) return null;
+
+  let text = node.name.trim();
+
+  // Skip strikethrough text (entire text wrapped in ~~...~~)
+  if (/^~~.*~~$/.test(text)) {
+    log(`[DOK4Extractor] Skipping strikethrough SPOV: "${text.substring(0, 40)}..."`);
+    return null;
+  }
+
+  // Strip bold formatting (**text**)
+  text = text.replace(/\*\*/g, '');
+
+  // Skip very short entries
+  if (text.length < 10) return null;
+
+  // Collect supporting text from direct children (skip Links, markers, containers)
+  const childTexts: string[] = [];
+  for (const child of node.children) {
+    if (isMarkerNode(child)) continue;
+    if (LINKS_PATTERN.test(child.name.trim())) continue;
+    if (SPOV_CONTAINER_PATTERN.test(child.name.trim().replace(/\*\*/g, ''))) continue;
+
+    const childText = child.name.trim().replace(/\*\*/g, '');
+    if (childText.length >= 10) {
+      childTexts.push(childText);
+    }
+  }
+
+  if (childTexts.length > 0) {
+    text = text + ' ' + childTexts.join(' ');
+  }
+
+  const explicitDok3Refs = parseExplicitLinkRefs(node);
+  return { text, nodeId: node.id, explicitDok3Refs };
+}
+
 export function extractDOK4Spovs(dok4Nodes: HierarchyNode[]): DOK4ExtractedSpov[] {
   const spovs: DOK4ExtractedSpov[] = [];
   let counter = 0;
@@ -710,36 +764,65 @@ export function extractDOK4Spovs(dok4Nodes: HierarchyNode[]): DOK4ExtractedSpov[
 
   for (const dok4Node of dok4Nodes) {
     for (const child of dok4Node.children) {
-      // Skip marker nodes
-      if (child.isDOK1Marker || child.isDOK2Marker || child.isDOK3Marker ||
-          child.isDOK4Marker || child.isSourceMarker || child.isCategoryMarker) {
-        continue;
+      if (isMarkerNode(child)) continue;
+
+      const childName = child.name.trim().replace(/\*\*/g, '');
+
+      // Check if this child is an intermediate container (e.g., "Truths", "Myths", "Spiky POV 1")
+      // Containers: match a label pattern AND have children with substantive text
+      const isContainer = SPOV_CONTAINER_PATTERN.test(childName) && child.children.length > 0;
+
+      if (isContainer) {
+        // Drill into container — children (or grandchildren) are the actual SPOVs
+        for (const inner of child.children) {
+          const innerName = inner.name.trim().replace(/\*\*/g, '');
+
+          // Second-level container? e.g., "Truths" > "SPOV1" > actual text
+          const isInnerContainer = SPOV_CONTAINER_PATTERN.test(innerName) && inner.children.length > 0;
+
+          if (isInnerContainer) {
+            // The actual SPOV text is in the grandchildren
+            for (const grandchild of inner.children) {
+              const result = extractSingleSpov(grandchild);
+              if (result) {
+                counter++;
+                spovs.push({
+                  id: `spov-${counter}`,
+                  text: result.text,
+                  workflowyNodeId: result.nodeId,
+                  explicitDok3Refs: result.explicitDok3Refs.length > 0
+                    ? result.explicitDok3Refs
+                    : parseExplicitLinkRefs(inner), // Check parent for links too
+                });
+              }
+            }
+          } else {
+            // Inner node IS the SPOV content
+            const result = extractSingleSpov(inner);
+            if (result) {
+              counter++;
+              spovs.push({
+                id: `spov-${counter}`,
+                text: result.text,
+                workflowyNodeId: result.nodeId,
+                explicitDok3Refs: result.explicitDok3Refs,
+              });
+            }
+          }
+        }
+      } else {
+        // Direct child IS the SPOV content (Layla's flat pattern)
+        const result = extractSingleSpov(child);
+        if (result) {
+          counter++;
+          spovs.push({
+            id: `spov-${counter}`,
+            text: result.text,
+            workflowyNodeId: result.nodeId,
+            explicitDok3Refs: result.explicitDok3Refs,
+          });
+        }
       }
-
-      let text = child.name.trim();
-
-      // Skip strikethrough text (entire text wrapped in ~~...~~)
-      if (/^~~.*~~$/.test(text)) {
-        log(`[DOK4Extractor] Skipping strikethrough SPOV: "${text.substring(0, 40)}..."`);
-        continue;
-      }
-
-      // Strip bold formatting (**text**)
-      text = text.replace(/\*\*/g, '');
-
-      // Skip very short entries
-      if (text.length < 10) continue;
-
-      // Parse explicit link references from "Links" child
-      const explicitDok3Refs = parseExplicitLinkRefs(child);
-
-      counter++;
-      spovs.push({
-        id: `spov-${counter}`,
-        text,
-        workflowyNodeId: child.id,
-        explicitDok3Refs,
-      });
     }
   }
 
