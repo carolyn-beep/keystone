@@ -410,6 +410,7 @@ export async function saveBrainliftFromAI(
       });
 
       const gradedDOK2Summaries = await Promise.all(data.dok2Summaries.map(summary => dok2Limit(async () => {
+        const dok2Start = Date.now();
         // Get related DOK1 facts for this summary
         type FactType = typeof data.facts[number];
         const relatedDOK1s = summary.relatedDOK1Ids
@@ -465,7 +466,8 @@ export async function saveBrainliftFromAI(
           total: totalDOK2,
         });
 
-        console.log(`[Auto-Grade] DOK2 graded "${summary.sourceName}": score=${gradeResult.score}, title="${gradeResult.displayTitle}" (${dok2CompletedCount}/${totalDOK2})`);
+        const dok2Elapsed = ((Date.now() - dok2Start) / 1000).toFixed(1);
+        console.log(`[Auto-Grade] DOK2 graded "${summary.sourceName}" in ${dok2Elapsed}s: score=${gradeResult.score}, title="${gradeResult.displayTitle}" (${dok2CompletedCount}/${totalDOK2})`);
 
         return {
           ...summary,

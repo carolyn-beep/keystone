@@ -38,7 +38,7 @@ export async function runDOK3DOK4Pipeline(
   slug: string,
   onProgress?: ProgressCallback,
 ): Promise<void> {
-  const dok3GradeLimit = pLimit(5);
+  const dok3GradeLimit = pLimit(10);
   const dok4GradeLimit = pLimit(5);
 
   // ── Phase 1: Auto-link DOK3 insights to DOK2 summaries ──
@@ -91,12 +91,15 @@ export async function runDOK3DOK4Pipeline(
     });
 
     await Promise.all(linkedInsights.map(insight => dok3GradeLimit(async () => {
+      const start = Date.now();
       try {
         await gradeDOK3Insight(insight.id, brainliftId);
       } catch (err) {
         console.error(`[Pipeline] DOK3 grading failed for insight ${insight.id}:`, err);
       }
       dok3Completed++;
+      const elapsed = ((Date.now() - start) / 1000).toFixed(1);
+      console.log(`[Pipeline] DOK3 graded insight ${insight.id} in ${elapsed}s (${dok3Completed}/${dok3Total})`);
       onProgress?.({
         stage: 'grading_dok3',
         message: STAGE_LABELS.grading_dok3,
@@ -158,12 +161,15 @@ export async function runDOK3DOK4Pipeline(
     });
 
     await Promise.all(linkedSpovs.map(spov => dok4GradeLimit(async () => {
+      const start = Date.now();
       try {
         await gradeDOK4Spov(spov.id, brainliftId);
       } catch (err) {
         console.error(`[Pipeline] DOK4 grading failed for SPOV ${spov.id}:`, err);
       }
       dok4Completed++;
+      const elapsed = ((Date.now() - start) / 1000).toFixed(1);
+      console.log(`[Pipeline] DOK4 graded SPOV ${spov.id} in ${elapsed}s (${dok4Completed}/${dok4Total})`);
       onProgress?.({
         stage: 'grading_dok4',
         message: STAGE_LABELS.grading_dok4,

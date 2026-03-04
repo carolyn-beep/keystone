@@ -132,10 +132,16 @@ async function resolveSemanticLinks(
   try {
     const rankings = await callSemanticModel(spovText, dok3Insights);
 
-    // Sort by score descending
+    // Sort by score descending, deduplicate by dok3Id
+    const seen = new Set<number>();
     const sorted = rankings
       .filter(r => r.score >= SEMANTIC_LINK_THRESHOLD)
-      .sort((a, b) => b.score - a.score);
+      .sort((a, b) => b.score - a.score)
+      .filter(r => {
+        if (seen.has(r.dok3Id)) return false;
+        seen.add(r.dok3Id);
+        return true;
+      });
 
     if (sorted.length === 0) return [];
 
