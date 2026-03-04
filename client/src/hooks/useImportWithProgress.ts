@@ -19,40 +19,42 @@ export interface ImportState {
   progress: number;
   gradingProgress: GradingProgress | null;
   gradingDok2Progress: GradingProgress | null;
+  gradingDok3Progress: GradingProgress | null;
+  gradingDok4Progress: GradingProgress | null;
+  linkingDok3Progress: GradingProgress | null;
+  linkingDok4Progress: GradingProgress | null;
   error: string | null;
   slug: string | null;
   dok3LinkingInfo: { dok3Count: number; slug: string } | null;
+  dok4ExtractionInfo: { dok4Count: number } | null;
 }
 
+const INITIAL_STATE: ImportState = {
+  isImporting: false,
+  currentStage: null,
+  stageLabel: '',
+  progress: 0,
+  gradingProgress: null,
+  gradingDok2Progress: null,
+  gradingDok3Progress: null,
+  gradingDok4Progress: null,
+  linkingDok3Progress: null,
+  linkingDok4Progress: null,
+  error: null,
+  slug: null,
+  dok3LinkingInfo: null,
+  dok4ExtractionInfo: null,
+};
+
 export function useImportWithProgress() {
-  const [state, setState] = useState<ImportState>({
-    isImporting: false,
-    currentStage: null,
-    stageLabel: '',
-    progress: 0,
-    gradingProgress: null,
-    gradingDok2Progress: null,
-    error: null,
-    slug: null,
-    dok3LinkingInfo: null,
-  });
+  const [state, setState] = useState<ImportState>(INITIAL_STATE);
 
   const abortControllerRef = useRef<AbortController | null>(null);
   const dok3LinkingRef = useRef<{ dok3Count: number; slug: string } | null>(null);
 
   const reset = useCallback(() => {
     dok3LinkingRef.current = null;
-    setState({
-      isImporting: false,
-      currentStage: null,
-      stageLabel: '',
-      progress: 0,
-      gradingProgress: null,
-      gradingDok2Progress: null,
-      error: null,
-      slug: null,
-      dok3LinkingInfo: null,
-    });
+    setState(INITIAL_STATE);
   }, []);
 
   const cancel = useCallback(() => {
@@ -63,7 +65,7 @@ export function useImportWithProgress() {
     reset();
   }, [reset]);
 
-  /** Clear linking UI without killing the SSE stream — import continues in background */
+  /** Clear linking UI without killing the SSE stream -- import continues in background */
   const dismissLinking = useCallback(() => {
     dok3LinkingRef.current = null;
     setState((prev) => ({ ...prev, dok3LinkingInfo: null }));
@@ -74,15 +76,9 @@ export function useImportWithProgress() {
     abortControllerRef.current = abortController;
 
     setState({
+      ...INITIAL_STATE,
       isImporting: true,
-      currentStage: null,
       stageLabel: 'Starting import...',
-      progress: 0,
-      gradingProgress: null,
-      gradingDok2Progress: null,
-      error: null,
-      slug: null,
-      dok3LinkingInfo: null,
     });
 
     try {
@@ -146,14 +142,37 @@ export function useImportWithProgress() {
                 currentStage: event.stage,
                 stageLabel: event.message || STAGE_LABELS[event.stage],
                 progress,
+                // DOK1 grading counter
                 gradingProgress:
                   event.stage === 'grading' && 'completed' in event && 'total' in event
                     ? { completed: event.completed, total: event.total }
                     : prev.gradingProgress,
+                // DOK2 grading counter
                 gradingDok2Progress:
                   event.stage === 'grading_dok2' && 'completed' in event && 'total' in event
                     ? { completed: event.completed, total: event.total }
                     : prev.gradingDok2Progress,
+                // DOK3 grading counter
+                gradingDok3Progress:
+                  event.stage === 'grading_dok3' && 'completed' in event && 'total' in event
+                    ? { completed: event.completed, total: event.total }
+                    : prev.gradingDok3Progress,
+                // DOK4 grading counter
+                gradingDok4Progress:
+                  event.stage === 'grading_dok4' && 'completed' in event && 'total' in event
+                    ? { completed: event.completed, total: event.total }
+                    : prev.gradingDok4Progress,
+                // DOK3 linking counter (auto mode: has completed/total)
+                linkingDok3Progress:
+                  event.stage === 'dok3_linking' && 'completed' in event && 'total' in event
+                    ? { completed: (event as any).completed, total: (event as any).total }
+                    : prev.linkingDok3Progress,
+                // DOK4 linking counter (auto mode: has completed/total)
+                linkingDok4Progress:
+                  event.stage === 'dok4_linking' && 'completed' in event && 'total' in event
+                    ? { completed: (event as any).completed, total: (event as any).total }
+                    : prev.linkingDok4Progress,
+                // DOK3 linking info (manual mode: has dok3Count + slug, no completed/total)
                 dok3LinkingInfo:
                   event.stage === 'dok3_linking' && 'dok3Count' in event && 'slug' in event
                     ? (() => {
@@ -162,6 +181,11 @@ export function useImportWithProgress() {
                         return info;
                       })()
                     : prev.dok3LinkingInfo,
+                // DOK4 extraction info (manual mode: track SPOV count for DOK4LinkingUI)
+                dok4ExtractionInfo:
+                  event.stage === 'dok4_extraction' && 'dok4Count' in event
+                    ? { dok4Count: (event as any).dok4Count }
+                    : prev.dok4ExtractionInfo,
                 error: event.stage === 'error' && 'error' in event ? event.error : null,
                 slug: event.stage === 'complete' && 'slug' in event ? event.slug : prev.slug,
               }));
