@@ -42,6 +42,113 @@ import {
 const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY;
 
 
+// ─── JSON Schemas (for structured output enforcement) ────────────────────────
+
+const POV_VALIDATION_JSON_SCHEMA = {
+  name: 'pov_validation',
+  schema: {
+    type: 'object',
+    properties: {
+      accept: { type: 'boolean' },
+      rejection_reason: { type: ['string', 'null'] },
+      rejection_category: { type: ['string', 'null'], enum: ['not_a_claim', 'dok3_misclassification', 'opinion_without_evidence', null] },
+    },
+    required: ['accept', 'rejection_reason', 'rejection_category'],
+    additionalProperties: false,
+  },
+};
+
+const TRACEABILITY_JSON_SCHEMA = {
+  name: 'traceability_check',
+  schema: {
+    type: 'object',
+    properties: {
+      flagged: { type: 'boolean' },
+      reasoning: { type: 'string' },
+      overlap_summary: { type: ['string', 'null'] },
+    },
+    required: ['flagged', 'reasoning', 'overlap_summary'],
+    additionalProperties: false,
+  },
+};
+
+const DIVERGENCE_QUESTION_JSON_SCHEMA = {
+  name: 'divergence_question',
+  schema: {
+    type: 'object',
+    properties: {
+      question: { type: 'string' },
+    },
+    required: ['question'],
+    additionalProperties: false,
+  },
+};
+
+const DIVERGENCE_VANILLA_JSON_SCHEMA = {
+  name: 'divergence_vanilla',
+  schema: {
+    type: 'object',
+    properties: {
+      response: { type: 'string' },
+    },
+    required: ['response'],
+    additionalProperties: false,
+  },
+};
+
+const CRITERION_SCHEMA = {
+  type: 'object',
+  properties: {
+    assessment: { type: 'string', enum: ['strong', 'partial', 'weak'] },
+    evidence: { type: 'string' },
+  },
+  required: ['assessment', 'evidence'],
+  additionalProperties: false,
+};
+
+const QUALITY_EVALUATION_JSON_SCHEMA = {
+  name: 'quality_evaluation',
+  schema: {
+    type: 'object',
+    properties: {
+      position_summary: { type: 'string' },
+      framework_dependency: { type: 'string' },
+      key_evidence: { type: 'array', items: { type: 'string' } },
+      vulnerability_points: { type: 'array', items: { type: 'string' } },
+      criteria: {
+        type: 'object',
+        properties: {
+          S1: CRITERION_SCHEMA, S2: CRITERION_SCHEMA, S3: CRITERION_SCHEMA,
+          S4: CRITERION_SCHEMA, S5: CRITERION_SCHEMA,
+          O1: CRITERION_SCHEMA, O2: CRITERION_SCHEMA,
+        },
+        required: ['S1', 'S2', 'S3', 'S4', 'S5', 'O1', 'O2'],
+        additionalProperties: false,
+      },
+      score: { type: 'number' },
+      rationale: { type: 'string' },
+      feedback: { type: 'string' },
+    },
+    required: ['position_summary', 'framework_dependency', 'key_evidence', 'vulnerability_points', 'criteria', 'score', 'rationale', 'feedback'],
+    additionalProperties: false,
+  },
+};
+
+const ANTIMEMETIC_JSON_SCHEMA = {
+  name: 'antimemetic_assessment',
+  schema: {
+    type: 'object',
+    properties: {
+      barrier_type: { type: 'string', enum: ['immunity', 'low_transmission', 'high_drag'] },
+      barrier_diagnosis: { type: 'string' },
+      strategy: { type: 'string' },
+    },
+    required: ['barrier_type', 'barrier_diagnosis', 'strategy'],
+    additionalProperties: false,
+  },
+};
+
+
 // ─── Zod Schemas ─────────────────────────────────────────────────────────────
 
 const criterionSchema = z.object({
@@ -116,39 +223,68 @@ export function extractJSON(raw: string): unknown {
 }
 
 /**
- * Call OpenRouter API with configurable temperature.
- * Same pattern as DOK3's callOpenRouterModel but with temperature parameter.
+ * Call OpenRouter API with configurable temperature and optional JSON schema enforcement.
+ *
+ * When a jsonSchema is provided, the API uses structured output (`json_schema` response format)
+ * which guarantees valid JSON conforming to the schema — no truncation or malformed responses.
+ * Without a schema, falls back to `json_object` mode.
+ *
+ * Retries on API errors (429, 5xx) and on JSON parse failures.
  */
 export async function callDOK4Model(
   model: DOK4Model | string,
   systemPrompt: string,
   userPrompt: string,
-  maxTokens: number,
   temperature: number,
+  jsonSchema?: { name: string; schema: Record<string, unknown> },
 ): Promise<string> {
   if (!OPENROUTER_API_KEY) {
     throw new Error('OpenRouter API key not configured');
   }
 
+  const responseFormat = jsonSchema
+    ? {
+        type: 'json_schema' as const,
+        json_schema: {
+          name: jsonSchema.name,
+          strict: true,
+          schema: jsonSchema.schema,
+        },
+      }
+    : { type: 'json_object' as const };
+
   const run = async () => {
-    const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${OPENROUTER_API_KEY}`,
-        'Content-Type': 'application/json',
-        'HTTP-Referer': 'https://replit.com',
-      },
-      body: JSON.stringify({
-        model,
-        messages: [
-          { role: 'system', content: systemPrompt },
-          { role: 'user', content: userPrompt },
-        ],
-        temperature,
-        max_tokens: maxTokens,
-        response_format: { type: 'json_object' },
-      }),
-    });
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 60_000);
+
+    let response: Response;
+    try {
+      response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${OPENROUTER_API_KEY}`,
+          'Content-Type': 'application/json',
+          'HTTP-Referer': 'https://replit.com',
+        },
+        body: JSON.stringify({
+          model,
+          messages: [
+            { role: 'system', content: systemPrompt },
+            { role: 'user', content: userPrompt },
+          ],
+          temperature,
+          response_format: responseFormat,
+        }),
+        signal: controller.signal,
+      });
+    } catch (err: any) {
+      clearTimeout(timeout);
+      if (err.name === 'AbortError') {
+        throw new Error(`Timeout: ${model} took >60s`);
+      }
+      throw err;
+    }
+    clearTimeout(timeout);
 
     if (!response.ok) {
       if (response.status === 429) {
@@ -165,11 +301,15 @@ export async function callDOK4Model(
       throw new Error('No response content');
     }
 
+    // Validate that the response is parseable JSON (catches truncation)
+    extractJSON(content);
+
     return content as string;
   };
 
   return pRetry(run, {
     retries: 2,
+    minTimeout: 500,
     onFailedAttempt: error => {
       console.log(`[DOK4-Grade] Model ${model} attempt ${error.attemptNumber} failed. ${error.retriesLeft} retries left.`);
     },
@@ -213,20 +353,20 @@ export async function validatePOV(
   let raw: string;
   try {
     raw = await callDOK4Model(
-      DOK4_MODELS.GEMINI_FLASH,
+      DOK4_MODELS.HAIKU,
       DOK4_POV_VALIDATION_SYSTEM_PROMPT,
       userPrompt,
-      500,
       0.0,
+      POV_VALIDATION_JSON_SCHEMA,
     );
   } catch (primaryErr: any) {
-    console.log(`[DOK4-Grade] POV Validation Gemini failed: ${primaryErr.message}, trying Sonnet fallback`);
+    console.log(`[DOK4-Grade] POV Validation Haiku failed: ${primaryErr.message}, trying Gemini fallback`);
     raw = await callDOK4Model(
-      DOK4_MODELS.SONNET_FALLBACK,
+      DOK4_MODELS.GEMINI_FLASH_FALLBACK,
       DOK4_POV_VALIDATION_SYSTEM_PROMPT,
       userPrompt,
-      500,
       0.0,
+      POV_VALIDATION_JSON_SCHEMA,
     );
   }
 
@@ -271,20 +411,20 @@ export async function checkDOK4SourceTraceability(
         let raw: string;
         try {
           raw = await callDOK4Model(
-            DOK4_MODELS.GEMINI_FLASH,
+            DOK4_MODELS.HAIKU,
             DOK4_TRACEABILITY_SYSTEM_PROMPT,
             userPrompt,
-            500,
             0.1,
+            TRACEABILITY_JSON_SCHEMA,
           );
         } catch (primaryErr: any) {
-          console.log(`[DOK4-Grade] Traceability Gemini failed for ${source.sourceName}: ${primaryErr.message}, trying Sonnet fallback`);
+          console.log(`[DOK4-Grade] Traceability Haiku failed for ${source.sourceName}: ${primaryErr.message}, trying Sonnet fallback`);
           raw = await callDOK4Model(
             DOK4_MODELS.SONNET_TRACEABILITY_FALLBACK,
             DOK4_TRACEABILITY_SYSTEM_PROMPT,
             userPrompt,
-            500,
             0.1,
+            TRACEABILITY_JSON_SCHEMA,
           );
         }
 
@@ -324,20 +464,20 @@ export async function checkLLMDivergence(
   let questionRaw: string;
   try {
     questionRaw = await callDOK4Model(
-      DOK4_MODELS.GEMINI_FLASH,
+      DOK4_MODELS.HAIKU,
       DOK4_DIVERGENCE_QUESTION_SYSTEM_PROMPT,
       questionPrompt,
-      300,
       0.1,
+      DIVERGENCE_QUESTION_JSON_SCHEMA,
     );
   } catch (primaryErr: any) {
-    console.log(`[DOK4-Grade] Divergence question Gemini failed: ${primaryErr.message}, trying Sonnet fallback`);
+    console.log(`[DOK4-Grade] Divergence question Haiku failed: ${primaryErr.message}, trying Gemini fallback`);
     questionRaw = await callDOK4Model(
-      DOK4_MODELS.SONNET_FALLBACK,
+      DOK4_MODELS.GEMINI_FLASH_FALLBACK,
       DOK4_DIVERGENCE_QUESTION_SYSTEM_PROMPT,
       questionPrompt,
-      300,
       0.1,
+      DIVERGENCE_QUESTION_JSON_SCHEMA,
     );
   }
 
@@ -349,20 +489,20 @@ export async function checkLLMDivergence(
   let vanillaRaw: string;
   try {
     vanillaRaw = await callDOK4Model(
-      DOK4_MODELS.GEMINI_FLASH,
+      DOK4_MODELS.HAIKU,
       DOK4_DIVERGENCE_VANILLA_SYSTEM_PROMPT,
       vanillaPrompt,
-      2000,
       0.3,
+      DIVERGENCE_VANILLA_JSON_SCHEMA,
     );
   } catch (primaryErr: any) {
-    console.log(`[DOK4-Grade] Divergence vanilla Gemini failed: ${primaryErr.message}, trying Sonnet fallback`);
+    console.log(`[DOK4-Grade] Divergence vanilla Haiku failed: ${primaryErr.message}, trying Gemini fallback`);
     vanillaRaw = await callDOK4Model(
-      DOK4_MODELS.SONNET_FALLBACK,
+      DOK4_MODELS.GEMINI_FLASH_FALLBACK,
       DOK4_DIVERGENCE_VANILLA_SYSTEM_PROMPT,
       vanillaPrompt,
-      2000,
       0.3,
+      DIVERGENCE_VANILLA_JSON_SCHEMA,
     );
   }
 
@@ -393,8 +533,8 @@ export async function evaluateDOK4Quality(
       DOK4_MODELS.OPUS,
       DOK4_QUALITY_EVALUATION_SYSTEM_PROMPT,
       userPrompt,
-      4000,
       0.1,
+      QUALITY_EVALUATION_JSON_SCHEMA,
     );
     usedModel = DOK4_MODELS.OPUS;
   } catch (opusErr: any) {
@@ -404,8 +544,8 @@ export async function evaluateDOK4Quality(
         DOK4_MODELS.SONNET_FALLBACK,
         DOK4_QUALITY_EVALUATION_SYSTEM_PROMPT,
         userPrompt,
-        4000,
         0.1,
+        QUALITY_EVALUATION_JSON_SCHEMA,
       );
       usedModel = DOK4_MODELS.SONNET_FALLBACK;
     } catch (sonnetErr: any) {
@@ -453,8 +593,8 @@ export async function assessAntimemetic(
       DOK4_MODELS.OPUS,
       DOK4_ANTIMEMETIC_SYSTEM_PROMPT,
       userPrompt,
-      2000,
       0.3,
+      ANTIMEMETIC_JSON_SCHEMA,
     );
   } catch (opusErr: any) {
     console.log(`[DOK4-Grade] Opus failed (${opusErr.message}), trying Sonnet fallback...`);
@@ -463,8 +603,8 @@ export async function assessAntimemetic(
         DOK4_MODELS.SONNET_FALLBACK,
         DOK4_ANTIMEMETIC_SYSTEM_PROMPT,
         userPrompt,
-        2000,
         0.3,
+        ANTIMEMETIC_JSON_SCHEMA,
       );
     } catch (sonnetErr: any) {
       console.error(`[DOK4-Grade] Both models failed. Opus: ${opusErr.message}, Sonnet: ${sonnetErr.message}`);

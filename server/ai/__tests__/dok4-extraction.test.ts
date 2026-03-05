@@ -251,7 +251,7 @@ describe('extractDOK4Spovs', () => {
       expect(result[0].text).toBe('Knowledge-first approaches that delay complex thinking are counterproductive');
     });
 
-    it('does NOT include sub-points in SPOV text', () => {
+    it('includes direct child text as supporting detail', () => {
       const dok4Nodes = [
         makeNode({
           name: 'DOK4 - SPOVs',
@@ -260,8 +260,8 @@ describe('extractDOK4Spovs', () => {
             makeNode({
               name: 'Main SPOV claim text',
               children: [
-                makeNode({ name: 'Sub-point elaboration 1' }),
-                makeNode({ name: 'Sub-point elaboration 2' }),
+                makeNode({ name: 'Supporting detail that elaborates on the claim' }),
+                makeNode({ name: 'Another supporting detail for context' }),
               ],
             }),
           ],
@@ -270,9 +270,9 @@ describe('extractDOK4Spovs', () => {
 
       const result = extractDOK4Spovs(dok4Nodes);
       expect(result).toHaveLength(1);
-      expect(result[0].text).toBe('Main SPOV claim text');
-      // Sub-points should NOT appear in the text
-      expect(result[0].text).not.toContain('Sub-point');
+      expect(result[0].text).toContain('Main SPOV claim text');
+      expect(result[0].text).toContain('Supporting detail that elaborates on the claim');
+      expect(result[0].text).toContain('Another supporting detail for context');
     });
 
     it('skips very short entries (less than 10 chars)', () => {

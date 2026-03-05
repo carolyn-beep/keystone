@@ -100,6 +100,8 @@ async function linkSingleSpov(
   if (links.length > 0) {
     await storage.linkDOK4Spov(spovId, brainliftId, links);
     console.log(`[DOK4 AutoLinker] SPOV ${spovId}: linked to ${links.length} DOK3s, primary=${links.find(l => l.isPrimary)?.dok3InsightId}`);
+  } else {
+    console.warn(`[DOK4 AutoLinker] SPOV ${spovId}: no links produced (semantic matching returned empty)`);
   }
 }
 
@@ -142,7 +144,6 @@ async function resolveSemanticLinks(
     // Sort by score descending, deduplicate by dok3Id
     const seen = new Set<number>();
     const sorted = rankings
-      .filter(r => r.score >= SEMANTIC_LINK_THRESHOLD)
       .sort((a, b) => b.score - a.score)
       .filter(r => {
         if (seen.has(r.dok3Id)) return false;
@@ -152,7 +153,15 @@ async function resolveSemanticLinks(
 
     if (sorted.length === 0) return [];
 
-    return sorted.map((r, idx) => ({
+    // Filter by threshold, but always keep at least the top-scoring DOK3
+    const aboveThreshold = sorted.filter(r => r.score >= SEMANTIC_LINK_THRESHOLD);
+    const finalRankings = aboveThreshold.length > 0 ? aboveThreshold : [sorted[0]];
+
+    if (aboveThreshold.length === 0) {
+      console.log(`[DOK4 AutoLinker] All scores below threshold, force-linking to top DOK3 (id=${sorted[0].dok3Id}, score=${sorted[0].score.toFixed(2)})`);
+    }
+
+    return finalRankings.map((r, idx) => ({
       dok3InsightId: r.dok3Id,
       isPrimary: idx === 0, // Highest score = primary
     }));
