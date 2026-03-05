@@ -587,7 +587,10 @@ export async function saveBrainliftFromAI(
     }
   } catch (err: any) {
     // Handle duplicate slug error with retry
-    if (err.code === '23505' && err.constraint === 'brainlifts_slug_unique' && retryCount < MAX_RETRIES) {
+    // Drizzle wraps pg errors in DrizzleQueryError — actual pg error is on err.cause
+    const pgCode = err.code || err.cause?.code;
+    const pgConstraint = err.constraint || err.cause?.constraint;
+    if (pgCode === '23505' && pgConstraint === 'brainlifts_slug_unique' && retryCount < MAX_RETRIES) {
       console.log(`[Auto-Grade] Duplicate slug detected, retrying with retry count: ${retryCount + 1}`);
       return saveBrainliftFromAI(data, originalContent, sourceType, userId, retryCount + 1, onProgress, autoLink);
     }
