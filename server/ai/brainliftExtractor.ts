@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import pLimit from 'p-limit';
 import { CLASSIFICATION } from '@shared/schema';
 import OpenAI from 'openai';
 import type { HierarchyNode, DOK2SummaryGroup, DOK3ExtractedInsight, DOK4ExtractedSpov } from '@shared/hierarchy-types';
@@ -57,16 +58,10 @@ export type BrainliftOutput = z.infer<typeof brainliftOutputSchema> & {
 };
 
 // LLM fallback for extracting facts when rule-based parser fails
-async function extractFactsWithLLM(content: string, title: string): Promise<any[]> {
-  console.log('[DOK1 Extractor] FALLBACK: Using LLM to extract facts...');
+const CHUNK_MAX_CHARS = 12000;
+const CHUNK_CONCURRENCY = 30;
 
-  try {
-    const response = await openai.chat.completions.create({
-      model: "qwen/qwen3-32b",
-      messages: [
-        {
-          role: "system",
-          content: `You extract DOK1 (Depth of Knowledge Level 1) facts from educational documents.
+const LLM_EXTRACT_SYSTEM = `You extract DOK1 (Depth of Knowledge Level 1) facts from educational documents.
 
 DOK1 facts are atomic, verifiable claims - typically:
 - Research findings with citations (Author, Year)
@@ -75,47 +70,183 @@ DOK1 facts are atomic, verifiable claims - typically:
 
 Look for sections labeled "DOK 1", "DOK1", "Atomic Evidence", "Facts", or similar.
 Extract ONLY factual claims, not summaries, insights, or recommendations.
+If no DOK1 facts found, return an empty facts array.`;
 
-Output ONLY valid JSON array:
-[
-  {"fact": "The full fact text including any citation", "source": "Author (Year) if present, else null"},
-  ...
-]
+/**
+ * Collect all leaf-ish nodes from the hierarchy tree, flattened.
+ * Walks depth-first, collecting nodes that are small enough to be chunks,
+ * or splitting large nodes into their children.
+ */
+function collectChunkableNodes(nodes: HierarchyNode[]): HierarchyNode[] {
+  const result: HierarchyNode[] = [];
+  for (const node of nodes) {
+    const text = serializeNode(node);
+    if (text.length <= CHUNK_MAX_CHARS || !node.children?.length) {
+      result.push(node);
+    } else {
+      // Node is too big — recurse into children
+      result.push(...collectChunkableNodes(node.children));
+    }
+  }
+  return result;
+}
 
-If no DOK1 facts found, return empty array: []`
-        },
-        {
-          role: "user",
-          content: `Extract DOK1 facts from this document titled "${title}":\n\n${content.substring(0, 15000)}`
-        }
+/**
+ * Split content into chunks at node/paragraph boundaries.
+ * If hierarchy is available, flattens nodes to fit within CHUNK_MAX_CHARS.
+ * Otherwise, splits on blank lines.
+ */
+function chunkContent(content: string, hierarchy?: HierarchyNode[]): string[] {
+  if (hierarchy && hierarchy.length > 0) {
+    // Flatten hierarchy into chunkable nodes
+    const nodes = collectChunkableNodes(hierarchy);
+    const chunks: string[] = [];
+    let currentChunk = '';
+
+    for (const node of nodes) {
+      const nodeText = serializeNode(node);
+      if (currentChunk.length + nodeText.length > CHUNK_MAX_CHARS && currentChunk.length > 0) {
+        chunks.push(currentChunk);
+        currentChunk = nodeText;
+      } else {
+        currentChunk += (currentChunk ? '\n\n' : '') + nodeText;
+      }
+    }
+    if (currentChunk) chunks.push(currentChunk);
+
+    if (chunks.length > 0) return chunks;
+  }
+
+  // No hierarchy or hierarchy produced no chunks — split on blank lines
+  const paragraphs = content.split(/\n\s*\n/);
+  const chunks: string[] = [];
+  let current = '';
+  for (const para of paragraphs) {
+    if (current.length + para.length > CHUNK_MAX_CHARS && current.length > 0) {
+      chunks.push(current);
+      current = para;
+    } else {
+      current += (current ? '\n\n' : '') + para;
+    }
+  }
+  if (current) chunks.push(current);
+  return chunks.length > 0 ? chunks : [content.substring(0, CHUNK_MAX_CHARS)];
+}
+
+/** Serialize a hierarchy node and its children to readable text */
+function serializeNode(node: HierarchyNode, depth = 0): string {
+  const indent = '  '.repeat(depth);
+  let text = `${indent}- ${node.name}`;
+  if (node.note) text += `\n${indent}  ${node.note}`;
+  if (node.children) {
+    for (const child of node.children) {
+      text += '\n' + serializeNode(child, depth + 1);
+    }
+  }
+  return text;
+}
+
+/** Extract a single chunk via LLM with enforced JSON schema */
+async function extractChunk(chunk: string, title: string, chunkIdx: number): Promise<any[]> {
+  const start = Date.now();
+  console.log(`[DOK1 Extractor] FALLBACK: Chunk ${chunkIdx + 1} started (${chunk.length} chars)`);
+  try {
+    const response = await openai.chat.completions.create({
+      model: "google/gemini-2.0-flash-001",
+      messages: [
+        { role: "system", content: LLM_EXTRACT_SYSTEM },
+        { role: "user", content: `Extract DOK1 facts from chunk ${chunkIdx + 1} of "${title}":\n\n${chunk}` }
       ],
       temperature: 0.1,
+      response_format: {
+        type: 'json_schema' as any,
+        json_schema: {
+          name: 'dok1_facts',
+          strict: true,
+          schema: {
+            type: 'object',
+            properties: {
+              facts: {
+                type: 'array',
+                items: {
+                  type: 'object',
+                  properties: {
+                    fact: { type: 'string' },
+                    source: { type: ['string', 'null'] },
+                  },
+                  required: ['fact', 'source'],
+                  additionalProperties: false,
+                },
+              },
+            },
+            required: ['facts'],
+            additionalProperties: false,
+          },
+        },
+      },
     });
 
-    const responseContent = response.choices[0].message.content?.trim() || "[]";
-    const jsonMatch = responseContent.match(/\[[\s\S]*\]/);
-    if (!jsonMatch) {
-      console.log('[DOK1 Extractor] FALLBACK: No JSON array found in LLM response');
-      return [];
+    const responseContent = response.choices[0].message.content?.trim() || '{"facts":[]}';
+
+    // Try direct parse first, then extract JSON from markdown/wrapper
+    let parsed: any;
+    try {
+      parsed = JSON.parse(responseContent);
+    } catch {
+      const jsonMatch = responseContent.match(/\{[\s\S]*\}/);
+      if (!jsonMatch) {
+        const elapsed = ((Date.now() - start) / 1000).toFixed(1);
+        console.error(`[DOK1 Extractor] FALLBACK: Chunk ${chunkIdx + 1} no JSON in ${elapsed}s, raw: ${responseContent.substring(0, 200)}`);
+        return [];
+      }
+      parsed = JSON.parse(jsonMatch[0]);
     }
 
-    const parsed = JSON.parse(jsonMatch[0]);
-    console.log(`[DOK1 Extractor] FALLBACK: LLM extracted ${parsed.length} facts`);
-
-    return parsed.map((item: any, idx: number) => ({
-      id: `${idx + 1}`,
-      category: 'General',
-      source: item.source || 'Unknown',
-      fact: item.fact,
-      score: 0,
-      aiNotes: item.source ? `Source: ${item.source}` : "No sources have been linked to this fact",
-      contradicts: null,
-      flags: []
-    }));
+    const facts = Array.isArray(parsed.facts) ? parsed.facts : [];
+    const elapsed = ((Date.now() - start) / 1000).toFixed(1);
+    console.log(`[DOK1 Extractor] FALLBACK: Chunk ${chunkIdx + 1} done in ${elapsed}s → ${facts.length} facts`);
+    return facts;
   } catch (err) {
-    console.error('[DOK1 Extractor] FALLBACK: LLM extraction failed:', err);
+    const elapsed = ((Date.now() - start) / 1000).toFixed(1);
+    console.error(`[DOK1 Extractor] FALLBACK: Chunk ${chunkIdx + 1} failed in ${elapsed}s:`, err);
     return [];
   }
+}
+
+async function extractFactsWithLLM(content: string, title: string, hierarchy?: HierarchyNode[]): Promise<any[]> {
+  const chunks = chunkContent(content, hierarchy);
+  console.log(`[DOK1 Extractor] FALLBACK: Using LLM to extract facts from ${chunks.length} chunks (${content.length} chars total)`);
+
+  const limit = pLimit(CHUNK_CONCURRENCY);
+  const chunkResults = await Promise.all(
+    chunks.map((chunk, idx) => limit(() => extractChunk(chunk, title, idx)))
+  );
+
+  // Flatten and deduplicate by fact text
+  const seen = new Set<string>();
+  const allFacts: any[] = [];
+  for (const results of chunkResults) {
+    for (const item of results) {
+      const key = item.fact?.toLowerCase().trim();
+      if (key && !seen.has(key)) {
+        seen.add(key);
+        allFacts.push(item);
+      }
+    }
+  }
+
+  console.log(`[DOK1 Extractor] FALLBACK: LLM extracted ${allFacts.length} facts from ${chunks.length} chunks`);
+
+  return allFacts.map((item: any, idx: number) => ({
+    id: `${idx + 1}`,
+    category: 'General',
+    source: item.source || 'Unknown',
+    fact: item.fact,
+    score: 0,
+    aiNotes: item.source ? `Source: ${item.source}` : "No sources have been linked to this fact",
+    contradicts: null,
+    flags: []
+  }));
 }
 
 // Threshold: only summarize purposes longer than this
@@ -248,13 +379,15 @@ export async function extractBrainlift(
     dok3Insights = fullResult.dok3Insights;
     dok4Spovs = fullResult.dok4Spovs;
 
+    console.log(`[DOK1 Extractor] Hierarchy raw counts: facts=${fullResult.facts.length}, DOK2=${dok2Summaries.length}, DOK3=${dok3Insights.length}, DOK4=${dok4Spovs.length}`);
+    console.log(`[DOK1 Extractor] Hierarchy metadata: DOK1 nodes=${fullResult.metadata.dok1NodesFound}, DOK2 nodes=${fullResult.metadata.dok2NodesFound}, DOK3 nodes=${fullResult.metadata.dok3NodesFound}, DOK4 nodes=${fullResult.metadata.dok4NodesFound}, sources=${fullResult.metadata.sourcesAttributed}`);
+
     if (fullResult.facts.length > 0) {
       hierarchyFacts = convertToExtractorFormat(fullResult.facts);
-      console.log(`[DOK1 Extractor] Hierarchy extraction succeeded: ${hierarchyFacts.length} facts, ${dok2Summaries.length} DOK2 summaries, ${dok3Insights.length} DOK3 insights, ${dok4Spovs.length} DOK4 SPOVs`);
+      console.log(`[DOK1 Extractor] Hierarchy extraction succeeded with ${hierarchyFacts.length} facts`);
     } else {
-      console.log(`[DOK1 Extractor] Hierarchy extraction found 0 facts (falling back to regex/LLM), but kept ${dok2Summaries.length} DOK2 summaries, ${dok3Insights.length} DOK3 insights, ${dok4Spovs.length} DOK4 SPOVs`);
+      console.log(`[DOK1 Extractor] Hierarchy found 0 facts, falling back to regex/LLM for DOK1 only`);
     }
-    console.log(`[DOK1 Extractor] Hierarchy metadata: DOK1 nodes=${fullResult.metadata.dok1NodesFound}, DOK2 nodes=${fullResult.metadata.dok2NodesFound}, DOK3 nodes=${fullResult.metadata.dok3NodesFound}, DOK4 nodes=${fullResult.metadata.dok4NodesFound}, sources=${fullResult.metadata.sourcesAttributed}`);
 
     // Extract purpose from hierarchy (independent of fact extraction success)
     const purposeResult = extractPurposeFromHierarchy(hierarchy);
@@ -586,7 +719,7 @@ export async function extractBrainlift(
   // FALLBACK: If both hierarchy and rule-based parser found 0 facts, use LLM
   if (finalFacts.length === 0) {
     console.log('[DOK1 Extractor] Both hierarchy and regex extraction failed, trying LLM fallback...');
-    const llmFacts = await extractFactsWithLLM(markdownContent, title);
+    const llmFacts = await extractFactsWithLLM(markdownContent, title, hierarchy);
     if (llmFacts.length > 0) {
       finalFacts = llmFacts;
       console.log(`[DOK1 Extractor] LLM fallback succeeded: ${llmFacts.length} facts`);

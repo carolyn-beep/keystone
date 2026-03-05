@@ -145,6 +145,15 @@ Deploying code that expects schema changes before the DB has them = broken prod.
 - Database: `neondb`
 - Migrations dir: `migrations/`
 
+**Neon staging config:**
+- Branch: `staging` (ID: `br-misty-tooth-af0usm43`)
+- Database: `neondb`
+- Apply migrations to staging with:
+  ```
+  mcp__Neon__run_sql(projectId: "restless-pine-13558418", branchId: "br-misty-tooth-af0usm43", databaseName: "neondb", sql: "<migration SQL>")
+  ```
+- **Apply to staging before merging to staging branch.** Apply to prod (main branch) before merging to main.
+
 ### Authentication & Authorization
 
 All routes require `requireAuth` middleware (except dev routes). Use brainlift middleware for resource authorization.
