@@ -9,7 +9,7 @@
  */
 
 import { z } from 'zod';
-import pRetry from 'p-retry';
+import pRetry, { AbortError } from 'p-retry';
 import pLimit from 'p-limit';
 import { DOK3_MODELS, type DOK3Model } from '@shared/schema';
 import type { DOK3GradingProgress } from '@shared/import-progress';
@@ -57,6 +57,57 @@ const traceabilitySchema = z.object({
 
 type DOK3EvaluationResult = z.infer<typeof dok3EvaluationSchema>;
 
+// ─── JSON Schemas (for structured output enforcement) ────────────────────────
+
+const TRACEABILITY_JSON_SCHEMA = {
+  name: 'dok3_traceability',
+  schema: {
+    type: 'object',
+    properties: {
+      flagged: { type: 'boolean' },
+      reasoning: { type: 'string' },
+    },
+    required: ['flagged', 'reasoning'],
+    additionalProperties: false,
+  },
+};
+
+const DOK3_CRITERION_SCHEMA = {
+  type: 'object',
+  properties: {
+    assessment: { type: 'string', enum: ['strong', 'partial', 'weak'] },
+    evidence: { type: 'string' },
+  },
+  required: ['assessment', 'evidence'],
+  additionalProperties: false,
+};
+
+const EVALUATION_JSON_SCHEMA = {
+  name: 'dok3_evaluation',
+  schema: {
+    type: 'object',
+    properties: {
+      framework_name: { type: 'string' },
+      framework_description: { type: 'string' },
+      criteria: {
+        type: 'object',
+        properties: {
+          V1: DOK3_CRITERION_SCHEMA, V2: DOK3_CRITERION_SCHEMA, V3: DOK3_CRITERION_SCHEMA,
+          C1: DOK3_CRITERION_SCHEMA, C2: DOK3_CRITERION_SCHEMA,
+          P1: DOK3_CRITERION_SCHEMA, P2: DOK3_CRITERION_SCHEMA,
+        },
+        required: ['V1', 'V2', 'V3', 'C1', 'C2', 'P1', 'P2'],
+        additionalProperties: false,
+      },
+      score: { type: 'number' },
+      rationale: { type: 'string' },
+      feedback: { type: 'string' },
+    },
+    required: ['framework_name', 'framework_description', 'criteria', 'score', 'rationale', 'feedback'],
+    additionalProperties: false,
+  },
+};
+
 export interface DOK3GradeResult {
   insightId: number;
   score: number;
@@ -80,36 +131,61 @@ async function callOpenRouterModel(
   model: DOK3Model | string,
   systemPrompt: string,
   userPrompt: string,
-  maxTokens: number
+  temperature: number = 0.1,
+  jsonSchema?: { name: string; schema: Record<string, unknown> },
 ): Promise<string> {
   if (!OPENROUTER_API_KEY) {
     throw new Error('OpenRouter API key not configured');
   }
 
+  const responseFormat = jsonSchema
+    ? {
+        type: 'json_schema' as const,
+        json_schema: {
+          name: jsonSchema.name,
+          strict: true,
+          schema: jsonSchema.schema,
+        },
+      }
+    : { type: 'json_object' as const };
+
   const run = async () => {
-    const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${OPENROUTER_API_KEY}`,
-        'Content-Type': 'application/json',
-        'HTTP-Referer': 'https://replit.com',
-      },
-      body: JSON.stringify({
-        model,
-        messages: [
-          { role: 'system', content: systemPrompt },
-          { role: 'user', content: userPrompt },
-        ],
-        temperature: 0.1,
-        max_tokens: maxTokens,
-        response_format: { type: 'json_object' },
-      }),
-    });
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 60_000);
+
+    let response: Response;
+    try {
+      response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${OPENROUTER_API_KEY}`,
+          'Content-Type': 'application/json',
+          'HTTP-Referer': 'https://replit.com',
+        },
+        body: JSON.stringify({
+          model,
+          messages: [
+            { role: 'system', content: systemPrompt },
+            { role: 'user', content: userPrompt },
+          ],
+          temperature,
+          response_format: responseFormat,
+        }),
+        signal: controller.signal,
+      });
+    } catch (err: any) {
+      clearTimeout(timeout);
+      if (err.name === 'AbortError') {
+        throw new Error(`Timeout: ${model} took >60s`);
+      }
+      throw err;
+    }
+    clearTimeout(timeout);
 
     if (!response.ok) {
       if (response.status === 429) {
         console.error(`[DOK3-Grade] 429 rate limit from ${model}`);
-        throw new Error(`RATE_LIMIT: ${model}`);
+        throw new AbortError(`RATE_LIMIT: ${model}`);
       }
       throw new Error(`API error: ${response.status}`);
     }
@@ -121,11 +197,15 @@ async function callOpenRouterModel(
       throw new Error('No response content');
     }
 
+    // Validate JSON is parseable (catches truncation)
+    extractJSON(content);
+
     return content as string;
   };
 
   return pRetry(run, {
     retries: 2,
+    minTimeout: 500,
     onFailedAttempt: error => {
       console.log(`[DOK3-Grade] Model ${model} attempt ${error.attemptNumber} failed. ${error.retriesLeft} retries left.`);
     },
@@ -297,15 +377,17 @@ export async function checkSourceTraceability(
             DOK3_MODELS.GEMINI_FLASH,
             DOK3_TRACEABILITY_SYSTEM_PROMPT,
             userPrompt,
-            500
+            0.1,
+            TRACEABILITY_JSON_SCHEMA,
           );
         } catch (primaryErr: any) {
           console.log(`[DOK3-Grade] Traceability Gemini failed for ${source.sourceName}: ${primaryErr.message}, trying Sonnet fallback`);
           raw = await callOpenRouterModel(
-            DOK3_MODELS.SONNET_TRACEABILITY_FALLBACK,
+            DOK3_MODELS.SONNET_MID_FALLBACK,
             DOK3_TRACEABILITY_SYSTEM_PROMPT,
             userPrompt,
-            500
+            0.1,
+            TRACEABILITY_JSON_SCHEMA,
           );
         }
 
@@ -383,7 +465,8 @@ async function evaluateConceptualCoherence(
       DOK3_MODELS.OPUS,
       DOK3_GRADING_SYSTEM_PROMPT,
       userPrompt,
-      3000
+      0.1,
+      EVALUATION_JSON_SCHEMA,
     );
     usedModel = DOK3_MODELS.OPUS;
   } catch (opusErr: any) {
@@ -393,7 +476,8 @@ async function evaluateConceptualCoherence(
         DOK3_MODELS.SONNET_FALLBACK,
         DOK3_GRADING_SYSTEM_PROMPT,
         userPrompt,
-        3000
+        0.1,
+        EVALUATION_JSON_SCHEMA,
       );
       usedModel = DOK3_MODELS.SONNET_FALLBACK;
     } catch (sonnetErr: any) {

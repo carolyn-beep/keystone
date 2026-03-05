@@ -121,13 +121,12 @@ const FIXTURE_EVALUATION_CONTEXT: DOK4EvaluationContext = {
 describe('FR1: DOK4 Model Constants and Shared Utilities', () => {
 
   describe('DOK4_MODELS', () => {
-    it('has all 5 model identifiers', async () => {
+    it('has all 4 model identifiers', async () => {
       const { DOK4_MODELS } = await import('@shared/schema');
       expect(DOK4_MODELS.OPUS).toBe('anthropic/claude-opus-4.6');
       expect(DOK4_MODELS.SONNET_FALLBACK).toBe('anthropic/claude-sonnet-4.5');
-      expect(DOK4_MODELS.HAIKU).toBe('anthropic/claude-haiku-4.5');
-      expect(DOK4_MODELS.GEMINI_FLASH_FALLBACK).toBe('google/gemini-2.0-flash-001');
-      expect(DOK4_MODELS.SONNET_TRACEABILITY_FALLBACK).toBe('anthropic/claude-sonnet-4.5');
+      expect(DOK4_MODELS.GEMINI_FLASH).toBe('google/gemini-2.0-flash-001');
+      expect(DOK4_MODELS.SONNET_MID_FALLBACK).toBe('anthropic/claude-sonnet-4.5');
     });
   });
 

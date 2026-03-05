@@ -13,6 +13,7 @@ vi.mock('../../storage', () => ({
     getDOK3Insights: vi.fn(),
     getDOK2Summaries: vi.fn(),
     getDOK4Spovs: vi.fn(),
+    updateDOK3InsightStatus: vi.fn().mockResolvedValue(undefined),
     updateDOK4SpovStatus: vi.fn().mockResolvedValue(undefined),
   },
 }));
@@ -220,16 +221,18 @@ describe('FR3: Shared Pipeline Function - runDOK3DOK4Pipeline()', () => {
     expect(recomputeBrainliftScore).toHaveBeenCalled();
   });
 
-  it('individual DOK3 grading errors do not block remaining items', async () => {
+  it('individual DOK3 grading errors do not block remaining items and retries failed ones', async () => {
     setupHappyPathMocks();
     vi.mocked(gradeDOK3Insight)
-      .mockRejectedValueOnce(new Error('LLM timeout'))
-      .mockResolvedValueOnce({ score: 4 } as any);
+      .mockRejectedValueOnce(new Error('LLM timeout'))  // Insight 1 fails
+      .mockResolvedValueOnce({ score: 4 } as any)        // Insight 2 succeeds
+      .mockResolvedValueOnce({ score: 3 } as any);       // Insight 1 retry succeeds
 
     await runDOK3DOK4Pipeline(100, 'test-slug');
 
-    // Both insights were attempted
-    expect(gradeDOK3Insight).toHaveBeenCalledTimes(2);
+    // 2 initial + 1 retry = 3 calls
+    expect(gradeDOK3Insight).toHaveBeenCalledTimes(3);
+    expect(storage.updateDOK3InsightStatus).toHaveBeenCalledWith(1, 100, 'linked');
     // DOK4 phases still ran
     expect(gradeDOK4Spov).toHaveBeenCalled();
   });
@@ -240,6 +243,8 @@ describe('FR3: Shared Pipeline Function - runDOK3DOK4Pipeline()', () => {
 
     await runDOK3DOK4Pipeline(100, 'test-slug');
 
+    // 2 initial + 2 retries = 4 calls
+    expect(gradeDOK3Insight).toHaveBeenCalledTimes(4);
     // DOK4 should still run
     expect(gradeDOK4Spov).toHaveBeenCalled();
     expect(recomputeBrainliftScore).toHaveBeenCalled();

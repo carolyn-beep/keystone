@@ -13,7 +13,7 @@
  */
 
 import { z } from 'zod';
-import pRetry from 'p-retry';
+import pRetry, { AbortError } from 'p-retry';
 import pLimit from 'p-limit';
 import { DOK4_MODELS, type DOK4Model } from '@shared/schema';
 import type {
@@ -289,7 +289,7 @@ export async function callDOK4Model(
     if (!response.ok) {
       if (response.status === 429) {
         console.error(`[DOK4-Grade] 429 rate limit from ${model}`);
-        throw new Error(`RATE_LIMIT: ${model}`);
+        throw new AbortError(`RATE_LIMIT: ${model}`);
       }
       throw new Error(`API error: ${response.status}`);
     }
@@ -353,16 +353,16 @@ export async function validatePOV(
   let raw: string;
   try {
     raw = await callDOK4Model(
-      DOK4_MODELS.HAIKU,
+      DOK4_MODELS.GEMINI_FLASH,
       DOK4_POV_VALIDATION_SYSTEM_PROMPT,
       userPrompt,
       0.0,
       POV_VALIDATION_JSON_SCHEMA,
     );
   } catch (primaryErr: any) {
-    console.log(`[DOK4-Grade] POV Validation Haiku failed: ${primaryErr.message}, trying Gemini fallback`);
+    console.log(`[DOK4-Grade] POV Validation Gemini failed: ${primaryErr.message}, trying Sonnet fallback`);
     raw = await callDOK4Model(
-      DOK4_MODELS.GEMINI_FLASH_FALLBACK,
+      DOK4_MODELS.SONNET_MID_FALLBACK,
       DOK4_POV_VALIDATION_SYSTEM_PROMPT,
       userPrompt,
       0.0,
@@ -411,16 +411,16 @@ export async function checkDOK4SourceTraceability(
         let raw: string;
         try {
           raw = await callDOK4Model(
-            DOK4_MODELS.HAIKU,
+            DOK4_MODELS.GEMINI_FLASH,
             DOK4_TRACEABILITY_SYSTEM_PROMPT,
             userPrompt,
             0.1,
             TRACEABILITY_JSON_SCHEMA,
           );
         } catch (primaryErr: any) {
-          console.log(`[DOK4-Grade] Traceability Haiku failed for ${source.sourceName}: ${primaryErr.message}, trying Sonnet fallback`);
+          console.log(`[DOK4-Grade] Traceability Gemini failed for ${source.sourceName}: ${primaryErr.message}, trying Sonnet fallback`);
           raw = await callDOK4Model(
-            DOK4_MODELS.SONNET_TRACEABILITY_FALLBACK,
+            DOK4_MODELS.SONNET_MID_FALLBACK,
             DOK4_TRACEABILITY_SYSTEM_PROMPT,
             userPrompt,
             0.1,
@@ -464,16 +464,16 @@ export async function checkLLMDivergence(
   let questionRaw: string;
   try {
     questionRaw = await callDOK4Model(
-      DOK4_MODELS.HAIKU,
+      DOK4_MODELS.GEMINI_FLASH,
       DOK4_DIVERGENCE_QUESTION_SYSTEM_PROMPT,
       questionPrompt,
       0.1,
       DIVERGENCE_QUESTION_JSON_SCHEMA,
     );
   } catch (primaryErr: any) {
-    console.log(`[DOK4-Grade] Divergence question Haiku failed: ${primaryErr.message}, trying Gemini fallback`);
+    console.log(`[DOK4-Grade] Divergence question Gemini failed: ${primaryErr.message}, trying Sonnet fallback`);
     questionRaw = await callDOK4Model(
-      DOK4_MODELS.GEMINI_FLASH_FALLBACK,
+      DOK4_MODELS.SONNET_MID_FALLBACK,
       DOK4_DIVERGENCE_QUESTION_SYSTEM_PROMPT,
       questionPrompt,
       0.1,
@@ -489,16 +489,16 @@ export async function checkLLMDivergence(
   let vanillaRaw: string;
   try {
     vanillaRaw = await callDOK4Model(
-      DOK4_MODELS.HAIKU,
+      DOK4_MODELS.GEMINI_FLASH,
       DOK4_DIVERGENCE_VANILLA_SYSTEM_PROMPT,
       vanillaPrompt,
       0.3,
       DIVERGENCE_VANILLA_JSON_SCHEMA,
     );
   } catch (primaryErr: any) {
-    console.log(`[DOK4-Grade] Divergence vanilla Haiku failed: ${primaryErr.message}, trying Gemini fallback`);
+    console.log(`[DOK4-Grade] Divergence vanilla Gemini failed: ${primaryErr.message}, trying Sonnet fallback`);
     vanillaRaw = await callDOK4Model(
-      DOK4_MODELS.GEMINI_FLASH_FALLBACK,
+      DOK4_MODELS.SONNET_MID_FALLBACK,
       DOK4_DIVERGENCE_VANILLA_SYSTEM_PROMPT,
       vanillaPrompt,
       0.3,

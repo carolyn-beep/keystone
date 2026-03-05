@@ -116,10 +116,8 @@ export function AddBrainliftModal({ show, onClose, onSuccess }: AddBrainliftModa
   const closeModal = useCallback(() => {
     if (isManualLinking) return;
     if (isGradingMode && grading.isGrading) return;
+    if (importState.isImporting) return;
 
-    if (importState.isImporting) {
-      importState.cancel();
-    }
     importState.reset();
     resetAll();
     onClose();
@@ -229,7 +227,7 @@ export function AddBrainliftModal({ show, onClose, onSuccess }: AddBrainliftModa
     <div
       className="fixed inset-0 flex items-center justify-center z-[1000] p-5 overflow-hidden"
       style={{ backgroundColor: tokens.overlay }}
-      onClick={(isManualLinking || (isGradingMode && grading.isGrading)) ? undefined : closeModal}
+      onClick={(isManualLinking || (isGradingMode && grading.isGrading) || importState.isImporting) ? undefined : closeModal}
     >
       <motion.div
         layout
@@ -360,7 +358,8 @@ export function AddBrainliftModal({ show, onClose, onSuccess }: AddBrainliftModa
                 <button
                   data-testid="button-close-modal"
                   onClick={closeModal}
-                  className="bg-transparent border-none cursor-pointer text-muted-foreground"
+                  disabled={importState.isImporting}
+                  className="bg-transparent border-none cursor-pointer text-muted-foreground disabled:opacity-30 disabled:cursor-not-allowed"
                 >
                   <X size={24} />
                 </button>
@@ -529,9 +528,10 @@ export function AddBrainliftModal({ show, onClose, onSuccess }: AddBrainliftModa
                   variant="inset"
                   data-testid="button-cancel"
                   onClick={closeModal}
-                  style={{ color: importState.isImporting ? tokens.danger : undefined }}
+                  disabled={importState.isImporting}
+                  style={{ opacity: importState.isImporting ? 0.3 : undefined }}
                 >
-                  {importState.isImporting ? 'Cancel Import' : 'Cancel'}
+                  Cancel
                 </TactileButton>
                 {!importState.isImporting && activeTab === 'workflowy' && (
                   <TactileButton
