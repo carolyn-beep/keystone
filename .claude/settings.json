@@ -6,7 +6,25 @@
       "Edit",
       "Glob",
       "Grep",
-      "Bash"
+      "Bash",
+      "mcp__render__list_services",
+      "mcp__render__list_workspaces",
+      "mcp__render__get_selected_workspace",
+      "mcp__render__select_workspace",
+      "mcp__render__list_logs",
+      "mcp__render__list_log_label_values",
+      "mcp__render__get_service",
+      "mcp__render__get_deploy",
+      "mcp__render__list_deploys",
+      "mcp__render__get_metrics",
+      "mcp__Neon__run_sql",
+      "mcp__Neon__describe_table_schema",
+      "mcp__Neon__get_database_tables",
+      "mcp__Neon__describe_branch",
+      "mcp__Neon__describe_project",
+      "mcp__Neon__list_projects",
+      "mcp__Neon__explain_sql_statement",
+      "mcp__Neon__list_slow_queries"
     ]
   },
   "allowedDirectories": [

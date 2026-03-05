@@ -363,19 +363,18 @@ export function convertToExtractorFormat(facts: HierarchyExtractedFact[]): Array
  * Result from purpose extraction
  */
 export interface ExtractedPurpose {
-  mainPurpose: string;  // First meaningful child (not In-scope/Out-of-scope)
-  fullText: string;     // Combined text for description field
+  mainPurpose: string;  // First meaningful text found in the subtree
+  fullText: string;     // All text under the Purpose node, recursively collected
 }
 
 /**
  * Extract purpose from hierarchy by finding the Purpose marker node
- * and extracting its first meaningful child.
+ * and collecting ALL text recursively underneath it.
  *
- * Expected structure:
- * - Purpose (depth 0, isPurposeMarker: true)
- *   - Main purpose text (depth 1) ← extract this
- *   - In-scope (depth 1) [optional]
- *   - Out-of-scope (depth 1) [optional]
+ * Collects everything in the Purpose subtree (children, grandchildren, etc.)
+ * until the next top-level sibling (DOK3, DOK4, Experts, etc.).
+ * Since those siblings are separate nodes at the same level, we just
+ * recurse the entire Purpose subtree.
  */
 export function extractPurposeFromHierarchy(roots: HierarchyNode[]): ExtractedPurpose | null {
   // Find the Purpose marker node
@@ -403,43 +402,34 @@ export function extractPurposeFromHierarchy(roots: HierarchyNode[]): ExtractedPu
 
   log(`[PurposeExtractor] Found Purpose node with ${purposeNode.children.length} children`);
 
-  // Find the first meaningful child (not In-scope/Out-of-scope headers)
-  const scopePattern = /^(In-scope|Out-of-scope)\s*$/i;
-  let mainPurpose: string | null = null;
-  const purposeParts: string[] = [];
+  // Recursively collect all text from the subtree
+  const parts: string[] = [];
 
-  for (const child of purposeNode.children) {
-    const text = child.name.trim();
-
-    // Skip scope headers
-    if (scopePattern.test(text)) {
-      continue;
+  function collectText(node: HierarchyNode) {
+    const text = node.name.trim();
+    if (text.length >= 10) {
+      parts.push(text);
     }
-
-    // Skip very short content (likely structural)
-    if (text.length < 20) {
-      continue;
+    for (const child of node.children) {
+      collectText(child);
     }
-
-    // First meaningful child is the main purpose
-    if (!mainPurpose) {
-      mainPurpose = text;
-    }
-
-    // Collect all meaningful children for fullText
-    purposeParts.push(text);
   }
 
-  if (!mainPurpose) {
+  for (const child of purposeNode.children) {
+    collectText(child);
+  }
+
+  if (parts.length === 0) {
     log('[PurposeExtractor] No meaningful purpose content found');
     return null;
   }
 
-  log(`[PurposeExtractor] Extracted purpose: "${mainPurpose.substring(0, 80)}..."`);
+  const fullText = parts.join('\n');
+  log(`[PurposeExtractor] Extracted purpose (${parts.length} parts, ${fullText.length} chars): "${parts[0].substring(0, 80)}..."`);
 
   return {
-    mainPurpose,
-    fullText: purposeParts.join(' '),
+    mainPurpose: parts[0],
+    fullText,
   };
 }
 

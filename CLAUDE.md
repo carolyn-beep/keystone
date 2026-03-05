@@ -154,6 +154,14 @@ Deploying code that expects schema changes before the DB has them = broken prod.
   ```
 - **Apply to staging before merging to staging branch.** Apply to prod (main branch) before merging to main.
 
+### Log Investigation (Render + Neon)
+
+**Render service IDs:**
+- Staging: `srv-d6jkespaae7s7397cp30` (Brainlift-Platform-Staging)
+- Prod: `srv-d5fu0p4hg0os73e072ng` (DOK1GraderV3)
+
+**Flow:** Always query Neon first to get entity IDs (insight/SPOV IDs) for a brainlift slug, then search Render logs by those IDs. Slugs only appear in HTTP request logs — pipeline logs use entity IDs (e.g. `insight 1289`, `SPOV 364`).
+
 ### Authentication & Authorization
 
 All routes require `requireAuth` middleware (except dev routes). Use brainlift middleware for resource authorization.
@@ -190,6 +198,8 @@ router.get(
 - Wrap async handlers with `asyncHandler()` from `middleware/error-handler.ts`
 - Throw `BadRequestError` (400) for invalid input, `NotFoundError` (404) for missing resources
 - Always validate `parseInt()` results: `if (isNaN(id)) throw new BadRequestError('Invalid ID')`
+- **Drizzle wraps pg errors** in `DrizzleQueryError` with `{ query, params, cause }`. The actual pg error (`.code`, `.constraint`, `.detail`) lives on `err.cause`, not `err`. Always check `err.cause?.code` when matching pg error codes (e.g. `'23505'` for unique violations).
+- **Never expose raw DB errors to clients.** Drizzle errors contain full SQL queries and params. Sanitize before sending to frontend.
 
 ### IDOR Prevention
 

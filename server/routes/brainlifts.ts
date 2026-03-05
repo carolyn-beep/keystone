@@ -180,7 +180,12 @@ brainliftsRouter.post(
       sse.close();
     } catch (err: any) {
       console.error('[SSE Import] Error:', err);
-      sse.error(err.message || 'Import failed');
+      // Sanitize DB errors — never expose raw SQL/params to the client
+      const isDbError = err.query || err.cause?.code;
+      const userMessage = isDbError
+        ? 'Import failed due to a database error. Please try again.'
+        : (err.message || 'Import failed');
+      sse.error(userMessage);
     }
   }
 );
