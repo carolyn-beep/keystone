@@ -603,12 +603,12 @@ export const swarmUsageRelations = relations(swarmUsage, ({ one }) => ({
 
 // DOK3 Models — separate from LLM_MODELS (which is for fact verification)
 export const DOK3_MODELS = {
-  // Step 3: Quality-tier for conceptual coherence evaluation
+  // Quality-tier (conceptual coherence evaluation)
   OPUS: 'anthropic/claude-opus-4.6',
   SONNET_FALLBACK: 'anthropic/claude-sonnet-4.5',
-  // Step 2: Mid-tier for traceability checks
+  // Mid-tier (traceability) — Gemini primary, Sonnet fallback on rate limit
   GEMINI_FLASH: 'google/gemini-2.0-flash-001',
-  SONNET_TRACEABILITY_FALLBACK: 'anthropic/claude-sonnet-4.5',
+  SONNET_MID_FALLBACK: 'anthropic/claude-sonnet-4.5',
 } as const;
 
 export type DOK3Model = typeof DOK3_MODELS[keyof typeof DOK3_MODELS];
@@ -618,10 +618,9 @@ export const DOK4_MODELS = {
   // Quality-tier (quality evaluation, antimemetic assessment)
   OPUS: 'anthropic/claude-opus-4.6',
   SONNET_FALLBACK: 'anthropic/claude-sonnet-4.5',
-  // Mid-tier (POV validation, traceability, divergence)
-  HAIKU: 'anthropic/claude-haiku-4.5',
-  GEMINI_FLASH_FALLBACK: 'google/gemini-2.0-flash-001',
-  SONNET_TRACEABILITY_FALLBACK: 'anthropic/claude-sonnet-4.5',
+  // Mid-tier (POV validation, traceability, divergence) — Gemini primary, Sonnet fallback on rate limit
+  GEMINI_FLASH: 'google/gemini-2.0-flash-001',
+  SONNET_MID_FALLBACK: 'anthropic/claude-sonnet-4.5',
 } as const;
 
 export type DOK4Model = typeof DOK4_MODELS[keyof typeof DOK4_MODELS];

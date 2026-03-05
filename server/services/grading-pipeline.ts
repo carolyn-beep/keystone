@@ -90,12 +90,15 @@ export async function runDOK3DOK4Pipeline(
       total: dok3Total,
     });
 
+    const failedInsightIds: number[] = [];
+
     await Promise.all(linkedInsights.map(insight => dok3GradeLimit(async () => {
       const start = Date.now();
       try {
         await gradeDOK3Insight(insight.id, brainliftId);
       } catch (err) {
         console.error(`[Pipeline] DOK3 grading failed for insight ${insight.id}:`, err);
+        failedInsightIds.push(insight.id);
       }
       dok3Completed++;
       const elapsed = ((Date.now() - start) / 1000).toFixed(1);
@@ -107,6 +110,24 @@ export async function runDOK3DOK4Pipeline(
         total: dok3Total,
       });
     })));
+
+    // Retry failed DOK3 insights once
+    if (failedInsightIds.length > 0) {
+      console.log(`[Pipeline] Retrying ${failedInsightIds.length} failed DOK3 insights: ${failedInsightIds.join(', ')}`);
+      for (const insightId of failedInsightIds) {
+        await storage.updateDOK3InsightStatus(insightId, brainliftId, 'linked');
+      }
+      await Promise.all(failedInsightIds.map(insightId => dok3GradeLimit(async () => {
+        const start = Date.now();
+        try {
+          await gradeDOK3Insight(insightId, brainliftId);
+        } catch (err) {
+          console.error(`[Pipeline] DOK3 retry grading failed for insight ${insightId}:`, err);
+        }
+        const elapsed = ((Date.now() - start) / 1000).toFixed(1);
+        console.log(`[Pipeline] DOK3 retry graded insight ${insightId} in ${elapsed}s`);
+      })));
+    }
   }
 
   // ── Phase 3: Auto-link DOK4 SPOVs to DOK3 insights ──
