@@ -121,11 +121,12 @@ const FIXTURE_EVALUATION_CONTEXT: DOK4EvaluationContext = {
 describe('FR1: DOK4 Model Constants and Shared Utilities', () => {
 
   describe('DOK4_MODELS', () => {
-    it('has all 4 model identifiers', async () => {
+    it('has all 5 model identifiers', async () => {
       const { DOK4_MODELS } = await import('@shared/schema');
       expect(DOK4_MODELS.OPUS).toBe('anthropic/claude-opus-4.6');
       expect(DOK4_MODELS.SONNET_FALLBACK).toBe('anthropic/claude-sonnet-4.5');
-      expect(DOK4_MODELS.GEMINI_FLASH).toBe('google/gemini-2.0-flash-001');
+      expect(DOK4_MODELS.HAIKU).toBe('anthropic/claude-haiku-4.5');
+      expect(DOK4_MODELS.GEMINI_FLASH_FALLBACK).toBe('google/gemini-2.0-flash-001');
       expect(DOK4_MODELS.SONNET_TRACEABILITY_FALLBACK).toBe('anthropic/claude-sonnet-4.5');
     });
   });
@@ -158,7 +159,7 @@ describe('FR1: DOK4 Model Constants and Shared Utilities', () => {
     it('makes HTTP request with correct params including temperature', async () => {
       mockFetch.mockResolvedValueOnce(makeOpenRouterResponse('{"test": true}'));
 
-      await mod.callDOK4Model('test-model', 'system prompt', 'user prompt', 500, 0.3);
+      await mod.callDOK4Model('test-model', 'system prompt', 'user prompt', 0.3);
 
       expect(mockFetch).toHaveBeenCalledOnce();
       const [url, options] = mockFetch.mock.calls[0];
@@ -167,9 +168,22 @@ describe('FR1: DOK4 Model Constants and Shared Utilities', () => {
       const body = JSON.parse(options.body);
       expect(body.model).toBe('test-model');
       expect(body.temperature).toBe(0.3);
-      expect(body.max_tokens).toBe(500);
+      expect(body.max_tokens).toBeUndefined();
+      expect(body.response_format.type).toBe('json_object');
       expect(body.messages[0].content).toBe('system prompt');
       expect(body.messages[1].content).toBe('user prompt');
+    });
+
+    it('uses json_schema response format when schema provided', async () => {
+      mockFetch.mockResolvedValueOnce(makeOpenRouterResponse('{"test": true}'));
+
+      const schema = { name: 'test', schema: { type: 'object', properties: { test: { type: 'boolean' } }, required: ['test'], additionalProperties: false } };
+      await mod.callDOK4Model('test-model', 'sys', 'usr', 0.1, schema);
+
+      const body = JSON.parse(mockFetch.mock.calls[0][1].body);
+      expect(body.response_format.type).toBe('json_schema');
+      expect(body.response_format.json_schema.name).toBe('test');
+      expect(body.response_format.json_schema.strict).toBe(true);
     });
 
     it('retries on transient failure (pRetry with 2 retries)', async () => {
@@ -178,24 +192,34 @@ describe('FR1: DOK4 Model Constants and Shared Utilities', () => {
         .mockResolvedValueOnce(makeErrorResponse(500))
         .mockResolvedValueOnce(makeOpenRouterResponse('{"result": "ok"}'));
 
-      const result = await mod.callDOK4Model('test-model', 'sys', 'usr', 100, 0.1);
+      const result = await mod.callDOK4Model('test-model', 'sys', 'usr', 0.1);
       expect(result).toBe('{"result": "ok"}');
       expect(mockFetch).toHaveBeenCalledTimes(3);
+    });
+
+    it('retries on JSON parse failure', async () => {
+      mockFetch
+        .mockResolvedValueOnce(makeOpenRouterResponse('not json'))
+        .mockResolvedValueOnce(makeOpenRouterResponse('{"result": "ok"}'));
+
+      const result = await mod.callDOK4Model('test-model', 'sys', 'usr', 0.1);
+      expect(result).toBe('{"result": "ok"}');
+      expect(mockFetch).toHaveBeenCalledTimes(2);
     });
 
     it('throws on 429 rate limit', async () => {
       mockFetch.mockResolvedValue(makeErrorResponse(429));
 
       await expect(
-        mod.callDOK4Model('test-model', 'sys', 'usr', 100, 0.1)
+        mod.callDOK4Model('test-model', 'sys', 'usr', 0.1)
       ).rejects.toThrow('RATE_LIMIT');
     });
 
     it('returns content string from successful response', async () => {
-      mockFetch.mockResolvedValueOnce(makeOpenRouterResponse('hello world'));
+      mockFetch.mockResolvedValueOnce(makeOpenRouterResponse('{"valid": true}'));
 
-      const result = await mod.callDOK4Model('test-model', 'sys', 'usr', 100, 0.1);
-      expect(result).toBe('hello world');
+      const result = await mod.callDOK4Model('test-model', 'sys', 'usr', 0.1);
+      expect(result).toBe('{"valid": true}');
     });
 
     it('throws when response has no content', async () => {
@@ -207,7 +231,7 @@ describe('FR1: DOK4 Model Constants and Shared Utilities', () => {
       });
 
       await expect(
-        mod.callDOK4Model('test-model', 'sys', 'usr', 100, 0.1)
+        mod.callDOK4Model('test-model', 'sys', 'usr', 0.1)
       ).rejects.toThrow('No response content');
     });
   });
@@ -628,7 +652,7 @@ describe('FR5: Quality Evaluation', () => {
   });
 
   it('falls back to Sonnet when Opus fails', async () => {
-    // Opus fails (3 attempts), then Sonnet succeeds
+    // Opus fails (3 attempts = 1 initial + 2 retries), then Sonnet succeeds
     mockFetch
       .mockResolvedValueOnce(makeErrorResponse(500))
       .mockResolvedValueOnce(makeErrorResponse(500))
@@ -698,6 +722,7 @@ describe('FR6: Antimemetic Assessment', () => {
   });
 
   it('falls back to Sonnet when Opus fails', async () => {
+    // Opus fails (3 attempts = 1 initial + 2 retries), then Sonnet succeeds
     mockFetch
       .mockResolvedValueOnce(makeErrorResponse(500))
       .mockResolvedValueOnce(makeErrorResponse(500))

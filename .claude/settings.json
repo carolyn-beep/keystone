@@ -6,23 +6,7 @@
       "Edit",
       "Glob",
       "Grep",
-      "Bash(git worktree:*)",
-      "Bash(git checkout:*)",
-      "Bash(git branch:*)",
-      "Bash(git merge:*)",
-      "Bash(git stash:*)",
-      "Bash(npm run build:*)",
-      "Bash(npm run typecheck:*)",
-      "Bash(npm run check:*)",
-      "Bash(npx tsc:*)",
-      "Bash(npx drizzle-kit:*)",
-      "Bash(npx tsx:*)",
-      "Bash(cd:*)",
-      "Bash(ls:*)",
-      "Bash(mkdir:*)",
-      "Bash(docker exec:*)",
-      "Bash(cat:*)",
-      "Bash(echo:*)"
+      "Bash"
     ]
   },
   "allowedDirectories": [

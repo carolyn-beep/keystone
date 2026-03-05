@@ -155,12 +155,16 @@ export async function runDOK3DOK4Pipeline(
       total: dok4Total,
     });
 
+    const failedSpovIds: number[] = [];
+
     await Promise.all(linkedSpovs.map(spov => dok4GradeLimit(async () => {
       const start = Date.now();
       try {
-        await gradeDOK4Spov(spov.id, brainliftId);
+        const result = await gradeDOK4Spov(spov.id, brainliftId);
+        if (result.status === 'error') failedSpovIds.push(spov.id);
       } catch (err) {
         console.error(`[Pipeline] DOK4 grading failed for SPOV ${spov.id}:`, err);
+        failedSpovIds.push(spov.id);
       }
       dok4Completed++;
       const elapsed = ((Date.now() - start) / 1000).toFixed(1);
@@ -172,6 +176,24 @@ export async function runDOK3DOK4Pipeline(
         total: dok4Total,
       });
     })));
+
+    // Retry failed SPOVs once (reset status to 'linked' so grading can re-run)
+    if (failedSpovIds.length > 0) {
+      console.log(`[Pipeline] Retrying ${failedSpovIds.length} failed DOK4 SPOVs: ${failedSpovIds.join(', ')}`);
+      for (const spovId of failedSpovIds) {
+        await storage.updateDOK4SpovStatus(spovId, brainliftId, 'linked');
+      }
+      await Promise.all(failedSpovIds.map(spovId => dok4GradeLimit(async () => {
+        const start = Date.now();
+        try {
+          await gradeDOK4Spov(spovId, brainliftId);
+        } catch (err) {
+          console.error(`[Pipeline] DOK4 retry grading failed for SPOV ${spovId}:`, err);
+        }
+        const elapsed = ((Date.now() - start) / 1000).toFixed(1);
+        console.log(`[Pipeline] DOK4 retry graded SPOV ${spovId} in ${elapsed}s`);
+      })));
+    }
   }
 
   // ── Phase 5: Recompute brainlift score ──

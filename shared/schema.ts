@@ -619,7 +619,8 @@ export const DOK4_MODELS = {
   OPUS: 'anthropic/claude-opus-4.6',
   SONNET_FALLBACK: 'anthropic/claude-sonnet-4.5',
   // Mid-tier (POV validation, traceability, divergence)
-  GEMINI_FLASH: 'google/gemini-2.0-flash-001',
+  HAIKU: 'anthropic/claude-haiku-4.5',
+  GEMINI_FLASH_FALLBACK: 'google/gemini-2.0-flash-001',
   SONNET_TRACEABILITY_FALLBACK: 'anthropic/claude-sonnet-4.5',
 } as const;
 

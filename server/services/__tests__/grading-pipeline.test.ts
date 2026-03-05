@@ -13,6 +13,7 @@ vi.mock('../../storage', () => ({
     getDOK3Insights: vi.fn(),
     getDOK2Summaries: vi.fn(),
     getDOK4Spovs: vi.fn(),
+    updateDOK4SpovStatus: vi.fn().mockResolvedValue(undefined),
   },
 }));
 
@@ -244,15 +245,19 @@ describe('FR3: Shared Pipeline Function - runDOK3DOK4Pipeline()', () => {
     expect(recomputeBrainliftScore).toHaveBeenCalled();
   });
 
-  it('individual DOK4 grading errors do not block remaining items', async () => {
+  it('individual DOK4 grading errors do not block remaining items and retries failed ones', async () => {
     setupHappyPathMocks();
     vi.mocked(gradeDOK4Spov)
-      .mockResolvedValueOnce({ status: 'error', error: 'LLM fail' })
-      .mockResolvedValueOnce({ status: 'graded', score: 4 });
+      .mockResolvedValueOnce({ status: 'error', error: 'LLM fail' })  // SPOV 201 fails
+      .mockResolvedValueOnce({ status: 'graded', score: 4 })           // SPOV 202 succeeds
+      .mockResolvedValueOnce({ status: 'graded', score: 3 });          // SPOV 201 retry succeeds
 
     await runDOK3DOK4Pipeline(100, 'test-slug');
 
-    expect(gradeDOK4Spov).toHaveBeenCalledTimes(2);
+    // 2 initial + 1 retry = 3 calls
+    expect(gradeDOK4Spov).toHaveBeenCalledTimes(3);
+    // Status reset to 'linked' before retry
+    expect(storage.updateDOK4SpovStatus).toHaveBeenCalledWith(201, 100, 'linked');
     expect(recomputeBrainliftScore).toHaveBeenCalled();
   });
 });
