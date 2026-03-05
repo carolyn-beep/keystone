@@ -242,16 +242,19 @@ export async function extractBrainlift(
   if (USE_HIERARCHY_EXTRACTION && hierarchy && hierarchy.length > 0) {
     console.log('[DOK1 Extractor] Attempting hierarchy-based extraction...');
     const fullResult = extractAllFromHierarchy(hierarchy);
+
+    // Always keep DOK2/DOK3/DOK4 from hierarchy, even if facts=0 (facts can fall back to regex/LLM)
+    dok2Summaries = fullResult.dok2Summaries;
+    dok3Insights = fullResult.dok3Insights;
+    dok4Spovs = fullResult.dok4Spovs;
+
     if (fullResult.facts.length > 0) {
       hierarchyFacts = convertToExtractorFormat(fullResult.facts);
-      dok2Summaries = fullResult.dok2Summaries;
-      dok3Insights = fullResult.dok3Insights;
-      dok4Spovs = fullResult.dok4Spovs;
       console.log(`[DOK1 Extractor] Hierarchy extraction succeeded: ${hierarchyFacts.length} facts, ${dok2Summaries.length} DOK2 summaries, ${dok3Insights.length} DOK3 insights, ${dok4Spovs.length} DOK4 SPOVs`);
-      console.log(`[DOK1 Extractor] Hierarchy metadata: DOK1 nodes=${fullResult.metadata.dok1NodesFound}, DOK2 nodes=${fullResult.metadata.dok2NodesFound}, DOK3 nodes=${fullResult.metadata.dok3NodesFound}, DOK4 nodes=${fullResult.metadata.dok4NodesFound}, sources=${fullResult.metadata.sourcesAttributed}`);
     } else {
-      console.log('[DOK1 Extractor] Hierarchy extraction found 0 facts, falling back to regex');
+      console.log(`[DOK1 Extractor] Hierarchy extraction found 0 facts (falling back to regex/LLM), but kept ${dok2Summaries.length} DOK2 summaries, ${dok3Insights.length} DOK3 insights, ${dok4Spovs.length} DOK4 SPOVs`);
     }
+    console.log(`[DOK1 Extractor] Hierarchy metadata: DOK1 nodes=${fullResult.metadata.dok1NodesFound}, DOK2 nodes=${fullResult.metadata.dok2NodesFound}, DOK3 nodes=${fullResult.metadata.dok3NodesFound}, DOK4 nodes=${fullResult.metadata.dok4NodesFound}, sources=${fullResult.metadata.sourcesAttributed}`);
 
     // Extract purpose from hierarchy (independent of fact extraction success)
     const purposeResult = extractPurposeFromHierarchy(hierarchy);
