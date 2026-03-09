@@ -1,0 +1,326 @@
+/**
+ * Parallel LLM Classification Calls for BrainLift Pre-Formatting.
+ *
+ * Dispatches section-specific prompts to Haiku via OpenRouter,
+ * parses structured JSON responses, and aggregates results.
+ */
+
+import pLimit from 'p-limit';
+import type {
+  PreformatChunk,
+  PreformatLLMResults,
+  OwnerResult,
+  PurposeResult,
+  ExpertsChunkResult,
+  SpovsChunkResult,
+  InsightsChunkResult,
+  CategoryChunkResult,
+  UnknownChunkResult,
+  UnstructuredChunkResult,
+  KnowledgeTreeChunkResult,
+  PromptConfig,
+} from './types';
+import { PROMPT_BUILDERS } from './section-prompts';
+
+const MODEL = 'anthropic/claude-haiku-4.5';
+const LLM_CONCURRENCY = 15;
+const MAX_RETRIES = 3;
+const RETRYABLE_STATUS_CODES = new Set([429, 500, 502, 503]);
+
+/**
+ * Main entry point. Dispatches parallel LLM calls for all chunks
+ * and aggregates results into PreformatLLMResults.
+ */
+export async function runPreformatLLMCalls(
+  chunks: PreformatChunk[],
+): Promise<PreformatLLMResults> {
+  // Fail-fast if no API key
+  const apiKey = process.env.OPENROUTER_API_KEY;
+  if (chunks.length > 0 && !apiKey) {
+    throw new Error('OpenRouter API key not configured');
+  }
+
+  // Empty input -> empty results
+  if (chunks.length === 0) {
+    return emptyResults();
+  }
+
+  const limit = pLimit(LLM_CONCURRENCY);
+
+  // Dispatch all calls in parallel with concurrency control
+  const chunkResults = await Promise.all(
+    chunks.map((chunk) =>
+      limit(async () => {
+        try {
+          const result = await callChunkLLM(chunk, apiKey!);
+          return { chunk, result };
+        } catch (err) {
+          console.warn(
+            `[Preformat LLM] Skipping chunk "${chunk.label}" (${chunk.type}) after all retries:`,
+            err instanceof Error ? err.message : err,
+          );
+          return { chunk, result: null };
+        }
+      }),
+    ),
+  );
+
+  return aggregateResults(chunkResults);
+}
+
+/**
+ * Call LLM for a single chunk with retry logic.
+ */
+async function callChunkLLM(
+  chunk: PreformatChunk,
+  apiKey: string,
+): Promise<unknown> {
+  const promptBuilder = PROMPT_BUILDERS[chunk.type];
+  const config = promptBuilder(chunk);
+
+  let lastError: Error | null = null;
+
+  for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+    try {
+      const result = await callOpenRouter(config, apiKey);
+      return result;
+    } catch (err) {
+      lastError = err instanceof Error ? err : new Error(String(err));
+
+      // Non-retryable errors: skip immediately
+      if (lastError instanceof NonRetryableError) {
+        throw lastError;
+      }
+
+      // Last attempt: throw
+      if (attempt === MAX_RETRIES) {
+        throw lastError;
+      }
+
+      // Exponential backoff: 100ms, 200ms, 400ms
+      const delay = 100 * Math.pow(2, attempt);
+      await sleep(delay);
+    }
+  }
+
+  throw lastError!;
+}
+
+/**
+ * Single OpenRouter API call with response parsing.
+ */
+async function callOpenRouter(
+  config: PromptConfig,
+  apiKey: string,
+): Promise<unknown> {
+  const body = {
+    model: MODEL,
+    messages: [
+      { role: 'system', content: config.system },
+      { role: 'user', content: config.user },
+    ],
+    temperature: 0,
+    response_format: {
+      type: 'json_schema',
+      json_schema: config.jsonSchema,
+    },
+  };
+
+  let response: Response;
+  try {
+    response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${apiKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(body),
+    });
+  } catch (err) {
+    // Network error -- retryable
+    throw new RetryableError(
+      `Network error: ${err instanceof Error ? err.message : String(err)}`,
+    );
+  }
+
+  if (!response.ok) {
+    const status = response.status;
+    const errBody = await response.text().catch(() => '');
+
+    if (RETRYABLE_STATUS_CODES.has(status)) {
+      throw new RetryableError(`API error ${status}: ${errBody.substring(0, 200)}`);
+    }
+
+    // Non-retryable HTTP errors (400, 401, 403, etc.)
+    throw new NonRetryableError(`API error ${status}: ${errBody.substring(0, 200)}`);
+  }
+
+  // Parse response
+  const data = (await response.json()) as {
+    choices?: Array<{ message?: { content?: string } }>;
+  };
+  const content = data.choices?.[0]?.message?.content;
+  if (!content) {
+    throw new RetryableError('No response content from LLM');
+  }
+
+  try {
+    return JSON.parse(content);
+  } catch {
+    throw new RetryableError(`Malformed JSON response: ${content.substring(0, 200)}`);
+  }
+}
+
+/**
+ * Aggregate per-chunk results into a single PreformatLLMResults.
+ */
+function aggregateResults(
+  chunkResults: Array<{ chunk: PreformatChunk; result: unknown }>,
+): PreformatLLMResults {
+  const results = emptyResults();
+
+  for (const { chunk, result } of chunkResults) {
+    if (result === null) continue;
+
+    switch (chunk.type) {
+      case 'owner':
+        if (!results.owner) {
+          results.owner = result as OwnerResult;
+        }
+        break;
+
+      case 'purpose':
+        if (!results.purpose) {
+          results.purpose = result as PurposeResult;
+        }
+        break;
+
+      case 'experts': {
+        const expertsResult = result as ExpertsChunkResult;
+        if (!results.experts) {
+          results.experts = { experts: [] };
+        }
+        results.experts.experts.push(...expertsResult.experts);
+        break;
+      }
+
+      case 'spovs': {
+        const spovsResult = result as SpovsChunkResult;
+        if (!results.spovs) {
+          results.spovs = { spovs: [] };
+        }
+        results.spovs.spovs.push(...spovsResult.spovs);
+        break;
+      }
+
+      case 'insights': {
+        const insightsResult = result as InsightsChunkResult;
+        if (!results.insights) {
+          results.insights = { insights: [] };
+        }
+        results.insights.insights.push(...insightsResult.insights);
+        break;
+      }
+
+      case 'category':
+        results.categories.push(result as CategoryChunkResult);
+        break;
+
+      case 'knowledge_tree': {
+        const ktResult = result as KnowledgeTreeChunkResult;
+        results.categories.push(...ktResult.categories);
+        break;
+      }
+
+      case 'unknown':
+        results.unknownSections.push(result as UnknownChunkResult);
+        break;
+
+      case 'unstructured': {
+        const unstructured = result as UnstructuredChunkResult;
+        if (unstructured.owner && !results.owner) {
+          results.owner = unstructured.owner;
+        }
+        if (unstructured.purpose && !results.purpose) {
+          results.purpose = unstructured.purpose;
+        }
+        if (unstructured.experts.length > 0) {
+          if (!results.experts) {
+            results.experts = { experts: [] };
+          }
+          results.experts.experts.push(...unstructured.experts);
+        }
+        if (unstructured.spovs.length > 0) {
+          if (!results.spovs) {
+            results.spovs = { spovs: [] };
+          }
+          results.spovs.spovs.push(
+            ...unstructured.spovs.map((s) => ({
+              text: s.text,
+              explicitInsightRefs: s.explicitInsightRefs ?? [],
+            })),
+          );
+        }
+        if (unstructured.insights.length > 0) {
+          if (!results.insights) {
+            results.insights = { insights: [] };
+          }
+          results.insights.insights.push(
+            ...unstructured.insights.map((i) => ({
+              text: i.text,
+              sourceRefs: i.sourceRefs ?? [],
+            })),
+          );
+        }
+        results.categories.push(...unstructured.categories);
+        results.scratchpad.push(...unstructured.scratchpad);
+        break;
+      }
+    }
+  }
+
+  return results;
+}
+
+/**
+ * Create empty PreformatLLMResults.
+ */
+function emptyResults(): PreformatLLMResults {
+  return {
+    owner: null,
+    purpose: null,
+    experts: null,
+    spovs: null,
+    insights: null,
+    categories: [],
+    unknownSections: [],
+    scratchpad: [],
+  };
+}
+
+/**
+ * Simple sleep utility.
+ */
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+/**
+ * Error class for retryable failures (network, 429, 500, malformed JSON).
+ */
+class RetryableError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'RetryableError';
+  }
+}
+
+/**
+ * Error class for non-retryable failures (400, 401, 403).
+ */
+class NonRetryableError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'NonRetryableError';
+  }
+}
