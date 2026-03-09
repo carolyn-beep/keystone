@@ -925,10 +925,10 @@ describe('FR3: Integrity Validation', () => {
   });
 
   it('should detect near-duplicate output items', () => {
+    // Use exact duplicate text to guarantee Jaccard = 1.0 (well above 0.9 threshold)
     const original = [
       makeNode({ name: 'Root', children: [
-        makeNode({ name: 'Mobile games are not profitable for small studios at all' }),
-        makeNode({ name: 'Mobile games are not profitable for small studios either' }),
+        makeNode({ name: 'Mobile games are not profitable for small independent studios' }),
       ] }),
     ];
     const merged: MergedPreformatResult = {
@@ -942,8 +942,8 @@ describe('FR3: Integrity Validation', () => {
           category: 'Cat 1',
           sources: [
             { name: 'Src', url: null, facts: [
-              'Mobile games are not profitable for small studios at all',
-              'Mobile games are not profitable for small studios either',
+              'Mobile games are not profitable for small independent studios',
+              'Mobile games are not profitable for small independent studios',
             ], summary: [] },
           ],
         }),
