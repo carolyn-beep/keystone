@@ -16,8 +16,6 @@ import type {
   InsightResult,
   SpovResult,
   CategoryChunkResult,
-  CandidateInsight,
-  CandidateSpov,
   ExpertResult,
 } from './types';
 import { jaccardSimilarity } from './validator';
@@ -216,7 +214,7 @@ export function mergePreformatResults(
   mergeReport.insightsDeduped = insightsRemoved;
 
   // Assign global indices
-  const globalInsights: Array<InsightResult & { globalIndex: number; sourceRefs: string[] }> =
+  const globalInsights: Array<InsightResult & { globalIndex: number }> =
     dedupedInsights.map((item, idx) => ({
       text: item.text,
       sourceRefs: item.sourceRefs,

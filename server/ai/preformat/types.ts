@@ -178,7 +178,7 @@ export interface MergedPreformatResult {
   purpose: { purpose: string; outOfScope: string[] } | null;
   experts: ExpertResult[];
   spovs: Array<SpovResult & { globalIndex: number }>;
-  insights: Array<InsightResult & { globalIndex: number; sourceRefs: string[] }>;
+  insights: Array<InsightResult & { globalIndex: number }>;
   categories: CategoryChunkResult[];
   scratchpad: string[];
   mergeReport: {
