@@ -167,3 +167,39 @@ export interface PromptConfig {
   user: string;
   jsonSchema: object;
 }
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Merge + Validation Types (03-merge-validate)
+// ═══════════════════════════════════════════════════════════════════════════
+
+/** Merged result from all LLM calls after dedup and global numbering */
+export interface MergedPreformatResult {
+  owner: { name: string } | null;
+  purpose: { purpose: string; outOfScope: string[] } | null;
+  experts: ExpertResult[];
+  spovs: Array<SpovResult & { globalIndex: number }>;
+  insights: Array<InsightResult & { globalIndex: number; sourceRefs: string[] }>;
+  categories: CategoryChunkResult[];
+  scratchpad: string[];
+  mergeReport: {
+    duplicateFactsRemoved: number;
+    duplicateSourcesConsolidated: number;
+    insightsDeduped: number;
+    spovsDeduped: number;
+    crossRefsUpdated: number;
+  };
+}
+
+/** Integrity validation report */
+export interface ValidationReport {
+  passed: boolean;
+  contentLossPercent: number;
+  hallucinationCount: number;
+  duplicateCount: number;
+  warnings: string[];
+  details: {
+    missingFromOutput: string[];
+    possibleHallucinations: string[];
+    duplicatePairs: Array<[string, string]>;
+  };
+}
