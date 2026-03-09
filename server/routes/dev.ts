@@ -11,6 +11,7 @@ import { Router } from 'express';
 import { fetchWorkflowyContent } from '../utils/external-sources';
 import { extractBrainlift } from '../ai/brainliftExtractor';
 import { extractAllFromHierarchy } from '../ai/hierarchyExtractor';
+import { preformatHierarchy } from '../services/brainlift-preformat';
 import {
   findExpertsSection,
   extractExpertsFromDocumentWithMetadata,
@@ -749,6 +750,80 @@ if (!isDev) {
     } catch (err: unknown) {
       const error = err instanceof Error ? err.message : 'Unknown error';
       res.status(500).json({ success: false, error });
+    }
+  });
+
+  /**
+   * POST /dev/preformat-test
+   *
+   * Test the preformat pipeline on a Workflowy URL without importing.
+   * Returns original hierarchy, formatted hierarchy, and validation report.
+   */
+  devRouter.post('/dev/preformat-test', async (req, res) => {
+    const startTime = Date.now();
+    const { workflowyUrl } = req.body;
+
+    if (!workflowyUrl || typeof workflowyUrl !== 'string') {
+      return res.status(400).json({
+        success: false,
+        error: 'Missing or invalid "workflowyUrl" parameter',
+        diagnostics: { timing: { total: Date.now() - startTime }, metadata: { originalNodeCount: 0, formattedNodeCount: 0 } },
+      });
+    }
+
+    try {
+      // Fetch Workflowy content
+      const fetchResult = await fetchWorkflowyContent(workflowyUrl);
+      const hierarchy = fetchResult.hierarchy;
+
+      // Count original nodes
+      const countNodes = (nodes: HierarchyNode[]): number => {
+        let count = 0;
+        const traverse = (node: HierarchyNode) => {
+          count++;
+          node.children.forEach(traverse);
+        };
+        nodes.forEach(traverse);
+        return count;
+      };
+
+      const originalNodeCount = countNodes(hierarchy);
+
+      // Run preformat pipeline
+      const result = await preformatHierarchy(hierarchy);
+
+      if (result) {
+        const formattedNodeCount = countNodes(result.cleanHierarchy);
+        res.json({
+          success: true,
+          original: hierarchy,
+          formatted: result.cleanHierarchy,
+          report: result.report,
+          diagnostics: {
+            timing: { total: Date.now() - startTime },
+            metadata: { originalNodeCount, formattedNodeCount },
+          },
+        });
+      } else {
+        res.json({
+          success: false,
+          original: hierarchy,
+          formatted: null,
+          report: null,
+          error: 'Preformat validation failed or returned null',
+          diagnostics: {
+            timing: { total: Date.now() - startTime },
+            metadata: { originalNodeCount, formattedNodeCount: 0 },
+          },
+        });
+      }
+    } catch (err: unknown) {
+      const error = err instanceof Error ? err.message : 'Unknown error';
+      res.status(500).json({
+        success: false,
+        error,
+        diagnostics: { timing: { total: Date.now() - startTime }, metadata: { originalNodeCount: 0, formattedNodeCount: 0 } },
+      });
     }
   });
 }

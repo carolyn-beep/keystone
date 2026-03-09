@@ -12,6 +12,7 @@ const Dashboard = lazy(() => import("@/pages/Dashboard"));
 const Login = lazy(() => import("@/pages/Login"));
 const NotFound = lazy(() => import("@/pages/not-found"));
 const DevImportAgentTest = lazy(() => import("@/pages/DevImportAgentTest"));
+const PreformatTestPage = lazy(() => import("@/pages/dev/PreformatTestPage"));
 
 // Loading fallback
 function PageLoader() {
@@ -29,6 +30,11 @@ function Router() {
       <Route path="/dev/import-agent">
         <ProtectedRoute>
           <DevImportAgentTest />
+        </ProtectedRoute>
+      </Route>
+      <Route path="/dev/preformat-test">
+        <ProtectedRoute>
+          <PreformatTestPage />
         </ProtectedRoute>
       </Route>
       <Route path="/">

@@ -4,6 +4,7 @@ import { CLASSIFICATION } from '@shared/schema';
 import OpenAI from 'openai';
 import type { HierarchyNode, DOK2SummaryGroup, DOK3ExtractedInsight, DOK4ExtractedSpov } from '@shared/hierarchy-types';
 import { extractAllFromHierarchy, convertToExtractorFormat, extractPurposeFromHierarchy } from './hierarchyExtractor';
+import { preformatHierarchy } from '../services/brainlift-preformat';
 
 // Feature flag for hierarchy-based extraction
 const USE_HIERARCHY_EXTRACTION = process.env.USE_HIERARCHY_EXTRACTION === 'true';
@@ -372,7 +373,24 @@ export async function extractBrainlift(
 
   if (USE_HIERARCHY_EXTRACTION && hierarchy && hierarchy.length > 0) {
     console.log('[DOK1 Extractor] Attempting hierarchy-based extraction...');
-    const fullResult = extractAllFromHierarchy(hierarchy);
+
+    // Pre-format the hierarchy for better extraction if enabled
+    let effectiveHierarchy = hierarchy;
+    if (process.env.ENABLE_PREFORMAT === 'true') {
+      try {
+        const preformatResult = await preformatHierarchy(hierarchy);
+        if (preformatResult) {
+          effectiveHierarchy = preformatResult.cleanHierarchy;
+          console.log(`[Preformat] Success: ${preformatResult.report.contentLossPercent}% content loss`);
+        } else {
+          console.log('[Preformat] Returned null, using original hierarchy');
+        }
+      } catch (err) {
+        console.warn('[Preformat] Error, falling back to original:', err);
+      }
+    }
+
+    const fullResult = extractAllFromHierarchy(effectiveHierarchy);
 
     // Always keep DOK2/DOK3/DOK4 from hierarchy, even if facts=0 (facts can fall back to regex/LLM)
     dok2Summaries = fullResult.dok2Summaries;

@@ -6,6 +6,7 @@ import multer from "multer";
 import { extractBrainlift } from "../ai/brainliftExtractor";
 import { extractContent, validateContent, type SourceType } from "../utils/content-extractor";
 import { saveBrainliftFromAI, runPostProcessingPipeline } from "../services/brainlift";
+import { preformatHierarchy } from "../services/brainlift-preformat";
 import { requireAuth } from "../middleware/auth";
 import { asyncHandler, BadRequestError } from "../middleware/error-handler";
 import {
@@ -287,5 +288,46 @@ brainliftsRouter.get(
   asyncHandler(async (req, res) => {
     const versions = await storage.getVersionsByBrainliftId(req.brainlift!.id);
     res.json(versions);
+  })
+);
+
+// Reformat brainlift using preformat pipeline
+brainliftsRouter.post(
+  '/api/brainlifts/:slug/reformat',
+  requireAuth,
+  requireBrainliftModify,
+  asyncHandler(async (req, res) => {
+    const { confirm } = req.body;
+    if (!confirm) {
+      throw new BadRequestError('Must confirm reformat operation');
+    }
+
+    const brainlift = req.brainlift!;
+    const importHierarchy = brainlift.importHierarchy as unknown[] | null;
+    if (!importHierarchy || !Array.isArray(importHierarchy) || importHierarchy.length === 0) {
+      throw new BadRequestError('BrainLift has no import hierarchy');
+    }
+
+    try {
+      const result = await preformatHierarchy(importHierarchy as any);
+      if (result) {
+        res.json({
+          success: true,
+          report: result.report,
+          cleanHierarchy: result.cleanHierarchy,
+        });
+      } else {
+        res.json({
+          success: false,
+          error: 'Preformat validation failed',
+        });
+      }
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Unknown error';
+      res.status(500).json({
+        success: false,
+        error: message,
+      });
+    }
   })
 );
