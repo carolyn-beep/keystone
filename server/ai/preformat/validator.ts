@@ -84,12 +84,13 @@ export function jaccardSimilarity(a: string, b: string): number {
   const setB = new Set(wordsB);
 
   let intersection = 0;
-  for (const word of setA) {
+  setA.forEach(word => {
     if (setB.has(word)) intersection++;
-  }
+  });
 
-  const union = new Set([...setA, ...setB]).size;
-  return intersection / union;
+  // Compute union size: |A| + |B| - |A ∩ B|
+  const unionSize = setA.size + setB.size - intersection;
+  return intersection / unionSize;
 }
 
 /**
