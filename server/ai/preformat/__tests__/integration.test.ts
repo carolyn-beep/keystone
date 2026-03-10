@@ -211,7 +211,7 @@ describe('FR1: preformatHierarchy orchestrator', () => {
     const report = makeValidationReport(true);
     const cleanHierarchy = makeCleanHierarchy();
 
-    mockChunker.mockReturnValue(chunks);
+    mockChunker.mockReturnValue({ chunks, bypassedScratchpad: [] });
     mockLLMCalls.mockResolvedValue(llmResults);
     mockMerger.mockReturnValue(merged);
     mockValidator.mockReturnValue(report);
@@ -227,11 +227,11 @@ describe('FR1: preformatHierarchy orchestrator', () => {
     expect(mockChunker).toHaveBeenCalledWith(hierarchy);
     expect(mockLLMCalls).toHaveBeenCalledWith(chunks);
     expect(mockMerger).toHaveBeenCalledWith(llmResults);
-    expect(mockValidator).toHaveBeenCalledWith(hierarchy, merged);
-    expect(mockTreeBuilder).toHaveBeenCalledWith(merged);
+    expect(mockValidator).toHaveBeenCalledWith(hierarchy, merged, []);
+    expect(mockTreeBuilder).toHaveBeenCalledWith(merged, []);
   });
 
-  it('SC1.2: returns null when validation fails (report.passed = false)', async () => {
+  it('SC1.2: returns result with report.passed=false when validation fails (tree still built)', async () => {
     const hierarchy = makeSimpleHierarchy();
     const chunks: PreformatChunk[] = [
       { type: 'owner', label: 'Owner', markdown: '## Owner\nTest', sourceNodeIds: ['owner-1'], originalNodes: [] },
@@ -242,17 +242,22 @@ describe('FR1: preformatHierarchy orchestrator', () => {
     };
     const merged = makeMergedResult();
     const failReport = makeValidationReport(false);
+    const cleanTree = makeCleanHierarchy();
 
-    mockChunker.mockReturnValue(chunks);
+    mockChunker.mockReturnValue({ chunks, bypassedScratchpad: [] });
     mockLLMCalls.mockResolvedValue(llmResults);
     mockMerger.mockReturnValue(merged);
     mockValidator.mockReturnValue(failReport);
+    mockTreeBuilder.mockReturnValue(cleanTree);
 
     const result = await preformatHierarchy(hierarchy);
 
-    expect(result).toBeNull();
-    // buildCleanHierarchy should NOT be called when validation fails
-    expect(mockTreeBuilder).not.toHaveBeenCalled();
+    // Now always returns a result — callers check report.passed
+    expect(result).not.toBeNull();
+    expect(result!.report.passed).toBe(false);
+    expect(result!.cleanHierarchy).toBe(cleanTree);
+    // Tree IS built even on validation failure (for debugging/test page)
+    expect(mockTreeBuilder).toHaveBeenCalledWith(merged, []);
   });
 
   it('SC1.3: returns null for empty hierarchy input', async () => {
@@ -280,7 +285,7 @@ describe('FR1: preformatHierarchy orchestrator', () => {
     const chunks: PreformatChunk[] = [
       { type: 'owner', label: 'Owner', markdown: '## Owner\nTest', sourceNodeIds: ['owner-1'], originalNodes: [] },
     ];
-    mockChunker.mockReturnValue(chunks);
+    mockChunker.mockReturnValue({ chunks, bypassedScratchpad: [] });
     mockLLMCalls.mockRejectedValue(new Error('LLM timeout'));
 
     const result = await preformatHierarchy(hierarchy);
@@ -301,7 +306,7 @@ describe('FR1: preformatHierarchy orchestrator', () => {
     const report = makeValidationReport(true);
     const cleanHierarchy = makeCleanHierarchy();
 
-    mockChunker.mockReturnValue(chunks);
+    mockChunker.mockReturnValue({ chunks, bypassedScratchpad: [] });
     mockLLMCalls.mockResolvedValue(llmResults);
     mockMerger.mockReturnValue(merged);
     mockValidator.mockReturnValue(report);
@@ -370,7 +375,7 @@ describe('FR2: extractBrainlift integration', () => {
     const report = makeValidationReport(true);
     const cleanTree = makeCleanHierarchy();
 
-    mockChunker.mockReturnValue(chunks);
+    mockChunker.mockReturnValue({ chunks, bypassedScratchpad: [] });
     mockLLMCalls.mockResolvedValue(llmResults);
     mockMerger.mockReturnValue(merged);
     mockValidator.mockReturnValue(report);
@@ -445,7 +450,7 @@ describe('FR3: Reformat endpoint logic', () => {
     const report = makeValidationReport(true);
     const cleanTree = makeCleanHierarchy();
 
-    mockChunker.mockReturnValue(chunks);
+    mockChunker.mockReturnValue({ chunks, bypassedScratchpad: [] });
     mockLLMCalls.mockResolvedValue(llmResults);
     mockMerger.mockReturnValue(merged);
     mockValidator.mockReturnValue(report);
@@ -462,11 +467,12 @@ describe('FR3: Reformat endpoint logic', () => {
     // { success: true, report: result.report, cleanHierarchy: result.cleanHierarchy }
   });
 
-  it('SC3.4: returns success:false when preformat returns null', async () => {
+  it('SC3.4: returns result with report.passed=false when validation fails', async () => {
     const hierarchy = makeSimpleHierarchy();
-    mockChunker.mockReturnValue([
+    const cleanTree = makeCleanHierarchy();
+    mockChunker.mockReturnValue({ chunks: [
       { type: 'owner', label: 'Owner', markdown: '', sourceNodeIds: [], originalNodes: [] },
-    ]);
+    ], bypassedScratchpad: [] });
     const llmResults: PreformatLLMResults = {
       owner: null, purpose: null, experts: null, spovs: null,
       insights: null, categories: [], unknownSections: [], scratchpad: [],
@@ -474,12 +480,16 @@ describe('FR3: Reformat endpoint logic', () => {
     mockLLMCalls.mockResolvedValue(llmResults);
     mockMerger.mockReturnValue(makeMergedResult());
     mockValidator.mockReturnValue(makeValidationReport(false));
+    mockTreeBuilder.mockReturnValue(cleanTree);
 
     vi.spyOn(console, 'log').mockImplementation(() => {});
 
     const result = await preformatHierarchy(hierarchy);
-    expect(result).toBeNull();
-    // The endpoint would return: { success: false, error: 'Preformat validation failed' }
+    // Now always returns a result — callers check report.passed
+    expect(result).not.toBeNull();
+    expect(result!.report.passed).toBe(false);
+    expect(result!.cleanHierarchy).toBe(cleanTree);
+    // The endpoint would return: { success: false, formatted: cleanTree, report: failReport }
   });
 });
 
@@ -514,7 +524,7 @@ describe('FR4: Dev test page endpoint logic', () => {
     const report = makeValidationReport(true);
     const cleanTree = makeCleanHierarchy();
 
-    mockChunker.mockReturnValue(chunks);
+    mockChunker.mockReturnValue({ chunks, bypassedScratchpad: [] });
     mockLLMCalls.mockResolvedValue(llmResults);
     mockMerger.mockReturnValue(merged);
     mockValidator.mockReturnValue(report);

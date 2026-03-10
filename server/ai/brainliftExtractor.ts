@@ -379,11 +379,13 @@ export async function extractBrainlift(
     if (process.env.ENABLE_PREFORMAT === 'true') {
       try {
         const preformatResult = await preformatHierarchy(hierarchy);
-        if (preformatResult) {
+        if (preformatResult && preformatResult.report.passed) {
           effectiveHierarchy = preformatResult.cleanHierarchy;
-          console.log(`[Preformat] Success: ${preformatResult.report.contentLossPercent}% content loss`);
+          console.log(`[Preformat] Using clean hierarchy: ${preformatResult.report.contentLossPercent.toFixed(1)}% loss`);
+        } else if (preformatResult) {
+          console.log(`[Preformat] Validation failed (loss=${preformatResult.report.contentLossPercent.toFixed(1)}%, hallucinations=${preformatResult.report.hallucinationCount}), using original hierarchy`);
         } else {
-          console.log('[Preformat] Returned null, using original hierarchy');
+          console.log('[Preformat] Pipeline crashed, using original hierarchy');
         }
       } catch (err) {
         console.warn('[Preformat] Error, falling back to original:', err);

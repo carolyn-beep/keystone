@@ -17,13 +17,13 @@ import {
  * Classify a top-level node name against canonical section patterns.
  * Returns the matching ChunkType, 'knowledgeTree' (intermediate), or 'unknown'.
  */
-export function identifySection(name: string): ChunkType | 'knowledgeTree' {
+export type SectionClassification = ChunkType | 'knowledgeTree' | 'scratchpad';
+
+export function identifySection(name: string): SectionClassification {
   const trimmed = name.trim();
   for (const [key, pattern] of Object.entries(SECTION_PATTERNS)) {
     if (pattern.test(trimmed)) {
-      // 'knowledgeTree' is an intermediate type — not a final ChunkType
-      // It gets resolved to 'category' or 'knowledge_tree' by splitKnowledgeTree
-      return key as ChunkType | 'knowledgeTree';
+      return key as SectionClassification;
     }
   }
   return 'unknown';
@@ -120,17 +120,26 @@ function buildChunkMarkdown(
   return markdown;
 }
 
+export interface ChunkingResult {
+  chunks: PreformatChunk[];
+  /** Original scratchpad nodes — bypassed from LLM, copied verbatim to output */
+  bypassedScratchpad: HierarchyNode[];
+}
+
 /**
  * Main entry point. Given HierarchyNode[] roots, identify sections,
  * split Knowledge Tree into categories, and serialize each chunk.
  *
- * Returns PreformatChunk[] ready for downstream LLM calls.
+ * Scratchpad nodes are detected and BYPASSED — they are not sent to LLMs.
+ * They are returned separately for verbatim copying into the final output.
+ *
+ * Returns ChunkingResult with chunks for LLM processing + bypassed scratchpad.
  */
 export function identifyAndSerializeChunks(
   roots: HierarchyNode[],
-): PreformatChunk[] {
+): ChunkingResult {
   if (roots.length === 0) {
-    return [];
+    return { chunks: [], bypassedScratchpad: [] };
   }
 
   // Top-level children are the section boundaries.
@@ -142,33 +151,89 @@ export function identifyAndSerializeChunks(
 
   // Classify each top-level node
   const classified: {
-    section: ChunkType | 'knowledgeTree';
+    section: SectionClassification;
     node: HierarchyNode;
   }[] = topLevelNodes.map((node) => ({
     section: identifySection(node.name),
     node,
   }));
 
-  // If all nodes are unknown, return a single 'unstructured' chunk
-  const allUnknown = classified.every((c) => c.section === 'unknown');
-  if (allUnknown) {
-    const allNodes = roots.length === 1 ? [roots[0]] : roots;
+  // Extract scratchpad nodes — bypass LLM processing entirely
+  const bypassedScratchpad: HierarchyNode[] = [];
+  const nonScratchpad = classified.filter((c) => {
+    if (c.section === 'scratchpad') {
+      bypassedScratchpad.push(c.node);
+      return false;
+    }
+    return true;
+  });
+
+  // If all remaining nodes are unknown, return a single 'unstructured' chunk
+  const allUnknown = nonScratchpad.every((c) => c.section === 'unknown');
+  if (allUnknown && nonScratchpad.length > 0) {
+    const allNodes = nonScratchpad.map((c) => c.node);
     const allIds = allNodes.flatMap(collectNodeIds);
-    return [
-      {
-        type: 'unstructured',
-        label: 'Full Document',
-        markdown: buildChunkMarkdown('unstructured', 'Full Document', allNodes),
-        sourceNodeIds: allIds,
-        originalNodes: allNodes,
-      },
-    ];
+    return {
+      chunks: [
+        {
+          type: 'unstructured',
+          label: 'Full Document',
+          markdown: buildChunkMarkdown('unstructured', 'Full Document', allNodes),
+          sourceNodeIds: allIds,
+          originalNodes: allNodes,
+        },
+      ],
+      bypassedScratchpad,
+    };
   }
 
+  // ── Extract misplaced children ──────────────────────────────────
+  // Scan each classified node's direct children for nodes that match a
+  // DIFFERENT section pattern. Pull them out as separate top-level entries
+  // so each goes to the correct section-specific prompt.
+  const expanded: typeof nonScratchpad = [];
+  for (const entry of nonScratchpad) {
+    const { section, node } = entry;
+    if (section === 'unknown' || node.children.length === 0) {
+      expanded.push(entry);
+      continue;
+    }
+
+    const kept: HierarchyNode[] = [];
+    let hadMisplaced = false;
+
+    for (const child of node.children) {
+      const childSection = identifySection(child.name);
+      if (childSection !== 'unknown' && childSection !== section) {
+        // This child belongs to a different section — extract it
+        if (childSection === 'scratchpad') {
+          bypassedScratchpad.push(child);
+        } else {
+          expanded.push({ section: childSection, node: child });
+        }
+        hadMisplaced = true;
+      } else {
+        kept.push(child);
+      }
+    }
+
+    if (hadMisplaced) {
+      // Rebuild the parent node with only its rightful children
+      if (kept.length > 0) {
+        const trimmedNode: HierarchyNode = { ...node, children: kept };
+        expanded.push({ section, node: trimmedNode });
+      }
+      // If all children were misplaced, the parent has nothing left — skip it
+    } else {
+      expanded.push(entry);
+    }
+  }
+
+  // ── Build chunks from expanded list ───────────────────────────────
   const chunks: PreformatChunk[] = [];
   const unknownNodes: HierarchyNode[] = [];
 
-  for (const { section, node } of classified) {
+  for (const { section, node } of expanded) {
     if (section === 'unknown') {
       unknownNodes.push(node);
       continue;
@@ -214,5 +279,5 @@ export function identifyAndSerializeChunks(
     });
   }
 
-  return chunks;
+  return { chunks, bypassedScratchpad };
 }

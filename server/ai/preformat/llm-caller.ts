@@ -26,6 +26,7 @@ const MODEL = 'anthropic/claude-haiku-4.5';
 const LLM_CONCURRENCY = 15;
 const MAX_RETRIES = 3;
 const RETRYABLE_STATUS_CODES = new Set([429, 500, 502, 503]);
+const verboseLog = () => process.env.VERBOSE_PRE_FORMATTER_LOG === 'true';
 
 /**
  * Main entry point. Dispatches parallel LLM calls for all chunks
@@ -49,15 +50,24 @@ export async function runPreformatLLMCalls(
 
   // Dispatch all calls in parallel with concurrency control
   const chunkResults = await Promise.all(
-    chunks.map((chunk) =>
+    chunks.map((chunk, idx) =>
       limit(async () => {
+        const callStart = Date.now();
+        if (verboseLog()) {
+          console.log(`  [LLM Call ${idx + 1}/${chunks.length}] Starting: type=${chunk.type} label="${chunk.label}" inputLen=${chunk.markdown.length}`);
+        }
         try {
           const result = await callChunkLLM(chunk, apiKey!);
+          const duration = Date.now() - callStart;
+          if (verboseLog()) {
+            console.log(`  [LLM Call ${idx + 1}/${chunks.length}] OK: type=${chunk.type} label="${chunk.label}" ${duration}ms`);
+          }
           return { chunk, result };
         } catch (err) {
+          const duration = Date.now() - callStart;
+          // Always log failures (not gated by verbose)
           console.warn(
-            `[Preformat LLM] Skipping chunk "${chunk.label}" (${chunk.type}) after all retries:`,
-            err instanceof Error ? err.message : err,
+            `  [LLM Call ${idx + 1}/${chunks.length}] FAILED: type=${chunk.type} label="${chunk.label}" ${duration}ms — ${err instanceof Error ? err.message : err}`,
           );
           return { chunk, result: null };
         }
@@ -258,6 +268,7 @@ function aggregateResults(
             ...unstructured.spovs.map((s) => ({
               text: s.text,
               explicitInsightRefs: s.explicitInsightRefs ?? [],
+              context: s.context ?? [],
             })),
           );
         }

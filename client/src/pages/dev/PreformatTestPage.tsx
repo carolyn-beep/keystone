@@ -9,9 +9,10 @@
  * - URL input + run button
  * - Side-by-side tree comparison (original vs formatted)
  * - Validation report display
+ * - Pipeline timing + stats breakdown
  */
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useMemo } from 'react';
 import { apiRequest } from '@/lib/queryClient';
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -47,11 +48,40 @@ interface ValidationReport {
   };
 }
 
+interface PipelineTiming {
+  total: number;
+  chunking: number;
+  llmCalls: number;
+  merging: number;
+  validation: number;
+  treeBuilding: number;
+}
+
+interface PipelineStats {
+  chunkCount: number;
+  llmSuccessCount: number;
+  llmFailCount: number;
+  categoryCount: number;
+  insightCount: number;
+  spovCount: number;
+  expertCount: number;
+  scratchpadCount: number;
+  mergeReport: {
+    duplicateFactsRemoved: number;
+    duplicateSourcesConsolidated: number;
+    insightsDeduped: number;
+    spovsDeduped: number;
+    crossRefsUpdated: number;
+  };
+}
+
 interface PreformatTestResponse {
   success: boolean;
   original?: HierarchyNode[];
   formatted?: HierarchyNode[] | null;
   report?: ValidationReport | null;
+  timing?: PipelineTiming | null;
+  stats?: PipelineStats | null;
   error?: string;
   diagnostics: {
     timing: { total: number };
@@ -145,6 +175,95 @@ function TreeView({ nodes, title, nodeCount }: { nodes: HierarchyNode[]; title: 
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
+// Pipeline Timing Panel
+// ═══════════════════════════════════════════════════════════════════════════
+
+function TimingPanel({ timing }: { timing: PipelineTiming }) {
+  const steps = [
+    { label: 'Chunking', ms: timing.chunking },
+    { label: 'LLM Calls', ms: timing.llmCalls },
+    { label: 'Merging', ms: timing.merging },
+    { label: 'Validation', ms: timing.validation },
+    { label: 'Tree Build', ms: timing.treeBuilding },
+  ];
+
+  return (
+    <div className="rounded-lg border border-border bg-card p-4">
+      <h3 className="text-sm font-semibold text-foreground mb-3">Pipeline Timing</h3>
+      <div className="space-y-2">
+        {steps.map((step) => {
+          const pct = timing.total > 0 ? (step.ms / timing.total) * 100 : 0;
+          return (
+            <div key={step.label} className="flex items-center gap-3">
+              <div className="text-xs text-muted-foreground w-20 flex-shrink-0">{step.label}</div>
+              <div className="flex-1 bg-muted rounded-full h-2">
+                <div
+                  className="bg-primary rounded-full h-2 transition-all"
+                  style={{ width: `${Math.max(pct, 1)}%` }}
+                />
+              </div>
+              <div className="text-xs font-mono text-foreground w-16 text-right">
+                {step.ms >= 1000 ? `${(step.ms / 1000).toFixed(1)}s` : `${step.ms}ms`}
+              </div>
+            </div>
+          );
+        })}
+        <div className="border-t border-border pt-2 flex items-center justify-between">
+          <div className="text-xs font-semibold text-foreground">Total</div>
+          <div className="text-xs font-mono font-bold text-foreground">
+            {timing.total >= 1000 ? `${(timing.total / 1000).toFixed(1)}s` : `${timing.total}ms`}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Pipeline Stats Panel
+// ═══════════════════════════════════════════════════════════════════════════
+
+function StatsPanel({ stats }: { stats: PipelineStats }) {
+  return (
+    <div className="rounded-lg border border-border bg-card p-4">
+      <h3 className="text-sm font-semibold text-foreground mb-3">Pipeline Stats</h3>
+      <div className="grid grid-cols-2 gap-x-6 gap-y-1 text-xs">
+        <div className="text-muted-foreground">Chunks processed</div>
+        <div className="font-mono text-foreground">{stats.chunkCount}</div>
+        <div className="text-muted-foreground">LLM success / fail</div>
+        <div className="font-mono text-foreground">
+          <span className="text-green-600 dark:text-green-400">{stats.llmSuccessCount}</span>
+          {' / '}
+          <span className={stats.llmFailCount > 0 ? 'text-red-600 dark:text-red-400' : ''}>{stats.llmFailCount}</span>
+        </div>
+        <div className="text-muted-foreground">Categories</div>
+        <div className="font-mono text-foreground">{stats.categoryCount}</div>
+        <div className="text-muted-foreground">Insights</div>
+        <div className="font-mono text-foreground">{stats.insightCount}</div>
+        <div className="text-muted-foreground">SPOVs</div>
+        <div className="font-mono text-foreground">{stats.spovCount}</div>
+        <div className="text-muted-foreground">Experts</div>
+        <div className="font-mono text-foreground">{stats.expertCount}</div>
+        <div className="text-muted-foreground">Scratchpad items</div>
+        <div className="font-mono text-foreground">{stats.scratchpadCount}</div>
+
+        <div className="col-span-2 border-t border-border mt-2 pt-2 text-xs font-semibold text-muted-foreground">
+          Deduplication
+        </div>
+        <div className="text-muted-foreground">Facts removed</div>
+        <div className="font-mono text-foreground">{stats.mergeReport.duplicateFactsRemoved}</div>
+        <div className="text-muted-foreground">Insights deduped</div>
+        <div className="font-mono text-foreground">{stats.mergeReport.insightsDeduped}</div>
+        <div className="text-muted-foreground">SPOVs deduped</div>
+        <div className="font-mono text-foreground">{stats.mergeReport.spovsDeduped}</div>
+        <div className="text-muted-foreground">Cross-refs updated</div>
+        <div className="font-mono text-foreground">{stats.mergeReport.crossRefsUpdated}</div>
+      </div>
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
 // Validation Report Component
 // ═══════════════════════════════════════════════════════════════════════════
 
@@ -155,25 +274,30 @@ function ValidationReportPanel({ report }: { report: ValidationReport }) {
     <div className={`rounded-lg border p-4 ${report.passed ? 'border-green-300 bg-green-50 dark:border-green-800 dark:bg-green-950' : 'border-red-300 bg-red-50 dark:border-red-800 dark:bg-red-950'}`}>
       <div className="flex items-center gap-3 mb-3">
         <span className={`text-lg font-bold ${report.passed ? 'text-green-700 dark:text-green-300' : 'text-red-700 dark:text-red-300'}`}>
-          {report.passed ? 'PASSED' : 'FAILED'}
+          Validation: {report.passed ? 'PASSED' : 'FAILED'}
         </span>
+        {!report.passed && (
+          <span className="text-xs text-red-600 dark:text-red-400">
+            (tree still shown below for debugging)
+          </span>
+        )}
       </div>
 
       <div className="grid grid-cols-3 gap-4 mb-3">
         <div className="text-center">
-          <div className="text-2xl font-mono font-bold text-foreground">
+          <div className={`text-2xl font-mono font-bold ${report.contentLossPercent > 10 ? 'text-red-600 dark:text-red-400' : 'text-foreground'}`}>
             {report.contentLossPercent.toFixed(1)}%
           </div>
           <div className="text-xs text-muted-foreground">Content Loss</div>
         </div>
         <div className="text-center">
-          <div className="text-2xl font-mono font-bold text-foreground">
+          <div className={`text-2xl font-mono font-bold ${report.hallucinationCount > 0 ? 'text-red-600 dark:text-red-400' : 'text-foreground'}`}>
             {report.hallucinationCount}
           </div>
           <div className="text-xs text-muted-foreground">Hallucinations</div>
         </div>
         <div className="text-center">
-          <div className="text-2xl font-mono font-bold text-foreground">
+          <div className={`text-2xl font-mono font-bold ${report.duplicateCount > 0 ? 'text-amber-600 dark:text-amber-400' : 'text-foreground'}`}>
             {report.duplicateCount}
           </div>
           <div className="text-xs text-muted-foreground">Duplicates</div>
@@ -186,7 +310,7 @@ function ValidationReportPanel({ report }: { report: ValidationReport }) {
           <ul className="text-xs text-foreground space-y-0.5">
             {report.warnings.map((w, i) => (
               <li key={i} className="flex items-start gap-1">
-                <span className="text-amber-500">!</span>
+                <span className="text-amber-500 flex-shrink-0">!</span>
                 {w}
               </li>
             ))}
@@ -198,27 +322,27 @@ function ValidationReportPanel({ report }: { report: ValidationReport }) {
         onClick={() => setShowDetails(!showDetails)}
         className="text-xs text-primary hover:underline"
       >
-        {showDetails ? 'Hide details' : 'Show details'}
+        {showDetails ? 'Hide details' : `Show details (${report.details.missingFromOutput.length} missing, ${report.details.possibleHallucinations.length} hallucinations, ${report.details.duplicatePairs.length} dupes)`}
       </button>
 
       {showDetails && (
         <div className="mt-3 space-y-3">
-          {report.details.missingFromOutput.length > 0 && (
+          {report.details.possibleHallucinations.length > 0 && (
             <div>
-              <div className="text-xs font-semibold text-red-600 dark:text-red-400">Missing from output ({report.details.missingFromOutput.length}):</div>
-              <ul className="text-xs text-foreground mt-1 space-y-0.5 max-h-40 overflow-auto">
-                {report.details.missingFromOutput.map((m, i) => (
-                  <li key={i} className="font-mono bg-muted px-1 py-0.5 rounded truncate">{m}</li>
+              <div className="text-xs font-semibold text-orange-600 dark:text-orange-400">Possible hallucinations ({report.details.possibleHallucinations.length}):</div>
+              <ul className="text-xs text-foreground mt-1 space-y-0.5 max-h-60 overflow-auto">
+                {report.details.possibleHallucinations.map((h, i) => (
+                  <li key={i} className="font-mono bg-muted px-1 py-0.5 rounded break-words">{h}</li>
                 ))}
               </ul>
             </div>
           )}
-          {report.details.possibleHallucinations.length > 0 && (
+          {report.details.missingFromOutput.length > 0 && (
             <div>
-              <div className="text-xs font-semibold text-orange-600 dark:text-orange-400">Possible hallucinations ({report.details.possibleHallucinations.length}):</div>
-              <ul className="text-xs text-foreground mt-1 space-y-0.5 max-h-40 overflow-auto">
-                {report.details.possibleHallucinations.map((h, i) => (
-                  <li key={i} className="font-mono bg-muted px-1 py-0.5 rounded truncate">{h}</li>
+              <div className="text-xs font-semibold text-red-600 dark:text-red-400">Missing from output ({report.details.missingFromOutput.length}):</div>
+              <ul className="text-xs text-foreground mt-1 space-y-0.5 max-h-60 overflow-auto">
+                {report.details.missingFromOutput.map((m, i) => (
+                  <li key={i} className="font-mono bg-muted px-1 py-0.5 rounded break-words">{m}</li>
                 ))}
               </ul>
             </div>
@@ -226,12 +350,12 @@ function ValidationReportPanel({ report }: { report: ValidationReport }) {
           {report.details.duplicatePairs.length > 0 && (
             <div>
               <div className="text-xs font-semibold text-amber-600 dark:text-amber-400">Duplicate pairs ({report.details.duplicatePairs.length}):</div>
-              <ul className="text-xs text-foreground mt-1 space-y-0.5 max-h-40 overflow-auto">
+              <ul className="text-xs text-foreground mt-1 space-y-0.5 max-h-60 overflow-auto">
                 {report.details.duplicatePairs.map(([a, b], i) => (
                   <li key={i} className="font-mono bg-muted px-1 py-0.5 rounded">
-                    <span className="truncate block">{a}</span>
+                    <span className="break-words block">{a}</span>
                     <span className="text-muted-foreground mx-1">=</span>
-                    <span className="truncate block">{b}</span>
+                    <span className="break-words block">{b}</span>
                   </li>
                 ))}
               </ul>
@@ -253,6 +377,34 @@ export default function PreformatTestPage() {
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<PreformatTestResponse | null>(null);
 
+  const handleExport = useCallback(() => {
+    if (!result) return;
+
+    const exportData = {
+      exportedAt: new Date().toISOString(),
+      workflowyUrl: url,
+      original: result.original ?? null,
+      formatted: result.formatted ?? null,
+      possibleHallucinations: result.report?.details.possibleHallucinations ?? [],
+      missingFromOutput: result.report?.details.missingFromOutput ?? [],
+      validationSummary: result.report ? {
+        passed: result.report.passed,
+        contentLossPercent: result.report.contentLossPercent,
+        hallucinationCount: result.report.hallucinationCount,
+        duplicateCount: result.report.duplicateCount,
+      } : null,
+      timing: result.timing ?? null,
+      stats: result.stats ?? null,
+    };
+
+    const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = `preformat-debug-${Date.now()}.json`;
+    a.click();
+    URL.revokeObjectURL(a.href);
+  }, [result, url]);
+
   const handleRun = useCallback(async () => {
     if (!url.trim()) return;
 
@@ -264,7 +416,7 @@ export default function PreformatTestPage() {
       const res = await apiRequest('POST', '/dev/preformat-test', { workflowyUrl: url.trim() });
       const data: PreformatTestResponse = await res.json();
       setResult(data);
-      if (!data.success && data.error) {
+      if (data.error) {
         setError(data.error);
       }
     } catch (err) {
@@ -303,6 +455,14 @@ export default function PreformatTestPage() {
           >
             {loading ? 'Running...' : 'Run Preformat'}
           </button>
+          {result && (
+            <button
+              onClick={handleExport}
+              className="px-4 py-2 rounded-lg border border-border bg-card text-foreground font-medium hover:bg-muted"
+            >
+              Export JSON
+            </button>
+          )}
         </div>
 
         {/* Loading */}
@@ -310,12 +470,13 @@ export default function PreformatTestPage() {
           <div className="text-center py-12">
             <div className="animate-pulse text-muted-foreground">
               Fetching Workflowy content and running preformat pipeline...
+              <div className="text-xs mt-2">This typically takes 30-120 seconds depending on document size.</div>
             </div>
           </div>
         )}
 
-        {/* Error */}
-        {error && !loading && (
+        {/* Error (only for crashes, not validation failures) */}
+        {error && !loading && !result?.report && (
           <div className="rounded-lg border border-red-300 bg-red-50 dark:border-red-800 dark:bg-red-950 p-4 mb-6">
             <div className="text-sm text-red-700 dark:text-red-300 font-medium">Error</div>
             <div className="text-sm text-red-600 dark:text-red-400 mt-1">{error}</div>
@@ -325,20 +486,30 @@ export default function PreformatTestPage() {
         {/* Results */}
         {result && !loading && (
           <div className="space-y-6">
-            {/* Timing */}
+            {/* Timing + Stats row */}
+            {(result.timing || result.stats) && (
+              <div className="grid grid-cols-2 gap-4">
+                {result.timing && <TimingPanel timing={result.timing} />}
+                {result.stats && <StatsPanel stats={result.stats} />}
+              </div>
+            )}
+
+            {/* Validation Report */}
+            {result.report && (
+              <ValidationReportPanel report={result.report} />
+            )}
+
+            {/* Meta line */}
             <div className="text-xs text-muted-foreground">
-              Completed in {result.diagnostics.timing.total}ms
+              Total request: {result.diagnostics.timing.total >= 1000
+                ? `${(result.diagnostics.timing.total / 1000).toFixed(1)}s`
+                : `${result.diagnostics.timing.total}ms`}
               {' | '}
               Original: {result.diagnostics.metadata.originalNodeCount} nodes
               {result.diagnostics.metadata.formattedNodeCount > 0 && (
                 <> | Formatted: {result.diagnostics.metadata.formattedNodeCount} nodes</>
               )}
             </div>
-
-            {/* Validation Report */}
-            {result.report && (
-              <ValidationReportPanel report={result.report} />
-            )}
 
             {/* Side-by-side Trees */}
             <div className="flex gap-4">
@@ -349,22 +520,23 @@ export default function PreformatTestPage() {
                   nodeCount={result.diagnostics.metadata.originalNodeCount}
                 />
               )}
-              {result.formatted && (
+              {result.formatted ? (
                 <TreeView
                   nodes={result.formatted}
-                  title="Pre-Formatted Hierarchy"
+                  title={`Pre-Formatted Hierarchy ${result.report && !result.report.passed ? '(validation failed)' : ''}`}
                   nodeCount={result.diagnostics.metadata.formattedNodeCount}
                 />
-              )}
-              {!result.formatted && result.original && (
-                <div className="flex-1 min-w-0">
-                  <h3 className="text-sm font-semibold text-foreground mb-2">Pre-Formatted Hierarchy</h3>
-                  <div className="bg-card border border-border rounded-lg p-3 flex items-center justify-center min-h-[200px]">
-                    <div className="text-sm text-muted-foreground italic">
-                      Preformat returned null (validation failed or error)
+              ) : (
+                result.original && (
+                  <div className="flex-1 min-w-0">
+                    <h3 className="text-sm font-semibold text-foreground mb-2">Pre-Formatted Hierarchy</h3>
+                    <div className="bg-card border border-border rounded-lg p-3 flex items-center justify-center min-h-[200px]">
+                      <div className="text-sm text-muted-foreground italic">
+                        Pipeline crashed — check server logs for details
+                      </div>
                     </div>
                   </div>
-                </div>
+                )
               )}
             </div>
           </div>

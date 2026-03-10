@@ -345,7 +345,7 @@ describe('collectNodeIds', () => {
 describe('identifyAndSerializeChunks', () => {
   it('produces correct chunk types for well-structured tree (SC4.1)', () => {
     const roots = makeWellStructuredTree();
-    const chunks = identifyAndSerializeChunks(roots);
+    const { chunks } = identifyAndSerializeChunks(roots);
 
     const types = chunks.map(c => c.type);
     expect(types).toContain('owner');
@@ -369,14 +369,15 @@ describe('identifyAndSerializeChunks', () => {
       }),
     ];
 
-    const chunks = identifyAndSerializeChunks(roots);
+    const { chunks } = identifyAndSerializeChunks(roots);
     expect(chunks).toHaveLength(1);
     expect(chunks[0].type).toBe('unstructured');
   });
 
-  it('returns empty array for empty roots (SC4.3)', () => {
-    const chunks = identifyAndSerializeChunks([]);
-    expect(chunks).toEqual([]);
+  it('returns empty result for empty roots (SC4.3)', () => {
+    const result = identifyAndSerializeChunks([]);
+    expect(result.chunks).toEqual([]);
+    expect(result.bypassedScratchpad).toEqual([]);
   });
 
   it('sourceNodeIds contains all IDs in subtree (SC4.4)', () => {
@@ -396,7 +397,7 @@ describe('identifyAndSerializeChunks', () => {
       }),
     ];
 
-    const chunks = identifyAndSerializeChunks(roots);
+    const { chunks } = identifyAndSerializeChunks(roots);
     const ownerChunk = chunks.find(c => c.type === 'owner');
     expect(ownerChunk).toBeDefined();
     expect(ownerChunk!.sourceNodeIds).toContain('owner-1');
@@ -414,7 +415,7 @@ describe('identifyAndSerializeChunks', () => {
       }),
     ];
 
-    const chunks = identifyAndSerializeChunks(roots);
+    const { chunks } = identifyAndSerializeChunks(roots);
     const ownerChunk = chunks.find(c => c.type === 'owner');
     expect(ownerChunk).toBeDefined();
     expect(ownerChunk!.originalNodes).toHaveLength(1);
@@ -437,7 +438,7 @@ describe('identifyAndSerializeChunks', () => {
       }),
     ];
 
-    const chunks = identifyAndSerializeChunks(roots);
+    const { chunks } = identifyAndSerializeChunks(roots);
     const types = chunks.map(c => c.type);
     expect(types).toContain('owner');
     expect(types).toContain('purpose');
@@ -460,7 +461,7 @@ describe('identifyAndSerializeChunks', () => {
       }),
     ];
 
-    const chunks = identifyAndSerializeChunks(roots);
+    const { chunks } = identifyAndSerializeChunks(roots);
     const unknownChunks = chunks.filter(c => c.type === 'unknown');
     expect(unknownChunks).toHaveLength(1);
     // Both unknown nodes should be in the single chunk
@@ -472,7 +473,7 @@ describe('identifyAndSerializeChunks', () => {
       makeNode({ id: 'root', name: 'Empty BrainLift' }),
     ];
 
-    const chunks = identifyAndSerializeChunks(roots);
+    const { chunks } = identifyAndSerializeChunks(roots);
     expect(chunks).toHaveLength(1);
     expect(chunks[0].type).toBe('unstructured');
   });
@@ -490,7 +491,7 @@ describe('identifyAndSerializeChunks', () => {
       }),
     ];
 
-    const chunks = identifyAndSerializeChunks(roots);
+    const { chunks } = identifyAndSerializeChunks(roots);
     const ownerChunk = chunks.find(c => c.type === 'owner');
     expect(ownerChunk).toBeDefined();
     expect(ownerChunk!.markdown).toMatch(/^## owner: Owner\n\n/);

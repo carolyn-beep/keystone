@@ -38,6 +38,7 @@ interface CollectedInsight {
 interface CollectedSpov {
   text: string;
   explicitInsightRefs: number[];
+  context: string[];
   /** Which chunk provided this SPOV */
   chunkOrigin: string;
   /** Original insight indices are relative to this chunk's insight list */
@@ -233,6 +234,7 @@ export function mergePreformatResults(
       allSpovs.push({
         text: spov.text,
         explicitInsightRefs: [...spov.explicitInsightRefs],
+        context: [...(spov.context ?? [])],
         chunkOrigin: 'top-level',
       });
     });
@@ -245,6 +247,7 @@ export function mergePreformatResults(
         allSpovs.push({
           text: spov.text,
           explicitInsightRefs: [], // candidate spovs don't have explicit refs
+          context: [...(spov.context ?? [])],
           chunkOrigin: `category:${cat.category}`,
           sourceRefs: [...spov.sourceRefs],
         });
@@ -259,6 +262,7 @@ export function mergePreformatResults(
         allSpovs.push({
           text: spov.text,
           explicitInsightRefs: [],
+          context: [...(spov.context ?? [])],
           chunkOrigin: 'unknown',
           sourceRefs: [...spov.sourceRefs],
         });
@@ -289,6 +293,7 @@ export function mergePreformatResults(
       return {
         text: item.text,
         explicitInsightRefs: remappedRefs,
+        context: item.context,
         globalIndex: idx + 1,
       };
     });

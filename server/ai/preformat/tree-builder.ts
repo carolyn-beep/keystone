@@ -123,6 +123,11 @@ function buildExpertsSection(
       makeNode({ section: 'expert', name: `Where: ${expert.where}`, depth: depth + 2 }),
     ];
 
+    // Emit additional fields as extra child nodes
+    for (const af of (expert.additionalFields ?? [])) {
+      fields.push(makeNode({ section: 'expert', name: `${af.label}: ${af.value}`, depth: depth + 2 }));
+    }
+
     return makeNode({
       section: 'expert',
       name: `Expert - ${expert.name}`,
@@ -143,13 +148,17 @@ function buildDOK4Section(
   spovs: MergedPreformatResult['spovs'],
   depth: number,
 ): HierarchyNode {
-  const spovChildren = spovs.map(spov =>
-    makeNode({
+  const spovChildren = spovs.map(spov => {
+    const contextChildren = (spov.context ?? []).map(ctx =>
+      makeNode({ section: 'spov-context', name: ctx, depth: depth + 2 }),
+    );
+    return makeNode({
       section: 'spov',
       name: `spov ${spov.globalIndex} - ${spov.text}`,
       depth: depth + 1,
-    }),
-  );
+      children: contextChildren,
+    });
+  });
 
   return makeNode({
     section: 'dok4',
@@ -298,9 +307,14 @@ function buildScratchpadSection(
  *
  * Sections are ordered: Owner, Purpose, Experts, DOK4, DOK3, DOK2, Scratchpad.
  * Missing sections are omitted from the tree.
+ *
+ * @param bypassedScratchpad - Original scratchpad HierarchyNode[] copied verbatim
+ *   from the input. These are NOT sent to LLMs. Any LLM-classified scratchpad
+ *   content (from merged.scratchpad) is appended as additional children.
  */
 export function buildCleanHierarchy(
   merged: MergedPreformatResult,
+  bypassedScratchpad: HierarchyNode[] = [],
 ): HierarchyNode[] {
   // Reset ID counters for each build
   resetCounters();
@@ -338,9 +352,36 @@ export function buildCleanHierarchy(
     sections.push(buildDOK2Section(merged.categories, rootDepth));
   }
 
-  // 7. Scratchpad
-  if (merged.scratchpad.length > 0) {
-    sections.push(buildScratchpadSection(merged.scratchpad, rootDepth));
+  // 7. Scratchpad — original nodes copied verbatim + LLM-classified additions
+  const hasOriginalScratchpad = bypassedScratchpad.length > 0;
+  const hasLLMScratchpad = merged.scratchpad.length > 0;
+
+  if (hasOriginalScratchpad || hasLLMScratchpad) {
+    // Start with the original scratchpad's children (verbatim copy)
+    const scratchpadChildren: HierarchyNode[] = [];
+
+    for (const origNode of bypassedScratchpad) {
+      // Copy the original scratchpad's children directly (preserve full subtree)
+      for (const child of origNode.children) {
+        scratchpadChildren.push(child);
+      }
+    }
+
+    // Append LLM-classified scratchpad as additional children
+    for (const item of merged.scratchpad) {
+      scratchpadChildren.push(
+        makeNode({ section: 'scratchpad', name: item, depth: rootDepth + 1 }),
+      );
+    }
+
+    sections.push(
+      makeNode({
+        section: 'scratchpad',
+        name: 'Scratchpad',
+        depth: rootDepth,
+        children: scratchpadChildren,
+      }),
+    );
   }
 
   return sections;

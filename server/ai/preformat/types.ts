@@ -29,13 +29,18 @@ export interface PreformatChunk {
  * Regex patterns for identifying top-level sections.
  * Broader than extractor patterns to catch informal labels.
  */
+/**
+ * Order matters: more specific patterns first.
+ * knowledgeTree before insights so "DOK3: Knowledge Tree" matches KT, not insights.
+ */
 export const SECTION_PATTERNS: Record<string, RegExp> = {
-  owner: /^owner$/i,
+  owner: /^owner/i,
   purpose: /^purpose/i,
-  experts: /^experts?$/i,
+  experts: /(^experts?$|experts?\s*$)/i,
   spovs: /^(DOK\s*4|SPOVs?|Spiky\s*POVs?)/i,
+  scratchpad: /^scratchpad$/i,
+  knowledgeTree: /(knowledge\s*tree|categories|DOK\s*2)/i,
   insights: /^(DOK\s*3|insights?)/i,
-  knowledgeTree: /^(DOK\s*2|knowledge\s*tree)/i,
 };
 
 /**
@@ -65,6 +70,8 @@ export interface ExpertResult {
   focus: string;
   whyFollow: string;
   where: string;
+  /** Catch-all for fields that don't match the standard schema (e.g., "Key Views") */
+  additionalFields: Array<{ label: string; value: string }>;
 }
 
 /** Experts section result */
@@ -76,6 +83,8 @@ export interface ExpertsChunkResult {
 export interface SpovResult {
   text: string;
   explicitInsightRefs: number[];
+  /** Supporting context: child text nodes (examples, elaboration, cross-refs) */
+  context: string[];
 }
 
 /** SPOVs section result */
@@ -112,6 +121,7 @@ export interface CandidateInsight {
 export interface CandidateSpov {
   text: string;
   sourceRefs: string[];
+  context: string[];
 }
 
 /** Category chunk result -- the critical one */

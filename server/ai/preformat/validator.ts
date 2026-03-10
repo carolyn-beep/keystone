@@ -94,8 +94,40 @@ export function jaccardSimilarity(a: string, b: string): number {
 }
 
 /**
+ * Strip markdown link syntax: [text](url) → text url
+ * Prevents token merging when normalizeText strips punctuation.
+ */
+function stripMarkdownLinks(text: string): string {
+  return text.replace(/\[([^\]]*)\]\(([^)]*)\)/g, '$1 $2');
+}
+
+/**
+ * Check if all words in `subset` appear in `superset` (normalized).
+ * Handles cases like "Kenda Laney" being a subset of "Expert #2 - Kenda Laney".
+ */
+function isWordSubset(subset: string, superset: string): boolean {
+  const subWords = normalizeText(subset);
+  const superWords = new Set(normalizeText(superset));
+  if (subWords.length === 0) return false;
+  return subWords.every(w => superWords.has(w));
+}
+
+/**
+ * Check if the normalized `needle` is contained as a substring in `candidate`
+ * (case-insensitive). Handles URLs and markdown links.
+ */
+function isSubstringMatch(needle: string, candidate: string): boolean {
+  const a = needle.toLowerCase().trim();
+  const b = candidate.toLowerCase().trim();
+  return b.includes(a) || a.includes(b);
+}
+
+/**
  * Find the best fuzzy match for `needle` in `haystack`.
- * Returns the best-matching string and its Jaccard score.
+ * Uses Jaccard similarity as primary metric, with markdown-aware Jaccard,
+ * word-subset, and substring containment as fallbacks.
+ *
+ * Returns the best-matching string and its score (0.0 to 1.0).
  */
 export function findBestMatch(
   needle: string,
@@ -107,7 +139,28 @@ export function findBestMatch(
   let bestScore = 0.0;
 
   for (const candidate of haystack) {
-    const score = jaccardSimilarity(needle, candidate);
+    // Primary: Jaccard similarity
+    let score = jaccardSimilarity(needle, candidate);
+
+    // Fallback 1: Jaccard on markdown-stripped versions.
+    // [text](url) normalizes to merged tokens; stripping markdown first fixes this.
+    if (score < 0.7) {
+      const mdScore = jaccardSimilarity(stripMarkdownLinks(needle), stripMarkdownLinks(candidate));
+      score = Math.max(score, mdScore);
+    }
+
+    // Fallback 2: word-subset check
+    // (e.g., "Kenda Laney" ⊂ "Expert #2 - Kenda Laney")
+    if (score < 0.7 && (isWordSubset(needle, candidate) || isWordSubset(candidate, needle))) {
+      score = Math.max(score, 0.85);
+    }
+
+    // Fallback 3: substring containment for URLs and short strings
+    // (e.g., "https://foo.com" ⊂ "Find her: https://foo.com")
+    if (score < 0.7 && isSubstringMatch(needle, candidate)) {
+      score = Math.max(score, 0.8);
+    }
+
     if (score > bestScore) {
       bestScore = score;
       bestMatch = candidate;
@@ -175,18 +228,23 @@ function flattenOutputTexts(merged: MergedPreformatResult): string[] {
     for (const oos of merged.purpose.outOfScope) texts.push(oos);
   }
 
-  // Experts -- include field values with their label prefix to match original tree format
+  // Experts -- push raw field values (no added prefixes, since originals may use
+  // different labels like "Find her:", "Who follow:", or no prefix at all)
   for (const expert of merged.experts) {
     texts.push(expert.name);
-    texts.push(`Who: ${expert.who}`);
-    texts.push(`Focus: ${expert.focus}`);
-    texts.push(`Why Follow: ${expert.whyFollow}`);
-    texts.push(`Where: ${expert.where}`);
+    if (expert.who) texts.push(expert.who);
+    if (expert.focus) texts.push(expert.focus);
+    if (expert.whyFollow) texts.push(expert.whyFollow);
+    if (expert.where) texts.push(expert.where);
+    for (const af of (expert.additionalFields ?? [])) {
+      if (af.value) texts.push(af.value);
+    }
   }
 
-  // SPOVs
+  // SPOVs + their context
   for (const spov of merged.spovs) {
     texts.push(spov.text);
+    for (const ctx of (spov.context ?? [])) texts.push(ctx);
   }
 
   // Insights
@@ -221,9 +279,15 @@ function flattenOutputTexts(merged: MergedPreformatResult): string[] {
 export function validateIntegrity(
   original: HierarchyNode[],
   merged: MergedPreformatResult,
+  bypassedScratchpad: HierarchyNode[] = [],
 ): ValidationReport {
   const originalTexts = flattenOriginalTexts(original);
   const outputTexts = flattenOutputTexts(merged);
+
+  // Include bypassed scratchpad text in output set — these nodes were copied
+  // verbatim so they should count as "accounted for" in both directions
+  const bypassedTexts = bypassedScratchpad.flatMap(n => flattenOriginalTexts([n]));
+  outputTexts.push(...bypassedTexts);
 
   const warnings: string[] = [];
   const possibleHallucinations: string[] = [];

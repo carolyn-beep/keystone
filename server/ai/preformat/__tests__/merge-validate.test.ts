@@ -78,13 +78,13 @@ function makeFullLLMResults(): PreformatLLMResults {
     purpose: { purpose: 'Test purpose statement', outOfScope: ['Not this'] },
     experts: {
       experts: [
-        { name: 'Expert One', who: 'A researcher', focus: 'AI', whyFollow: 'Leading expert', where: 'MIT' },
+        { name: 'Expert One', who: 'Who: A researcher', focus: 'Focus: AI', whyFollow: 'Why Follow: Leading expert', where: 'Where: MIT' },
       ],
     },
     spovs: {
       spovs: [
-        { text: 'Mobile games are bad for indie devs', explicitInsightRefs: [1] },
-        { text: 'Premium pricing beats free-to-play', explicitInsightRefs: [] },
+        { text: 'Mobile games are bad for indie devs', explicitInsightRefs: [1], context: [] },
+        { text: 'Premium pricing beats free-to-play', explicitInsightRefs: [], context: [] },
       ],
     },
     insights: {
@@ -104,7 +104,7 @@ function makeFullLLMResults(): PreformatLLMResults {
           { text: 'Developer time investment is highest for mobile platforms', sourceRefs: ['Source B'] },
         ],
         candidateSpovs: [
-          { text: 'Premium pricing beats free to play models', sourceRefs: ['Source A'] },
+          { text: 'Premium pricing beats free to play models', sourceRefs: ['Source A'], context: [] },
         ],
       }),
       makeCategory({
@@ -129,11 +129,11 @@ function makeMergedResult(): MergedPreformatResult {
     owner: { name: 'Test Owner' },
     purpose: { purpose: 'Test purpose statement', outOfScope: ['Not this'] },
     experts: [
-      { name: 'Expert One', who: 'A researcher', focus: 'AI', whyFollow: 'Leading expert', where: 'MIT' },
+      { name: 'Expert One', who: 'Who: A researcher', focus: 'Focus: AI', whyFollow: 'Why Follow: Leading expert', where: 'Where: MIT' },
     ],
     spovs: [
-      { text: 'Mobile games are bad for indie devs', explicitInsightRefs: [1], globalIndex: 1 },
-      { text: 'Premium pricing beats free-to-play', explicitInsightRefs: [], globalIndex: 2 },
+      { text: 'Mobile games are bad for indie devs', explicitInsightRefs: [1], context: [], globalIndex: 1 },
+      { text: 'Premium pricing beats free-to-play', explicitInsightRefs: [], context: [], globalIndex: 2 },
     ],
     insights: [
       { text: 'Source monetization trends show premium outperforms', sourceRefs: ['Source A'], globalIndex: 1 },
@@ -337,13 +337,13 @@ describe('FR2: Result Merging', () => {
       makeCategory({
         category: 'Cat 1',
         candidateSpovs: [
-          { text: 'SPOV from cat one', sourceRefs: ['Source A'] },
+          { text: 'SPOV from cat one', sourceRefs: ['Source A'], context: [] },
         ],
       }),
       makeCategory({
         category: 'Cat 2',
         candidateSpovs: [
-          { text: 'SPOV from cat two', sourceRefs: ['Source B'] },
+          { text: 'SPOV from cat two', sourceRefs: ['Source B'], context: [] },
         ],
       }),
     ];
@@ -375,7 +375,7 @@ describe('FR2: Result Merging', () => {
     // Top-level SPOVs referencing insight 1 (chunk-local = 1 from top-level)
     results.spovs = {
       spovs: [
-        { text: 'A spiky point of view', explicitInsightRefs: [1] },
+        { text: 'A spiky point of view', explicitInsightRefs: [1], context: [] },
       ],
     };
 
@@ -445,14 +445,14 @@ describe('FR2: Result Merging', () => {
     const results = makeEmptyLLMResults();
     results.spovs = {
       spovs: [
-        { text: 'Premium pricing beats free to play', explicitInsightRefs: [] },
+        { text: 'Premium pricing beats free to play', explicitInsightRefs: [], context: [] },
       ],
     };
     results.categories = [
       makeCategory({
         category: 'Cat 1',
         candidateSpovs: [
-          { text: 'Premium pricing beats free to play models', sourceRefs: ['Source A'] },
+          { text: 'Premium pricing beats free to play models', sourceRefs: ['Source A'], context: [] },
         ],
       }),
     ];
@@ -484,7 +484,7 @@ describe('FR2: Result Merging', () => {
         ],
         // SPOV within category referencing chunk-local insight 1 (= 'Category insight gamma')
         candidateSpovs: [
-          { text: 'A category SPOV referencing insight 1', sourceRefs: ['C'] },
+          { text: 'A category SPOV referencing insight 1', sourceRefs: ['C'], context: [] },
         ],
       }),
     ];
