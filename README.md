@@ -28,13 +28,14 @@ Below the BrainLift sits the **Learning Stream** — the automated discovery lay
 ```
 client/           React 18 + TypeScript, TanStack Query, Tailwind, Framer Motion
 server/
-  routes/         Domain-based Express routers (brainlifts, experts, verifications, shares, learning-stream, discussion)
-  services/       Business logic, orchestration
+  routes/         Domain-based Express routers (brainlifts, experts, verifications, shares, learning-stream, discussion, dok4)
+  services/       Business logic, orchestration, grading pipeline
   storage/        Drizzle ORM, domain-split with facade pattern
-  ai/             LLM integrations (fact verification, DOK2 grading, expert extraction, research swarm)
+  ai/             LLM integrations (fact verification, DOK2-4 grading, auto-linking, expert extraction, research swarm)
   jobs/           Graphile Worker background jobs
+  events/         SSE event emitters (DOK4 grading progress)
   middleware/     Auth (Better Auth + Google OAuth), brainlift authorization, error handling
-  prompts/        Structured grading prompts
+  prompts/        Structured grading prompts (DOK1-4)
 shared/           Schema definitions, shared types
 migrations/       PostgreSQL migrations (Drizzle Kit)
 ```
@@ -70,14 +71,24 @@ Child resources (experts, facts, learning stream items) are always accessed thro
 
 ## BrainLift Import & Extraction
 
-Users import BrainLifts from WorkFlowy, HTML exports, or Google Docs. The import pipeline parses the document structure, extracts facts organized by category, identifies DOK2 summaries with their related DOK1 facts, detects contradiction clusters between facts, and extracts expert mentions — all streamed back to the client as SSE progress events so the UI updates in real time as each phase completes.
+Users import BrainLifts from WorkFlowy, HTML exports, or Google Docs. The import pipeline parses the document structure, extracts facts organized by category, identifies DOK2 summaries with their related DOK1 facts, detects DOK3 insights and DOK4 Spiky Points of View from hierarchy markers (`DOK3`/`DOK4`/`SPOV`), detects contradiction clusters between facts, and extracts expert mentions — all streamed back to the client as SSE progress events so the UI updates in real time as each phase completes.
 
-After extraction, a post-processing pipeline runs in parallel:
-- **Expert extraction and ranking** — identifies subject-matter experts from both the document's explicit expert list and source citations, computes an impact score (1--10) per expert, and auto-follows those above threshold.
-- **Redundancy analysis** — clusters semantically similar facts, designates a primary fact per group, and flags duplicates for review.
-- **Learning Stream research** — automatically queues a multi-agent research swarm to find relevant sources (covered below).
+After extraction, the pipeline branches based on the **auto-link toggle** (default: on):
 
-All of this fires immediately after import. By the time the user reviews their BrainLift, facts are already being verified, experts ranked, and research agents deployed.
+**Auto mode** — a fully automated pipeline runs inline with SSE progress for every stage:
+1. **DOK1 grading** — multi-model fact verification (60 concurrent)
+2. **DOK2 grading** — synthesis evaluation (10 concurrent)
+3. **DOK3 auto-linking** — LLM semantic matching of insights to DOK2 summaries
+4. **DOK3 grading** — conceptual coherence evaluation (5 concurrent)
+5. **DOK4 auto-linking** — semantic + explicit link matching of SPOVs to DOK3 insights
+6. **DOK4 grading** — 6-step evaluation pipeline (5 concurrent)
+7. **Expert extraction and ranking** — identifies subject-matter experts, computes impact scores
+8. **Redundancy analysis** — clusters semantically similar facts, flags duplicates
+9. **Learning Stream research** — queues a multi-agent research swarm
+
+**Manual mode** — the pipeline stops after DOK2 grading. The user manually links DOK3→DOK2 and DOK4→DOK3 through dedicated linking UIs in the import modal. Grading fires per-link via background jobs.
+
+In both modes, by the time the user reviews their BrainLift, everything from fact verification to DOK4 evaluation is either complete or in progress.
 
 ---
 
@@ -156,7 +167,141 @@ Summaries without a source URL cannot score 5 and receive a 1-point downgrade at
 
 ### Combined Scoring
 
-The BrainLift's overall score is a 50/50 weighted average of the DOK1 mean (factual accuracy) and DOK2 mean (synthesis quality), ensuring both dimensions carry equal weight.
+The BrainLift's overall score adapts to how much of the DOK hierarchy has been graded:
+
+| Graded Levels | Formula |
+|---------------|---------|
+| DOK1 + DOK2 only | `DOK1 × 0.50 + DOK2 × 0.50` |
+| DOK1 + DOK2 + DOK3 | `DOK1 × 0.33 + DOK2 × 0.33 + DOK3 × 0.34` |
+| DOK1 + DOK2 + DOK3 + DOK4 | `DOK1 × 0.25 + DOK2 × 0.25 + DOK3 × 0.25 + DOK4 × 0.25` |
+
+Each level carries equal weight. As the student builds higher-order knowledge, the score captures the full depth of their BrainLift rather than just factual accuracy and synthesis.
+
+---
+
+## DOK3 Grading — Cross-Source Insight Evaluation
+
+DOK3 grading evaluates whether a student's cross-source insights reflect genuine conceptual framework construction or are just loosely associated facts from different readings.
+
+The core question: **can you see the framework?** A DOK3 insight should reveal a conceptual lens the student has constructed by holding multiple DOK2 summaries in mind simultaneously — not borrowed from any single source, but built from the pattern the student sees across them.
+
+### Prerequisite: DOK3→DOK2 Linking
+
+Each DOK3 insight must be linked to the DOK2 summaries it synthesizes before grading can begin. This can happen two ways:
+
+- **Auto-linking** — an LLM (Haiku via OpenRouter) scores the semantic relevance of every DOK2 summary to each insight, selects the top matches that satisfy a multi-source constraint (≥2 DOK2s from ≥2 different sources), and creates the links automatically. When the constraint can't be met, it links the best matches anyway but flags the insight for review.
+- **Manual linking** — the user selects DOK2 summaries through a two-panel linking UI in the import modal.
+
+### Evaluation Pipeline (4 Steps)
+
+| Step | Type | What It Does |
+|------|------|-------------|
+| 1. Foundation Integrity | Math (no LLM) | Weighted composite of linked DOK1/DOK2 scores. Sets a ceiling on achievable DOK3 score. |
+| 2. Source Traceability | LLM check (mid-tier) | Per-source parallel checks detecting if the insight restates a single source's conclusion. |
+| 3. Conceptual Coherence | LLM evaluation (quality-tier) | The core grading step. 7 criteria across 3 dimensions, producing a 1-5 score. |
+| 4. Final Score | Math (no LLM) | `min(raw_llm_score, foundation_ceiling)`. |
+
+### Evaluation Criteria (7 Criteria, 3 Dimensions)
+
+**Framework Visibility** — Can you see the framework?
+- **V1** — Can you identify and name the conceptual framework the insight implies?
+- **V2** — Is the framework distinguishable from frameworks the student's sources already use?
+- **V3** — Is the framework specific to the student's domain and BrainLift purpose?
+
+**Framework Coherence** — Does the evidence support it?
+- **C1** — The linked DOK2 summaries logically support the insight. Traceable, not a leap of faith.
+- **C2** — The insight doesn't require ignoring or contradicting the student's own DOK1 facts.
+
+**Framework Productivity** — Does it generate meaning?
+- **P1** — The insight adds explanatory power beyond what individual sources provide alone.
+- **P2** — The insight connects to the BrainLift's purpose and advances domain understanding.
+
+### Quality Levels
+
+| Score | Label | Description |
+|-------|-------|-------------|
+| 5 | Productive Framework | Generates new meaning — explains anomalies, reframes the domain, points toward what you'd expect to find next. Rare. |
+| 4 | Coherent & Supported | Genuinely transcends individual sources. The framework organizes evidence meaningfully. |
+| 3 | Original, Weak Coherence | Real conceptual lens, but evidence doesn't fully support it. Gaps between claim and evidence. |
+| 2 | Framework Borrowed | Uses a framework from one source rather than constructing their own. |
+| 1 | No Framework Visible | Loose association between facts. DOK2 miscategorized as DOK3. |
+
+### Foundation Integrity and Ceiling
+
+The same ceiling mechanism as DOK1 fact verification's confidence system, but applied to the DOK1/DOK2 scores that underlie the insight:
+
+| Foundation Index | Ceiling |
+|-----------------|---------|
+| ≥ 4.0 | No ceiling |
+| ≥ 3.0 | Cap at 4 |
+| ≥ 2.0 | Cap at 3 |
+| < 2.0 | Cap at 2 |
+
+A brilliant insight built on a weak factual foundation gets penalized. This enforces the DOK hierarchy: you can't skip levels.
+
+---
+
+## DOK4 Grading — Spiky Point of View Evaluation
+
+DOK4 grading evaluates Spiky Points of View (SPOVs) — clear, defensible positions on topics where informed people disagree. A DOK4 is where the student stops observing patterns (DOK3) and starts committing to a stance they're willing to defend.
+
+The core question: **is this the student's own thinking, and is it spiky enough to matter?** An SPOV that restates a source's contrarian position is borrowed spikiness. An SPOV that an LLM would produce with high confidence isn't spiky at all. The pipeline tests both.
+
+### Prerequisite: DOK4→DOK3 Linking
+
+Each DOK4 SPOV must link to at least one DOK3 insight (designated as primary — the conceptual framework the POV depends on) and at least two DOK2 summaries from different sources. DOK1 facts are inherited transitively through DOK2 links at grading time.
+
+Like DOK3, linking can be automatic (semantic + explicit reference parsing) or manual (two-panel UI).
+
+### Evaluation Pipeline (6 Steps)
+
+| Step | Type | What It Does |
+|------|------|-------------|
+| 1. POV Validation | LLM classifier (mid-tier) | Gate. Rejects structurally ungradable submissions (not a claim, DOK3 misclassification, opinion without evidence). Generates actionable rejection feedback. |
+| 2. Foundation Integrity | Math (no LLM) | `DOK1_mean × 0.25 + DOK2_mean × 0.35 + primary_DOK3_score × 0.40`. Sets ceiling via same tier system as DOK3. |
+| 3. Source Traceability | LLM check (mid-tier) | Per-source parallel checks. Detects if the SPOV restates a single source's position. |
+| 4. LLM Divergence Check | LLM call (mid-tier) | Converts the SPOV into a neutral question, sends it to a vanilla LLM with zero context. Stores the response for comparison. |
+| 5. Quality Evaluation | LLM evaluation (quality-tier) | Core grading. 7 criteria across 2 dimensions (Spikiness + Ownership), score 1-5. Final = min(raw, ceiling). |
+| 6. Antimemetic Assessment | LLM evaluation (quality-tier) | Gated behind score ≥ 3. Diagnoses why the SPOV resists spreading. Qualitative only — no score. |
+
+### Spikiness Criteria (S1-S5)
+
+- **S1 — Contested** — Would knowledgeable practitioners push back on this position?
+- **S2 — LLM Divergence** — Does this position diverge from what a vanilla LLM produces when asked the same question?
+- **S3 — Grounded & Traceable** — Is the position grounded in the DOK1-2-3 chain with a traceable reasoning path?
+- **S4 — Clear Side** — Does the position commit to a stance? No hedging, no both-sides equivocation.
+- **S5 — Cross-Domain Synthesis** — Does the position draw from multiple domains?
+
+### Ownership Criteria (O1-O2)
+
+- **O1 — Causal Reasoning** — Does the student explain *why* something works, not just *that* it works?
+- **O2 — Distinct Voice** — Is the student's voice distinguishable from their sources?
+
+### Quality Levels
+
+| Score | Label | Description |
+|-------|-------|-------------|
+| 5 | Field-Advancing POV | Reframes a domain question, predicts outcomes, or reveals a previously invisible trade-off. Rare. |
+| 4 | Well-Grounded Spiky POV | Original, well-grounded, complete evidence trail. Demonstrates causal reasoning and distinct voice. |
+| 3 | Original, Shallow Reasoning | Genuine divergent position, but reasoning has gaps or the evidence trail is incomplete. |
+| 2 | Borrowed Spikiness | Restates a contrarian view from one of the student's sources rather than constructing an original stance. |
+| 1 | Not Spiky | Consensus position, disconnected from evidence, or not a real position. An LLM would produce this. |
+
+### LLM Divergence Check
+
+One of the most interesting pieces of feedback for students. The system converts their SPOV into a neutral question, sends it to an LLM with zero BrainLift context, and shows the student both positions side by side. If the LLM arrives at the same conclusion independently, the student's position isn't as spiky as they think. The frontend surfaces this as a comparison card: the derived question, the vanilla LLM's answer, and the evaluator's assessment of how far the two positions diverge.
+
+### Antimemetic Assessment
+
+The best DOK4 thinking is inherently antimemetic — too nuanced, too contextual, too spiky to survive compression into shareable formats. For SPOVs scoring 3+, the system diagnoses the specific transmission barrier:
+
+| Barrier | What It Means |
+|---------|--------------|
+| Immunity | The audience actively rejects the idea — it challenges beliefs they're invested in |
+| Low Transmission | The idea doesn't stick or spread — forgettable, not shareable, lacks a hook |
+| High Drag | The idea requires too much context to understand — can't survive compression |
+
+The assessment includes a concrete strategy for making the SPOV more transmissible. The student does the conversion work themselves — that's the learning.
 
 ---
 
@@ -479,6 +624,7 @@ The platform uses Graphile Worker (PostgreSQL-backed) for async processing:
 | `brainlift:generate-image` | Manual | Generate AI cover image |
 | `discussion:verify-fact` | Discussion tool call | Verify a fact the student articulated |
 | `discussion:grade-dok2` | Discussion tool call | Grade a DOK2 summary the student wrote |
+| `dok4:grade` | After all linked DOK3s graded | Run 6-step DOK4 evaluation pipeline |
 | `defense:review` | Evidence submission | Vet sources, generate counterarguments, infer field |
 | `defense:evaluate` | Round 12 completion | Run evaluator against transcript |
 
@@ -501,7 +647,8 @@ React 18 with TypeScript. TanStack Query for server state. Tailwind with a custo
 - **Split-panel views** — the expanded learning stream item uses a resizable split (content left, discussion right)
 - **Inline editing** — author names, expert following status, and human grade overrides are editable in place
 - **Content-type detection** — the content viewer handles YouTube, Spotify, Apple Podcasts, Twitter embeds, article markdown, and PDFs through a discriminated union type
-- **Domain hooks** — each domain (`useBrainlift`, `useExperts`, `useLearningStream`, `useDiscussion`, etc.) encapsulates queries + mutations and returns a clean API surface
+- **Domain hooks** — each domain (`useBrainlift`, `useExperts`, `useLearningStream`, `useDiscussion`, `useDOK4`, etc.) encapsulates queries + mutations and returns a clean API surface
+- **Import phase state machine** — the import flow uses a discriminated union state machine instead of independent booleans, cleanly separating extraction, grading, DOK3/DOK4 linking, and completion phases
 
 ### Design Language
 

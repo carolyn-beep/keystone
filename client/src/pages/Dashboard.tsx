@@ -9,6 +9,7 @@ import { RiQuillPenAiFill } from 'react-icons/ri';
 import { FaBalanceScale } from 'react-icons/fa';
 import { MdDynamicFeed } from 'react-icons/md';
 import { IoBookmarks, IoRibbon } from 'react-icons/io5';
+import { TbTargetArrow } from 'react-icons/tb';
 import { DeskLampIcon } from '@/assets/icons/DeskLampIcon';
 import { ScratchpadIcon } from '@/assets/icons/ScratchpadIcon';
 import { tokens } from '@/lib/colors';
@@ -25,6 +26,7 @@ import { SummariesTab } from '@/components/SummariesTab';
 import { InsightsTab } from '@/components/InsightsTab';
 import { ScratchpadTab } from '@/components/ScratchpadTab';
 import { DOK3LinkingUI } from '@/components/DOK3LinkingUI';
+import { DOK4LinkingUI } from '@/components/DOK4LinkingUI';
 import { LearningStreamTab } from '@/components/LearningStreamTab';
 import { SavedItemsPage, GradedItemsPage } from '@/components/learning-stream';
 import { ImportAgentModal } from '@/components/import-agent/ImportAgentModal';
@@ -32,6 +34,9 @@ import { usePDFExport } from '@/hooks/usePDFExport';
 import { useShareToken } from '@/hooks/useShareToken';
 import { useDOK3Insights } from '@/hooks/useDOK3Insights';
 import { useDOK3GradingEvents } from '@/hooks/useDOK3GradingEvents';
+import { useDOK4 } from '@/hooks/useDOK4';
+import { useDOK4GradingEvents } from '@/hooks/useDOK4GradingEvents';
+import { DOK4Tab } from '@/components/DOK4Tab';
 import { SidebarLayout, AppSidebar, type NavItem } from '@/components/layout';
 import { TactileButton } from '@/components/ui/tactile-button';
 
@@ -40,7 +45,7 @@ interface DashboardProps {
   isSharedView?: boolean;
 }
 
-const VALID_TABS = ['brainlift', 'grading', 'summaries', 'insights', 'scratchpad', 'contradictions', 'learning', 'learning-saved', 'learning-graded'] as const;
+const VALID_TABS = ['brainlift', 'grading', 'summaries', 'insights', 'dok4', 'scratchpad', 'contradictions', 'learning', 'learning-saved', 'learning-graded'] as const;
 type TabKey = typeof VALID_TABS[number];
 
 const NAV_ITEMS: NavItem[] = [
@@ -48,6 +53,7 @@ const NAV_ITEMS: NavItem[] = [
   { id: 'grading', label: 'DOK1 Facts', icon: PiCompassToolFill },
   { id: 'summaries', label: 'DOK2 Summaries', icon: RiQuillPenAiFill },
   { id: 'insights', label: 'DOK3 Insights', icon: DeskLampIcon },
+  { id: 'dok4', label: 'DOK4 SPOVs', icon: TbTargetArrow as NavItem['icon'] },
   { id: 'scratchpad', label: 'Scratchpad', icon: ScratchpadIcon },
   { id: 'contradictions', label: 'Contradictions', icon: FaBalanceScale },
   {
@@ -119,6 +125,7 @@ export default function Dashboard({ slug, isSharedView = false }: DashboardProps
   const [editingAuthor, setEditingAuthor] = useState(false);
   const [authorInput, setAuthorInput] = useState('');
   const [showLinkingModal, setShowLinkingModal] = useState(false);
+  const [showDok4LinkingModal, setShowDok4LinkingModal] = useState(false);
   const [showAgentModal, setShowAgentModal] = useState(false);
 
 const { toast } = useToast();
@@ -174,7 +181,11 @@ const { downloadBrainliftPDF } = usePDFExport();
 
   // DOK3 Insights
   const dok3 = useDOK3Insights(slug);
-  const dok3Events = useDOK3GradingEvents(slug, dok3.gradingInsights.length > 0);
+  const dok3Events = useDOK3GradingEvents(slug, dok3.gradingInsights.length > 0 || dok3.linkedInsights.length > 0);
+
+  // DOK4 SPOVs
+  const dok4 = useDOK4(slug);
+  const dok4Events = useDOK4GradingEvents(slug, dok4.gradingSpovs.length > 0 || dok4.pendingSpovs.length > 0);
 
   // Redundancy detection
   const [showRedundancyModal, setShowRedundancyModal] = useState(false);
@@ -232,47 +243,48 @@ const { downloadBrainliftPDF } = usePDFExport();
   const { facts, contradictionClusters } = data;
 
   // Gate: if import hasn't completed, show resume banner instead of dashboard.
-  const isAgentInProgress = data.importStatus === 'pending';
-
-  if (isAgentInProgress) {
-    return (
-      <>
-        <div className="min-h-screen flex items-center justify-center bg-background p-6">
-          <div className="bg-card rounded-xl border border-border shadow-card p-8 max-w-md w-full text-center">
-            <h2 className="text-lg font-semibold text-foreground mb-2">
-              Import In Progress
-            </h2>
-            <p className="text-sm text-muted-foreground mb-6">
-              This BrainLift is being imported via the Import Agent. Resume the conversation to continue extracting and grading content.
-            </p>
-            <div className="flex flex-col gap-3 items-center">
-              <TactileButton
-                variant="raised"
-                onClick={() => setShowAgentModal(true)}
-              >
-                Resume Import
-              </TactileButton>
-              <Link href="/" className="text-xs text-muted-foreground hover:text-foreground transition-colors">
-                Back to all Brainlifts
-              </Link>
-            </div>
-          </div>
-        </div>
-
-        {showAgentModal && (
-          <ImportAgentModal
-            brainliftSlug={slug}
-            onClose={() => setShowAgentModal(false)}
-            onComplete={(completedSlug) => {
-              setShowAgentModal(false);
-              // Reload page with complete data
-              window.location.href = `/grading/${completedSlug}`;
-            }}
-          />
-        )}
-      </>
-    );
-  }
+  // DISABLED: allowing dashboard to render even during pending imports
+  // const isAgentInProgress = data.importStatus === 'pending';
+  //
+  // if (isAgentInProgress) {
+  //   return (
+  //     <>
+  //       <div className="min-h-screen flex items-center justify-center bg-background p-6">
+  //         <div className="bg-card rounded-xl border border-border shadow-card p-8 max-w-md w-full text-center">
+  //           <h2 className="text-lg font-semibold text-foreground mb-2">
+  //             Import In Progress
+  //           </h2>
+  //           <p className="text-sm text-muted-foreground mb-6">
+  //             This BrainLift is being imported via the Import Agent. Resume the conversation to continue extracting and grading content.
+  //           </p>
+  //           <div className="flex flex-col gap-3 items-center">
+  //             <TactileButton
+  //               variant="raised"
+  //               onClick={() => setShowAgentModal(true)}
+  //             >
+  //               Resume Import
+  //             </TactileButton>
+  //             <Link href="/" className="text-xs text-muted-foreground hover:text-foreground transition-colors">
+  //               Back to all Brainlifts
+  //             </Link>
+  //           </div>
+  //         </div>
+  //       </div>
+  //
+  //       {showAgentModal && (
+  //         <ImportAgentModal
+  //           brainliftSlug={slug}
+  //           onClose={() => setShowAgentModal(false)}
+  //           onComplete={(completedSlug) => {
+  //             setShowAgentModal(false);
+  //             // Reload page with complete data
+  //             window.location.href = `/grading/${completedSlug}`;
+  //           }}
+  //         />
+  //       )}
+  //     </>
+  //   );
+  // }
 
   return (
     <SidebarLayout
@@ -397,6 +409,33 @@ const { downloadBrainliftPDF } = usePDFExport();
         />
       )}
 
+      {/* DOK4 SPOVs Tab */}
+      {!isNotBrainlift && activeTab === 'dok4' && (
+        <DOK4Tab
+          spovs={dok4.spovs}
+          isLoading={dok4.isLoading}
+          meanScore={dok4.meanScore}
+          totalCount={dok4.totalCount}
+          highQualityCount={dok4.highQualityCount}
+          needsWorkCount={dok4.needsWorkCount}
+          gradedSpovs={dok4.gradedSpovs}
+          rejectedSpovs={dok4.rejectedSpovs}
+          pendingSpovs={dok4.pendingSpovs}
+          errorSpovs={dok4.errorSpovs}
+          gradingSpovs={dok4.gradingSpovs}
+          gradeAll={dok4.gradeAll}
+          isGrading={dok4.isGrading}
+          retryOne={dok4.retryOne}
+          latestEvent={dok4Events.latestEvent}
+          dok3PendingLinkingCount={dok3.pendingInsights.length}
+          pendingLinkingCount={dok4.spovs.filter(s => s.status === 'pending_linking').length}
+          onLinkDok3={() => {
+            setShowLinkingModal(true);
+          }}
+          onLinkDok4={() => setShowDok4LinkingModal(true)}
+        />
+      )}
+
       {/* Scratchpad Tab */}
       {!isNotBrainlift && activeTab === 'scratchpad' && (
         <ScratchpadTab
@@ -497,7 +536,44 @@ const { downloadBrainliftPDF } = usePDFExport();
                 onComplete={() => {
                   setShowLinkingModal(false);
                   dok3.invalidate();
-                  setActiveTab('insights');
+                  // If opened from DOK4 tab, transition to DOK4 linking
+                  const hasPendingDok4 = dok4.spovs.some(s => s.status === 'pending_linking');
+                  if (activeTab === 'dok4' && hasPendingDok4) {
+                    setShowDok4LinkingModal(true);
+                  } else {
+                    setActiveTab('insights');
+                  }
+                }}
+              />
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* DOK4 Linking Modal (standalone, outside import flow) */}
+      {showDok4LinkingModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm overflow-hidden">
+          <div className="bg-card rounded-xl shadow-lg border border-border flex flex-col w-[90vw] max-w-[1750px] h-[92vh] max-h-[1080px] overflow-hidden">
+            <div className="flex items-center justify-between px-6 py-3 border-b border-border shrink-0">
+              <h2 className="text-[14px] font-semibold text-foreground m-0">Link DOK4 SPOVs</h2>
+              <button
+                onClick={() => {
+                  setShowDok4LinkingModal(false);
+                  dok4.invalidate();
+                }}
+                className="text-[11px] uppercase tracking-[0.2em] font-semibold text-muted-foreground bg-transparent border-0 cursor-pointer hover:text-foreground transition-colors"
+              >
+                Close
+              </button>
+            </div>
+            <div className="flex-1 min-h-0">
+              <DOK4LinkingUI
+                slug={slug}
+                spovCount={dok4.spovs.filter(s => s.status === 'pending_linking').length}
+                onComplete={() => {
+                  setShowDok4LinkingModal(false);
+                  dok4.invalidate();
+                  setActiveTab('dok4');
                 }}
               />
             </div>

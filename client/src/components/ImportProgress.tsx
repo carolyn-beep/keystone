@@ -10,20 +10,44 @@ interface ImportProgressProps {
   gradingProgress: GradingProgress | null;
   gradingDok2Progress: GradingProgress | null;
   gradingDok3Progress?: GradingProgress | null;
+  gradingDok4Progress?: GradingProgress | null;
+  linkingDok3Progress?: GradingProgress | null;
+  linkingDok4Progress?: GradingProgress | null;
   error: string | null;
   isVisible: boolean;
   orderedStages?: Exclude<ImportStage, 'complete' | 'error'>[];
 }
 
+// DOK4 extraction is not a visible step — it happens during initial extraction.
+// Linking stages have no per-item progress (only start/end), so no counters.
 const DEFAULT_ORDERED_STAGES: Exclude<ImportStage, 'complete' | 'error'>[] = [
   'extracting',
   'grading',
   'contradictions',
   'grading_dok2',
   'dok3_linking',
+  'grading_dok3',
+  'dok4_linking',
+  'grading_dok4',
   'experts',
   'redundancy',
 ];
+
+// Stages that have per-item grading counters (displayed as "X of Y" below progress bar)
+const COUNTER_STAGES: Record<string, { prop: keyof ImportProgressProps; label: string }> = {
+  grading: { prop: 'gradingProgress', label: 'facts graded' },
+  grading_dok2: { prop: 'gradingDok2Progress', label: 'summaries graded' },
+  grading_dok3: { prop: 'gradingDok3Progress', label: 'insights graded' },
+  grading_dok4: { prop: 'gradingDok4Progress', label: 'SPOVs graded' },
+};
+
+// Stages that show inline counters in the checklist (right-aligned "X/Y")
+const INLINE_COUNTER_STAGES: Record<string, keyof ImportProgressProps> = {
+  grading: 'gradingProgress',
+  grading_dok2: 'gradingDok2Progress',
+  grading_dok3: 'gradingDok3Progress',
+  grading_dok4: 'gradingDok4Progress',
+};
 
 export function ImportProgress({
   currentStage,
@@ -32,9 +56,11 @@ export function ImportProgress({
   gradingProgress,
   gradingDok2Progress,
   gradingDok3Progress,
+  gradingDok4Progress,
   error,
   isVisible,
   orderedStages,
+  ...props
 }: ImportProgressProps) {
   const stages = orderedStages ?? DEFAULT_ORDERED_STAGES;
   const currentIndex = (() => {
@@ -43,6 +69,9 @@ export function ImportProgress({
   })();
   const isComplete = currentStage === 'complete';
   const isError = currentStage === 'error' || !!error;
+
+  // Collect all counter props for lookup
+  const allProps = { gradingProgress, gradingDok2Progress, gradingDok3Progress, gradingDok4Progress, ...props };
 
   return (
     <>
@@ -72,73 +101,26 @@ export function ImportProgress({
               <Progress value={progress} className="h-2" />
             </div>
 
-            {/* DOK1 Grading counter with smooth number transition */}
-            <div
-              className="grid transition-all duration-300 ease-out"
-              style={{
-                gridTemplateRows: currentStage === 'grading' && gradingProgress ? '1fr' : '0fr',
-                opacity: currentStage === 'grading' && gradingProgress ? 1 : 0,
-              }}
-            >
-              <div className="overflow-hidden">
-                <div className="text-center text-sm text-muted-foreground py-1">
+            {/* Active grading counter — only rendered for the current stage if it has counter data */}
+            {currentStage && COUNTER_STAGES[currentStage] && (() => {
+              const config = COUNTER_STAGES[currentStage];
+              const counterProgress = allProps[config.prop] as GradingProgress | null | undefined;
+              if (!counterProgress) return null;
+              return (
+                <div className="text-center text-sm text-muted-foreground py-1 animate-fade-slide-in">
                   <span className="tabular-nums font-medium text-foreground">
-                    {gradingProgress?.completed ?? 0}
+                    {counterProgress.completed}
                   </span>
                   {' '}of{' '}
                   <span className="tabular-nums font-medium text-foreground">
-                    {gradingProgress?.total ?? 0}
+                    {counterProgress.total}
                   </span>
-                  {' '}facts graded
+                  {' '}{config.label}
                 </div>
-              </div>
-            </div>
+              );
+            })()}
 
-            {/* DOK2 Grading counter with smooth number transition */}
-            <div
-              className="grid transition-all duration-300 ease-out"
-              style={{
-                gridTemplateRows: currentStage === 'grading_dok2' && gradingDok2Progress ? '1fr' : '0fr',
-                opacity: currentStage === 'grading_dok2' && gradingDok2Progress ? 1 : 0,
-              }}
-            >
-              <div className="overflow-hidden">
-                <div className="text-center text-sm text-muted-foreground py-1">
-                  <span className="tabular-nums font-medium text-foreground">
-                    {gradingDok2Progress?.completed ?? 0}
-                  </span>
-                  {' '}of{' '}
-                  <span className="tabular-nums font-medium text-foreground">
-                    {gradingDok2Progress?.total ?? 0}
-                  </span>
-                  {' '}summaries graded
-                </div>
-              </div>
-            </div>
-
-            {/* DOK3 Grading counter with smooth number transition */}
-            <div
-              className="grid transition-all duration-300 ease-out"
-              style={{
-                gridTemplateRows: currentStage === 'grading_dok3' && gradingDok3Progress ? '1fr' : '0fr',
-                opacity: currentStage === 'grading_dok3' && gradingDok3Progress ? 1 : 0,
-              }}
-            >
-              <div className="overflow-hidden">
-                <div className="text-center text-sm text-muted-foreground py-1">
-                  <span className="tabular-nums font-medium text-foreground">
-                    {gradingDok3Progress?.completed ?? 0}
-                  </span>
-                  {' '}of{' '}
-                  <span className="tabular-nums font-medium text-foreground">
-                    {gradingDok3Progress?.total ?? 0}
-                  </span>
-                  {' '}insights graded
-                </div>
-              </div>
-            </div>
-
-            {/* Stage list with staggered fade-in */}
+            {/* Stage checklist with staggered fade-in */}
             <div className="space-y-2 pt-2">
               {stages.map((stage, index) => {
                 const isCurrentStage = stage === currentStage;
@@ -161,6 +143,13 @@ export function ImportProgress({
                   icon = <div className="w-5 h-5 rounded-full bg-muted/50" />;
                 }
 
+                // Inline counter for grading stages only
+                let inlineCounter: string | null = null;
+                if (isCurrentStage && INLINE_COUNTER_STAGES[stage]) {
+                  const p = allProps[INLINE_COUNTER_STAGES[stage]] as GradingProgress | null | undefined;
+                  if (p) inlineCounter = `${p.completed}/${p.total}`;
+                }
+
                 return (
                   <div
                     key={stage}
@@ -178,19 +167,9 @@ export function ImportProgress({
                   >
                     <div className="transition-transform duration-200">{icon}</div>
                     <span className="transition-colors duration-200">{STAGE_LABELS[stage]}</span>
-                    {stage === 'grading' && isCurrentStage && gradingProgress && (
+                    {inlineCounter && (
                       <span className="text-primary text-xs ml-auto tabular-nums font-medium">
-                        {gradingProgress.completed}/{gradingProgress.total}
-                      </span>
-                    )}
-                    {stage === 'grading_dok2' && isCurrentStage && gradingDok2Progress && (
-                      <span className="text-primary text-xs ml-auto tabular-nums font-medium">
-                        {gradingDok2Progress.completed}/{gradingDok2Progress.total}
-                      </span>
-                    )}
-                    {stage === 'grading_dok3' && isCurrentStage && gradingDok3Progress && (
-                      <span className="text-primary text-xs ml-auto tabular-nums font-medium">
-                        {gradingDok3Progress.completed}/{gradingDok3Progress.total}
+                        {inlineCounter}
                       </span>
                     )}
                   </div>
@@ -199,36 +178,20 @@ export function ImportProgress({
             </div>
 
             {/* Error message with animation */}
-            <div
-              className="grid transition-all duration-300 ease-out"
-              style={{
-                gridTemplateRows: error ? '1fr' : '0fr',
-                opacity: error ? 1 : 0,
-              }}
-            >
-              <div className="overflow-hidden">
-                <div className="flex items-start gap-2 p-3 rounded-lg bg-destructive/10 text-destructive text-sm animate-fade-slide-in">
-                  <AlertCircle size={16} className="mt-0.5 shrink-0" />
-                  <span>{error}</span>
-                </div>
+            {error && (
+              <div className="flex items-start gap-2 p-3 rounded-lg bg-destructive/10 text-destructive text-sm animate-fade-slide-in">
+                <AlertCircle size={16} className="mt-0.5 shrink-0" />
+                <span>{error}</span>
               </div>
-            </div>
+            )}
 
             {/* Success message with animation */}
-            <div
-              className="grid transition-all duration-300 ease-out"
-              style={{
-                gridTemplateRows: isComplete && !error ? '1fr' : '0fr',
-                opacity: isComplete && !error ? 1 : 0,
-              }}
-            >
-              <div className="overflow-hidden">
-                <div className="flex items-center gap-2 p-3 rounded-lg bg-success/10 text-success text-sm animate-fade-slide-in">
-                  <Check size={16} />
-                  <span>Import complete! Redirecting...</span>
-                </div>
+            {isComplete && !error && (
+              <div className="flex items-center gap-2 p-3 rounded-lg bg-success/10 text-success text-sm animate-fade-slide-in">
+                <Check size={16} />
+                <span>Import complete! Redirecting...</span>
               </div>
-            </div>
+            )}
           </div>
         </div>
       </div>

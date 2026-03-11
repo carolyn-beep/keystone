@@ -3,6 +3,7 @@ import { storage } from '../storage';
 import { dok3GradingEmitter } from '../events/dok3GradingEmitter';
 import { gradeDOK3Insight } from '../ai/dok3Grader';
 import { recomputeBrainliftScore } from '../services/brainlift';
+import { triggerDependentDOK4Grading } from '../storage/dok4';
 
 const GATE_TIMEOUT_MS = 15 * 60 * 1000; // 15 minutes
 const INITIAL_POLL_MS = 2000;
@@ -100,15 +101,26 @@ export async function dok3GradeJob(
 
     helpers.logger.info(`[DOK3 Grade] Insight ${insightId} graded: score=${result.score}`);
   } catch (err: any) {
-    helpers.logger.error(`[DOK3 Grade] Grading failed for insight ${insightId}:`, { err });
-    await storage.updateDOK3InsightStatus(insightId, brainliftId, 'error');
-    dok3GradingEmitter.emitEvent(brainliftId, {
-      type: 'dok3:error',
-      insightId,
-      brainliftId,
-      message: `Grading failed: ${err.message}`,
-      error: err.message,
-    });
+    const attempts = helpers.job.attempts;
+    const maxAttempts = helpers.job.max_attempts;
+    const isLastAttempt = attempts >= maxAttempts;
+
+    helpers.logger.error(`[DOK3 Grade] Grading failed for insight ${insightId} (attempt ${attempts}/${maxAttempts}):`, { err });
+
+    if (isLastAttempt) {
+      // Final attempt exhausted — mark as permanent error
+      await storage.updateDOK3InsightStatus(insightId, brainliftId, 'error');
+      dok3GradingEmitter.emitEvent(brainliftId, {
+        type: 'dok3:error',
+        insightId,
+        brainliftId,
+        message: `Grading failed after ${maxAttempts} attempts: ${err.message}`,
+        error: err.message,
+      });
+    } else {
+      // Re-throw so graphile-worker retries with backoff
+      throw err;
+    }
   }
 
   // Recompute brainlift score after each insight is graded
@@ -116,5 +128,15 @@ export async function dok3GradeJob(
     await recomputeBrainliftScore(brainliftId);
   } catch (err: any) {
     helpers.logger.error(`[DOK3 Grade] Score recomputation failed:`, { err });
+  }
+
+  // Trigger dependent DOK4 grading (reactive: checks if all linked DOK3s are resolved)
+  try {
+    const dok4Queued = await triggerDependentDOK4Grading(insightId, brainliftId);
+    if (dok4Queued > 0) {
+      helpers.logger.info(`[DOK3 Grade] Queued ${dok4Queued} DOK4 grading jobs after insight ${insightId}`);
+    }
+  } catch (err: any) {
+    helpers.logger.error(`[DOK3 Grade] DOK4 trigger failed:`, { err });
   }
 }

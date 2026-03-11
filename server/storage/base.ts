@@ -22,6 +22,7 @@ export {
   llmFeedback, modelAccuracyStats, factRedundancyGroups, LLM_MODELS,
   dok2Summaries, dok2Points, dok2FactRelations, learningStreamItems, swarmUsage,
   dok3Insights, dok3InsightLinks,
+  dok4Spovs, dok4Dok3Links,
   importAgentConversations, brainliftSources,
 } from "@shared/schema";
 

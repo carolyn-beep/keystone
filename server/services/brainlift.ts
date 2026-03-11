@@ -115,15 +115,17 @@ export async function runPostProcessingPipeline(
 /**
  * Recompute the combined BrainLift meanScore from fresh DB data.
  * Formula:
- *   - If DOK3 graded insights exist: DOK1 * 0.33 + DOK2 * 0.34 + DOK3 * 0.33
- *   - If no DOK3: (DOK1 + DOK2) / 2  (50/50)
+ *   - If all 4 DOK levels: DOK1 * 0.25 + DOK2 * 0.25 + DOK3 * 0.25 + DOK4 * 0.25
+ *   - If DOK1+DOK2+DOK3 (no DOK4): DOK1 * 0.33 + DOK2 * 0.34 + DOK3 * 0.33
+ *   - If DOK1+DOK2 only: (DOK1 + DOK2) / 2  (50/50)
  *   - If only one category: use that single mean
  */
 export async function recomputeBrainliftScore(brainliftId: number): Promise<void> {
-  const [dok1Mean, dok2Mean, dok3Mean] = await Promise.all([
+  const [dok1Mean, dok2Mean, dok3Mean, dok4Mean] = await Promise.all([
     storage.getDOK1MeanScore(brainliftId),
     storage.getDOK2MeanScore(brainliftId),
     storage.getDOK3MeanScore(brainliftId),
+    storage.getDOK4MeanScore(brainliftId),
   ]);
 
   const brainlift = await storage.getBrainliftById(brainliftId);
@@ -132,8 +134,11 @@ export async function recomputeBrainliftScore(brainliftId: number): Promise<void
   let combinedMeanScore: string;
   const available: number[] = [];
 
-  if (dok3Mean !== null && dok1Mean !== null && dok2Mean !== null) {
-    // All three categories — weighted 33/34/33
+  if (dok4Mean !== null && dok3Mean !== null && dok2Mean !== null && dok1Mean !== null) {
+    // All four categories — equal 25% weights
+    combinedMeanScore = (dok1Mean * 0.25 + dok2Mean * 0.25 + dok3Mean * 0.25 + dok4Mean * 0.25).toFixed(2);
+  } else if (dok3Mean !== null && dok1Mean !== null && dok2Mean !== null) {
+    // Three categories (no DOK4) — weighted 33/34/33
     combinedMeanScore = (dok1Mean * 0.33 + dok2Mean * 0.34 + dok3Mean * 0.33).toFixed(2);
   } else if (dok1Mean !== null && dok2Mean !== null) {
     // DOK1 + DOK2 only — 50/50
@@ -143,6 +148,7 @@ export async function recomputeBrainliftScore(brainliftId: number): Promise<void
     if (dok1Mean !== null) available.push(dok1Mean);
     if (dok2Mean !== null) available.push(dok2Mean);
     if (dok3Mean !== null) available.push(dok3Mean);
+    if (dok4Mean !== null) available.push(dok4Mean);
     combinedMeanScore = available.length > 0
       ? (available.reduce((a, b) => a + b, 0) / available.length).toFixed(2)
       : '0';
@@ -158,7 +164,7 @@ export async function recomputeBrainliftScore(brainliftId: number): Promise<void
     },
   });
 
-  console.log(`[Score] Recomputed brainlift ${brainliftId}: DOK1=${dok1Mean?.toFixed(2) ?? 'n/a'}, DOK2=${dok2Mean?.toFixed(2) ?? 'n/a'}, DOK3=${dok3Mean?.toFixed(2) ?? 'n/a'}, Combined=${combinedMeanScore}`);
+  console.log(`[Score] Recomputed brainlift ${brainliftId}: DOK1=${dok1Mean?.toFixed(2) ?? 'n/a'}, DOK2=${dok2Mean?.toFixed(2) ?? 'n/a'}, DOK3=${dok3Mean?.toFixed(2) ?? 'n/a'}, DOK4=${dok4Mean?.toFixed(2) ?? 'n/a'}, Combined=${combinedMeanScore}`);
 }
 
 export async function saveBrainliftFromAI(
@@ -167,8 +173,10 @@ export async function saveBrainliftFromAI(
   sourceType?: string,
   userId?: string,
   retryCount = 0,
-  onProgress?: ProgressCallback
+  onProgress?: ProgressCallback,
+  autoLink?: boolean,
 ): Promise<BrainliftData> {
+  const shouldAutoLink = autoLink !== false; // default: true
   const MAX_RETRIES = 3;
   const slug = await generateUniqueSlug(data.title, retryCount);
 
@@ -402,6 +410,7 @@ export async function saveBrainliftFromAI(
       });
 
       const gradedDOK2Summaries = await Promise.all(data.dok2Summaries.map(summary => dok2Limit(async () => {
+        const dok2Start = Date.now();
         // Get related DOK1 facts for this summary
         type FactType = typeof data.facts[number];
         const relatedDOK1s = summary.relatedDOK1Ids
@@ -457,7 +466,8 @@ export async function saveBrainliftFromAI(
           total: totalDOK2,
         });
 
-        console.log(`[Auto-Grade] DOK2 graded "${summary.sourceName}": score=${gradeResult.score}, title="${gradeResult.displayTitle}" (${dok2CompletedCount}/${totalDOK2})`);
+        const dok2Elapsed = ((Date.now() - dok2Start) / 1000).toFixed(1);
+        console.log(`[Auto-Grade] DOK2 graded "${summary.sourceName}" in ${dok2Elapsed}s: score=${gradeResult.score}, title="${gradeResult.displayTitle}" (${dok2CompletedCount}/${totalDOK2})`);
 
         return {
           ...summary,
@@ -473,7 +483,7 @@ export async function saveBrainliftFromAI(
       await storage.saveDOK2Summaries(brainlift.id, gradedDOK2Summaries, factIdMap);
       console.log(`[Auto-Grade] DOK2 summaries saved successfully with grades`);
 
-      // Save DOK3 insights if present (no grading — just persist with pending_linking status)
+      // Save DOK3 insights if present (both modes need them saved as pending_linking)
       if (data.dok3Insights && data.dok3Insights.length > 0) {
         console.log(`[Auto-Grade] Saving ${data.dok3Insights.length} DOK3 insights (pending_linking)...`);
         await storage.saveDOK3Insights(
@@ -484,59 +494,105 @@ export async function saveBrainliftFromAI(
           }))
         );
         console.log(`[Auto-Grade] DOK3 insights saved successfully`);
-
-        // Rank sources for insights before emitting dok3_linking
-        // This pre-computes relevance rankings so the linking UI can sort sources
-        try {
-          const { rankSourcesForInsights } = await import('../ai/dok3SourceRanker');
-          const savedInsights = await storage.getDOK3Insights(brainlift.id, []);
-          const insightInputs = savedInsights.map(i => ({ id: i.id, text: i.text }));
-
-          // Gather sources grouped by sourceName (Workflowy source), with all DOK2 displayTitles
-          const dok2s = await storage.getDOK2Summaries(brainlift.id);
-          console.log(`[DOK3 Ranker] Total DOK2 summaries fetched: ${dok2s.length}`);
-          const sourceMap = new Map<string, { sourceName: string; dok2Titles: string[] }>();
-          for (const d of dok2s) {
-            // Group by sourceName — each Workflowy source can have multiple DOK2s with different URLs
-            const key = d.sourceName.toLowerCase().trim();
-            if (!sourceMap.has(key)) {
-              sourceMap.set(key, { sourceName: d.sourceName, dok2Titles: [] });
-            }
-            const title = d.displayTitle || d.category;
-            if (title) {
-              sourceMap.get(key)!.dok2Titles.push(title);
-            } else {
-              console.warn(`[DOK3 Ranker] DOK2 #${d.id} under source "${d.sourceName}" has no displayTitle or category`);
-            }
-          }
-          const sourceInputs = Array.from(sourceMap.values());
-          console.log(`[DOK3 Ranker] Grouped into ${sourceInputs.length} sources (from ${dok2s.length} DOK2 summaries)`);
-
-          if (sourceInputs.length >= 2 && insightInputs.length > 0) {
-            await rankSourcesForInsights(insightInputs, sourceInputs);
-            console.log(`[Auto-Grade] Source rankings computed for ${insightInputs.length} DOK3 insights`);
-          }
-        } catch (err) {
-          console.error('[Auto-Grade] Source ranking failed (non-blocking):', err);
-        }
-
-        // Emit dok3_linking event — informs client that DOK3 insights are ready for linking
-        onProgress?.({
-          stage: 'dok3_linking',
-          message: 'DOK3 insights ready for linking',
-          dok3Count: data.dok3Insights.length,
-          slug,
-        });
       }
 
-      // Recompute combined score from fresh DB data (handles DOK1/DOK2/DOK3 weighting)
-      await recomputeBrainliftScore(brainlift.id);
+      // Save DOK4 SPOVs if present (both modes need them saved as pending_linking)
+      console.log(`[Auto-Grade] DOK4 SPOVs in extraction output: ${data.dok4Spovs?.length ?? 0}`);
+      if (data.dok4Spovs && data.dok4Spovs.length > 0) {
+        console.log(`[Auto-Grade] Saving ${data.dok4Spovs.length} DOK4 SPOVs (pending_linking)...`);
+        await storage.saveDOK4Spovs(
+          brainlift.id,
+          data.dok4Spovs.map(spov => ({
+            text: spov.text,
+            workflowyNodeId: spov.workflowyNodeId,
+          }))
+        );
+        console.log(`[Auto-Grade] DOK4 SPOVs saved`);
+      }
+
+      // ── Conditional pipeline: auto vs manual mode ──
+      if (shouldAutoLink) {
+        // Auto mode: run full DOK3+DOK4 auto-link and grading pipeline inline
+        console.log(`[Auto-Grade] Auto-link mode: running DOK3/DOK4 pipeline...`);
+        const { runDOK3DOK4Pipeline } = await import('./grading-pipeline');
+        await runDOK3DOK4Pipeline(brainlift.id, slug, onProgress);
+        // Pipeline calls recomputeBrainliftScore internally
+      } else {
+        // Manual mode: DOK3 insights stay pending_linking, emit info event for linking UI
+        // DOK4 SPOVs stay pending_linking (NO auto-linking — deferred to DOK4LinkingUI)
+        console.log(`[Auto-Grade] Manual mode: DOK3/DOK4 stay pending_linking`);
+
+        if (data.dok3Insights && data.dok3Insights.length > 0) {
+          // Rank sources for insights before emitting dok3_linking
+          try {
+            const { rankSourcesForInsights } = await import('../ai/dok3SourceRanker');
+            const savedInsights = await storage.getDOK3Insights(brainlift.id, []);
+            const insightInputs = savedInsights.map(i => ({ id: i.id, text: i.text }));
+
+            const dok2s = await storage.getDOK2Summaries(brainlift.id);
+            const sourceMap = new Map<string, { sourceName: string; dok2Titles: string[] }>();
+            for (const d of dok2s) {
+              const key = d.sourceName.toLowerCase().trim();
+              if (!sourceMap.has(key)) {
+                sourceMap.set(key, { sourceName: d.sourceName, dok2Titles: [] });
+              }
+              const title = d.displayTitle || d.category;
+              if (title) {
+                sourceMap.get(key)!.dok2Titles.push(title);
+              }
+            }
+            const sourceInputs = Array.from(sourceMap.values());
+
+            if (sourceInputs.length >= 2 && insightInputs.length > 0) {
+              await rankSourcesForInsights(insightInputs, sourceInputs);
+            }
+          } catch (err) {
+            console.error('[Auto-Grade] Source ranking failed (non-blocking):', err);
+          }
+
+          // Emit dok3_linking event — triggers DOK3LinkingUI in modal
+          onProgress?.({
+            stage: 'dok3_linking',
+            message: 'DOK3 insights ready for linking',
+            dok3Count: data.dok3Insights.length,
+            slug,
+          });
+        }
+
+        if (data.dok4Spovs && data.dok4Spovs.length > 0) {
+          // Pre-compute DOK3 insight relevance rankings for DOK4 linking UI
+          try {
+            const savedSpovs = await storage.getDOK4Spovs(brainlift.id);
+            const savedInsights = await storage.getDOK3Insights(brainlift.id, []);
+            if (savedSpovs.length > 0 && savedInsights.length > 0) {
+              const { rankInsightsForSpovs } = await import('../ai/dok4InsightRanker');
+              const spovInputs = savedSpovs.map(s => ({ id: s.id, text: s.text }));
+              const insightInputs = savedInsights.map(i => ({ id: i.id, text: i.text }));
+              await rankInsightsForSpovs(spovInputs, insightInputs);
+            }
+          } catch (err) {
+            console.error('[Auto-Grade] DOK4 insight ranking failed (non-blocking):', err);
+          }
+
+          onProgress?.({
+            stage: 'dok4_extraction',
+            message: `DOK4 SPOVs extracted: ${data.dok4Spovs.length}`,
+            dok4Count: data.dok4Spovs.length,
+          });
+        }
+
+        // Recompute score (DOK1+DOK2 only in manual mode)
+        await recomputeBrainliftScore(brainlift.id);
+      }
     }
   } catch (err: any) {
     // Handle duplicate slug error with retry
-    if (err.code === '23505' && err.constraint === 'brainlifts_slug_unique' && retryCount < MAX_RETRIES) {
+    // Drizzle wraps pg errors in DrizzleQueryError — actual pg error is on err.cause
+    const pgCode = err.code || err.cause?.code;
+    const pgConstraint = err.constraint || err.cause?.constraint;
+    if (pgCode === '23505' && pgConstraint === 'brainlifts_slug_unique' && retryCount < MAX_RETRIES) {
       console.log(`[Auto-Grade] Duplicate slug detected, retrying with retry count: ${retryCount + 1}`);
-      return saveBrainliftFromAI(data, originalContent, sourceType, userId, retryCount + 1, onProgress);
+      return saveBrainliftFromAI(data, originalContent, sourceType, userId, retryCount + 1, onProgress, autoLink);
     }
     throw err;
   }

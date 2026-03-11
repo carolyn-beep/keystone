@@ -155,13 +155,16 @@ brainliftsRouter.post(
 
       const brainliftData = await extractBrainlift(content, sourceLabel, hierarchy);
 
+      const autoLink = req.body.autoLink !== 'false'; // default: true
+
       const brainlift = await saveBrainliftFromAI(
         brainliftData,
         content,
         sourceType,
         req.authContext!.userId,
         0,
-        sse.send
+        sse.send,
+        autoLink,
       );
 
       // Mark import as complete
@@ -177,7 +180,12 @@ brainliftsRouter.post(
       sse.close();
     } catch (err: any) {
       console.error('[SSE Import] Error:', err);
-      sse.error(err.message || 'Import failed');
+      // Sanitize DB errors — never expose raw SQL/params to the client
+      const isDbError = err.query || err.cause?.code;
+      const userMessage = isDbError
+        ? 'Import failed due to a database error. Please try again.'
+        : (err.message || 'Import failed');
+      sse.error(userMessage);
     }
   }
 );

@@ -5,6 +5,7 @@ import { contentExtractJob } from './contentExtractJob';
 import { discussionVerifyFactJob } from './discussionVerifyFactJob';
 import { discussionGradeDok2Job } from './discussionGradeDok2Job';
 import { dok3GradeJob } from './dok3GradeJob';
+import { dok4GradeJob } from './dok4GradeJob';
 
 /**
  * Central registry of all background jobs.
@@ -23,6 +24,7 @@ const tasks = {
   'discussion:verify-fact': discussionVerifyFactJob,
   'discussion:grade-dok2': discussionGradeDok2Job,
   'dok3:grade': dok3GradeJob,
+  'dok4:grade': dok4GradeJob,
 } as const;
 
 export default tasks;

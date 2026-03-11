@@ -10,6 +10,7 @@ import type { HierarchyNode, WorkflowyFetchResult } from '@shared/hierarchy-type
 const DOK1_PATTERN = /DOK\s*1\b/i;
 const DOK2_PATTERN = /^DOK\s*2\b/i;  // Must start with "DOK2" (e.g., "DOK2 Summary")
 const DOK3_PATTERN = /^DOK\s*3\b/i;  // Must start with "DOK3" (e.g., "DOK3 Insights")
+const DOK4_PATTERN = /^(DOK\s*4\b|SPOVs?\b(?!\s*\d)|Spiky\s+POVs?\b(?!\s*\d))/i;  // DOK4, SPOV, or "Spiky POVs" section headers (not individual items like "SPOV 1")
 const SOURCE_PATTERN = /^Source\s*\d*/i;
 const CATEGORY_PATTERN = /^Category\s*\d*/i;
 const PURPOSE_PATTERN = /^Purpose\s*$/i;  // Exact match for "Purpose" section header
@@ -193,6 +194,8 @@ export async function fetchWorkflowyContent(nodeIdOrUrl: string): Promise<Workfl
         const isDOK1Marker = DOK1_PATTERN.test(name);
         const isDOK2Marker = DOK2_PATTERN.test(name);
         const isDOK3Marker = DOK3_PATTERN.test(name);
+        const isDOK4Marker = DOK4_PATTERN.test(name);
+        if (isDOK4Marker) console.log(`[Workflowy] DOK4 marker detected: "${name.substring(0, 60)}" (depth ${depth}, ${(node.ch || node.children || []).length} children)`);
         const isSourceMarker = SOURCE_PATTERN.test(name);
         const isCategoryMarker = CATEGORY_PATTERN.test(name);
         const isPurposeMarker = PURPOSE_PATTERN.test(name);
@@ -215,6 +218,7 @@ export async function fetchWorkflowyContent(nodeIdOrUrl: string): Promise<Workfl
           isDOK1Marker,
           isDOK2Marker,
           isDOK3Marker,
+          isDOK4Marker,
           isSourceMarker,
           isCategoryMarker,
           isPurposeMarker,

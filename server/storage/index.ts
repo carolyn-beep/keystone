@@ -10,6 +10,7 @@ import * as dok2Storage from './dok2';
 import * as sharesStorage from './shares';
 import * as learningStreamStorage from './learning-stream';
 import * as dok3Storage from './dok3';
+import * as dok4Storage from './dok4';
 import * as importAgentStorage from './import-agent';
 import * as brainliftSourcesStorage from './brainlift-sources';
 
@@ -127,6 +128,19 @@ export const storage = {
   updateDOK3InsightStatus: dok3Storage.updateDOK3InsightStatus,
   updateDOK3SourceRankings: dok3Storage.updateDOK3SourceRankings,
   getDOK3MeanScore: dok3Storage.getDOK3MeanScore,
+  setDOK3LinkingFlagged: dok3Storage.setDOK3LinkingFlagged,
+
+  // DOK4 SPOVs
+  saveDOK4Spovs: dok4Storage.saveDOK4Spovs,
+  getDOK4Spovs: dok4Storage.getDOK4Spovs,
+  linkDOK4Spov: dok4Storage.linkDOK4Spov,
+  updateDOK4SpovStatus: dok4Storage.updateDOK4SpovStatus,
+  saveDOK4Rejection: dok4Storage.saveDOK4Rejection,
+  saveDOK4GradeResult: dok4Storage.saveDOK4GradeResult,
+  getDOK4MeanScore: dok4Storage.getDOK4MeanScore,
+  getSpovEvaluationContext: dok4Storage.getSpovEvaluationContext,
+  triggerDependentDOK4Grading: dok4Storage.triggerDependentDOK4Grading,
+  setDOK4InsightRankings: dok4Storage.setDOK4InsightRankings,
 
   // Import Agent
   getImportConversation: importAgentStorage.getImportConversation,
@@ -141,4 +155,4 @@ export const storage = {
 };
 
 // Export individual modules for direct access if needed
-export { brainliftsStorage, expertsStorage, verificationsStorage, redundancyStorage, analyticsStorage, dok2Storage, sharesStorage, learningStreamStorage, dok3Storage, importAgentStorage, brainliftSourcesStorage };
+export { brainliftsStorage, expertsStorage, verificationsStorage, redundancyStorage, analyticsStorage, dok2Storage, sharesStorage, learningStreamStorage, dok3Storage, dok4Storage, importAgentStorage, brainliftSourcesStorage };

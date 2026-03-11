@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useRef, useEffect } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { Lightbulb, RefreshCw, Loader2, ChevronDown, ChevronUp, Info, Link2 } from 'lucide-react';
 import { PiFootprintsFill } from 'react-icons/pi';
@@ -83,6 +83,48 @@ interface InsightsTabProps {
   latestEvent: DOK3GradingSSEEvent | null;
   dok2Summaries: DOK2SummaryRef[];
   onLinkNow?: () => void;
+}
+
+function InsightText({ text }: { text: string }) {
+  const [expanded, setExpanded] = useState(false);
+  const textRef = useRef<HTMLParagraphElement>(null);
+  const [isClamped, setIsClamped] = useState(false);
+
+  useEffect(() => {
+    const el = textRef.current;
+    if (el && !expanded) {
+      setIsClamped(el.scrollHeight > el.clientHeight);
+    }
+  }, [text, expanded]);
+
+  return (
+    <div className="relative">
+      <p
+        ref={textRef}
+        className={`font-serif text-[18px] leading-[1.6] text-foreground m-0 ${
+          !expanded ? 'line-clamp-4' : ''
+        }`}
+      >
+        {text}
+      </p>
+      {!expanded && isClamped && (
+        <button
+          onClick={() => setExpanded(true)}
+          className="mt-2 text-[11px] tracking-[0.08em] uppercase font-semibold text-muted-foreground hover:text-foreground bg-transparent border-none cursor-pointer p-0 font-sans transition-colors"
+        >
+          Continue reading &#8595;
+        </button>
+      )}
+      {expanded && (
+        <button
+          onClick={() => setExpanded(false)}
+          className="mt-2 text-[11px] tracking-[0.08em] uppercase font-semibold text-muted-foreground hover:text-foreground bg-transparent border-none cursor-pointer p-0 font-sans transition-colors"
+        >
+          Collapse &#8593;
+        </button>
+      )}
+    </div>
+  );
 }
 
 function getGradeLabel(score: number | null): string {
@@ -411,9 +453,7 @@ function InsightCard({ insight, expanded, onToggle, onRetry, setActiveTab, anima
 
           {/* Title & Meta */}
           <div className="flex flex-col gap-4 flex-1 min-w-0">
-            <p className="font-serif text-[18px] leading-[1.6] text-foreground m-0">
-              {insight.text}
-            </p>
+            <InsightText text={insight.text} />
 
             {/* Meta row */}
             <div className="flex items-center gap-4 flex-wrap">

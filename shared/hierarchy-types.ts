@@ -24,6 +24,7 @@ export interface HierarchyNode {
   isDOK1Marker: boolean;
   isDOK2Marker: boolean;  // DOK2 summary marker detection
   isDOK3Marker: boolean;  // DOK3 cross-source insight marker detection
+  isDOK4Marker: boolean;  // DOK4 spiky point of view marker detection
   isSourceMarker: boolean;
   isCategoryMarker: boolean;
   isPurposeMarker: boolean;  // Purpose section marker
@@ -104,18 +105,31 @@ export interface DOK3ExtractedInsight {
   workflowyNodeId: string;
 }
 
-/** Result from combined DOK1 + DOK2 extraction */
+/**
+ * DOK4 SPOV extracted from hierarchy (pre-linking)
+ */
+export interface DOK4ExtractedSpov {
+  id: string;                              // Generated ID like "spov-1"
+  text: string;                            // SPOV claim text
+  workflowyNodeId: string;                 // Source node ID
+  explicitDok3Refs: number[] | null;       // Parsed "Insight N" references (1-indexed)
+}
+
+/** Result from combined DOK1 + DOK2 + DOK3 + DOK4 extraction */
 export interface FullHierarchyExtractionResult {
   facts: HierarchyExtractedFact[];
   dok2Summaries: DOK2SummaryGroup[];
   dok3Insights: DOK3ExtractedInsight[];
+  dok4Spovs: DOK4ExtractedSpov[];
   metadata: {
     dok1NodesFound: number;
     dok2NodesFound: number;
     dok3NodesFound: number;
+    dok4NodesFound: number;
     totalFactsExtracted: number;
     totalDOK2PointsExtracted: number;
     totalDOK3InsightsExtracted: number;
+    totalDOK4SpovsExtracted: number;
     sourcesAttributed: number;
     categoriesFound: string[];
   };

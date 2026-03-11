@@ -46,7 +46,6 @@ async function callModel(
       { role: 'user', content: userPrompt },
     ],
     temperature: 0,
-    max_tokens: 512,
   };
 
   console.log(`[DOK3 Ranker] API request to ${MODEL}, prompt length: ${systemPrompt.length + userPrompt.length} chars`);
@@ -175,7 +174,7 @@ async function rankSingleInsight(
 
   console.log(`[DOK3 Ranker] ─── Insight ${insight.id} ───`);
   console.log(`[DOK3 Ranker] [Insight ${insight.id}] Text: "${insight.text.substring(0, 120)}${insight.text.length > 120 ? '...' : ''}"`);
-  console.log(`[DOK3 Ranker] [Insight ${insight.id}] Full user prompt:\n${userPrompt}`);
+  //console.log(`[DOK3 Ranker] [Insight ${insight.id}] Full user prompt:\n${userPrompt}`);
 
   const call = async () => {
     const raw = await callModel(SYSTEM_PROMPT, userPrompt);

@@ -16,6 +16,7 @@ import type {
   DOK2SummaryGroup,
   DOK2SummaryPoint,
   DOK3ExtractedInsight,
+  DOK4ExtractedSpov,
   FullHierarchyExtractionResult,
 } from '@shared/hierarchy-types';
 
@@ -57,8 +58,8 @@ export function buildParentMap(roots: HierarchyNode[]): Map<string, HierarchyNod
  * Excludes DOK1/DOK2 marker subtrees to avoid picking up unrelated URLs
  */
 function findUrlInSubtree(node: HierarchyNode): string | null {
-  // Don't search inside DOK1/DOK2/DOK3 markers - those have their own content
-  if (node.isDOK1Marker || node.isDOK2Marker || node.isDOK3Marker) {
+  // Don't search inside DOK1/DOK2/DOK3/DOK4 markers - those have their own content
+  if (node.isDOK1Marker || node.isDOK2Marker || node.isDOK3Marker || node.isDOK4Marker) {
     return null;
   }
 
@@ -198,7 +199,7 @@ function extractFactsFromDOK1Node(
   function collectFacts(node: HierarchyNode) {
     for (const child of node.children) {
       // Skip marker nodes (DOK2, etc.)
-      if (child.isDOK1Marker || child.isDOK2Marker || child.isDOK3Marker || child.isSourceMarker || child.isCategoryMarker) {
+      if (child.isDOK1Marker || child.isDOK2Marker || child.isDOK3Marker || child.isDOK4Marker || child.isSourceMarker || child.isCategoryMarker) {
         continue;
       }
 
@@ -225,7 +226,7 @@ function extractFactsFromDOK1Node(
       // Also check grandchildren (nested facts under bullet points)
       for (const grandchild of child.children) {
         const grandchildText = grandchild.name.trim();
-        if (grandchildText.length >= 10 && !grandchild.isDOK1Marker && !grandchild.isDOK2Marker && !grandchild.isDOK3Marker) {
+        if (grandchildText.length >= 10 && !grandchild.isDOK1Marker && !grandchild.isDOK2Marker && !grandchild.isDOK3Marker && !grandchild.isDOK4Marker) {
           facts.push({
             id: `${idCounter++}`,
             fact: grandchildText,
@@ -362,19 +363,18 @@ export function convertToExtractorFormat(facts: HierarchyExtractedFact[]): Array
  * Result from purpose extraction
  */
 export interface ExtractedPurpose {
-  mainPurpose: string;  // First meaningful child (not In-scope/Out-of-scope)
-  fullText: string;     // Combined text for description field
+  mainPurpose: string;  // First meaningful text found in the subtree
+  fullText: string;     // All text under the Purpose node, recursively collected
 }
 
 /**
  * Extract purpose from hierarchy by finding the Purpose marker node
- * and extracting its first meaningful child.
+ * and collecting ALL text recursively underneath it.
  *
- * Expected structure:
- * - Purpose (depth 0, isPurposeMarker: true)
- *   - Main purpose text (depth 1) ← extract this
- *   - In-scope (depth 1) [optional]
- *   - Out-of-scope (depth 1) [optional]
+ * Collects everything in the Purpose subtree (children, grandchildren, etc.)
+ * until the next top-level sibling (DOK3, DOK4, Experts, etc.).
+ * Since those siblings are separate nodes at the same level, we just
+ * recurse the entire Purpose subtree.
  */
 export function extractPurposeFromHierarchy(roots: HierarchyNode[]): ExtractedPurpose | null {
   // Find the Purpose marker node
@@ -402,43 +402,34 @@ export function extractPurposeFromHierarchy(roots: HierarchyNode[]): ExtractedPu
 
   log(`[PurposeExtractor] Found Purpose node with ${purposeNode.children.length} children`);
 
-  // Find the first meaningful child (not In-scope/Out-of-scope headers)
-  const scopePattern = /^(In-scope|Out-of-scope)\s*$/i;
-  let mainPurpose: string | null = null;
-  const purposeParts: string[] = [];
+  // Recursively collect all text from the subtree
+  const parts: string[] = [];
 
-  for (const child of purposeNode.children) {
-    const text = child.name.trim();
-
-    // Skip scope headers
-    if (scopePattern.test(text)) {
-      continue;
+  function collectText(node: HierarchyNode) {
+    const text = node.name.trim();
+    if (text.length >= 10) {
+      parts.push(text);
     }
-
-    // Skip very short content (likely structural)
-    if (text.length < 20) {
-      continue;
+    for (const child of node.children) {
+      collectText(child);
     }
-
-    // First meaningful child is the main purpose
-    if (!mainPurpose) {
-      mainPurpose = text;
-    }
-
-    // Collect all meaningful children for fullText
-    purposeParts.push(text);
   }
 
-  if (!mainPurpose) {
+  for (const child of purposeNode.children) {
+    collectText(child);
+  }
+
+  if (parts.length === 0) {
     log('[PurposeExtractor] No meaningful purpose content found');
     return null;
   }
 
-  log(`[PurposeExtractor] Extracted purpose: "${mainPurpose.substring(0, 80)}..."`);
+  const fullText = parts.join('\n');
+  log(`[PurposeExtractor] Extracted purpose (${parts.length} parts, ${fullText.length} chars): "${parts[0].substring(0, 80)}..."`);
 
   return {
-    mainPurpose,
-    fullText: purposeParts.join(' '),
+    mainPurpose: parts[0],
+    fullText,
   };
 }
 
@@ -509,7 +500,7 @@ function collectNestedText(
   const results: { text: string; depth: number }[] = [];
 
   // Skip marker nodes entirely
-  if (node.isDOK1Marker || node.isDOK2Marker || node.isDOK3Marker || node.isSourceMarker || node.isCategoryMarker) {
+  if (node.isDOK1Marker || node.isDOK2Marker || node.isDOK3Marker || node.isDOK4Marker || node.isSourceMarker || node.isCategoryMarker) {
     return results;
   }
 
@@ -649,7 +640,7 @@ export function extractDOK3Insights(roots: HierarchyNode[]): DOK3ExtractedInsigh
     for (const child of dok3Node.children) {
       // Skip marker nodes
       if (child.isDOK1Marker || child.isDOK2Marker || child.isDOK3Marker ||
-          child.isSourceMarker || child.isCategoryMarker) {
+          child.isDOK4Marker || child.isSourceMarker || child.isCategoryMarker) {
         continue;
       }
 
@@ -674,8 +665,191 @@ export function extractDOK3Insights(roots: HierarchyNode[]): DOK3ExtractedInsigh
   return insights;
 }
 
+// ============================================================================
+// DOK4 EXTRACTION
+// ============================================================================
+
 /**
- * Combined extraction - returns DOK1 facts, DOK2 summaries, and DOK3 insights
+ * Find all DOK4 marker nodes at any depth in the hierarchy
+ */
+export function findDOK4Nodes(roots: HierarchyNode[]): HierarchyNode[] {
+  const results: HierarchyNode[] = [];
+
+  function traverse(node: HierarchyNode) {
+    if (node.isDOK4Marker) {
+      results.push(node);
+    }
+    node.children.forEach(traverse);
+  }
+
+  roots.forEach(traverse);
+  return results;
+}
+
+/**
+ * Extract DOK4 SPOVs from DOK4 marker children.
+ * Each first-level child of a DOK4 marker is treated as a separate SPOV.
+ * Sub-points are NOT included in the SPOV text.
+ * Explicit link references ("Links" -> "Insight N") are parsed when present.
+ */
+// Matches intermediate container labels like "Spiky POV 1", "SPOV1", "Truth", "Myth", "Truths", "Myths"
+const SPOV_CONTAINER_PATTERN = /^(spiky\s*pov\s*\d*|spov\s*\d*|truths?|myths?)[\s:.\-()?\d]*$/i;
+
+function isMarkerNode(node: HierarchyNode): boolean {
+  return node.isDOK1Marker || node.isDOK2Marker || node.isDOK3Marker ||
+    node.isDOK4Marker || node.isSourceMarker || node.isCategoryMarker;
+}
+
+// Nodes to skip when collecting supporting child text
+const LINKS_PATTERN = /^links$/i;
+
+/**
+ * Extract a single SPOV from a content node.
+ * Includes direct child text as supporting detail (skips Links nodes and markers).
+ * Returns null if the node should be skipped.
+ */
+function extractSingleSpov(node: HierarchyNode): { text: string; nodeId: string; explicitDok3Refs: number[] } | null {
+  if (isMarkerNode(node)) return null;
+
+  let text = node.name.trim();
+
+  // Skip strikethrough text (entire text wrapped in ~~...~~)
+  if (/^~~.*~~$/.test(text)) {
+    log(`[DOK4Extractor] Skipping strikethrough SPOV: "${text.substring(0, 40)}..."`);
+    return null;
+  }
+
+  // Strip bold formatting (**text**)
+  text = text.replace(/\*\*/g, '');
+
+  // Skip very short entries
+  if (text.length < 10) return null;
+
+  // Collect supporting text from direct children (skip Links, markers, containers)
+  const childTexts: string[] = [];
+  for (const child of node.children) {
+    if (isMarkerNode(child)) continue;
+    if (LINKS_PATTERN.test(child.name.trim())) continue;
+    if (SPOV_CONTAINER_PATTERN.test(child.name.trim().replace(/\*\*/g, ''))) continue;
+
+    const childText = child.name.trim().replace(/\*\*/g, '');
+    if (childText.length >= 10) {
+      childTexts.push(childText);
+    }
+  }
+
+  if (childTexts.length > 0) {
+    text = text + ' ' + childTexts.join(' ');
+  }
+
+  const explicitDok3Refs = parseExplicitLinkRefs(node);
+  return { text, nodeId: node.id, explicitDok3Refs };
+}
+
+export function extractDOK4Spovs(dok4Nodes: HierarchyNode[]): DOK4ExtractedSpov[] {
+  const spovs: DOK4ExtractedSpov[] = [];
+  let counter = 0;
+
+  log(`[DOK4Extractor] Found ${dok4Nodes.length} DOK4 marker nodes`);
+
+  for (const dok4Node of dok4Nodes) {
+    for (const child of dok4Node.children) {
+      if (isMarkerNode(child)) continue;
+
+      const childName = child.name.trim().replace(/\*\*/g, '');
+
+      // Check if this child is an intermediate container (e.g., "Truths", "Myths", "Spiky POV 1")
+      // Containers: match a label pattern AND have children with substantive text
+      const isContainer = SPOV_CONTAINER_PATTERN.test(childName) && child.children.length > 0;
+
+      if (isContainer) {
+        // Drill into container — children (or grandchildren) are the actual SPOVs
+        for (const inner of child.children) {
+          const innerName = inner.name.trim().replace(/\*\*/g, '');
+
+          // Second-level container? e.g., "Truths" > "SPOV1" > actual text
+          const isInnerContainer = SPOV_CONTAINER_PATTERN.test(innerName) && inner.children.length > 0;
+
+          if (isInnerContainer) {
+            // The actual SPOV text is in the grandchildren
+            for (const grandchild of inner.children) {
+              const result = extractSingleSpov(grandchild);
+              if (result) {
+                counter++;
+                spovs.push({
+                  id: `spov-${counter}`,
+                  text: result.text,
+                  workflowyNodeId: result.nodeId,
+                  explicitDok3Refs: result.explicitDok3Refs.length > 0
+                    ? result.explicitDok3Refs
+                    : parseExplicitLinkRefs(inner), // Check parent for links too
+                });
+              }
+            }
+          } else {
+            // Inner node IS the SPOV content
+            const result = extractSingleSpov(inner);
+            if (result) {
+              counter++;
+              spovs.push({
+                id: `spov-${counter}`,
+                text: result.text,
+                workflowyNodeId: result.nodeId,
+                explicitDok3Refs: result.explicitDok3Refs,
+              });
+            }
+          }
+        }
+      } else {
+        // Direct child IS the SPOV content (Layla's flat pattern)
+        const result = extractSingleSpov(child);
+        if (result) {
+          counter++;
+          spovs.push({
+            id: `spov-${counter}`,
+            text: result.text,
+            workflowyNodeId: result.nodeId,
+            explicitDok3Refs: result.explicitDok3Refs,
+          });
+        }
+      }
+    }
+  }
+
+  log(`[DOK4Extractor] Extracted ${spovs.length} DOK4 SPOVs`);
+  return spovs;
+}
+
+/**
+ * Parse explicit DOK3 link references from a SPOV node's children.
+ * Looks for a child named "Links" (case-insensitive) with grandchildren
+ * matching "Insight N" pattern.
+ *
+ * Returns array of 1-indexed DOK3 insight numbers, or null if no Links child found.
+ */
+function parseExplicitLinkRefs(spovNode: HierarchyNode): number[] | null {
+  // Find "Links" child (case-insensitive)
+  const linksChild = spovNode.children.find(
+    c => /^links$/i.test(c.name.trim())
+  );
+
+  if (!linksChild) return null;
+
+  const refs: number[] = [];
+  const insightPattern = /Insight\s*(\d+)/i;
+
+  for (const grandchild of linksChild.children) {
+    const match = grandchild.name.match(insightPattern);
+    if (match) {
+      refs.push(parseInt(match[1], 10));
+    }
+  }
+
+  return refs.length > 0 ? refs : null;
+}
+
+/**
+ * Combined extraction - returns DOK1 facts, DOK2 summaries, DOK3 insights, and DOK4 SPOVs
  */
 export function extractAllFromHierarchy(roots: HierarchyNode[]): FullHierarchyExtractionResult {
   // Extract DOK1 first (existing logic)
@@ -687,17 +861,24 @@ export function extractAllFromHierarchy(roots: HierarchyNode[]): FullHierarchyEx
   // Extract DOK3 insights
   const dok3Insights = extractDOK3Insights(roots);
 
+  // Extract DOK4 SPOVs
+  const dok4Nodes = findDOK4Nodes(roots);
+  const dok4Spovs = extractDOK4Spovs(dok4Nodes);
+
   return {
     facts: dok1Result.facts,
     dok2Summaries,
     dok3Insights,
+    dok4Spovs,
     metadata: {
       dok1NodesFound: dok1Result.metadata.dok1NodesFound,
       dok2NodesFound: findDOK2Nodes(roots).length,
       dok3NodesFound: findDOK3Nodes(roots).length,
+      dok4NodesFound: dok4Nodes.length,
       totalFactsExtracted: dok1Result.metadata.totalFactsExtracted,
       totalDOK2PointsExtracted: dok2Summaries.reduce((sum, g) => sum + g.points.length, 0),
       totalDOK3InsightsExtracted: dok3Insights.length,
+      totalDOK4SpovsExtracted: dok4Spovs.length,
       sourcesAttributed: dok1Result.metadata.sourcesAttributed,
       categoriesFound: dok1Result.metadata.categoriesFound,
     },
