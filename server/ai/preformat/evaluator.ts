@@ -201,15 +201,7 @@ Minor imperfections that do NOT need fixing:
 
 ## Not a BrainLift (decision: "not_a_brainlift")
 
-The content is not a knowledge base at all. Return this when:
-- It's a to-do list, shopping list, or task tracker
-- It's random notes with no research structure
-- It's an empty or near-empty document
-- It's a template with only placeholder instructions and no actual content
-- It's a scratchpad, journal, or operational document (meeting notes, SOPs, scripts)
-- It has very few nodes (< 5) with no meaningful knowledge content
-
-This is distinct from "needs_formatting" — a messy BrainLift that has research content but poor structure should be "needs_formatting", not "not_a_brainlift".
+The content is clearly not a BrainLift — no recognizable BrainLift structure, too little content to be meaningful, a hollow template, or just scattered notes.
 
 ## Your Input
 

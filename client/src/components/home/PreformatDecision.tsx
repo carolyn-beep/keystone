@@ -42,12 +42,14 @@ export function PreformatDecision({ evaluation, onAccept, onReject, onCancel }: 
                 style={{ color: tokens.info }}>
             Document Analysis
           </span>
-          <span
-            className={`px-[6px] py-[2px] rounded text-[9px] uppercase tracking-[0.25em] font-semibold ${CONFIDENCE_BG_MAP[confidenceKey]}`}
-            style={{ color: CONFIDENCE_TOKEN_MAP[confidenceKey] }}
-          >
-            {evaluation.confidence} confidence
-          </span>
+          {evaluation.confidence === 'high' && (
+            <span
+              className={`px-[6px] py-[2px] rounded text-[9px] uppercase tracking-[0.25em] font-semibold ${CONFIDENCE_BG_MAP[confidenceKey]}`}
+              style={{ color: CONFIDENCE_TOKEN_MAP[confidenceKey] }}
+            >
+              high confidence
+            </span>
+          )}
         </div>
         <p className="font-serif italic text-[14px] text-muted-foreground leading-relaxed m-0">
           This document could benefit from structural formatting before import.
@@ -57,17 +59,19 @@ export function PreformatDecision({ evaluation, onAccept, onReject, onCancel }: 
       </div>
 
       {/* Reasons list */}
-      <div className="py-4 px-5 rounded-lg bg-primary/5">
-        <span className="text-[10px] uppercase tracking-[0.35em] font-semibold text-muted-foreground block mb-3">
+      <div className="rounded-lg bg-primary/5">
+        <span className="text-[10px] uppercase tracking-[0.35em] font-semibold text-muted-foreground block pt-4 px-5 pb-2">
           Issues Found
         </span>
-        <ul className="m-0 pl-4 space-y-1.5">
-          {evaluation.reasons.map((reason, i) => (
-            <li key={i} className="font-serif text-[13px] text-foreground leading-relaxed">
-              {reason}
-            </li>
-          ))}
-        </ul>
+        <div className="px-5 pb-4 max-h-[240px] overflow-y-auto" style={{ scrollbarWidth: 'thin', scrollbarColor: `${tokens.border} transparent` }}>
+          <ul className="m-0 pl-4 space-y-1.5">
+            {evaluation.reasons.map((reason, i) => (
+              <li key={i} className="font-serif text-[13px] text-foreground leading-relaxed">
+                {reason}
+              </li>
+            ))}
+          </ul>
+        </div>
       </div>
 
       {/* Size-tier warning */}
