@@ -5,6 +5,7 @@ import {
   STAGE_LABELS,
   calculateProgress,
 } from '@shared/import-progress';
+import type { EvaluationState } from '@shared/preformat-decision';
 import { queryClient } from '@/lib/queryClient';
 
 export interface GradingProgress {
@@ -15,11 +16,18 @@ export interface GradingProgress {
 /**
  * Import phase state machine.
  *
+ * idle → evaluating → decision_pending → formatting → importing → ... → complete
+ *                   → importing (no_formatting_needed, skips decision)
+ *        → idle+error (not_a_brainlift or network failure)
+ *
  * idle → importing → (auto: stays importing) → complete
  * idle → importing → dok3_manual_linking → dok4_manual_linking → finishing → complete
  */
 export type ImportPhase =
   | 'idle'
+  | 'evaluating'
+  | 'decision_pending'
+  | 'formatting'
   | 'importing'
   | 'dok3_manual_linking'
   | 'dok4_manual_linking'
@@ -44,6 +52,9 @@ export interface ImportState {
   // Manual-mode linking data
   manualDok3Info: { dok3Count: number; slug: string } | null;
   manualDok4Count: number | null;
+  // Preformat evaluation state
+  evaluationResult: EvaluationState | null;
+  formattingProgress: GradingProgress | null;
   // Outcome
   error: string | null;
   slug: string | null;
@@ -64,6 +75,8 @@ const INITIAL_STATE: ImportState = {
   linkingDok4Progress: null,
   manualDok3Info: null,
   manualDok4Count: null,
+  evaluationResult: null,
+  formattingProgress: null,
   error: null,
   slug: null,
 };
@@ -75,6 +88,10 @@ export function useImportWithProgress() {
   const phaseRef = useRef<ImportPhase>('idle');
 
   const reset = useCallback(() => {
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+      abortControllerRef.current = null;
+    }
     phaseRef.current = 'idle';
     setState(INITIAL_STATE);
   }, []);
@@ -87,7 +104,7 @@ export function useImportWithProgress() {
     reset();
   }, [reset]);
 
-  /** Manual mode: user completed DOK3 linking → transition to DOK4 or finishing */
+  /** Manual mode: user completed DOK3 linking -> transition to DOK4 or finishing */
   const completeDok3Linking = useCallback(() => {
     setState((prev) => {
       const hasDok4 = (prev.manualDok4Count ?? 0) > 0;
@@ -101,7 +118,7 @@ export function useImportWithProgress() {
     });
   }, []);
 
-  /** Manual mode: user completed DOK4 linking → transition to finishing */
+  /** Manual mode: user completed DOK4 linking -> transition to finishing */
   const completeDok4Linking = useCallback(() => {
     phaseRef.current = 'finishing';
     setState((prev) => ({
@@ -110,20 +127,127 @@ export function useImportWithProgress() {
     }));
   }, []);
 
-  const importBrainlift = useCallback(async (formData: FormData): Promise<string | null> => {
+  /**
+   * Evaluate brainlift content for preformat decision.
+   * Phase: idle -> evaluating -> decision_pending | importing | idle+error
+   */
+  const evaluateBrainlift = useCallback(async (formData: FormData): Promise<void> => {
     const abortController = new AbortController();
     abortControllerRef.current = abortController;
 
-    const isAutoLink = formData.get('autoLink') !== 'false';
-
-    phaseRef.current = 'importing';
-    setState({
+    phaseRef.current = 'evaluating';
+    setState((prev) => ({
       ...INITIAL_STATE,
+      importPhase: 'evaluating',
+      autoLink: formData.get('autoLink') !== 'false',
+      stageLabel: 'Evaluating document structure...',
+    }));
+
+    try {
+      const response = await fetch('/api/brainlifts/evaluate', {
+        method: 'POST',
+        body: formData,
+        signal: abortController.signal,
+      });
+
+      if (!response.ok) {
+        let errorMessage = 'Evaluation failed';
+        try {
+          const data = await response.json();
+          errorMessage = data.message || 'Evaluation failed';
+        } catch {
+          errorMessage = `Server error: ${response.status} ${response.statusText}`;
+        }
+        throw new Error(errorMessage);
+      }
+
+      const result: EvaluationState = await response.json();
+
+      if (result.decision === 'not_a_brainlift') {
+        phaseRef.current = 'idle';
+        setState((prev) => ({
+          ...prev,
+          importPhase: 'idle',
+          evaluationResult: result,
+          error: 'This does not appear to be a valid BrainLift document. Please check the URL and try again.',
+        }));
+        return;
+      }
+
+      if (result.decision === 'no_formatting_needed') {
+        // Skip decision UI, go straight to importing without preformat
+        phaseRef.current = 'importing';
+        setState((prev) => ({
+          ...prev,
+          importPhase: 'importing',
+          evaluationResult: result,
+          isImporting: true,
+          stageLabel: 'Starting import...',
+        }));
+        return;
+      }
+
+      // needs_formatting -> show decision UI
+      phaseRef.current = 'decision_pending';
+      setState((prev) => ({
+        ...prev,
+        importPhase: 'decision_pending',
+        evaluationResult: result,
+      }));
+    } catch (err: any) {
+      if (err.name === 'AbortError') {
+        return;
+      }
+      phaseRef.current = 'idle';
+      setState((prev) => ({
+        ...prev,
+        importPhase: 'idle',
+        error: err.message || 'Evaluation failed. Please try again.',
+      }));
+    } finally {
+      abortControllerRef.current = null;
+    }
+  }, []);
+
+  /**
+   * Start import with preformat=true (user accepted formatting).
+   * Phase: decision_pending -> formatting -> importing -> ...
+   */
+  const acceptFormatting = useCallback(async (formData: FormData): Promise<string | null> => {
+    phaseRef.current = 'formatting';
+    setState((prev) => ({
+      ...prev,
+      importPhase: 'formatting',
+      isImporting: true,
+      stageLabel: 'Formatting document structure...',
+    }));
+    formData.set('preformat', 'true');
+    return importBrainliftInternal(formData);
+  }, []);
+
+  /**
+   * Start import with preformat=false (user rejected formatting).
+   * Phase: decision_pending -> importing -> ...
+   */
+  const rejectFormatting = useCallback(async (formData: FormData): Promise<string | null> => {
+    phaseRef.current = 'importing';
+    setState((prev) => ({
+      ...prev,
       importPhase: 'importing',
-      autoLink: isAutoLink,
       isImporting: true,
       stageLabel: 'Starting import...',
-    });
+    }));
+    formData.set('preformat', 'false');
+    return importBrainliftInternal(formData);
+  }, []);
+
+  /**
+   * Import brainlift via SSE stream. Internal method used by both
+   * the legacy direct import path and the evaluate->accept/reject path.
+   */
+  const importBrainliftInternal = useCallback(async (formData: FormData): Promise<string | null> => {
+    const abortController = new AbortController();
+    abortControllerRef.current = abortController;
 
     try {
       const response = await fetch('/api/brainlifts/import-stream', {
@@ -181,9 +305,19 @@ export function useImportWithProgress() {
               setState((prev) => {
                 let nextPhase = prev.importPhase;
 
+                // ── Phase transition: formatting -> importing ──
+                // When we see an extracting stage, we've moved past formatting
+                if (
+                  event.stage === 'extracting' &&
+                  (prev.importPhase === 'formatting')
+                ) {
+                  nextPhase = 'importing';
+                  phaseRef.current = nextPhase;
+                }
+
                 // ── Phase transitions (manual mode only) ──
                 if (!prev.autoLink) {
-                  // Manual: dok3_linking with dok3Count+slug → show DOK3LinkingUI
+                  // Manual: dok3_linking with dok3Count+slug -> show DOK3LinkingUI
                   if (
                     event.stage === 'dok3_linking' &&
                     'dok3Count' in event &&
@@ -195,14 +329,14 @@ export function useImportWithProgress() {
                   }
                 }
 
-                // Complete event → transition to complete (both modes)
+                // Complete event -> transition to complete (both modes)
                 if (event.stage === 'complete') {
                   // In finishing or importing phase, complete immediately
                   if (prev.importPhase === 'importing' || prev.importPhase === 'finishing') {
                     nextPhase = 'complete';
                     phaseRef.current = nextPhase;
                   }
-                  // In manual linking phases, stay — completion handled by slug return
+                  // In manual linking phases, stay -- completion handled by slug return
                 }
 
                 return {
@@ -251,6 +385,11 @@ export function useImportWithProgress() {
                     event.stage === 'dok4_extraction' && 'dok4Count' in event && !prev.autoLink
                       ? (event as any).dok4Count
                       : prev.manualDok4Count,
+                  // Formatting progress counter
+                  formattingProgress:
+                    event.stage === 'formatting' && 'completed' in event && 'total' in event
+                      ? { completed: (event as any).completed, total: (event as any).total }
+                      : prev.formattingProgress,
                   error: event.stage === 'error' && 'error' in event ? event.error : null,
                   slug: event.stage === 'complete' && 'slug' in event ? event.slug : prev.slug,
                 };
@@ -301,9 +440,31 @@ export function useImportWithProgress() {
     }
   }, []);
 
+  /**
+   * Legacy direct import path (used when evaluation is not needed,
+   * e.g., HTML uploads or Google Docs).
+   */
+  const importBrainlift = useCallback(async (formData: FormData): Promise<string | null> => {
+    const isAutoLink = formData.get('autoLink') !== 'false';
+
+    phaseRef.current = 'importing';
+    setState({
+      ...INITIAL_STATE,
+      importPhase: 'importing',
+      autoLink: isAutoLink,
+      isImporting: true,
+      stageLabel: 'Starting import...',
+    });
+
+    return importBrainliftInternal(formData);
+  }, [importBrainliftInternal]);
+
   return {
     ...state,
     importBrainlift,
+    evaluateBrainlift,
+    acceptFormatting,
+    rejectFormatting,
     cancel,
     reset,
     completeDok3Linking,
