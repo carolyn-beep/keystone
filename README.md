@@ -71,22 +71,53 @@ Child resources (experts, facts, learning stream items) are always accessed thro
 
 ## BrainLift Import & Extraction
 
-Users import BrainLifts from WorkFlowy, HTML exports, or Google Docs. The import pipeline parses the document structure, extracts facts organized by category, identifies DOK2 summaries with their related DOK1 facts, detects DOK3 insights and DOK4 Spiky Points of View from hierarchy markers (`DOK3`/`DOK4`/`SPOV`), detects contradiction clusters between facts, and extracts expert mentions — all streamed back to the client as SSE progress events so the UI updates in real time as each phase completes.
+Users import BrainLifts from WorkFlowy, HTML exports, or Google Docs. The import pipeline parses the document structure, evaluates whether it needs structural reformatting, and then extracts facts organized by category, identifies DOK2 summaries with their related DOK1 facts, detects DOK3 insights and DOK4 Spiky Points of View, detects contradiction clusters between facts, and extracts expert mentions — all streamed back to the client as SSE progress events so the UI updates in real time as each phase completes.
 
-After extraction, the pipeline branches based on the **auto-link toggle** (default: on):
+### Structural Evaluation
+
+Before extraction begins, the system evaluates the BrainLift's structural quality via a single Opus 4.6 LLM call. The evaluator receives both the serialized hierarchy and extraction diagnostics (fact counts, marker presence, source attribution rates) and returns a ternary decision:
+
+- **`no_formatting_needed`** — the extractor can handle the structure as-is. Proceeds directly to extraction.
+- **`needs_formatting`** — the document has research content but poor structure (no DOK markers, flat layout, misplaced sections, insights buried in the Knowledge Tree). The user sees a decision modal with the evaluator's justification and can accept formatting, reject it (use raw), or cancel.
+- **`not_a_brainlift`** — the content is not a knowledge base at all. Import aborts with no database record.
+
+For documents that need formatting, the system also measures content size and shows appropriate warnings:
+- **< 100K chars** — no warning, formatting is fast
+- **100K–300K chars** — time disclaimer shown to user
+- **> 300K chars** — strong warning, no option to skip formatting (the raw structure would produce unusable extraction results)
+
+### Automated Pre-Formatting Pipeline
+
+When the user accepts formatting, the import pipeline runs the preformat service before extraction. The pipeline splits the hierarchy into semantic chunks (by section and Knowledge Tree category), sends each to Haiku for restructuring into canonical BrainLift format, then merges, validates, and reassembles the results.
+
+**Chunking** — Fuzzy section identification splits the document into Owner, Purpose, Experts, DOK4, DOK3, Knowledge Tree categories, and unknown sections. A recursive splitting algorithm breaks oversized chunks (>15K chars) by drilling into children, with single-child unwrapping to handle wrapper nodes. The scratchpad section bypasses LLM processing entirely and is copied verbatim to the output.
+
+**Parallel LLM calls** — Each chunk gets a section-specific prompt that instructs the LLM to reorganize content into canonical markdown format while copying all text verbatim. Owner stays as JSON (single field). All other sections output `sectionMarkdown` — a free-form indented bullet list following the canonical structure for that section type. The markdown parser reconstructs `HierarchyNode[]` from the output. Chunks run at 15 concurrency via OpenRouter, with retry logic for 429/500/502/503 errors.
+
+**Candidate promotion** — The Knowledge Tree category prompts also extract `candidateInsights` and `candidateSpovs` — DOK3/DOK4 content that the student buried inside categories instead of placing in its own section. The merger deduplicates these against existing top-level insights/SPOVs and promotes them to the DOK3/DOK4 sections so the extractor can find them.
+
+**Integrity validation** — For documents under 200K chars, a programmatic validation step checks for content loss (every meaningful original text must appear in the output), hallucinations (every output text must match an original), and duplicates. For larger documents, validation is skipped to avoid the O(n²) cost of pairwise Jaccard similarity. Unplaced content is appended to the Scratchpad section so nothing is silently lost.
+
+**Tree assembly** — The merged results are assembled into a canonical `HierarchyNode[]` tree: Owner → Purpose → Experts → DOK4 → DOK3 → DOK2 Knowledge Tree → Scratchpad. This preformatted hierarchy replaces the original in the database and is what the extractor processes.
+
+SSE progress events stream chunk completion counts to the frontend throughout, so the user sees real-time progress during formatting.
+
+### Extraction and Grading Pipeline
+
+After extraction (from either the preformatted or original hierarchy), the pipeline branches based on the **auto-link toggle** (default: on):
 
 **Auto mode** — a fully automated pipeline runs inline with SSE progress for every stage:
 1. **DOK1 grading** — multi-model fact verification (60 concurrent)
 2. **DOK2 grading** — synthesis evaluation (10 concurrent)
-3. **DOK3 auto-linking** — LLM semantic matching of insights to DOK2 summaries
+3. **DOK3 auto-linking** — LLM semantic matching of insights to DOK2 summaries. The auto-linker scores every DOK2 summary against each insight, selects top matches satisfying a multi-source constraint (≥2 DOK2s from ≥2 different sources), and creates links automatically. When the constraint can't be met, it links the best available matches and flags the insight for review.
 4. **DOK3 grading** — conceptual coherence evaluation (5 concurrent)
-5. **DOK4 auto-linking** — semantic + explicit link matching of SPOVs to DOK3 insights
+5. **DOK4 auto-linking** — semantic + explicit reference parsing of SPOVs to DOK3 insights. Each SPOV links to a primary DOK3 insight (the conceptual framework it depends on) plus supporting DOK2 summaries from multiple sources.
 6. **DOK4 grading** — 6-step evaluation pipeline (5 concurrent)
 7. **Expert extraction and ranking** — identifies subject-matter experts, computes impact scores
 8. **Redundancy analysis** — clusters semantically similar facts, flags duplicates
 9. **Learning Stream research** — queues a multi-agent research swarm
 
-**Manual mode** — the pipeline stops after DOK2 grading. The user manually links DOK3→DOK2 and DOK4→DOK3 through dedicated linking UIs in the import modal. Grading fires per-link via background jobs.
+**Manual mode** — the pipeline stops after DOK2 grading. The user manually links DOK3→DOK2 and DOK4→DOK3 through dedicated linking UIs in the import modal. The DOK3 linking UI presents insights alongside all available DOK2 summaries for the user to select connections. The DOK4 linking UI does the same for SPOVs and DOK3 insights. Grading fires per-link via background jobs as the user submits each connection.
 
 In both modes, by the time the user reviews their BrainLift, everything from fact verification to DOK4 evaluation is either complete or in progress.
 

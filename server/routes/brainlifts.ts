@@ -265,6 +265,11 @@ brainliftsRouter.post(
         autoLink,
       );
 
+      // Save the hierarchy to the DB (preformatted if preformat ran, original otherwise)
+      if (effectiveHierarchy && effectiveHierarchy.length > 0) {
+        await storage.updateBrainliftFields(brainlift.id, { importHierarchy: effectiveHierarchy });
+      }
+
       // Mark import as complete
       await storage.updateImportStatus(brainlift.id, 'complete');
 

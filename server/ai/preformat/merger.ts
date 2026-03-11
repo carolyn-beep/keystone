@@ -84,12 +84,66 @@ function deduplicateSpovs(
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
+// Candidate → HierarchyNode Promotion
+// ═══════════════════════════════════════════════════════════════════════════
+
+let promotionIdCounter = 0;
+
+/** Flatten all text from nodes (for dedup comparison against candidates) */
+function flattenNodeTexts(nodes: HierarchyNode[]): string[] {
+  const texts: string[] = [];
+  const walk = (list: HierarchyNode[]) => {
+    for (const n of list) {
+      if (n.name && n.name.trim().length > 0) texts.push(n.name.trim());
+      walk(n.children);
+    }
+  };
+  walk(nodes);
+  return texts;
+}
+
+function makePromotedNode(name: string, children: HierarchyNode[] = []): HierarchyNode {
+  return {
+    id: `promoted-${++promotionIdCounter}`,
+    name,
+    note: null,
+    depth: 0,
+    children,
+    isDOK1Marker: false,
+    isDOK2Marker: false,
+    isDOK3Marker: false,
+    isDOK4Marker: false,
+    isSourceMarker: false,
+    isCategoryMarker: false,
+    isPurposeMarker: false,
+    extractedUrl: null,
+  };
+}
+
+/** Convert a candidate insight to HierarchyNode[] matching the canonical insight format */
+function buildInsightNodes(candidate: CollectedInsight, index: number): HierarchyNode[] {
+  const children: HierarchyNode[] = [];
+  if (candidate.sourceRefs.length > 0) {
+    const linkChildren = candidate.sourceRefs.map(ref => makePromotedNode(ref));
+    children.push(makePromotedNode('Links', linkChildren));
+  }
+  return [makePromotedNode(`Insight ${index} - ${candidate.text}`, children)];
+}
+
+/** Convert a candidate SPOV to HierarchyNode[] matching the canonical SPOV format */
+function buildSpovNodes(candidate: CollectedSpov, index: number): HierarchyNode[] {
+  const children = candidate.context.map(ctx => makePromotedNode(ctx));
+  return [makePromotedNode(`spov ${index} - ${candidate.text}`, children)];
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
 // Main Merge Function
 // ═══════════════════════════════════════════════════════════════════════════
 
 export function mergePreformatResults(
   llmResults: PreformatLLMResults,
 ): MergedPreformatResult {
+  promotionIdCounter = 0;
   const mergeReport = {
     duplicateFactsRemoved: 0,
     duplicateSourcesConsolidated: 0,
@@ -132,8 +186,24 @@ export function mergePreformatResults(
   }
 
   if (allCandidateInsights.length > 0) {
-    const { removedCount } = deduplicateInsights(allCandidateInsights);
+    const { deduped: dedupedInsights, removedCount } = deduplicateInsights(allCandidateInsights);
     mergeReport.insightsDeduped = removedCount;
+
+    // Promote candidate insights to insightNodes (dedup against existing top-level)
+    const existingInsightTexts = flattenNodeTexts(insightNodes);
+    let nextInsightIndex = insightNodes.length + 1;
+    for (const candidate of dedupedInsights) {
+      // Skip if already present in top-level insights
+      const isDup = existingInsightTexts.some(
+        existing => jaccardSimilarity(existing, candidate.text) >= SIMILARITY_THRESHOLD_DUPLICATE,
+      );
+      if (isDup) {
+        mergeReport.insightsDeduped++;
+        continue;
+      }
+      insightNodes.push(...buildInsightNodes(candidate, nextInsightIndex));
+      nextInsightIndex++;
+    }
   }
 
   // ── Collect candidate SPOVs from categories for dedup ────────
@@ -152,8 +222,23 @@ export function mergePreformatResults(
   }
 
   if (allCandidateSpovs.length > 0) {
-    const { removedCount } = deduplicateSpovs(allCandidateSpovs);
+    const { deduped: dedupedSpovs, removedCount } = deduplicateSpovs(allCandidateSpovs);
     mergeReport.spovsDeduped = removedCount;
+
+    // Promote candidate SPOVs to spovNodes (dedup against existing top-level)
+    const existingSpovTexts = flattenNodeTexts(spovNodes);
+    let nextSpovIndex = spovNodes.length + 1;
+    for (const candidate of dedupedSpovs) {
+      const isDup = existingSpovTexts.some(
+        existing => jaccardSimilarity(existing, candidate.text) >= SIMILARITY_THRESHOLD_DUPLICATE,
+      );
+      if (isDup) {
+        mergeReport.spovsDeduped++;
+        continue;
+      }
+      spovNodes.push(...buildSpovNodes(candidate, nextSpovIndex));
+      nextSpovIndex++;
+    }
   }
 
   // ── Incorporate unknown sections ─────────────────────────────

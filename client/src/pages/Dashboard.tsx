@@ -341,6 +341,7 @@ const { downloadBrainliftPDF } = usePDFExport();
       {!isNotBrainlift && activeTab === 'brainlift' && (
         <BrainliftTab
           originalContent={data.originalContent}
+          importHierarchy={data.importHierarchy}
           sourceType={data.sourceType}
           slug={data.slug}
           summary={data.summary}

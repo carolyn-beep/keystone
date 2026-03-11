@@ -219,9 +219,7 @@ Return one of three decisions:
 - **"no_formatting_needed"** — this IS a BrainLift and the extractor can handle it reasonably well as-is
 - **"not_a_brainlift"** — this is NOT a BrainLift at all (to-do list, random notes, empty template, operational document)
 
-If in doubt between "needs_formatting" and "no_formatting_needed", say it does NOT need formatting. A messy but labeled BrainLift is better left alone than risk content loss from reformatting.
-
-If in doubt between "needs_formatting" and "not_a_brainlift", prefer "not_a_brainlift" — we should not attempt to reformat content that isn't a knowledge base.`;
+If in doubt between "needs_formatting" and "no_formatting_needed", say it does NOT need formatting. A messy but labeled BrainLift is better left alone than risk content loss from reformatting.`;
 
 /**
  * Evaluate whether a BrainLift hierarchy needs pre-formatting.
