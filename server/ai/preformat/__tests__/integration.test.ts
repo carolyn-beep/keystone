@@ -16,6 +16,7 @@ import type {
   MergedPreformatResult,
   ValidationReport,
 } from '../types';
+import { parseMarkdownToHierarchy } from '../markdown-parser';
 
 // ═══════════════════════════════════════════════════════════════════════════
 // Test Helpers
@@ -58,25 +59,24 @@ function makeValidationReport(passed: boolean): ValidationReport {
 }
 
 function makeMergedResult(): MergedPreformatResult {
+  const catMd = '- Source: Source A\n  - DOK1 - facts\n    - fact 1';
   return {
     owner: { name: 'Test Owner' },
-    purpose: { purpose: 'Test purpose', outOfScope: [] },
-    experts: [],
-    spovs: [],
-    insights: [],
+    purposeNodes: parseMarkdownToHierarchy('- Purpose\n  - Test purpose'),
+    expertNodes: [],
+    spovNodes: [],
+    insightNodes: [],
     categories: [
       {
         category: 'Category 1',
-        sources: [
-          { name: 'Source A', url: 'https://a.com', facts: ['fact 1'], summary: ['sum 1'] },
-        ],
+        sectionMarkdown: catMd,
+        parsedNodes: parseMarkdownToHierarchy(catMd),
         candidateInsights: [],
         candidateSpovs: [],
-        scratchpad: [],
         strippedTemplateInstructions: [],
       },
     ],
-    scratchpad: [],
+    scratchpadNodes: [],
     mergeReport: {
       duplicateFactsRemoved: 0,
       duplicateSourcesConsolidated: 0,
@@ -333,19 +333,10 @@ describe('FR1: preformatHierarchy orchestrator', () => {
 // ═══════════════════════════════════════════════════════════════════════════
 
 describe('FR2: extractBrainlift integration', () => {
-  // These tests verify the integration logic by testing the code path
-  // in extractBrainlift. Since extractBrainlift has many side effects
-  // (LLM calls, regex parsing, etc.), we test the integration pattern
-  // as unit tests on the preformatHierarchy behavior.
-
   it('SC2.2: ENABLE_PREFORMAT unset means preformat is not called', async () => {
-    // When the env var is not set, the calling code should not invoke preformatHierarchy.
-    // We verify this by checking that our orchestrator works correctly when called,
-    // and the gating logic is a simple env var check in extractBrainlift.
     const originalEnv = process.env.ENABLE_PREFORMAT;
     delete process.env.ENABLE_PREFORMAT;
 
-    // The feature flag check is: process.env.ENABLE_PREFORMAT === 'true'
     expect(process.env.ENABLE_PREFORMAT).toBeUndefined();
     expect(process.env.ENABLE_PREFORMAT === 'true').toBe(false);
 
@@ -362,7 +353,6 @@ describe('FR2: extractBrainlift integration', () => {
   });
 
   it('SC2.3: when preformat succeeds, clean hierarchy is used', async () => {
-    // This tests the orchestrator returns a result that can replace the hierarchy
     const hierarchy = makeSimpleHierarchy();
     const chunks: PreformatChunk[] = [
       { type: 'owner', label: 'Owner', markdown: '', sourceNodeIds: [], originalNodes: [] },
@@ -386,13 +376,11 @@ describe('FR2: extractBrainlift integration', () => {
     const result = await preformatHierarchy(hierarchy);
     expect(result).not.toBeNull();
     expect(result!.cleanHierarchy).toBe(cleanTree);
-    // The calling code would then do: extractAllFromHierarchy(result.cleanHierarchy)
   });
 
   it('SC2.4: when preformat returns null, original hierarchy should be used', async () => {
     const result = await preformatHierarchy([]);
     expect(result).toBeNull();
-    // The calling code would then do: extractAllFromHierarchy(originalHierarchy)
   });
 
   it('SC2.5: when preformat throws, calling code can catch and fallback', async () => {
@@ -400,7 +388,6 @@ describe('FR2: extractBrainlift integration', () => {
     mockChunker.mockImplementation(() => { throw new Error('boom'); });
     vi.spyOn(console, 'error').mockImplementation(() => {});
 
-    // preformatHierarchy catches internally and returns null
     const result = await preformatHierarchy(hierarchy);
     expect(result).toBeNull();
   });
@@ -412,7 +399,6 @@ describe('FR2: extractBrainlift integration', () => {
 
 describe('FR3: Reformat endpoint logic', () => {
   it('SC3.1: should reject when confirm is missing or false', () => {
-    // Test the validation logic that the endpoint implements
     const validateConfirm = (body: { confirm?: boolean }) => {
       if (!body.confirm) {
         return { status: 400, error: 'Must confirm reformat operation' };
@@ -462,9 +448,6 @@ describe('FR3: Reformat endpoint logic', () => {
     expect(result).not.toBeNull();
     expect(result!.report.passed).toBe(true);
     expect(result!.cleanHierarchy).toBe(cleanTree);
-
-    // The endpoint would return:
-    // { success: true, report: result.report, cleanHierarchy: result.cleanHierarchy }
   });
 
   it('SC3.4: returns result with report.passed=false when validation fails', async () => {
@@ -485,11 +468,9 @@ describe('FR3: Reformat endpoint logic', () => {
     vi.spyOn(console, 'log').mockImplementation(() => {});
 
     const result = await preformatHierarchy(hierarchy);
-    // Now always returns a result — callers check report.passed
     expect(result).not.toBeNull();
     expect(result!.report.passed).toBe(false);
     expect(result!.cleanHierarchy).toBe(cleanTree);
-    // The endpoint would return: { success: false, formatted: cleanTree, report: failReport }
   });
 });
 
@@ -534,8 +515,6 @@ describe('FR4: Dev test page endpoint logic', () => {
 
     const result = await preformatHierarchy(hierarchy);
 
-    // The endpoint would return:
-    // { success: true, original: hierarchy, formatted: result.cleanHierarchy, report: result.report }
     expect(result).not.toBeNull();
     expect(result!.cleanHierarchy).toBe(cleanTree);
     expect(result!.report).toBe(report);
@@ -548,14 +527,10 @@ describe('FR4: Dev test page endpoint logic', () => {
 
     const result = await preformatHierarchy(hierarchy);
     expect(result).toBeNull();
-    // The endpoint would wrap this: { success: false, error: 'Network error' }
   });
 
   it('SC4.5: dev endpoints are gated in production', () => {
-    // The dev router pattern: if (!isDev) devRouter.all('/dev/*', ... 404)
-    // We verify the pattern is correct
     const isDev = process.env.NODE_ENV !== 'production';
-    // In test env, NODE_ENV is 'test'
     expect(isDev).toBe(true);
   });
 });

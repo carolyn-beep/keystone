@@ -38,10 +38,11 @@ export interface PreformatResult {
     llmSuccessCount: number;
     llmFailCount: number;
     categoryCount: number;
-    insightCount: number;
-    spovCount: number;
-    expertCount: number;
-    scratchpadCount: number;
+    purposeNodeCount: number;
+    expertNodeCount: number;
+    insightNodeCount: number;
+    spovNodeCount: number;
+    scratchpadNodeCount: number;
     mergeReport: MergedPreformatResult['mergeReport'];
   };
 }
@@ -94,10 +95,10 @@ export async function preformatHierarchy(
     const merged = mergePreformatResults(llmResults);
     timing.merging = Date.now() - mergeStart;
 
-    console.log(`[Preformat] Step 3/5 Merging: categories=${merged.categories.length} insights=${merged.insights.length} spovs=${merged.spovs.length} experts=${merged.experts.length} (${timing.merging}ms)`);
+    console.log(`[Preformat] Step 3/5 Merging: categories=${merged.categories.length} purposeNodes=${merged.purposeNodes.length} expertNodes=${merged.expertNodes.length} insightNodes=${merged.insightNodes.length} spovNodes=${merged.spovNodes.length} (${timing.merging}ms)`);
     if (verbose()) {
-      const totalParsedNodes = merged.categories.reduce((n, c) => n + (c.parsedNodes?.length ?? 0), 0);
-      console.log(`  [Merge] parsedNodes=${totalParsedNodes} scratchpad=${merged.scratchpad.length}`);
+      const totalCatNodes = merged.categories.reduce((n, c) => n + (c.parsedNodes?.length ?? 0), 0);
+      console.log(`  [Merge] categoryParsedNodes=${totalCatNodes} scratchpadNodes=${merged.scratchpadNodes.length}`);
       console.log(`  [Merge] dedup: facts=${merged.mergeReport.duplicateFactsRemoved} insights=${merged.mergeReport.insightsDeduped} spovs=${merged.mergeReport.spovsDeduped} crossRefs=${merged.mergeReport.crossRefsUpdated}`);
     }
 
@@ -137,10 +138,11 @@ export async function preformatHierarchy(
         llmSuccessCount,
         llmFailCount,
         categoryCount: merged.categories.length,
-        insightCount: merged.insights.length,
-        spovCount: merged.spovs.length,
-        expertCount: merged.experts.length,
-        scratchpadCount: merged.scratchpad.length,
+        purposeNodeCount: merged.purposeNodes.length,
+        expertNodeCount: merged.expertNodes.length,
+        insightNodeCount: merged.insightNodes.length,
+        spovNodeCount: merged.spovNodes.length,
+        scratchpadNodeCount: merged.scratchpadNodes.length,
         mergeReport: merged.mergeReport,
       },
     };
@@ -229,17 +231,35 @@ function countLLMSuccesses(results: PreformatLLMResults): number {
 /** Log a summary of what the LLM calls produced */
 function logLLMResultsSummary(results: PreformatLLMResults): void {
   if (results.owner) console.log(`  [LLM] owner: "${results.owner.name}"`);
-  if (results.purpose) console.log(`  [LLM] purpose: "${results.purpose.purpose.substring(0, 80)}..."`);
-  if (results.experts) console.log(`  [LLM] experts: ${results.experts.experts.length} found`);
-  if (results.spovs) console.log(`  [LLM] spovs: ${results.spovs.spovs.length} found`);
-  if (results.insights) console.log(`  [LLM] insights: ${results.insights.insights.length} found`);
+  if (results.purpose) {
+    const mdLen = results.purpose.sectionMarkdown?.length ?? 0;
+    const nodeCount = results.purpose.parsedNodes?.length ?? 0;
+    console.log(`  [LLM] purpose: markdown=${mdLen} chars, parsedNodes=${nodeCount}`);
+  }
+  if (results.experts) {
+    const mdLen = results.experts.sectionMarkdown?.length ?? 0;
+    const nodeCount = results.experts.parsedNodes?.length ?? 0;
+    console.log(`  [LLM] experts: markdown=${mdLen} chars, parsedNodes=${nodeCount}`);
+  }
+  if (results.spovs) {
+    const mdLen = results.spovs.sectionMarkdown?.length ?? 0;
+    const nodeCount = results.spovs.parsedNodes?.length ?? 0;
+    console.log(`  [LLM] spovs: markdown=${mdLen} chars, parsedNodes=${nodeCount}`);
+  }
+  if (results.insights) {
+    const mdLen = results.insights.sectionMarkdown?.length ?? 0;
+    const nodeCount = results.insights.parsedNodes?.length ?? 0;
+    console.log(`  [LLM] insights: markdown=${mdLen} chars, parsedNodes=${nodeCount}`);
+  }
   for (const cat of results.categories) {
-    const mdLen = cat.categoryMarkdown?.length ?? 0;
+    const mdLen = cat.sectionMarkdown?.length ?? 0;
     const nodeCount = cat.parsedNodes?.length ?? 0;
     console.log(`  [LLM] category "${cat.category}": markdown=${mdLen} chars, parsedNodes=${nodeCount}, insights=${cat.candidateInsights?.length ?? 0}, spovs=${cat.candidateSpovs?.length ?? 0}`);
   }
   for (const unk of results.unknownSections) {
-    console.log(`  [LLM] unknown section: classified as ${unk.classification}, sources=${unk.sources?.length ?? 0}`);
+    const mdLen = unk.sectionMarkdown?.length ?? 0;
+    const nodeCount = unk.parsedNodes?.length ?? 0;
+    console.log(`  [LLM] unknown section: classified as ${unk.classification}, markdown=${mdLen} chars, parsedNodes=${nodeCount}`);
   }
   if (results.scratchpad.length > 0) {
     console.log(`  [LLM] scratchpad: ${results.scratchpad.length} items`);

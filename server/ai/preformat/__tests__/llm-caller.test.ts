@@ -64,114 +64,48 @@ function createMockFetch(responseBody: object) {
   });
 }
 
-/** Create a mock fetch that returns different responses for sequential calls */
-function createSequentialMockFetch(responses: Array<object | Error>) {
-  let callIndex = 0;
-  return vi.fn().mockImplementation(() => {
-    const response = responses[callIndex % responses.length];
-    callIndex++;
-    if (response instanceof Error) {
-      return Promise.reject(response);
-    }
-    return Promise.resolve({
-      ok: true,
-      json: async () => ({
-        choices: [{ message: { content: JSON.stringify(response) } }],
-      }),
-    });
-  });
-}
-
-/** Create a mock fetch that returns an HTTP error */
-function createErrorFetch(status: number, body: string = 'Error') {
-  return vi.fn().mockResolvedValue({
-    ok: false,
-    status,
-    text: async () => body,
-    headers: new Map(),
-  });
-}
-
 // ═══════════════════════════════════════════════════════════════════════════
-// Fixture Response Data
+// Fixture Response Data (markdown-based)
 // ═══════════════════════════════════════════════════════════════════════════
 
 const OWNER_RESPONSE: OwnerResult = { name: 'John Doe' };
 
-const PURPOSE_RESPONSE: PurposeResult = {
-  purpose: 'Learn about branding and marketing strategies',
-  outOfScope: ['Social media management', 'Paid advertising'],
+const PURPOSE_RESPONSE = {
+  sectionMarkdown: '- Purpose\n  - Learn about branding and marketing strategies\n  - Out of scope:\n    - Social media management\n    - Paid advertising',
 };
 
-const EXPERTS_RESPONSE: ExpertsChunkResult = {
-  experts: [
-    {
-      name: 'Seth Godin',
-      who: 'Marketing author and entrepreneur',
-      focus: 'Permission marketing, remarkable products',
-      whyFollow: 'Pioneered modern marketing philosophy',
-      where: 'seths.blog',
-    },
-  ],
+const EXPERTS_RESPONSE = {
+  sectionMarkdown: '- Seth Godin\n  - Who: Marketing author and entrepreneur\n  - Focus: Permission marketing, remarkable products\n  - Why Follow: Pioneered modern marketing philosophy\n  - Where: seths.blog',
+  strippedTemplateInstructions: [],
 };
 
-const SPOVS_RESPONSE: SpovsChunkResult = {
-  spovs: [
-    { text: 'Brand authenticity matters more than brand consistency', explicitInsightRefs: [1, 3] },
-    { text: 'Permission-based marketing outperforms interruption marketing', explicitInsightRefs: [] },
-  ],
+const SPOVS_RESPONSE = {
+  sectionMarkdown: '- spov 1 - Brand authenticity matters more than brand consistency\n  - Supported By\n    - Insight #1\n    - Insight #3\n- spov 2 - Permission-based marketing outperforms interruption marketing',
 };
 
-const INSIGHTS_RESPONSE: InsightsChunkResult = {
-  insights: [
-    { text: 'Cross-source pattern: authentic brands build trust faster', sourceRefs: ['Brand Book', 'Marketing 101'] },
-  ],
+const INSIGHTS_RESPONSE = {
+  sectionMarkdown: '- Insight 1 - Cross-source pattern: authentic brands build trust faster\n  - Links\n    - Category 1, Source "Brand Book"\n    - Category 1, Source "Marketing 101"',
 };
 
-const CATEGORY_RESPONSE: CategoryChunkResult = {
+const CATEGORY_RESPONSE = {
   category: 'Branding',
-  sources: [
-    {
-      name: 'Brand Book by Seth Godin',
-      url: 'https://example.com/brand-book',
-      facts: ['Logos communicate brand identity', 'Color psychology affects perception'],
-      summary: ['Brand identity extends beyond visual elements to encompass voice and values'],
-    },
-  ],
+  sectionMarkdown: '- Source: Brand Book by Seth Godin\n  - DOK1 - facts\n    - Logos communicate brand identity\n    - Color psychology affects perception\n  - DOK2 - summary\n    - Brand identity extends beyond visual elements to encompass voice and values\n  - link to source\n    - https://example.com/brand-book',
   candidateInsights: [
     { text: 'Branding and marketing are converging disciplines', sourceRefs: ['Brand Book by Seth Godin'] },
   ],
   candidateSpovs: [
-    { text: 'Small brands should avoid logo redesigns', sourceRefs: ['Brand Book by Seth Godin'] },
+    { text: 'Small brands should avoid logo redesigns', sourceRefs: ['Brand Book by Seth Godin'], context: [] },
   ],
-  scratchpad: ['TO-DO: Review chapter 5'],
   strippedTemplateInstructions: ['What are experts'],
 };
 
-const UNKNOWN_RESPONSE: UnknownChunkResult = {
+const UNKNOWN_RESPONSE = {
   classification: 'dok_content',
-  sources: [{ name: 'Extra Source', url: null, facts: ['Extra fact'], summary: [] }],
-  insights: [],
-  spovs: [],
+  sectionMarkdown: '- Source: Extra Source\n  - DOK1 - facts\n    - Extra fact',
 };
 
-const UNSTRUCTURED_RESPONSE: UnstructuredChunkResult = {
-  owner: { name: 'Jane Smith' },
-  purpose: { purpose: 'Explore design thinking', outOfScope: [] },
-  experts: [],
-  spovs: [],
-  insights: [],
-  categories: [
-    {
-      category: 'Design',
-      sources: [{ name: 'Design Thinking', url: null, facts: ['Empathy first'], summary: [] }],
-      candidateInsights: [],
-      candidateSpovs: [],
-      scratchpad: [],
-      strippedTemplateInstructions: [],
-    },
-  ],
-  scratchpad: [],
+const UNSTRUCTURED_RESPONSE = {
+  sectionMarkdown: '- Owner\n  - Jane Smith\n- Purpose\n  - Explore design thinking\n- DOK2 - Knowledge Tree\n  - Category 1: Design\n    - Source: Design Thinking\n      - DOK1 - facts\n        - Empathy first',
 };
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -182,34 +116,41 @@ describe('FR1: Result Types', () => {
   it('all result interfaces compile and are usable in type assertions', () => {
     // These are compile-time checks; if this test file compiles, FR1 passes.
     const owner: OwnerResult = { name: 'Test' };
-    const purpose: PurposeResult = { purpose: 'Test', outOfScope: [] };
+    const purpose: PurposeResult = { sectionMarkdown: '- Purpose\n  - Test', parsedNodes: [] };
     const experts: ExpertsChunkResult = {
-      experts: [{ name: 'E', who: 'W', focus: 'F', whyFollow: 'WF', where: 'WH' }],
+      sectionMarkdown: '- Expert\n  - Who: W',
+      parsedNodes: [],
+      strippedTemplateInstructions: [],
     };
     const spovs: SpovsChunkResult = {
-      spovs: [{ text: 'T', explicitInsightRefs: [1] }],
+      sectionMarkdown: '- spov 1 - text',
+      parsedNodes: [],
     };
     const insights: InsightsChunkResult = {
-      insights: [{ text: 'T', sourceRefs: ['S'] }],
+      sectionMarkdown: '- Insight 1 - text',
+      parsedNodes: [],
     };
 
     expect(owner.name).toBe('Test');
-    expect(purpose.outOfScope).toEqual([]);
-    expect(experts.experts).toHaveLength(1);
-    expect(spovs.spovs[0].explicitInsightRefs).toEqual([1]);
-    expect(insights.insights[0].sourceRefs).toEqual(['S']);
+    expect(purpose.sectionMarkdown).toContain('Purpose');
+    expect(experts.parsedNodes).toEqual([]);
+    expect(spovs.sectionMarkdown).toContain('spov');
+    expect(insights.sectionMarkdown).toContain('Insight');
   });
 
-  it('CategoryChunkResult contains nested CategorySourceResult[], CandidateInsight[], CandidateSpov[]', () => {
-    const cat: CategoryChunkResult = CATEGORY_RESPONSE;
+  it('CategoryChunkResult extends MarkdownSectionResult with category-specific JSON fields', () => {
+    const cat: CategoryChunkResult = {
+      category: 'Branding',
+      sectionMarkdown: '- Source: Test\n  - DOK1 - facts\n    - fact1',
+      parsedNodes: [],
+      candidateInsights: [{ text: 'insight', sourceRefs: ['Source'] }],
+      candidateSpovs: [{ text: 'spov', sourceRefs: ['Source'], context: [] }],
+      strippedTemplateInstructions: ['What are experts'],
+    };
 
-    expect(cat.sources).toHaveLength(1);
-    expect(cat.sources[0].facts).toHaveLength(2);
-    expect(cat.sources[0].summary).toHaveLength(1);
-    expect(cat.sources[0].url).toBe('https://example.com/brand-book');
+    expect(cat.sectionMarkdown).toContain('Source: Test');
     expect(cat.candidateInsights).toHaveLength(1);
     expect(cat.candidateSpovs).toHaveLength(1);
-    expect(cat.scratchpad).toEqual(['TO-DO: Review chapter 5']);
     expect(cat.strippedTemplateInstructions).toEqual(['What are experts']);
   });
 
@@ -306,6 +247,24 @@ describe('FR2: Section-Specific Prompt Templates', () => {
     expect(systemText).toContain('template');
   });
 
+  it('all non-owner prompts use sectionMarkdown field in JSON schema', () => {
+    const nonOwnerBuilders = [
+      buildPurposePrompt,
+      buildExpertsPrompt,
+      buildSpovsPrompt,
+      buildInsightsPrompt,
+      buildCategoryPrompt,
+      buildUnknownPrompt,
+      buildUnstructuredPrompt,
+    ];
+
+    for (const builder of nonOwnerBuilders) {
+      const result = builder(makeChunk('category', 'Test'));
+      const schemaStr = JSON.stringify(result.jsonSchema);
+      expect(schemaStr).toContain('sectionMarkdown');
+    }
+  });
+
   it('PROMPT_BUILDERS dispatch map covers all ChunkType values', () => {
     const allTypes: ChunkType[] = [
       'owner', 'purpose', 'experts', 'spovs', 'insights',
@@ -345,7 +304,7 @@ describe('FR3: Parallel LLM Dispatch', () => {
     process.env.OPENROUTER_API_KEY = originalEnv;
   });
 
-  it('well-labeled category chunk returns facts grouped under correct sources', async () => {
+  it('category chunk returns markdown-based result with parsedNodes', async () => {
     globalThis.fetch = createMockFetch(CATEGORY_RESPONSE);
 
     const chunks = [makeChunk('category', 'Category 1: Branding')];
@@ -353,34 +312,30 @@ describe('FR3: Parallel LLM Dispatch', () => {
 
     expect(results.categories).toHaveLength(1);
     expect(results.categories[0].category).toBe('Branding');
-    expect(results.categories[0].sources[0].facts).toContain('Logos communicate brand identity');
-    expect(results.categories[0].sources[0].url).toBe('https://example.com/brand-book');
+    expect(results.categories[0].sectionMarkdown).toContain('Source: Brand Book');
+    expect(results.categories[0].parsedNodes.length).toBeGreaterThan(0);
   });
 
-  it('experts chunk returns normalized fields', async () => {
+  it('experts chunk returns markdown-based result with parsedNodes', async () => {
     globalThis.fetch = createMockFetch(EXPERTS_RESPONSE);
 
     const chunks = [makeChunk('experts', 'Experts')];
     const results = await runPreformatLLMCalls(chunks);
 
     expect(results.experts).toBeDefined();
-    expect(results.experts!.experts[0].name).toBe('Seth Godin');
-    expect(results.experts!.experts[0].who).toBe('Marketing author and entrepreneur');
-    expect(results.experts!.experts[0].focus).toBe('Permission marketing, remarkable products');
-    expect(results.experts!.experts[0].whyFollow).toBe('Pioneered modern marketing philosophy');
-    expect(results.experts!.experts[0].where).toBe('seths.blog');
+    expect(results.experts!.sectionMarkdown).toContain('Seth Godin');
+    expect(results.experts!.parsedNodes.length).toBeGreaterThan(0);
   });
 
-  it('spovs chunk returns flattened text array', async () => {
+  it('spovs chunk returns markdown-based result with parsedNodes', async () => {
     globalThis.fetch = createMockFetch(SPOVS_RESPONSE);
 
     const chunks = [makeChunk('spovs', 'DOK4 SPOVs')];
     const results = await runPreformatLLMCalls(chunks);
 
     expect(results.spovs).toBeDefined();
-    expect(results.spovs!.spovs).toHaveLength(2);
-    expect(results.spovs!.spovs[0].text).toBe('Brand authenticity matters more than brand consistency');
-    expect(results.spovs!.spovs[0].explicitInsightRefs).toEqual([1, 3]);
+    expect(results.spovs!.sectionMarkdown).toContain('spov 1');
+    expect(results.spovs!.parsedNodes.length).toBeGreaterThan(0);
   });
 
   it('empty chunks array returns empty PreformatLLMResults with no LLM calls', async () => {
@@ -400,10 +355,10 @@ describe('FR3: Parallel LLM Dispatch', () => {
   });
 
   it('multiple category chunks each append to categories[]', async () => {
-    const catResponse2: CategoryChunkResult = {
+    const catResponse2 = {
       ...CATEGORY_RESPONSE,
       category: 'Marketing',
-      sources: [{ name: 'Marketing 101', url: null, facts: ['Ads drive growth'], summary: [] }],
+      sectionMarkdown: '- Source: Marketing 101\n  - DOK1 - facts\n    - Ads drive growth',
     };
 
     let callCount = 0;
@@ -450,22 +405,18 @@ describe('FR3: Parallel LLM Dispatch', () => {
     expect(globalThis.fetch).not.toHaveBeenCalled();
   });
 
-  it('unstructured chunk result decomposes into respective fields', async () => {
+  it('unstructured chunk result stores markdown and parsedNodes', async () => {
     globalThis.fetch = createMockFetch(UNSTRUCTURED_RESPONSE);
 
     const chunks = [makeChunk('unstructured', 'Full Document')];
     const results = await runPreformatLLMCalls(chunks);
 
-    expect(results.owner).toBeDefined();
-    expect(results.owner!.name).toBe('Jane Smith');
-    expect(results.purpose).toBeDefined();
-    expect(results.purpose!.purpose).toBe('Explore design thinking');
-    expect(results.categories).toHaveLength(1);
-    expect(results.categories[0].category).toBe('Design');
+    // Unstructured results are stored in unknownSections
+    expect(results.unknownSections.length).toBeGreaterThan(0);
+    expect(results.unknownSections[0].sectionMarkdown).toContain('Owner');
   });
 
   it('knowledge_tree chunk results append to categories[]', async () => {
-    // Knowledge tree prompt returns categories array wrapped in the KT result
     const ktResponse = {
       categories: [CATEGORY_RESPONSE],
     };
@@ -476,9 +427,10 @@ describe('FR3: Parallel LLM Dispatch', () => {
 
     expect(results.categories).toHaveLength(1);
     expect(results.categories[0].category).toBe('Branding');
+    expect(results.categories[0].parsedNodes.length).toBeGreaterThan(0);
   });
 
-  it('unknown chunk results append to unknownSections[]', async () => {
+  it('unknown chunk results append to unknownSections[] with parsedNodes', async () => {
     globalThis.fetch = createMockFetch(UNKNOWN_RESPONSE);
 
     const chunks = [makeChunk('unknown', 'Unrecognized Sections')];
@@ -486,17 +438,18 @@ describe('FR3: Parallel LLM Dispatch', () => {
 
     expect(results.unknownSections).toHaveLength(1);
     expect(results.unknownSections[0].classification).toBe('dok_content');
+    expect(results.unknownSections[0].parsedNodes.length).toBeGreaterThan(0);
   });
 
-  it('insights chunk returns structured insights', async () => {
+  it('insights chunk returns markdown-based result with parsedNodes', async () => {
     globalThis.fetch = createMockFetch(INSIGHTS_RESPONSE);
 
     const chunks = [makeChunk('insights', 'DOK3 Insights')];
     const results = await runPreformatLLMCalls(chunks);
 
     expect(results.insights).toBeDefined();
-    expect(results.insights!.insights).toHaveLength(1);
-    expect(results.insights!.insights[0].sourceRefs).toEqual(['Brand Book', 'Marketing 101']);
+    expect(results.insights!.sectionMarkdown).toContain('Insight 1');
+    expect(results.insights!.parsedNodes.length).toBeGreaterThan(0);
   });
 
   it('mixed chunk types are all processed and aggregated correctly', async () => {
@@ -670,7 +623,6 @@ describe('FR4: Error Handling and Retry', () => {
   });
 
   it('single chunk failure does not prevent other chunks from processing', async () => {
-    // Use request body inspection to route responses by chunk type
     globalThis.fetch = vi.fn().mockImplementation((_url: string, options: { body: string }) => {
       const body = JSON.parse(options.body);
       const userContent: string = body.messages[1]?.content ?? '';
@@ -702,7 +654,7 @@ describe('FR4: Error Handling and Retry', () => {
 
     expect(results.owner).toBeNull(); // Failed
     expect(results.purpose).toBeDefined(); // Succeeded
-    expect(results.purpose!.purpose).toBe('Learn about branding and marketing strategies');
+    expect(results.purpose!.sectionMarkdown).toContain('branding and marketing');
   });
 
   it('network error (fetch throws) triggers retry', async () => {

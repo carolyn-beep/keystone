@@ -6,8 +6,8 @@
  * or combine the student's words. Every text string in the output must be a
  * verbatim copy from the input — typos, grammar errors, and all.
  *
- * Each builder returns { system, user, jsonSchema } for a specific chunk type.
- * JSON schemas use OpenRouter's structured output format (strict mode).
+ * All sections except Owner output free-form markdown in "sectionMarkdown".
+ * The markdown parser reconstructs HierarchyNode[] from the LLM's output.
  */
 
 import type { ChunkType, PreformatChunk, PromptConfig } from './types';
@@ -40,6 +40,8 @@ Content that is the student's own ideas, plans, brainstorming, creative concepts
 const ROLE_CONTEXT = `You are restructuring a section of a BrainLift document. A BrainLift is a student's personal knowledge base organized around sources they've studied.
 
 ${VERBATIM_RULE}`;
+
+const ZERO_CONTENT_LOSS = `CRITICAL: ZERO content loss. Every piece of text from the input MUST appear in the sectionMarkdown output. When in doubt, include it. NEVER drop content.`;
 
 const CONSERVATIVE_DEFAULTS = `Conservative defaults for ambiguities:
 - If you're unsure whether something is DOK2 or DOK3, keep it as DOK2 (under its source).
@@ -97,22 +99,34 @@ export function buildPurposePrompt(chunk: PreformatChunk): PromptConfig {
   return {
     system: `${ROLE_CONTEXT}
 
-Your task: Copy the purpose statement and any out-of-scope items VERBATIM from this section.
+Your task: Reorganize this Purpose section into canonical BrainLift format as an indented markdown bullet list. COPY ALL TEXT VERBATIM.
 
-- Copy the purpose text exactly as the student wrote it. Do not rewrite or summarize.
-- Copy each out-of-scope item exactly as written.
-- If no out-of-scope items exist, return an empty array.`,
+Output the reorganized purpose as an indented markdown bullet list in the "sectionMarkdown" field. Use this structure:
+
+\`\`\`
+- Purpose
+  - main purpose statement copied verbatim
+  - Out of scope:
+    - out-of-scope item 1
+    - out-of-scope item 2
+  - [any other sub-items preserved as-is]
+\`\`\`
+
+Rules:
+1. The root bullet must be "- Purpose"
+2. Copy the purpose statement verbatim as a child bullet
+3. If there are out-of-scope items, nest them under "- Out of scope:"
+4. Preserve ALL other sub-items, lists, or nested content under Purpose as additional child bullets
+5. Copy ALL text verbatim — include typos, grammar errors, formatting
+
+${ZERO_CONTENT_LOSS}`,
     user: chunk.markdown,
     jsonSchema: wrapSchema('purpose_result', {
       type: 'object',
       properties: {
-        purpose: { type: 'string' },
-        outOfScope: {
-          type: 'array',
-          items: { type: 'string' },
-        },
+        sectionMarkdown: { type: 'string' },
       },
-      required: ['purpose', 'outOfScope'],
+      required: ['sectionMarkdown'],
     }),
   };
 }
@@ -121,53 +135,42 @@ export function buildExpertsPrompt(chunk: PreformatChunk): PromptConfig {
   return {
     system: `${ROLE_CONTEXT}
 
-Your task: Place each expert's existing text into the correct structured fields.
+Your task: Reorganize this Experts section into canonical BrainLift format as an indented markdown bullet list. COPY ALL TEXT VERBATIM.
 
-For each expert found in the input, copy their information VERBATIM into these fields:
-- name: The expert's name, copied exactly
-- who: Text describing who they are — copy the exact text. Map from "Who:", "Bio:", or similar labels.
-- focus: Text about their focus/specialty — copy exactly. Map from "Focus:", "Topics:", or similar.
-- whyFollow: Text about why the student follows them — copy exactly. Map from "Why Follow:", "Who follow:", "Why:", or similar.
-- where: Text about where to find them — copy exactly. Map from "Where:", "Find her:", "Find him:", "Links:", or similar.
-- additionalFields: ANY expert child text that does NOT match the above fields goes here. Copy the label and value VERBATIM. For example, "Key Views: ..." becomes {label: "Key Views", value: "..."}. Do NOT drop content — every piece of text under an expert must appear in one of the standard fields or in additionalFields.
+Output the reorganized experts as an indented markdown bullet list in the "sectionMarkdown" field. Use this structure:
 
-Handle inconsistent field names by mapping them, but ALWAYS copy the text content verbatim.
-If a field has no corresponding text in the input, use an empty string. Do NOT generate descriptions.
+\`\`\`
+- Expert Name
+  - Who: description of who they are
+  - Focus: their focus/specialty area
+  - Why Follow: why the student follows them
+  - Where: where to find them (links, platforms)
+  - [any additional fields preserved as-is with their original labels]
+- Another Expert Name
+  - Who: ...
+  - Focus: ...
+\`\`\`
+
+Rules:
+1. Each expert becomes a top-level bullet with their name
+2. Standard fields (Who, Focus, Why Follow, Where) become child bullets with the label prefix
+3. Map variant labels: "Bio:" → "Who:", "Topics:" → "Focus:", "Who follow:" → "Why Follow:", "Find her:" / "Find him:" / "Links:" → "Where:"
+4. ANY content under an expert that does NOT match standard fields gets preserved as additional child bullets with their original labels
+5. Copy ALL text values verbatim — only the field label prefix may change
+6. If a standard field has no content, omit it (don't create empty bullets)
+7. Preserve nested lists, sub-items, and link trees under experts
+
+${ZERO_CONTENT_LOSS}
 
 ${STRIP_INSTRUCTIONS}`,
     user: chunk.markdown,
     jsonSchema: wrapSchema('experts_result', {
       type: 'object',
       properties: {
-        experts: {
-          type: 'array',
-          items: {
-            type: 'object',
-            properties: {
-              name: { type: 'string' },
-              who: { type: 'string' },
-              focus: { type: 'string' },
-              whyFollow: { type: 'string' },
-              where: { type: 'string' },
-              additionalFields: {
-                type: 'array',
-                items: {
-                  type: 'object',
-                  properties: {
-                    label: { type: 'string' },
-                    value: { type: 'string' },
-                  },
-                  required: ['label', 'value'],
-                  additionalProperties: false,
-                },
-              },
-            },
-            required: ['name', 'who', 'focus', 'whyFollow', 'where', 'additionalFields'],
-            additionalProperties: false,
-          },
-        },
+        sectionMarkdown: { type: 'string' },
+        strippedTemplateInstructions: { type: 'array', items: { type: 'string' } },
       },
-      required: ['experts'],
+      required: ['sectionMarkdown', 'strippedTemplateInstructions'],
     }),
   };
 }
@@ -178,47 +181,39 @@ export function buildSpovsPrompt(chunk: PreformatChunk): PromptConfig {
 
 ${DOK_DEFINITIONS}
 
-Your task: Copy each SPOV (Spiky Point of View) text VERBATIM from this section.
+Your task: Reorganize this SPOVs (DOK4) section into canonical BrainLift format as an indented markdown bullet list. COPY ALL TEXT VERBATIM.
 
-SPOVs are text the student already wrote as their original perspectives. They may be:
-- Labeled "SPOV:", "spov:", "Spiky POV:", "DOK4"
-- Numbered ("SPOV 1", "spov #2")
-- Nested inside containers
+Output the reorganized SPOVs as an indented markdown bullet list in the "sectionMarkdown" field. Use this structure:
 
-For each SPOV found:
-- Copy the SPOV text EXACTLY as written (the full text, not just a label)
-- Copy ALL child/nested text as "context" entries — these are supporting examples, elaborations, cross-references. Copy each child text VERBATIM as a separate string in the context array.
-- Flatten any container nesting — each SPOV becomes a standalone entry with its context
-- If a SPOV explicitly references numbered insights (e.g., "see Insight 3"), capture those numbers in explicitInsightRefs. Otherwise empty array.
+\`\`\`
+- spov 1 - the full SPOV text copied verbatim
+  - supporting context copied verbatim
+  - Supported By
+    - Insight #3
+  - [any other nested content preserved]
+- spov 2 - another SPOV text
+  - context text
+\`\`\`
 
-Do NOT create new SPOVs. Only include text that is ALREADY written as a SPOV in the input.
+Rules:
+1. Each SPOV becomes a top-level bullet with "spov N - " prefix followed by the SPOV text verbatim
+2. Number SPOVs sequentially (spov 1, spov 2, ...)
+3. ALL child/nested text (supporting examples, elaborations, cross-references) becomes child bullets — copy verbatim
+4. Flatten container nesting — each SPOV is a standalone top-level entry
+5. If a SPOV explicitly references insights (e.g., "see Insight 3"), preserve those references in the child bullets
+6. Do NOT create new SPOVs — only include text already written as a SPOV
+7. Do NOT synthesize or infer SPOVs from other content
 
-${STRIP_INSTRUCTIONS}`,
+${ZERO_CONTENT_LOSS}
+
+${CONSERVATIVE_DEFAULTS}`,
     user: chunk.markdown,
     jsonSchema: wrapSchema('spovs_result', {
       type: 'object',
       properties: {
-        spovs: {
-          type: 'array',
-          items: {
-            type: 'object',
-            properties: {
-              text: { type: 'string' },
-              explicitInsightRefs: {
-                type: 'array',
-                items: { type: 'integer' },
-              },
-              context: {
-                type: 'array',
-                items: { type: 'string' },
-              },
-            },
-            required: ['text', 'explicitInsightRefs', 'context'],
-            additionalProperties: false,
-          },
-        },
+        sectionMarkdown: { type: 'string' },
       },
-      required: ['spovs'],
+      required: ['sectionMarkdown'],
     }),
   };
 }
@@ -229,43 +224,38 @@ export function buildInsightsPrompt(chunk: PreformatChunk): PromptConfig {
 
 ${DOK_DEFINITIONS}
 
-Your task: Copy each DOK3 insight text VERBATIM from this section.
+Your task: Reorganize this Insights (DOK3) section into canonical BrainLift format as an indented markdown bullet list. COPY ALL TEXT VERBATIM.
 
-Only include text that is ALREADY written as an insight in the input. Look for:
-- Text labeled "Insight:", "DOK3:", or similar markers
-- Numbered insights ("Insight 1", "Insight 2")
-- Text in a section explicitly named "Insights" or "DOK3"
+Output the reorganized insights as an indented markdown bullet list in the "sectionMarkdown" field. Use this structure:
 
-For each insight found:
-- Copy the insight text EXACTLY as written — do NOT paraphrase or reword
-- If the insight references source names, copy those source names into sourceRefs
-- If no source references, use an empty array
+\`\`\`
+- Insight 1 - the full insight text copied verbatim
+  - Links
+    - Category N, Source "source name"
+  - [any nested evidence/analysis preserved]
+- Insight 2 - another insight text
+  - Links
+    - Category M, Source "other source"
+\`\`\`
 
-Do NOT synthesize new insights. Do NOT decide that some piece of text "sounds like an insight."
-If there are no explicitly marked insights in the input, return an empty array.
+Rules:
+1. Each insight becomes a top-level bullet with "Insight N - " prefix followed by the insight text verbatim
+2. Number insights sequentially (Insight 1, Insight 2, ...)
+3. If the insight references source names, nest them under a "Links" child bullet
+4. ALL nested content (evidence, analysis, sub-items) becomes child bullets — copy verbatim
+5. Do NOT synthesize new insights — only include text explicitly marked as an insight
+6. Do NOT decide that some text "sounds like an insight" — only explicitly labeled ones
 
-${STRIP_INSTRUCTIONS}`,
+${ZERO_CONTENT_LOSS}
+
+${CONSERVATIVE_DEFAULTS}`,
     user: chunk.markdown,
     jsonSchema: wrapSchema('insights_result', {
       type: 'object',
       properties: {
-        insights: {
-          type: 'array',
-          items: {
-            type: 'object',
-            properties: {
-              text: { type: 'string' },
-              sourceRefs: {
-                type: 'array',
-                items: { type: 'string' },
-              },
-            },
-            required: ['text', 'sourceRefs'],
-            additionalProperties: false,
-          },
-        },
+        sectionMarkdown: { type: 'string' },
       },
-      required: ['insights'],
+      required: ['sectionMarkdown'],
     }),
   };
 }
@@ -278,7 +268,7 @@ ${DOK_DEFINITIONS}
 
 Your task: Reorganize this Knowledge Tree category into canonical BrainLift format. COPY ALL TEXT VERBATIM.
 
-Output the reorganized category as an indented markdown bullet list in the "categoryMarkdown" field. Use this structure:
+Output the reorganized category as an indented markdown bullet list in the "sectionMarkdown" field. Use this structure:
 
 \`\`\`
 - Source: Source Name
@@ -320,7 +310,7 @@ Additionally, extract into JSON fields:
 - **candidateSpovs**: ONLY text EXPLICITLY marked as a SPOV. Copy verbatim with context.
 - **strippedTemplateInstructions**: Template instructions like "What are experts", "Creating lists of experts is DOK 1".
 
-CRITICAL: ZERO content loss. Every piece of text from the input MUST appear in either the categoryMarkdown OR one of the JSON fields. When in doubt, include it in the markdown.
+CRITICAL: ZERO content loss. Every piece of text from the input MUST appear in either the sectionMarkdown OR one of the JSON fields. When in doubt, include it in the markdown.
 
 ${CONSERVATIVE_DEFAULTS}`,
     user: chunk.markdown,
@@ -328,7 +318,7 @@ ${CONSERVATIVE_DEFAULTS}`,
       type: 'object',
       properties: {
         category: { type: 'string' },
-        categoryMarkdown: { type: 'string' },
+        sectionMarkdown: { type: 'string' },
         candidateInsights: {
           type: 'array',
           items: {
@@ -356,7 +346,7 @@ ${CONSERVATIVE_DEFAULTS}`,
         },
         strippedTemplateInstructions: { type: 'array', items: { type: 'string' } },
       },
-      required: ['category', 'categoryMarkdown', 'candidateInsights', 'candidateSpovs', 'strippedTemplateInstructions'],
+      required: ['category', 'sectionMarkdown', 'candidateInsights', 'candidateSpovs', 'strippedTemplateInstructions'],
     }),
   };
 }
@@ -371,7 +361,7 @@ Your task: Organize this Knowledge Tree into categories with source-grouped cont
 
 This Knowledge Tree has no explicit category markers. Identify logical groupings and output each as a separate category.
 
-Each category's content goes in "categoryMarkdown" — an indented markdown bullet list following canonical BrainLift format:
+Each category's content goes in "sectionMarkdown" — an indented markdown bullet list following canonical BrainLift format:
 
 \`\`\`
 - Source: Source Name
@@ -402,7 +392,7 @@ ${CONSERVATIVE_DEFAULTS}`,
             type: 'object',
             properties: {
               category: { type: 'string' },
-              categoryMarkdown: { type: 'string' },
+              sectionMarkdown: { type: 'string' },
               candidateInsights: {
                 type: 'array',
                 items: {
@@ -430,7 +420,7 @@ ${CONSERVATIVE_DEFAULTS}`,
               },
               strippedTemplateInstructions: { type: 'array', items: { type: 'string' } },
             },
-            required: ['category', 'categoryMarkdown', 'candidateInsights', 'candidateSpovs', 'strippedTemplateInstructions'],
+            required: ['category', 'sectionMarkdown', 'candidateInsights', 'candidateSpovs', 'strippedTemplateInstructions'],
             additionalProperties: false,
           },
         },
@@ -446,17 +436,31 @@ export function buildUnknownPrompt(chunk: PreformatChunk): PromptConfig {
 
 ${DOK_DEFINITIONS}
 
-Your task: Classify this unrecognized section and copy its content VERBATIM into the correct bucket.
+Your task: Classify this unrecognized section and reorganize its content as canonical markdown. COPY ALL TEXT VERBATIM.
 
 First, determine what kind of content this is:
-- "dok_content": Contains research content (sources, facts, summaries). If so, place text into sources/facts/summary structure.
-- "operational": Contains operational plans, workflows, SOPs. Copy all text lines verbatim to "content" array.
-- "scratchpad": Contains drafts, notes, TO-DOs, temporary content. Copy all text lines verbatim to "content" array.
+- "dok_content": Contains research content (sources, facts, summaries). Reorganize using the canonical KT format below.
+- "operational": Contains operational plans, workflows, SOPs. Preserve as indented markdown bullet list.
+- "scratchpad": Contains drafts, notes, TO-DOs, temporary content. Preserve as indented markdown bullet list.
+
+For "dok_content", output sectionMarkdown in canonical KT format:
+\`\`\`
+- Source: Source Name
+  - DOK1 - facts
+    - fact text verbatim
+  - DOK2 - summary
+    - summary text verbatim
+  - link to source
+    - URL
+\`\`\`
+
+For "operational" or "scratchpad", output sectionMarkdown as a faithful indented bullet list preserving all content and structure.
+
+${ZERO_CONTENT_LOSS}
 
 ${CONSERVATIVE_DEFAULTS}
 
-REMEMBER: Copy all text VERBATIM. Do not paraphrase, summarize, or generate new text.
-For "dok_content": only include insights/spovs if EXPLICITLY marked as such in the input.`,
+REMEMBER: Copy all text VERBATIM. Do not paraphrase, summarize, or generate new text.`,
     user: chunk.markdown,
     jsonSchema: wrapSchema('unknown_result', {
       type: 'object',
@@ -465,50 +469,9 @@ For "dok_content": only include insights/spovs if EXPLICITLY marked as such in t
           type: 'string',
           enum: ['dok_content', 'operational', 'scratchpad'],
         },
-        sources: {
-          type: 'array',
-          items: {
-            type: 'object',
-            properties: {
-              name: { type: 'string' },
-              url: { type: ['string', 'null'] },
-              facts: { type: 'array', items: { type: 'string' } },
-              summary: { type: 'array', items: { type: 'string' } },
-            },
-            required: ['name', 'url', 'facts', 'summary'],
-            additionalProperties: false,
-          },
-        },
-        insights: {
-          type: 'array',
-          items: {
-            type: 'object',
-            properties: {
-              text: { type: 'string' },
-              sourceRefs: { type: 'array', items: { type: 'string' } },
-            },
-            required: ['text', 'sourceRefs'],
-            additionalProperties: false,
-          },
-        },
-        spovs: {
-          type: 'array',
-          items: {
-            type: 'object',
-            properties: {
-              text: { type: 'string' },
-              sourceRefs: { type: 'array', items: { type: 'string' } },
-            },
-            required: ['text', 'sourceRefs'],
-            additionalProperties: false,
-          },
-        },
-        content: {
-          type: 'array',
-          items: { type: 'string' },
-        },
+        sectionMarkdown: { type: 'string' },
       },
-      required: ['classification', 'sources', 'insights', 'spovs', 'content'],
+      required: ['classification', 'sectionMarkdown'],
     }),
   };
 }
@@ -519,152 +482,61 @@ export function buildUnstructuredPrompt(chunk: PreformatChunk): PromptConfig {
 
 ${DOK_DEFINITIONS}
 
-Your task: Classify and place ALL text from this unstructured document into the correct structural slots. COPY EVERY PIECE OF TEXT VERBATIM.
+Your task: Organize this entire unstructured document into canonical BrainLift format. COPY ALL TEXT VERBATIM.
 
-This document has no recognized section markers. You must decide where each piece of text belongs:
+This document has no recognized section markers. Output the ENTIRE reorganized document as a single indented markdown bullet list in "sectionMarkdown". Use this structure:
 
-- owner: Copy the owner's name exactly if found (null if not found)
-- purpose: Copy the purpose statement exactly if found (null if not found)
-- experts: Copy expert information verbatim into structured fields. Do NOT generate descriptions — use empty strings for missing fields.
-- spovs: ONLY text that is EXPLICITLY marked as a SPOV in the input. Do NOT create SPOVs. If a SPOV has child/nested text (supporting examples, elaborations), copy each child text VERBATIM into the "context" array.
-- insights: ONLY text that is EXPLICITLY marked as an insight in the input. Do NOT synthesize insights.
-- categories: Group source-based content. Copy all facts and summaries VERBATIM under their source.
-- scratchpad: ONLY content that is CLEARLY non-research (TO-DO, SOP, timeline, script). Copy verbatim.
+\`\`\`
+- Owner
+  - owner name
+- Purpose
+  - purpose statement
+  - Out of scope:
+    - scope item
+- Experts
+  - Expert Name
+    - Who: description
+    - Focus: specialty
+    - Why Follow: reason
+    - Where: links/platforms
+- DOK4 - SPOV
+  - spov 1 - SPOV text
+    - context
+- DOK3 - Insights
+  - Insight 1 - insight text
+    - Links
+      - Category N, Source "name"
+- DOK2 - Knowledge Tree
+  - Category 1: Topic
+    - Source: Source Name
+      - DOK1 - facts
+        - fact text
+      - DOK2 - summary
+        - summary text
+      - link to source
+        - URL
+- Scratchpad
+  - operational or non-research items
+\`\`\`
 
-CRITICAL: ZERO content loss. Every piece of text from the input MUST appear in EXACTLY ONE output field.
-- If text doesn't fit any structured field → put in scratchpad
-NEVER drop content. When in doubt, scratchpad.
+Rules:
+1. Identify ALL sections: Owner, Purpose, Experts, SPOVs, Insights, Knowledge Tree categories, Scratchpad
+2. Place every piece of text into the correct section
+3. Copy ALL text verbatim — include typos, grammar, formatting
+4. If text doesn't fit any structured section → put in Scratchpad
+5. NEVER drop content. When in doubt, include in Scratchpad.
+6. Only mark content as DOK3 (Insight) or DOK4 (SPOV) if EXPLICITLY labeled as such
 
-${CONSERVATIVE_DEFAULTS}
+${ZERO_CONTENT_LOSS}
 
-${STRIP_INSTRUCTIONS}`,
+${CONSERVATIVE_DEFAULTS}`,
     user: chunk.markdown,
     jsonSchema: wrapSchema('unstructured_result', {
       type: 'object',
       properties: {
-        owner: {
-          type: ['object', 'null'],
-          properties: {
-            name: { type: 'string' },
-          },
-          required: ['name'],
-          additionalProperties: false,
-        },
-        purpose: {
-          type: ['object', 'null'],
-          properties: {
-            purpose: { type: 'string' },
-            outOfScope: { type: 'array', items: { type: 'string' } },
-          },
-          required: ['purpose', 'outOfScope'],
-          additionalProperties: false,
-        },
-        experts: {
-          type: 'array',
-          items: {
-            type: 'object',
-            properties: {
-              name: { type: 'string' },
-              who: { type: 'string' },
-              focus: { type: 'string' },
-              whyFollow: { type: 'string' },
-              where: { type: 'string' },
-              additionalFields: {
-                type: 'array',
-                items: {
-                  type: 'object',
-                  properties: {
-                    label: { type: 'string' },
-                    value: { type: 'string' },
-                  },
-                  required: ['label', 'value'],
-                  additionalProperties: false,
-                },
-              },
-            },
-            required: ['name', 'who', 'focus', 'whyFollow', 'where', 'additionalFields'],
-            additionalProperties: false,
-          },
-        },
-        spovs: {
-          type: 'array',
-          items: {
-            type: 'object',
-            properties: {
-              text: { type: 'string' },
-              explicitInsightRefs: { type: 'array', items: { type: 'integer' } },
-              context: { type: 'array', items: { type: 'string' } },
-            },
-            required: ['text', 'explicitInsightRefs', 'context'],
-            additionalProperties: false,
-          },
-        },
-        insights: {
-          type: 'array',
-          items: {
-            type: 'object',
-            properties: {
-              text: { type: 'string' },
-              sourceRefs: { type: 'array', items: { type: 'string' } },
-            },
-            required: ['text', 'sourceRefs'],
-            additionalProperties: false,
-          },
-        },
-        categories: {
-          type: 'array',
-          items: {
-            type: 'object',
-            properties: {
-              category: { type: 'string' },
-              sources: {
-                type: 'array',
-                items: {
-                  type: 'object',
-                  properties: {
-                    name: { type: 'string' },
-                    url: { type: ['string', 'null'] },
-                    facts: { type: 'array', items: { type: 'string' } },
-                    summary: { type: 'array', items: { type: 'string' } },
-                  },
-                  required: ['name', 'url', 'facts', 'summary'],
-                  additionalProperties: false,
-                },
-              },
-              candidateInsights: {
-                type: 'array',
-                items: {
-                  type: 'object',
-                  properties: {
-                    text: { type: 'string' },
-                    sourceRefs: { type: 'array', items: { type: 'string' } },
-                  },
-                  required: ['text', 'sourceRefs'],
-                  additionalProperties: false,
-                },
-              },
-              candidateSpovs: {
-                type: 'array',
-                items: {
-                  type: 'object',
-                  properties: {
-                    text: { type: 'string' },
-                    sourceRefs: { type: 'array', items: { type: 'string' } },
-                  },
-                  required: ['text', 'sourceRefs'],
-                  additionalProperties: false,
-                },
-              },
-              scratchpad: { type: 'array', items: { type: 'string' } },
-              strippedTemplateInstructions: { type: 'array', items: { type: 'string' } },
-            },
-            required: ['category', 'sources', 'candidateInsights', 'candidateSpovs', 'scratchpad', 'strippedTemplateInstructions'],
-            additionalProperties: false,
-          },
-        },
-        scratchpad: { type: 'array', items: { type: 'string' } },
+        sectionMarkdown: { type: 'string' },
       },
-      required: ['owner', 'purpose', 'experts', 'spovs', 'insights', 'categories', 'scratchpad'],
+      required: ['sectionMarkdown'],
     }),
   };
 }

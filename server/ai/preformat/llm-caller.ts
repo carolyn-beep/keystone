@@ -19,6 +19,7 @@ import type {
   UnstructuredChunkResult,
   KnowledgeTreeChunkResult,
   PromptConfig,
+  MarkdownSectionResult,
 } from './types';
 import { PROMPT_BUILDERS } from './section-prompts';
 import { parseMarkdownToHierarchy } from './markdown-parser';
@@ -183,6 +184,14 @@ async function callOpenRouter(
 }
 
 /**
+ * Parse sectionMarkdown into parsedNodes for any MarkdownSectionResult.
+ */
+function attachParsedNodes<T extends MarkdownSectionResult>(result: T): T {
+  result.parsedNodes = parseMarkdownToHierarchy(result.sectionMarkdown || '');
+  return result;
+}
+
+/**
  * Aggregate per-chunk results into a single PreformatLLMResults.
  */
 function aggregateResults(
@@ -202,98 +211,81 @@ function aggregateResults(
 
       case 'purpose':
         if (!results.purpose) {
-          results.purpose = result as PurposeResult;
+          results.purpose = attachParsedNodes(result as PurposeResult);
         }
         break;
 
       case 'experts': {
-        const expertsResult = result as ExpertsChunkResult;
+        const expertsResult = attachParsedNodes(result as ExpertsChunkResult);
         if (!results.experts) {
-          results.experts = { experts: [] };
+          results.experts = expertsResult;
+        } else {
+          // Merge: append nodes from additional chunks
+          results.experts.parsedNodes.push(...expertsResult.parsedNodes);
+          results.experts.sectionMarkdown += '\n' + expertsResult.sectionMarkdown;
+          results.experts.strippedTemplateInstructions.push(...expertsResult.strippedTemplateInstructions);
         }
-        results.experts.experts.push(...expertsResult.experts);
         break;
       }
 
       case 'spovs': {
-        const spovsResult = result as SpovsChunkResult;
+        const spovsResult = attachParsedNodes(result as SpovsChunkResult);
         if (!results.spovs) {
-          results.spovs = { spovs: [] };
+          results.spovs = spovsResult;
+        } else {
+          results.spovs.parsedNodes.push(...spovsResult.parsedNodes);
+          results.spovs.sectionMarkdown += '\n' + spovsResult.sectionMarkdown;
         }
-        results.spovs.spovs.push(...spovsResult.spovs);
         break;
       }
 
       case 'insights': {
-        const insightsResult = result as InsightsChunkResult;
+        const insightsResult = attachParsedNodes(result as InsightsChunkResult);
         if (!results.insights) {
-          results.insights = { insights: [] };
+          results.insights = insightsResult;
+        } else {
+          results.insights.parsedNodes.push(...insightsResult.parsedNodes);
+          results.insights.sectionMarkdown += '\n' + insightsResult.sectionMarkdown;
         }
-        results.insights.insights.push(...insightsResult.insights);
         break;
       }
 
       case 'category': {
         const catResult = result as CategoryChunkResult;
-        // Parse the markdown into hierarchy nodes
-        catResult.parsedNodes = parseMarkdownToHierarchy(catResult.categoryMarkdown || '');
+        catResult.parsedNodes = parseMarkdownToHierarchy(catResult.sectionMarkdown || '');
         results.categories.push(catResult);
         break;
       }
 
       case 'knowledge_tree': {
         const ktResult = result as KnowledgeTreeChunkResult;
-        // Parse markdown for each category
         for (const cat of ktResult.categories) {
-          cat.parsedNodes = parseMarkdownToHierarchy(cat.categoryMarkdown || '');
+          cat.parsedNodes = parseMarkdownToHierarchy(cat.sectionMarkdown || '');
         }
         results.categories.push(...ktResult.categories);
         break;
       }
 
-      case 'unknown':
-        results.unknownSections.push(result as UnknownChunkResult);
+      case 'unknown': {
+        const unknownResult = attachParsedNodes(result as UnknownChunkResult);
+        results.unknownSections.push(unknownResult);
         break;
+      }
 
       case 'unstructured': {
-        const unstructured = result as UnstructuredChunkResult;
-        if (unstructured.owner && !results.owner) {
-          results.owner = unstructured.owner;
+        const unstructured = attachParsedNodes(result as UnstructuredChunkResult);
+        // Unstructured outputs a single sectionMarkdown containing the entire document.
+        // The parser extracts all sections from it. We store parsed nodes for merger.
+        // For backwards compatibility, also try to extract owner from parsed nodes.
+        if (!results.purpose) {
+          results.purpose = unstructured;
         }
-        if (unstructured.purpose && !results.purpose) {
-          results.purpose = unstructured.purpose;
-        }
-        if (unstructured.experts.length > 0) {
-          if (!results.experts) {
-            results.experts = { experts: [] };
-          }
-          results.experts.experts.push(...unstructured.experts);
-        }
-        if (unstructured.spovs.length > 0) {
-          if (!results.spovs) {
-            results.spovs = { spovs: [] };
-          }
-          results.spovs.spovs.push(
-            ...unstructured.spovs.map((s) => ({
-              text: s.text,
-              explicitInsightRefs: s.explicitInsightRefs ?? [],
-              context: s.context ?? [],
-            })),
-          );
-        }
-        if (unstructured.insights.length > 0) {
-          if (!results.insights) {
-            results.insights = { insights: [] };
-          }
-          results.insights.insights.push(
-            ...unstructured.insights.map((i) => ({
-              text: i.text,
-              sourceRefs: i.sourceRefs ?? [],
-            })),
-          );
-        }
-        results.categories.push(...unstructured.categories);
-        results.scratchpad.push(...unstructured.scratchpad);
+        // Store the unstructured result as a special unknown section for merging
+        results.unknownSections.push({
+          classification: 'dok_content' as const,
+          sectionMarkdown: unstructured.sectionMarkdown,
+          parsedNodes: unstructured.parsedNodes,
+        });
         break;
       }
     }

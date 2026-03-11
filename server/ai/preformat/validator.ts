@@ -216,6 +216,19 @@ function flattenOriginalTexts(nodes: HierarchyNode[]): string[] {
   return texts;
 }
 
+/** Recursively flatten all text from a HierarchyNode[] tree */
+function flattenNodes(nodes: HierarchyNode[]): string[] {
+  const texts: string[] = [];
+  const walk = (nodeList: HierarchyNode[]) => {
+    for (const n of nodeList) {
+      if (n.name && n.name.trim().length > 0) texts.push(n.name.trim());
+      walk(n.children);
+    }
+  };
+  walk(nodes);
+  return texts;
+}
+
 /** Flatten all text from a MergedPreformatResult */
 function flattenOutputTexts(merged: MergedPreformatResult): string[] {
   const texts: string[] = [];
@@ -223,53 +236,27 @@ function flattenOutputTexts(merged: MergedPreformatResult): string[] {
   // Owner
   if (merged.owner) texts.push(merged.owner.name);
 
-  // Purpose
-  if (merged.purpose) {
-    texts.push(merged.purpose.purpose);
-    for (const oos of merged.purpose.outOfScope) texts.push(oos);
-  }
+  // Purpose — walk parsedNodes
+  texts.push(...flattenNodes(merged.purposeNodes));
 
-  // Experts -- push raw field values (no added prefixes, since originals may use
-  // different labels like "Find her:", "Who follow:", or no prefix at all)
-  for (const expert of merged.experts) {
-    texts.push(expert.name);
-    if (expert.who) texts.push(expert.who);
-    if (expert.focus) texts.push(expert.focus);
-    if (expert.whyFollow) texts.push(expert.whyFollow);
-    if (expert.where) texts.push(expert.where);
-    for (const af of (expert.additionalFields ?? [])) {
-      if (af.value) texts.push(af.value);
-    }
-  }
+  // Experts — walk parsedNodes
+  texts.push(...flattenNodes(merged.expertNodes));
 
-  // SPOVs + their context
-  for (const spov of merged.spovs) {
-    texts.push(spov.text);
-    for (const ctx of (spov.context ?? [])) texts.push(ctx);
-  }
+  // SPOVs — walk parsedNodes
+  texts.push(...flattenNodes(merged.spovNodes));
 
-  // Insights
-  for (const insight of merged.insights) {
-    texts.push(insight.text);
-  }
+  // Insights — walk parsedNodes
+  texts.push(...flattenNodes(merged.insightNodes));
 
   // Categories: flatten all text from parsedNodes
   for (const cat of merged.categories) {
     if (cat.parsedNodes) {
-      const walkParsed = (nodes: import('@shared/hierarchy-types').HierarchyNode[]) => {
-        for (const n of nodes) {
-          if (n.name && n.name.trim().length > 0) texts.push(n.name.trim());
-          walkParsed(n.children);
-        }
-      };
-      walkParsed(cat.parsedNodes);
+      texts.push(...flattenNodes(cat.parsedNodes));
     }
   }
 
-  // Scratchpad
-  for (const note of merged.scratchpad) {
-    texts.push(note);
-  }
+  // Scratchpad — walk parsedNodes
+  texts.push(...flattenNodes(merged.scratchpadNodes));
 
   return texts.filter(t => t && t.trim().length > 0);
 }
@@ -335,28 +322,26 @@ export function validateIntegrity(
     : 0;
 
   // ── Check 3: No-duplicates ─────────────────────────────────────
-  // Pairwise within each output list
-  const listsToCheck: string[][] = [];
-
-  // With markdown-based categories, duplicate checking happens on the flattened node text
-  // (no per-source fact lists available)
-
-  // Insights
-  if (merged.insights.length > 1) {
-    listsToCheck.push(merged.insights.map(i => i.text));
-  }
-
-  // SPOVs
-  if (merged.spovs.length > 1) {
-    listsToCheck.push(merged.spovs.map(s => s.text));
-  }
-
-  for (const list of listsToCheck) {
-    for (let i = 0; i < list.length; i++) {
-      for (let j = i + 1; j < list.length; j++) {
-        const score = jaccardSimilarity(list[i], list[j]);
+  // Check for duplicates in insight and SPOV parsedNodes text
+  const insightTexts = flattenNodes(merged.insightNodes);
+  if (insightTexts.length > 1) {
+    for (let i = 0; i < insightTexts.length; i++) {
+      for (let j = i + 1; j < insightTexts.length; j++) {
+        const score = jaccardSimilarity(insightTexts[i], insightTexts[j]);
         if (score >= SIMILARITY_THRESHOLD_DUPLICATE) {
-          duplicatePairs.push([list[i], list[j]]);
+          duplicatePairs.push([insightTexts[i], insightTexts[j]]);
+        }
+      }
+    }
+  }
+
+  const spovTexts = flattenNodes(merged.spovNodes);
+  if (spovTexts.length > 1) {
+    for (let i = 0; i < spovTexts.length; i++) {
+      for (let j = i + 1; j < spovTexts.length; j++) {
+        const score = jaccardSimilarity(spovTexts[i], spovTexts[j]);
+        if (score >= SIMILARITY_THRESHOLD_DUPLICATE) {
+          duplicatePairs.push([spovTexts[i], spovTexts[j]]);
         }
       }
     }

@@ -2,54 +2,42 @@
  * Result Merging
  *
  * Provides mergePreformatResults (FR2):
- * - Collects insights/SPOVs from categories + top-level
- * - Deduplicates by Jaccard similarity
- * - Assigns global indices
- * - Remaps SPOV insight cross-references
- * - Deduplicates facts within categories
- * - Incorporates unknown sections
+ * - Passes through parsedNodes for all markdown-based sections
+ * - Categories pass through as-is (already markdown)
+ * - Unknown dok_content sections get added as Uncategorized categories
+ * - Unknown operational/scratchpad → scratchpadNodes
+ * - Dedup and cross-ref logic preserved for category candidateInsights/candidateSpovs
  */
 
+import type { HierarchyNode } from '@shared/hierarchy-types';
 import type {
   PreformatLLMResults,
   MergedPreformatResult,
-  InsightResult,
-  SpovResult,
   CategoryChunkResult,
-  ExpertResult,
 } from './types';
 import { jaccardSimilarity } from './validator';
+import { parseMarkdownToHierarchy } from './markdown-parser';
 
 const SIMILARITY_THRESHOLD_DUPLICATE = 0.9;
 
 // ═══════════════════════════════════════════════════════════════════════════
-// Deduplication Helpers
+// Deduplication Helpers (for category candidate insights/spovs)
 // ═══════════════════════════════════════════════════════════════════════════
 
 interface CollectedInsight {
   text: string;
   sourceRefs: string[];
-  /** Which chunk provided this insight (for cross-ref mapping) */
   chunkOrigin: string;
-  /** Original 1-based index within its chunk */
   chunkLocalIndex: number;
 }
 
 interface CollectedSpov {
   text: string;
-  explicitInsightRefs: number[];
+  sourceRefs: string[];
   context: string[];
-  /** Which chunk provided this SPOV */
   chunkOrigin: string;
-  /** Original insight indices are relative to this chunk's insight list */
-  sourceRefs?: string[];
 }
 
-/**
- * Deduplicate a list of items by Jaccard similarity.
- * When duplicates are found, sourceRefs are merged into the first occurrence.
- * Returns: deduplicated list and count of removed items.
- */
 function deduplicateInsights(
   items: CollectedInsight[],
 ): { deduped: CollectedInsight[]; removedCount: number } {
@@ -61,7 +49,6 @@ function deduplicateInsights(
       existing => jaccardSimilarity(existing.text, item.text) >= SIMILARITY_THRESHOLD_DUPLICATE,
     );
     if (duplicate) {
-      // Merge sourceRefs
       for (const ref of item.sourceRefs) {
         if (!duplicate.sourceRefs.includes(ref)) {
           duplicate.sourceRefs.push(ref);
@@ -96,56 +83,6 @@ function deduplicateSpovs(
   return { deduped: result, removedCount };
 }
 
-/**
- * Deduplicate facts within a single source by Jaccard similarity.
- */
-function deduplicateFacts(facts: string[]): { deduped: string[]; removedCount: number } {
-  const result: string[] = [];
-  let removedCount = 0;
-
-  for (const fact of facts) {
-    const isDuplicate = result.some(
-      existing => jaccardSimilarity(existing, fact) >= SIMILARITY_THRESHOLD_DUPLICATE,
-    );
-    if (isDuplicate) {
-      removedCount++;
-    } else {
-      result.push(fact);
-    }
-  }
-
-  return { deduped: result, removedCount };
-}
-
-// ═══════════════════════════════════════════════════════════════════════════
-// Cross-Reference Mapping
-// ═══════════════════════════════════════════════════════════════════════════
-
-/**
- * Build a mapping from (chunkOrigin, chunkLocalIndex) -> globalIndex
- * for insight cross-reference resolution in SPOVs.
- */
-function buildInsightRefMap(
-  allInsights: CollectedInsight[],
-  globalInsights: Array<InsightResult & { globalIndex: number }>,
-): Map<string, number> {
-  // Map: "chunkOrigin:chunkLocalIndex" -> globalIndex
-  const refMap = new Map<string, number>();
-
-  for (const collected of allInsights) {
-    // Find the corresponding global insight by text match
-    const globalMatch = globalInsights.find(
-      g => jaccardSimilarity(g.text, collected.text) >= SIMILARITY_THRESHOLD_DUPLICATE,
-    );
-    if (globalMatch) {
-      const key = `${collected.chunkOrigin}:${collected.chunkLocalIndex}`;
-      refMap.set(key, globalMatch.globalIndex);
-    }
-  }
-
-  return refMap;
-}
-
 // ═══════════════════════════════════════════════════════════════════════════
 // Main Merge Function
 // ═══════════════════════════════════════════════════════════════════════════
@@ -161,199 +98,112 @@ export function mergePreformatResults(
     crossRefsUpdated: 0,
   };
 
-  // ── Pass through simple fields ─────────────────────────────────
+  // ── Owner (JSON) ─────────────────────────────────────────────
   const owner = llmResults.owner ?? null;
-  const purpose = llmResults.purpose ?? null;
-  const experts: ExpertResult[] = llmResults.experts?.experts ?? [];
 
-  // ── Collect all insights ───────────────────────────────────────
-  const allInsights: CollectedInsight[] = [];
+  // ── Purpose (parsedNodes pass-through) ───────────────────────
+  const purposeNodes: HierarchyNode[] = llmResults.purpose?.parsedNodes ?? [];
 
-  // From top-level insights section
-  if (llmResults.insights?.insights) {
-    llmResults.insights.insights.forEach((insight, idx) => {
-      allInsights.push({
-        text: insight.text,
-        sourceRefs: [...insight.sourceRefs],
-        chunkOrigin: 'top-level',
-        chunkLocalIndex: idx + 1, // 1-based
-      });
-    });
-  }
+  // ── Experts (parsedNodes pass-through) ───────────────────────
+  const expertNodes: HierarchyNode[] = llmResults.experts?.parsedNodes ?? [];
 
-  // From category candidate insights
+  // ── SPOVs (parsedNodes pass-through) ─────────────────────────
+  const spovNodes: HierarchyNode[] = llmResults.spovs?.parsedNodes ?? [];
+
+  // ── Insights (parsedNodes pass-through) ──────────────────────
+  const insightNodes: HierarchyNode[] = llmResults.insights?.parsedNodes ?? [];
+
+  // ── Categories (pass through, already have parsedNodes) ──────
+  const processedCategories: CategoryChunkResult[] = [...llmResults.categories];
+
+  // ── Collect candidate insights from categories for dedup ─────
+  const allCandidateInsights: CollectedInsight[] = [];
   for (const cat of llmResults.categories) {
     if (cat.candidateInsights) {
       cat.candidateInsights.forEach((insight, idx) => {
-        allInsights.push({
+        allCandidateInsights.push({
           text: insight.text,
           sourceRefs: [...insight.sourceRefs],
           chunkOrigin: `category:${cat.category}`,
-          chunkLocalIndex: idx + 1, // 1-based
-        });
-      });
-    }
-  }
-
-  // From unknown sections classified as dok_content
-  for (const unknown of llmResults.unknownSections) {
-    if (unknown.classification === 'dok_content' && unknown.insights) {
-      unknown.insights.forEach((insight, idx) => {
-        allInsights.push({
-          text: insight.text,
-          sourceRefs: [...insight.sourceRefs],
-          chunkOrigin: 'unknown',
           chunkLocalIndex: idx + 1,
         });
       });
     }
   }
 
-  // Deduplicate insights
-  const { deduped: dedupedInsights, removedCount: insightsRemoved } =
-    deduplicateInsights(allInsights);
-  mergeReport.insightsDeduped = insightsRemoved;
-
-  // Assign global indices
-  const globalInsights: Array<InsightResult & { globalIndex: number }> =
-    dedupedInsights.map((item, idx) => ({
-      text: item.text,
-      sourceRefs: item.sourceRefs,
-      globalIndex: idx + 1,
-    }));
-
-  // Build cross-reference map
-  const insightRefMap = buildInsightRefMap(allInsights, globalInsights);
-
-  // ── Collect all SPOVs ──────────────────────────────────────────
-  const allSpovs: CollectedSpov[] = [];
-
-  // From top-level SPOVs section
-  if (llmResults.spovs?.spovs) {
-    llmResults.spovs.spovs.forEach((spov, _idx) => {
-      allSpovs.push({
-        text: spov.text,
-        explicitInsightRefs: [...spov.explicitInsightRefs],
-        context: [...(spov.context ?? [])],
-        chunkOrigin: 'top-level',
-      });
-    });
+  if (allCandidateInsights.length > 0) {
+    const { removedCount } = deduplicateInsights(allCandidateInsights);
+    mergeReport.insightsDeduped = removedCount;
   }
 
-  // From category candidate SPOVs
+  // ── Collect candidate SPOVs from categories for dedup ────────
+  const allCandidateSpovs: CollectedSpov[] = [];
   for (const cat of llmResults.categories) {
     if (cat.candidateSpovs) {
       cat.candidateSpovs.forEach(spov => {
-        allSpovs.push({
+        allCandidateSpovs.push({
           text: spov.text,
-          explicitInsightRefs: [], // candidate spovs don't have explicit refs
+          sourceRefs: [...spov.sourceRefs],
           context: [...(spov.context ?? [])],
           chunkOrigin: `category:${cat.category}`,
-          sourceRefs: [...spov.sourceRefs],
         });
       });
     }
   }
 
-  // From unknown sections classified as dok_content
-  for (const unknown of llmResults.unknownSections) {
-    if (unknown.classification === 'dok_content' && unknown.spovs) {
-      unknown.spovs.forEach(spov => {
-        allSpovs.push({
-          text: spov.text,
-          explicitInsightRefs: [],
-          context: [...(spov.context ?? [])],
-          chunkOrigin: 'unknown',
-          sourceRefs: [...spov.sourceRefs],
-        });
-      });
-    }
+  if (allCandidateSpovs.length > 0) {
+    const { removedCount } = deduplicateSpovs(allCandidateSpovs);
+    mergeReport.spovsDeduped = removedCount;
   }
 
-  // Deduplicate SPOVs
-  const { deduped: dedupedSpovs, removedCount: spovsRemoved } =
-    deduplicateSpovs(allSpovs);
-  mergeReport.spovsDeduped = spovsRemoved;
+  // ── Incorporate unknown sections ─────────────────────────────
+  const scratchpadNodes: HierarchyNode[] = [];
 
-  // Assign global indices and remap insight refs
-  const globalSpovs: Array<SpovResult & { globalIndex: number }> =
-    dedupedSpovs.map((item, idx) => {
-      // Remap insight refs using the cross-reference map
-      const remappedRefs: number[] = [];
-      for (const ref of item.explicitInsightRefs) {
-        const key = `${item.chunkOrigin}:${ref}`;
-        const globalRef = insightRefMap.get(key);
-        if (globalRef !== undefined) {
-          remappedRefs.push(globalRef);
-          mergeReport.crossRefsUpdated++;
-        }
-        // If no mapping found (non-existent insight), ref is dropped
-      }
-
-      return {
-        text: item.text,
-        explicitInsightRefs: remappedRefs,
-        context: item.context,
-        globalIndex: idx + 1,
-      };
-    });
-
-  // ── Pass through categories (markdown-based, no fact dedup needed) ──
-  const processedCategories: CategoryChunkResult[] = [...llmResults.categories];
-
-  // ── Incorporate unknown sections classified as dok_content ─────
   for (const unknown of llmResults.unknownSections) {
-    if (unknown.classification === 'dok_content' && unknown.sources && unknown.sources.length > 0) {
-      // Unknown dok_content still uses the old source format — serialize to markdown
-      const mdLines: string[] = [];
-      for (const src of unknown.sources) {
-        mdLines.push(`- Source: ${src.name}`);
-        if (src.facts.length > 0) {
-          mdLines.push('  - DOK1 - facts');
-          for (const f of src.facts) mdLines.push(`    - ${f}`);
-        }
-        if (src.summary.length > 0) {
-          mdLines.push('  - DOK2 - summary');
-          for (const s of src.summary) mdLines.push(`    - ${s}`);
-        }
-        if (src.url) {
-          mdLines.push('  - link to source');
-          mdLines.push(`    - ${src.url}`);
-        }
-      }
-      const { parseMarkdownToHierarchy } = require('./markdown-parser');
+    if (unknown.classification === 'dok_content') {
+      // dok_content unknown → add as Uncategorized category
       processedCategories.push({
         category: 'Uncategorized',
-        categoryMarkdown: mdLines.join('\n'),
-        parsedNodes: parseMarkdownToHierarchy(mdLines.join('\n')),
+        sectionMarkdown: unknown.sectionMarkdown,
+        parsedNodes: unknown.parsedNodes ?? parseMarkdownToHierarchy(unknown.sectionMarkdown || ''),
         candidateInsights: [],
         candidateSpovs: [],
         strippedTemplateInstructions: [],
       });
+    } else {
+      // operational or scratchpad → add parsedNodes to scratchpadNodes
+      const nodes = unknown.parsedNodes ?? parseMarkdownToHierarchy(unknown.sectionMarkdown || '');
+      scratchpadNodes.push(...nodes);
     }
   }
 
-  // ── Collect all scratchpad content ─────────────────────────────
-  const scratchpad: string[] = [...llmResults.scratchpad];
-
-  // From unknown sections classified as operational/scratchpad
-  for (const unknown of llmResults.unknownSections) {
-    if (
-      (unknown.classification === 'operational' || unknown.classification === 'scratchpad') &&
-      unknown.content
-    ) {
-      scratchpad.push(...unknown.content);
-    }
+  // ── Add scratchpad items from LLM results ────────────────────
+  for (const item of llmResults.scratchpad) {
+    scratchpadNodes.push({
+      id: `merged-scratchpad-${scratchpadNodes.length}`,
+      name: item,
+      note: null,
+      depth: 0,
+      children: [],
+      isDOK1Marker: false,
+      isDOK2Marker: false,
+      isDOK3Marker: false,
+      isDOK4Marker: false,
+      isSourceMarker: false,
+      isCategoryMarker: false,
+      isPurposeMarker: false,
+      extractedUrl: null,
+    });
   }
 
   return {
     owner,
-    purpose,
-    experts,
-    spovs: globalSpovs,
-    insights: globalInsights,
+    purposeNodes,
+    expertNodes,
+    spovNodes,
+    insightNodes,
     categories: processedCategories,
-    scratchpad,
+    scratchpadNodes,
     mergeReport,
   };
 }

@@ -3,6 +3,7 @@
  *
  * Provides buildCleanHierarchy (FR4):
  * - Converts MergedPreformatResult into HierarchyNode[] tree
+ * - All sections use parsedNodes directly (except Owner which stays JSON)
  * - Correct node ordering, depths, markers, IDs
  * - Output matches the exact structure the hierarchy extractor expects
  */
@@ -81,124 +82,53 @@ function buildOwnerSection(name: string, depth: number): HierarchyNode {
 }
 
 function buildPurposeSection(
-  purpose: { purpose: string; outOfScope: string[] },
+  purposeNodes: HierarchyNode[],
   depth: number,
 ): HierarchyNode {
-  const children: HierarchyNode[] = [
-    makeNode({ section: 'purpose', name: purpose.purpose, depth: depth + 1 }),
-  ];
-
-  if (purpose.outOfScope.length > 0) {
-    const oosChildren = purpose.outOfScope.map(item =>
-      makeNode({ section: 'purpose', name: item, depth: depth + 2 }),
-    );
-    children.push(
-      makeNode({
-        section: 'purpose',
-        name: 'Out of scope:',
-        depth: depth + 1,
-        children: oosChildren,
-      }),
-    );
-  }
-
   return makeNode({
     section: 'purpose',
     name: 'Purpose',
     depth,
     isPurposeMarker: true,
-    children,
+    children: purposeNodes,
   });
 }
 
 function buildExpertsSection(
-  experts: MergedPreformatResult['experts'],
+  expertNodes: HierarchyNode[],
   depth: number,
 ): HierarchyNode {
-  const expertChildren = experts.map(expert => {
-    const fields: HierarchyNode[] = [
-      makeNode({ section: 'expert', name: `Who: ${expert.who}`, depth: depth + 2 }),
-      makeNode({ section: 'expert', name: `Focus: ${expert.focus}`, depth: depth + 2 }),
-      makeNode({ section: 'expert', name: `Why Follow: ${expert.whyFollow}`, depth: depth + 2 }),
-      makeNode({ section: 'expert', name: `Where: ${expert.where}`, depth: depth + 2 }),
-    ];
-
-    // Emit additional fields as extra child nodes
-    for (const af of (expert.additionalFields ?? [])) {
-      fields.push(makeNode({ section: 'expert', name: `${af.label}: ${af.value}`, depth: depth + 2 }));
-    }
-
-    return makeNode({
-      section: 'expert',
-      name: `Expert - ${expert.name}`,
-      depth: depth + 1,
-      children: fields,
-    });
-  });
-
   return makeNode({
     section: 'experts',
     name: 'Experts',
     depth,
-    children: expertChildren,
+    children: expertNodes,
   });
 }
 
 function buildDOK4Section(
-  spovs: MergedPreformatResult['spovs'],
+  spovNodes: HierarchyNode[],
   depth: number,
 ): HierarchyNode {
-  const spovChildren = spovs.map(spov => {
-    const contextChildren = (spov.context ?? []).map(ctx =>
-      makeNode({ section: 'spov-context', name: ctx, depth: depth + 2 }),
-    );
-    return makeNode({
-      section: 'spov',
-      name: `spov ${spov.globalIndex} - ${spov.text}`,
-      depth: depth + 1,
-      children: contextChildren,
-    });
-  });
-
   return makeNode({
     section: 'dok4',
     name: 'DOK4 - SPOV',
     depth,
     isDOK4Marker: true,
-    children: spovChildren,
+    children: spovNodes,
   });
 }
 
 function buildDOK3Section(
-  insights: MergedPreformatResult['insights'],
+  insightNodes: HierarchyNode[],
   depth: number,
 ): HierarchyNode {
-  const insightChildren = insights.map(insight => {
-    // Build Links sub-tree from sourceRefs
-    const linkChildren = insight.sourceRefs.map(ref =>
-      makeNode({ section: 'link', name: ref, depth: depth + 3 }),
-    );
-    const linksNode = makeNode({
-      section: 'links',
-      name: 'Links',
-      depth: depth + 2,
-      children: linkChildren,
-    });
-
-    return makeNode({
-      section: 'insight',
-      name: `Insight ${insight.globalIndex} - ${insight.text}`,
-      depth: depth + 1,
-      children: [linksNode],
-    });
-  });
-
   return makeNode({
     section: 'dok3',
     name: 'DOK3 - Insights',
     depth,
     isDOK3Marker: true,
-    children: insightChildren,
+    children: insightNodes,
   });
 }
 
@@ -228,22 +158,6 @@ function buildDOK2Section(
   });
 }
 
-function buildScratchpadSection(
-  items: string[],
-  depth: number,
-): HierarchyNode {
-  const children = items.map(item =>
-    makeNode({ section: 'scratchpad', name: item, depth: depth + 1 }),
-  );
-
-  return makeNode({
-    section: 'scratchpad',
-    name: 'Scratchpad',
-    depth,
-    children,
-  });
-}
-
 // ═══════════════════════════════════════════════════════════════════════════
 // Main Entry Point
 // ═══════════════════════════════════════════════════════════════════════════
@@ -256,7 +170,7 @@ function buildScratchpadSection(
  *
  * @param bypassedScratchpad - Original scratchpad HierarchyNode[] copied verbatim
  *   from the input. These are NOT sent to LLMs. Any LLM-classified scratchpad
- *   content (from merged.scratchpad) is appended as additional children.
+ *   content (from merged.scratchpadNodes) is appended as additional children.
  */
 export function buildCleanHierarchy(
   merged: MergedPreformatResult,
@@ -274,23 +188,23 @@ export function buildCleanHierarchy(
   }
 
   // 2. Purpose
-  if (merged.purpose) {
-    sections.push(buildPurposeSection(merged.purpose, rootDepth));
+  if (merged.purposeNodes.length > 0) {
+    sections.push(buildPurposeSection(merged.purposeNodes, rootDepth));
   }
 
   // 3. Experts
-  if (merged.experts.length > 0) {
-    sections.push(buildExpertsSection(merged.experts, rootDepth));
+  if (merged.expertNodes.length > 0) {
+    sections.push(buildExpertsSection(merged.expertNodes, rootDepth));
   }
 
   // 4. DOK4 - SPOV
-  if (merged.spovs.length > 0) {
-    sections.push(buildDOK4Section(merged.spovs, rootDepth));
+  if (merged.spovNodes.length > 0) {
+    sections.push(buildDOK4Section(merged.spovNodes, rootDepth));
   }
 
   // 5. DOK3 - Insights
-  if (merged.insights.length > 0) {
-    sections.push(buildDOK3Section(merged.insights, rootDepth));
+  if (merged.insightNodes.length > 0) {
+    sections.push(buildDOK3Section(merged.insightNodes, rootDepth));
   }
 
   // 6. DOK2 - Knowledge Tree
@@ -300,7 +214,7 @@ export function buildCleanHierarchy(
 
   // 7. Scratchpad — original nodes copied verbatim + LLM-classified additions
   const hasOriginalScratchpad = bypassedScratchpad.length > 0;
-  const hasLLMScratchpad = merged.scratchpad.length > 0;
+  const hasLLMScratchpad = merged.scratchpadNodes.length > 0;
 
   if (hasOriginalScratchpad || hasLLMScratchpad) {
     // Start with the original scratchpad's children (verbatim copy)
@@ -313,11 +227,9 @@ export function buildCleanHierarchy(
       }
     }
 
-    // Append LLM-classified scratchpad as additional children
-    for (const item of merged.scratchpad) {
-      scratchpadChildren.push(
-        makeNode({ section: 'scratchpad', name: item, depth: rootDepth + 1 }),
-      );
+    // Append LLM-classified scratchpad nodes as additional children
+    for (const node of merged.scratchpadNodes) {
+      scratchpadChildren.push(node);
     }
 
     sections.push(

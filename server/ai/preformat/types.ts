@@ -52,64 +52,31 @@ export const CATEGORY_PATTERN = /^(category\s*\d*|#\s*category\s*\d*)/i;
 // LLM Result Types (02-llm-calls)
 // ═══════════════════════════════════════════════════════════════════════════
 
-/** Owner section result */
+/** Base type for all markdown-based section results */
+export interface MarkdownSectionResult {
+  sectionMarkdown: string;
+  /** Parsed HierarchyNode[] from sectionMarkdown (set post-LLM) */
+  parsedNodes: HierarchyNode[];
+}
+
+/** Owner section result — stays as JSON */
 export interface OwnerResult {
   name: string;
 }
 
-/** Purpose section result */
-export interface PurposeResult {
-  purpose: string;
-  outOfScope: string[];
+/** Purpose section result — markdown-based */
+export interface PurposeResult extends MarkdownSectionResult {}
+
+/** Experts section result — markdown-based */
+export interface ExpertsChunkResult extends MarkdownSectionResult {
+  strippedTemplateInstructions: string[];
 }
 
-/** Single expert entry */
-export interface ExpertResult {
-  name: string;
-  who: string;
-  focus: string;
-  whyFollow: string;
-  where: string;
-  /** Catch-all for fields that don't match the standard schema (e.g., "Key Views") */
-  additionalFields: Array<{ label: string; value: string }>;
-}
+/** SPOVs section result — markdown-based */
+export interface SpovsChunkResult extends MarkdownSectionResult {}
 
-/** Experts section result */
-export interface ExpertsChunkResult {
-  experts: ExpertResult[];
-}
-
-/** Single SPOV entry */
-export interface SpovResult {
-  text: string;
-  explicitInsightRefs: number[];
-  /** Supporting context: child text nodes (examples, elaboration, cross-refs) */
-  context: string[];
-}
-
-/** SPOVs section result */
-export interface SpovsChunkResult {
-  spovs: SpovResult[];
-}
-
-/** Single insight entry */
-export interface InsightResult {
-  text: string;
-  sourceRefs: string[];
-}
-
-/** Insights section result */
-export interface InsightsChunkResult {
-  insights: InsightResult[];
-}
-
-/** Single source within a category */
-export interface CategorySourceResult {
-  name: string;
-  url: string | null;
-  facts: string[];
-  summary: string[];
-}
+/** Insights section result — markdown-based */
+export interface InsightsChunkResult extends MarkdownSectionResult {}
 
 /** Candidate insight extracted from within a category */
 export interface CandidateInsight {
@@ -125,36 +92,20 @@ export interface CandidateSpov {
 }
 
 /** Category chunk result — free-form markdown with parsed nodes */
-export interface CategoryChunkResult {
+export interface CategoryChunkResult extends MarkdownSectionResult {
   category: string;
-  /** Raw markdown output from LLM — the reorganized category */
-  categoryMarkdown: string;
-  /** Parsed HierarchyNode[] from categoryMarkdown (set post-LLM) */
-  parsedNodes: HierarchyNode[];
   candidateInsights: CandidateInsight[];
   candidateSpovs: CandidateSpov[];
   strippedTemplateInstructions: string[];
 }
 
-/** Unknown section result */
-export interface UnknownChunkResult {
+/** Unknown section result — markdown-based with classification */
+export interface UnknownChunkResult extends MarkdownSectionResult {
   classification: 'dok_content' | 'operational' | 'scratchpad';
-  sources?: CategorySourceResult[];
-  insights?: CandidateInsight[];
-  spovs?: CandidateSpov[];
-  content?: string[];
 }
 
-/** Unstructured (entire flat document) result */
-export interface UnstructuredChunkResult {
-  owner: OwnerResult | null;
-  purpose: PurposeResult | null;
-  experts: ExpertResult[];
-  spovs: SpovResult[];
-  insights: InsightResult[];
-  categories: CategoryChunkResult[];
-  scratchpad: string[];
-}
+/** Unstructured (entire flat document) result — markdown-based */
+export interface UnstructuredChunkResult extends MarkdownSectionResult {}
 
 /** Knowledge tree result (KT without category markers) */
 export interface KnowledgeTreeChunkResult {
@@ -187,12 +138,12 @@ export interface PromptConfig {
 /** Merged result from all LLM calls after dedup and global numbering */
 export interface MergedPreformatResult {
   owner: { name: string } | null;
-  purpose: { purpose: string; outOfScope: string[] } | null;
-  experts: ExpertResult[];
-  spovs: Array<SpovResult & { globalIndex: number }>;
-  insights: Array<InsightResult & { globalIndex: number }>;
+  purposeNodes: HierarchyNode[];
+  expertNodes: HierarchyNode[];
+  spovNodes: HierarchyNode[];
+  insightNodes: HierarchyNode[];
   categories: CategoryChunkResult[];
-  scratchpad: string[];
+  scratchpadNodes: HierarchyNode[];
   mergeReport: {
     duplicateFactsRemoved: number;
     duplicateSourcesConsolidated: number;
