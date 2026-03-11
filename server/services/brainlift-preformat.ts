@@ -18,11 +18,20 @@ import { buildCleanHierarchy } from '../ai/preformat/tree-builder';
 
 const verbose = () => process.env.VERBOSE_PRE_FORMATTER_LOG === 'true';
 
+export interface PreformatOptions {
+  /** Called as each chunk completes LLM processing */
+  onProgress?: (completed: number, total: number) => void;
+  /** Skip the validation step (e.g., for large content where Jaccard is too expensive) */
+  skipValidation?: boolean;
+}
+
 export interface PreformatResult {
   /** The clean hierarchy tree (always built, even if validation fails) */
   cleanHierarchy: HierarchyNode[];
   /** Validation report with pass/fail and details */
   report: ValidationReport;
+  /** Whether validation was skipped (e.g., large content threshold) */
+  validationSkipped: boolean;
   /** Pipeline timing breakdown */
   timing: {
     total: number;
@@ -55,7 +64,8 @@ export interface PreformatResult {
  * Callers check result.report.passed to decide whether to use the tree.
  */
 export async function preformatHierarchy(
-  hierarchy: HierarchyNode[]
+  hierarchy: HierarchyNode[],
+  options?: PreformatOptions,
 ): Promise<PreformatResult | null> {
   if (!hierarchy || hierarchy.length === 0) {
     console.log('[Preformat] Empty hierarchy, skipping');
@@ -80,7 +90,7 @@ export async function preformatHierarchy(
 
     // ── Step 2: Run parallel LLM classification calls ──────────────
     const llmStart = Date.now();
-    const llmResults = await runPreformatLLMCalls(chunks);
+    const llmResults = await runPreformatLLMCalls(chunks, options?.onProgress);
     timing.llmCalls = Date.now() - llmStart;
 
     const llmSuccessCount = countLLMSuccesses(llmResults);
@@ -102,15 +112,32 @@ export async function preformatHierarchy(
       console.log(`  [Merge] dedup: facts=${merged.mergeReport.duplicateFactsRemoved} insights=${merged.mergeReport.insightsDeduped} spovs=${merged.mergeReport.spovsDeduped} crossRefs=${merged.mergeReport.crossRefsUpdated}`);
     }
 
-    // ── Step 4: Validate integrity ─────────────────────────────────
-    const validateStart = Date.now();
-    const report = validateIntegrity(hierarchy, merged, bypassedScratchpad);
-    timing.validation = Date.now() - validateStart;
+    // ── Step 4: Validate integrity (or skip for large content) ─────
+    const skipValidation = options?.skipValidation ?? false;
+    let report: ValidationReport;
+    let validationSkipped = false;
 
-    console.log(`[Preformat] Step 4/5 Validation: ${report.passed ? 'PASSED' : 'FAILED'} — loss=${report.contentLossPercent.toFixed(1)}% hallucinations=${report.hallucinationCount} duplicates=${report.duplicateCount} (${timing.validation}ms)`);
-    if (verbose() && report.warnings.length > 0) {
-      for (const w of report.warnings) {
-        console.log(`  [Validation] ⚠ ${w}`);
+    if (skipValidation) {
+      validationSkipped = true;
+      report = {
+        passed: true,
+        contentLossPercent: 0,
+        hallucinationCount: 0,
+        duplicateCount: 0,
+        warnings: [],
+        details: { missingFromOutput: [], possibleHallucinations: [], duplicatePairs: [] },
+      };
+      console.log(`[Preformat] Step 4/5 Validation: SKIPPED (skipValidation=true)`);
+    } else {
+      const validateStart = Date.now();
+      report = validateIntegrity(hierarchy, merged, bypassedScratchpad);
+      timing.validation = Date.now() - validateStart;
+
+      console.log(`[Preformat] Step 4/5 Validation: ${report.passed ? 'PASSED' : 'FAILED'} — loss=${report.contentLossPercent.toFixed(1)}% hallucinations=${report.hallucinationCount} duplicates=${report.duplicateCount} (${timing.validation}ms)`);
+      if (verbose() && report.warnings.length > 0) {
+        for (const w of report.warnings) {
+          console.log(`  [Validation] ⚠ ${w}`);
+        }
       }
     }
 
@@ -132,6 +159,7 @@ export async function preformatHierarchy(
     return {
       cleanHierarchy,
       report,
+      validationSkipped,
       timing,
       stats: {
         chunkCount: chunks.length,

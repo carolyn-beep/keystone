@@ -315,6 +315,24 @@ describe('FR4: Preformat Pipeline Options', () => {
     const { chunks } = setupMocksForSuccess();
     const hierarchy = makeSimpleHierarchy();
 
+    // Override LLM mock to simulate calling onProgress
+    mockLLMCalls.mockImplementation(async (_chunks, onProgressCb) => {
+      // Simulate chunk completion progress
+      for (let i = 0; i < _chunks.length; i++) {
+        onProgressCb?.(i + 1, _chunks.length);
+      }
+      return {
+        owner: { name: 'Test Owner' },
+        purpose: null,
+        experts: null,
+        spovs: null,
+        insights: null,
+        categories: [],
+        unknownSections: [],
+        scratchpad: [],
+      };
+    });
+
     const progressCalls: Array<{ completed: number; total: number }> = [];
     const onProgress = (completed: number, total: number) => {
       progressCalls.push({ completed, total });
@@ -441,12 +459,13 @@ describe('FR1: Evaluate Endpoint', () => {
 
     // Should have the evaluate endpoint
     expect(source).toContain('/api/brainlifts/evaluate');
-    // The handler should use requireAuth
-    // Find the evaluate route block and verify requireAuth is in it
-    const evaluateIdx = source.indexOf('/api/brainlifts/evaluate');
+    // The evaluate route block should include requireAuth
+    // Extract the full route definition (from the post() call to the closing handler)
+    const evaluateIdx = source.indexOf("'/api/brainlifts/evaluate'");
     expect(evaluateIdx).toBeGreaterThan(-1);
-    // requireAuth should appear before the handler for this route
-    const routeBlock = source.substring(Math.max(0, evaluateIdx - 200), evaluateIdx);
+    // Look backward to find the brainliftsRouter.post( that starts this route
+    const routeStart = source.lastIndexOf('brainliftsRouter.post(', evaluateIdx);
+    const routeBlock = source.substring(routeStart, evaluateIdx + 100);
     expect(routeBlock).toContain('requireAuth');
   });
 

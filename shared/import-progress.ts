@@ -1,6 +1,8 @@
 // Import progress event types for SSE streaming
 
 export type ImportStage =
+  | 'formatting'
+  | 'validating'
   | 'extracting'
   | 'grading'
   | 'grading_dok2'
@@ -18,6 +20,16 @@ export type ImportStage =
 export interface BaseProgressEvent {
   stage: ImportStage;
   message: string;
+}
+
+export interface FormattingProgress extends BaseProgressEvent {
+  stage: 'formatting';
+  completed: number;
+  total: number;
+}
+
+export interface ValidatingProgress extends BaseProgressEvent {
+  stage: 'validating';
 }
 
 export interface ExtractingProgress extends BaseProgressEvent {
@@ -107,6 +119,8 @@ export interface ErrorProgress extends BaseProgressEvent {
 }
 
 export type ImportProgress =
+  | FormattingProgress
+  | ValidatingProgress
   | ExtractingProgress
   | GradingProgress
   | GradingDOK2Progress
@@ -123,6 +137,8 @@ export type ImportProgress =
 
 // Stage metadata for UI rendering
 export const STAGE_LABELS: Record<ImportStage, string> = {
+  formatting: 'Formatting document structure...',
+  validating: 'Validating formatting integrity...',
   extracting: 'Extracting content from document...',
   grading: 'Grading DOK1 facts...',
   grading_dok2: 'Grading DOK2 summaries...',
@@ -184,19 +200,22 @@ export interface DOK4GradingProgress {
 }
 
 // Weights for progress bar calculation (must sum to 100)
-// Order matches actual execution: extract → DOK1 + contradictions → DOK2 → DOK3 linking → DOK4 → experts + redundancy
+// Order matches actual execution: format → validate → extract → DOK1 + contradictions → DOK2 → DOK3 linking → DOK4 → experts + redundancy
+// When preformat is not used, formatting/validating stages are never emitted and their weights are skipped.
 export const STAGE_WEIGHTS: Record<Exclude<ImportStage, 'complete' | 'error'>, number> = {
+  formatting: 8,         // Preformat pipeline (parallel LLM calls)
+  validating: 2,         // Integrity validation
   extracting: 3,
-  grading: 30,           // DOK1 grading takes the longest
+  grading: 27,           // DOK1 grading takes the longest
   contradictions: 3,
-  grading_dok2: 10,      // DOK2 grading (fewer items, runs in parallel)
+  grading_dok2: 9,       // DOK2 grading (fewer items, runs in parallel)
   dok3_linking: 5,       // DOK3 auto-linking (auto mode: with completed/total)
-  grading_dok3: 18,      // DOK3 grading (auto mode: parallel, pLimit 5)
+  grading_dok3: 16,      // DOK3 grading (auto mode: parallel, pLimit 5)
   dok4_extraction: 1,    // Informational — DOK4 SPOVs found during extraction
   dok4_linking: 3,       // DOK4 auto-linking (LLM semantic matching)
-  grading_dok4: 15,      // DOK4 grading (auto mode: parallel, pLimit 5)
-  experts: 8,
-  redundancy: 4,
+  grading_dok4: 13,      // DOK4 grading (auto mode: parallel, pLimit 5)
+  experts: 7,
+  redundancy: 3,
 };
 
 // Calculate cumulative progress for a given stage
@@ -206,6 +225,8 @@ export function calculateProgress(event: ImportProgress): number {
 
   // Order matches actual execution in the auto-mode pipeline
   const stages: Exclude<ImportStage, 'complete' | 'error'>[] = [
+    'formatting',
+    'validating',
     'extracting',
     'grading',
     'contradictions',

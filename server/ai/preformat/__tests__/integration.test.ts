@@ -225,7 +225,7 @@ describe('FR1: preformatHierarchy orchestrator', () => {
 
     // Verify pipeline was called in order
     expect(mockChunker).toHaveBeenCalledWith(hierarchy);
-    expect(mockLLMCalls).toHaveBeenCalledWith(chunks);
+    expect(mockLLMCalls).toHaveBeenCalledWith(chunks, undefined);
     expect(mockMerger).toHaveBeenCalledWith(llmResults);
     expect(mockValidator).toHaveBeenCalledWith(hierarchy, merged, []);
     expect(mockTreeBuilder).toHaveBeenCalledWith(merged, []);

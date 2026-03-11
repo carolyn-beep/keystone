@@ -36,6 +36,7 @@ const verboseLog = () => process.env.VERBOSE_PRE_FORMATTER_LOG === 'true';
  */
 export async function runPreformatLLMCalls(
   chunks: PreformatChunk[],
+  onProgress?: (completed: number, total: number) => void,
 ): Promise<PreformatLLMResults> {
   // Fail-fast if no API key
   const apiKey = process.env.OPENROUTER_API_KEY;
@@ -49,6 +50,7 @@ export async function runPreformatLLMCalls(
   }
 
   const limit = pLimit(LLM_CONCURRENCY);
+  let completedCount = 0;
 
   // Dispatch all calls in parallel with concurrency control
   const chunkResults = await Promise.all(
@@ -64,6 +66,8 @@ export async function runPreformatLLMCalls(
           if (verboseLog()) {
             console.log(`  [LLM Call ${idx + 1}/${chunks.length}] OK: type=${chunk.type} label="${chunk.label}" ${duration}ms`);
           }
+          completedCount++;
+          onProgress?.(completedCount, chunks.length);
           return { chunk, result };
         } catch (err) {
           const duration = Date.now() - callStart;
@@ -71,6 +75,8 @@ export async function runPreformatLLMCalls(
           console.warn(
             `  [LLM Call ${idx + 1}/${chunks.length}] FAILED: type=${chunk.type} label="${chunk.label}" ${duration}ms — ${err instanceof Error ? err.message : err}`,
           );
+          completedCount++;
+          onProgress?.(completedCount, chunks.length);
           return { chunk, result: null };
         }
       }),
