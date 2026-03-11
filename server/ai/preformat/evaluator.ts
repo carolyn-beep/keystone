@@ -2,10 +2,12 @@
  * Pre-Format Evaluator
  *
  * Single Opus 4.6 LLM call to determine whether a BrainLift hierarchy
- * needs pre-formatting before extraction. Binary output: yes or no.
+ * needs pre-formatting before extraction. Ternary output:
+ * needs_formatting | no_formatting_needed | not_a_brainlift.
  *
  * Feeds the LLM both the serialized hierarchy AND extraction diagnostics
  * so it can reason about structural quality with concrete evidence.
+ * Also returns contentSizeChars for frontend threshold warnings.
  */
 
 import type { HierarchyNode } from '@shared/hierarchy-types';
@@ -14,10 +16,14 @@ import { extractAllFromHierarchy } from '../hierarchyExtractor';
 
 const MODEL = 'anthropic/claude-opus-4-6';
 
+export type EvaluationDecision = 'needs_formatting' | 'no_formatting_needed' | 'not_a_brainlift';
+
 export interface EvaluationResult {
-  needsPreformat: boolean;
+  decision: EvaluationDecision;
   confidence: 'high' | 'medium' | 'low';
   reasons: string[];
+  /** Total serialized hierarchy size in chars — for frontend threshold warnings */
+  contentSizeChars: number;
 }
 
 /**
@@ -163,7 +169,7 @@ The Knowledge Tree is where most extraction happens. Pay special attention to:
 - **Is there a large Knowledge Tree with zero DOK1 markers?** That means the entire KT is free text the extractor can't process.
 - **High "Unknown" source attribution in the diagnostics does NOT automatically mean the structure is broken.** The extractor only attributes sources when it finds a node matching the exact "Source:" naming pattern. Many well-structured BrainLifts use topic names instead of "Source:" prefix — the DOK1/DOK2 markers are still properly nested, the content is still grouped logically. Look at the ACTUAL hierarchy structure, not just the attribution percentage.
 
-## What NEEDS Pre-Formatting (needsPreformat: true)
+## What NEEDS Pre-Formatting (decision: "needs_formatting")
 
 1. **No DOK markers at all** — raw nested notes with no DOK1/DOK2/DOK3/DOK4 labels
 2. **Everything is flat** — no hierarchy, no sections
@@ -172,9 +178,8 @@ The Knowledge Tree is where most extraction happens. Pay special attention to:
 5. **No source structure in the Knowledge Tree** — facts and summaries floating at category level with no source grouping
 6. **Mislabeled DOK levels** — "DOK1: Experts", "DOK3: Knowledge Tree"
 7. **DOK3 insights buried inside Knowledge Tree** — insights that should be in their own section are nested under categories or sources
-8. **It's not a BrainLift** — scratchpad, to-do list, random notes, or empty template
 
-## What Does NOT Need Pre-Formatting (needsPreformat: false)
+## What Does NOT Need Pre-Formatting (decision: "no_formatting_needed")
 
 The extractor is resilient. A BrainLift is fine as-is when:
 - Top-level DOK sections exist (DOK4, DOK3, DOK2)
@@ -194,6 +199,18 @@ Minor imperfections that do NOT need fixing:
 - Topics used as source groupings instead of "Source:" prefix (e.g., "ReadBasix in depth" with DOK1/DOK2 nested under it) — the structure is correct even if the extractor reports "Unknown" attribution
 - Categories without "Category N:" prefix — as long as the KT has logical groupings with DOK markers inside
 
+## Not a BrainLift (decision: "not_a_brainlift")
+
+The content is not a knowledge base at all. Return this when:
+- It's a to-do list, shopping list, or task tracker
+- It's random notes with no research structure
+- It's an empty or near-empty document
+- It's a template with only placeholder instructions and no actual content
+- It's a scratchpad, journal, or operational document (meeting notes, SOPs, scripts)
+- It has very few nodes (< 5) with no meaningful knowledge content
+
+This is distinct from "needs_formatting" — a messy BrainLift that has research content but poor structure should be "needs_formatting", not "not_a_brainlift".
+
 ## Your Input
 
 You will receive:
@@ -204,10 +221,15 @@ The extraction diagnostics are EVIDENCE, not a verdict. Use them to support your
 
 ## Your Decision
 
-- **needsPreformat: true** if the extraction pipeline would significantly fail on this structure
-- **needsPreformat: false** if the extractor can handle it reasonably well as-is
+Return one of three decisions:
 
-If in doubt, say it does NOT need pre-formatting. A messy but labeled BrainLift is better left alone than risk content loss from reformatting.`;
+- **"needs_formatting"** — this IS a BrainLift (has research content) but the extraction pipeline would significantly fail on this structure
+- **"no_formatting_needed"** — this IS a BrainLift and the extractor can handle it reasonably well as-is
+- **"not_a_brainlift"** — this is NOT a BrainLift at all (to-do list, random notes, empty template, operational document)
+
+If in doubt between "needs_formatting" and "no_formatting_needed", say it does NOT need formatting. A messy but labeled BrainLift is better left alone than risk content loss from reformatting.
+
+If in doubt between "needs_formatting" and "not_a_brainlift", prefer "not_a_brainlift" — we should not attempt to reformat content that isn't a knowledge base.`;
 
 /**
  * Evaluate whether a BrainLift hierarchy needs pre-formatting.
@@ -221,11 +243,12 @@ export async function evaluateNeedsPreformat(
     throw new Error('OpenRouter API key not configured');
   }
 
-  // Serialize hierarchy
+  // Serialize hierarchy and capture full size before truncation
   let markdown = '';
   for (const node of hierarchy) {
     markdown += serializeSubtree(node);
   }
+  const contentSizeChars = markdown.length;
 
   const MAX_CHARS = 50000;
   if (markdown.length > MAX_CHARS) {
@@ -252,11 +275,11 @@ export async function evaluateNeedsPreformat(
         schema: {
           type: 'object',
           properties: {
-            needsPreformat: { type: 'boolean' },
+            decision: { type: 'string', enum: ['needs_formatting', 'no_formatting_needed', 'not_a_brainlift'] },
             confidence: { type: 'string', enum: ['high', 'medium', 'low'] },
             reasons: { type: 'array', items: { type: 'string' } },
           },
-          required: ['needsPreformat', 'confidence', 'reasons'],
+          required: ['decision', 'confidence', 'reasons'],
           additionalProperties: false,
         },
       },
@@ -285,5 +308,9 @@ export async function evaluateNeedsPreformat(
     throw new Error('No response content from evaluation LLM');
   }
 
-  return JSON.parse(content) as EvaluationResult;
+  const parsed = JSON.parse(content) as { decision: EvaluationDecision; confidence: 'high' | 'medium' | 'low'; reasons: string[] };
+  return {
+    ...parsed,
+    contentSizeChars,
+  };
 }

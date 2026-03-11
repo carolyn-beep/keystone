@@ -348,9 +348,9 @@ describe('evaluateNeedsPreformat', () => {
 
       // Create a large hierarchy that will exceed the 50K char truncation limit
       const children: HierarchyNode[] = [];
-      for (let i = 0; i < 500; i++) {
+      for (let i = 0; i < 1000; i++) {
         children.push(
-          makeNode(`Node ${i} with some extra text to make it longer and pad the character count significantly`),
+          makeNode(`Node ${i} with some extra text to make it longer and pad the character count significantly beyond the truncation threshold`),
         );
       }
       const hierarchy = [makeNode('Large Document', children)];
