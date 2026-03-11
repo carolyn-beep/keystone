@@ -207,70 +207,16 @@ function buildDOK2Section(
   depth: number,
 ): HierarchyNode {
   const categoryChildren = categories.map(cat => {
-    const sourceChildren = cat.sources.map(src => {
-      const sourceNodeChildren: HierarchyNode[] = [];
-
-      // DOK1 - facts marker
-      const factChildren = src.facts.map(fact =>
-        makeNode({ section: 'fact', name: fact, depth: depth + 4 }),
-      );
-      sourceNodeChildren.push(
-        makeNode({
-          section: 'dok1',
-          name: 'DOK1 - facts',
-          depth: depth + 3,
-          isDOK1Marker: true,
-          children: factChildren,
-        }),
-      );
-
-      // DOK2 - summary marker
-      const summaryChildren = src.summary.map(sum =>
-        makeNode({ section: 'summary', name: sum, depth: depth + 4 }),
-      );
-      sourceNodeChildren.push(
-        makeNode({
-          section: 'dok2',
-          name: 'DOK2 - summary',
-          depth: depth + 3,
-          isDOK2Marker: true,
-          children: summaryChildren,
-        }),
-      );
-
-      // link to source (only if URL exists)
-      if (src.url) {
-        const urlNode = makeNode({
-          section: 'url',
-          name: src.url,
-          depth: depth + 4,
-          extractedUrl: src.url,
-        });
-        sourceNodeChildren.push(
-          makeNode({
-            section: 'link',
-            name: 'link to source',
-            depth: depth + 3,
-            children: [urlNode],
-          }),
-        );
-      }
-
-      return makeNode({
-        section: 'source',
-        name: `Source: ${src.name}`,
-        depth: depth + 2,
-        isSourceMarker: true,
-        children: sourceNodeChildren,
-      });
-    });
+    // Use parsedNodes directly — they already have the right structure
+    // with DOK markers, source markers, etc. set by the markdown parser
+    const children = cat.parsedNodes ?? [];
 
     return makeNode({
       section: 'category',
       name: cat.category,
       depth: depth + 1,
       isCategoryMarker: true,
-      children: sourceChildren,
+      children,
     });
   });
 

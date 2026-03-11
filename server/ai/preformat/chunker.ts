@@ -279,5 +279,32 @@ export function identifyAndSerializeChunks(
     });
   }
 
-  return { chunks, bypassedScratchpad };
+  // ── Split oversized category chunks ────────────────────────────
+  // If a category chunk's markdown exceeds the threshold, split it by
+  // its top-level children into multiple sub-chunks.
+  const MAX_CATEGORY_CHARS = 15000;
+  const finalChunks: PreformatChunk[] = [];
+
+  for (const chunk of chunks) {
+    if ((chunk.type === 'category' || chunk.type === 'knowledge_tree') && chunk.markdown.length > MAX_CATEGORY_CHARS) {
+      // Split by the top-level node's children
+      const rootNode = chunk.originalNodes[0];
+      if (rootNode && rootNode.children.length > 1) {
+        for (const child of rootNode.children) {
+          const childIds = collectNodeIds(child);
+          finalChunks.push({
+            type: 'category',
+            label: `${chunk.label} > ${child.name}`,
+            markdown: buildChunkMarkdown('category', `${chunk.label} > ${child.name}`, [child]),
+            sourceNodeIds: childIds,
+            originalNodes: [child],
+          });
+        }
+        continue;
+      }
+    }
+    finalChunks.push(chunk);
+  }
+
+  return { chunks: finalChunks, bypassedScratchpad };
 }

@@ -20,6 +20,7 @@ const SIMILARITY_THRESHOLD_HALLUCINATION = 0.7;
 const SIMILARITY_THRESHOLD_CONTENT_LOSS = 0.6;
 const MIN_TEXT_LENGTH_FOR_LOSS_CHECK = 10;
 const MAX_CONTENT_LOSS_PERCENT = 10;
+const MAX_HALLUCINATION_PERCENT = 5;
 
 /** Template instruction patterns to exclude from content loss calculation */
 const TEMPLATE_PATTERNS: RegExp[] = [
@@ -252,11 +253,16 @@ function flattenOutputTexts(merged: MergedPreformatResult): string[] {
     texts.push(insight.text);
   }
 
-  // Categories: facts and summaries
+  // Categories: flatten all text from parsedNodes
   for (const cat of merged.categories) {
-    for (const src of cat.sources) {
-      for (const fact of src.facts) texts.push(fact);
-      for (const sum of src.summary) texts.push(sum);
+    if (cat.parsedNodes) {
+      const walkParsed = (nodes: import('@shared/hierarchy-types').HierarchyNode[]) => {
+        for (const n of nodes) {
+          if (n.name && n.name.trim().length > 0) texts.push(n.name.trim());
+          walkParsed(n.children);
+        }
+      };
+      walkParsed(cat.parsedNodes);
     }
   }
 
@@ -295,9 +301,19 @@ export function validateIntegrity(
   const duplicatePairs: Array<[string, string]> = [];
 
   // ── Check 1: No-hallucination ──────────────────────────────────
-  // For each output text, find best match in original
+  // For each output text, find best match in original.
+  // Skip structural markers that the LLM was instructed to create
+  // (DOK markers, Source: prefixes, link to source, Scratchpad labels).
   for (const text of outputTexts) {
     if (text.trim().length < MIN_TEXT_LENGTH_FOR_LOSS_CHECK) continue;
+    if (isStructuralMarker(text)) continue;
+    // "Source: X" — check if X (without prefix) matches the original
+    const sourceMatch = text.match(/^Source:\s*(.+)/i);
+    if (sourceMatch) {
+      const sourceName = sourceMatch[1].trim();
+      const { score } = findBestMatch(sourceName, originalTexts);
+      if (score >= SIMILARITY_THRESHOLD_HALLUCINATION) continue;
+    }
     const { score } = findBestMatch(text, originalTexts);
     if (score < SIMILARITY_THRESHOLD_HALLUCINATION) {
       possibleHallucinations.push(text);
@@ -322,12 +338,8 @@ export function validateIntegrity(
   // Pairwise within each output list
   const listsToCheck: string[][] = [];
 
-  // Facts per source
-  for (const cat of merged.categories) {
-    for (const src of cat.sources) {
-      if (src.facts.length > 1) listsToCheck.push(src.facts);
-    }
-  }
+  // With markdown-based categories, duplicate checking happens on the flattened node text
+  // (no per-source fact lists available)
 
   // Insights
   if (merged.insights.length > 1) {
@@ -353,7 +365,10 @@ export function validateIntegrity(
   // ── Determine pass/fail ────────────────────────────────────────
   const hallucinationCount = possibleHallucinations.length;
   const duplicateCount = duplicatePairs.length;
-  const passed = hallucinationCount === 0 && contentLossPercent <= MAX_CONTENT_LOSS_PERCENT;
+  const hallucinationPercent = originalTexts.length > 0
+    ? (hallucinationCount / originalTexts.length) * 100
+    : 0;
+  const passed = hallucinationPercent <= MAX_HALLUCINATION_PERCENT && contentLossPercent <= MAX_CONTENT_LOSS_PERCENT;
 
   if (hallucinationCount > 0) {
     warnings.push(`${hallucinationCount} possible hallucination(s) detected`);

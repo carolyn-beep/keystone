@@ -298,25 +298,36 @@ export function mergePreformatResults(
       };
     });
 
-  // ── Deduplicate facts within categories ────────────────────────
-  const processedCategories: CategoryChunkResult[] = llmResults.categories.map(cat => {
-    const processedSources = cat.sources.map(src => {
-      const { deduped, removedCount } = deduplicateFacts(src.facts);
-      mergeReport.duplicateFactsRemoved += removedCount;
-      return { ...src, facts: deduped };
-    });
-    return { ...cat, sources: processedSources };
-  });
+  // ── Pass through categories (markdown-based, no fact dedup needed) ──
+  const processedCategories: CategoryChunkResult[] = [...llmResults.categories];
 
   // ── Incorporate unknown sections classified as dok_content ─────
   for (const unknown of llmResults.unknownSections) {
     if (unknown.classification === 'dok_content' && unknown.sources && unknown.sources.length > 0) {
+      // Unknown dok_content still uses the old source format — serialize to markdown
+      const mdLines: string[] = [];
+      for (const src of unknown.sources) {
+        mdLines.push(`- Source: ${src.name}`);
+        if (src.facts.length > 0) {
+          mdLines.push('  - DOK1 - facts');
+          for (const f of src.facts) mdLines.push(`    - ${f}`);
+        }
+        if (src.summary.length > 0) {
+          mdLines.push('  - DOK2 - summary');
+          for (const s of src.summary) mdLines.push(`    - ${s}`);
+        }
+        if (src.url) {
+          mdLines.push('  - link to source');
+          mdLines.push(`    - ${src.url}`);
+        }
+      }
+      const { parseMarkdownToHierarchy } = require('./markdown-parser');
       processedCategories.push({
         category: 'Uncategorized',
-        sources: unknown.sources,
+        categoryMarkdown: mdLines.join('\n'),
+        parsedNodes: parseMarkdownToHierarchy(mdLines.join('\n')),
         candidateInsights: [],
         candidateSpovs: [],
-        scratchpad: [],
         strippedTemplateInstructions: [],
       });
     }
@@ -324,13 +335,6 @@ export function mergePreformatResults(
 
   // ── Collect all scratchpad content ─────────────────────────────
   const scratchpad: string[] = [...llmResults.scratchpad];
-
-  // From categories
-  for (const cat of llmResults.categories) {
-    if (cat.scratchpad) {
-      scratchpad.push(...cat.scratchpad);
-    }
-  }
 
   // From unknown sections classified as operational/scratchpad
   for (const unknown of llmResults.unknownSections) {

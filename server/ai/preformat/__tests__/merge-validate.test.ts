@@ -59,15 +59,49 @@ function makeEmptyLLMResults(): PreformatLLMResults {
   };
 }
 
-/** Create a category result fixture */
+/** Create a category result fixture (markdown-based) */
 function makeCategory(overrides: Partial<CategoryChunkResult> & { category: string }): CategoryChunkResult {
   return {
     category: overrides.category,
-    sources: overrides.sources ?? [],
+    categoryMarkdown: overrides.categoryMarkdown ?? '',
+    parsedNodes: overrides.parsedNodes ?? [],
     candidateInsights: overrides.candidateInsights ?? [],
     candidateSpovs: overrides.candidateSpovs ?? [],
-    scratchpad: overrides.scratchpad ?? [],
     strippedTemplateInstructions: overrides.strippedTemplateInstructions ?? [],
+  };
+}
+
+/** Helper to build markdown + parsedNodes from sources (for test convenience) */
+function makeCategoryFromSources(
+  category: string,
+  sources: Array<{ name: string; url?: string; facts: string[]; summary: string[] }>,
+  overrides?: Partial<CategoryChunkResult>,
+): CategoryChunkResult {
+  const lines: string[] = [];
+  for (const src of sources) {
+    lines.push(`- Source: ${src.name}`);
+    if (src.facts.length > 0) {
+      lines.push('  - DOK1 - facts');
+      for (const f of src.facts) lines.push(`    - ${f}`);
+    }
+    if (src.summary.length > 0) {
+      lines.push('  - DOK2 - summary');
+      for (const s of src.summary) lines.push(`    - ${s}`);
+    }
+    if (src.url) {
+      lines.push('  - link to source');
+      lines.push(`    - ${src.url}`);
+    }
+  }
+  const md = lines.join('\n');
+  const { parseMarkdownToHierarchy } = require('../markdown-parser');
+  return {
+    category,
+    categoryMarkdown: md,
+    parsedNodes: parseMarkdownToHierarchy(md),
+    candidateInsights: overrides?.candidateInsights ?? [],
+    candidateSpovs: overrides?.candidateSpovs ?? [],
+    strippedTemplateInstructions: overrides?.strippedTemplateInstructions ?? [],
   };
 }
 
@@ -94,12 +128,10 @@ function makeFullLLMResults(): PreformatLLMResults {
       ],
     },
     categories: [
-      makeCategory({
-        category: 'Category 1: Monetization',
-        sources: [
-          { name: 'Source A', url: 'https://example.com/a', facts: ['Fact A1', 'Fact A2'], summary: ['Summary A'] },
-          { name: 'Source B', url: 'https://example.com/b', facts: ['Fact B1'], summary: ['Summary B'] },
-        ],
+      makeCategoryFromSources('Category 1: Monetization', [
+        { name: 'Source A', url: 'https://example.com/a', facts: ['Fact A1', 'Fact A2'], summary: ['Summary A'] },
+        { name: 'Source B', url: 'https://example.com/b', facts: ['Fact B1'], summary: ['Summary B'] },
+      ], {
         candidateInsights: [
           { text: 'Developer time investment is highest for mobile platforms', sourceRefs: ['Source B'] },
         ],
@@ -107,15 +139,12 @@ function makeFullLLMResults(): PreformatLLMResults {
           { text: 'Premium pricing beats free to play models', sourceRefs: ['Source A'], context: [] },
         ],
       }),
-      makeCategory({
-        category: 'Category 2: Distribution',
-        sources: [
-          { name: 'Source C', url: 'https://example.com/c', facts: ['Fact C1', 'Fact C2'], summary: ['Summary C'] },
-        ],
+      makeCategoryFromSources('Category 2: Distribution', [
+        { name: 'Source C', url: 'https://example.com/c', facts: ['Fact C1', 'Fact C2'], summary: ['Summary C'] },
+      ], {
         candidateInsights: [
           { text: 'Platform fees eat into margins significantly', sourceRefs: ['Source C'] },
         ],
-        candidateSpovs: [],
       }),
     ],
     unknownSections: [],

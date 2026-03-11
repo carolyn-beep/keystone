@@ -21,6 +21,7 @@ import type {
   PromptConfig,
 } from './types';
 import { PROMPT_BUILDERS } from './section-prompts';
+import { parseMarkdownToHierarchy } from './markdown-parser';
 
 const MODEL = 'anthropic/claude-haiku-4.5';
 const LLM_CONCURRENCY = 15;
@@ -232,12 +233,20 @@ function aggregateResults(
         break;
       }
 
-      case 'category':
-        results.categories.push(result as CategoryChunkResult);
+      case 'category': {
+        const catResult = result as CategoryChunkResult;
+        // Parse the markdown into hierarchy nodes
+        catResult.parsedNodes = parseMarkdownToHierarchy(catResult.categoryMarkdown || '');
+        results.categories.push(catResult);
         break;
+      }
 
       case 'knowledge_tree': {
         const ktResult = result as KnowledgeTreeChunkResult;
+        // Parse markdown for each category
+        for (const cat of ktResult.categories) {
+          cat.parsedNodes = parseMarkdownToHierarchy(cat.categoryMarkdown || '');
+        }
         results.categories.push(...ktResult.categories);
         break;
       }

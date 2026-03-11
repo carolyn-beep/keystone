@@ -96,7 +96,8 @@ export async function preformatHierarchy(
 
     console.log(`[Preformat] Step 3/5 Merging: categories=${merged.categories.length} insights=${merged.insights.length} spovs=${merged.spovs.length} experts=${merged.experts.length} (${timing.merging}ms)`);
     if (verbose()) {
-      console.log(`  [Merge] sources=${merged.categories.reduce((n, c) => n + c.sources.length, 0)} facts=${merged.categories.reduce((n, c) => n + c.sources.reduce((m, s) => m + s.facts.length, 0), 0)} scratchpad=${merged.scratchpad.length}`);
+      const totalParsedNodes = merged.categories.reduce((n, c) => n + (c.parsedNodes?.length ?? 0), 0);
+      console.log(`  [Merge] parsedNodes=${totalParsedNodes} scratchpad=${merged.scratchpad.length}`);
       console.log(`  [Merge] dedup: facts=${merged.mergeReport.duplicateFactsRemoved} insights=${merged.mergeReport.insightsDeduped} spovs=${merged.mergeReport.spovsDeduped} crossRefs=${merged.mergeReport.crossRefsUpdated}`);
     }
 
@@ -115,6 +116,12 @@ export async function preformatHierarchy(
     // ── Step 5: Build canonical tree (always, even if validation fails) ──
     const buildStart = Date.now();
     const cleanHierarchy = buildCleanHierarchy(merged, bypassedScratchpad);
+
+    // Append unplaced content to scratchpad so nothing is silently lost
+    if (report.details.missingFromOutput.length > 0) {
+      appendUnplacedContent(cleanHierarchy, report.details.missingFromOutput);
+    }
+
     timing.treeBuilding = Date.now() - buildStart;
 
     timing.total = Date.now() - totalStart;
@@ -144,6 +151,68 @@ export async function preformatHierarchy(
   }
 }
 
+/**
+ * Append unplaced content (items the validator flagged as missing from output)
+ * to the Scratchpad section so nothing is silently lost.
+ */
+function appendUnplacedContent(hierarchy: HierarchyNode[], missingItems: string[]): void {
+  if (missingItems.length === 0) return;
+
+  // Find or create the Scratchpad node
+  let scratchpad = hierarchy.find(n => /^scratchpad$/i.test(n.name));
+  if (!scratchpad) {
+    scratchpad = {
+      id: 'preformat-scratchpad-unplaced',
+      name: 'Scratchpad',
+      note: null,
+      depth: 0,
+      children: [],
+      isDOK1Marker: false,
+      isDOK2Marker: false,
+      isDOK3Marker: false,
+      isDOK4Marker: false,
+      isSourceMarker: false,
+      isCategoryMarker: false,
+      isPurposeMarker: false,
+      extractedUrl: null,
+    };
+    hierarchy.push(scratchpad);
+  }
+
+  // Add a container for unplaced items
+  const container: HierarchyNode = {
+    id: 'preformat-unplaced-container',
+    name: 'Unplaced content (preserved from original)',
+    note: null,
+    depth: 1,
+    children: missingItems.map((text, i) => ({
+      id: `preformat-unplaced-${i}`,
+      name: text,
+      note: null,
+      depth: 2,
+      children: [],
+      isDOK1Marker: false,
+      isDOK2Marker: false,
+      isDOK3Marker: false,
+      isDOK4Marker: false,
+      isSourceMarker: false,
+      isCategoryMarker: false,
+      isPurposeMarker: false,
+      extractedUrl: null,
+    })),
+    isDOK1Marker: false,
+    isDOK2Marker: false,
+    isDOK3Marker: false,
+    isDOK4Marker: false,
+    isSourceMarker: false,
+    isCategoryMarker: false,
+    isPurposeMarker: false,
+    extractedUrl: null,
+  };
+
+  scratchpad.children.push(container);
+}
+
 /** Count how many LLM result slots got filled */
 function countLLMSuccesses(results: PreformatLLMResults): number {
   let count = 0;
@@ -165,9 +234,9 @@ function logLLMResultsSummary(results: PreformatLLMResults): void {
   if (results.spovs) console.log(`  [LLM] spovs: ${results.spovs.spovs.length} found`);
   if (results.insights) console.log(`  [LLM] insights: ${results.insights.insights.length} found`);
   for (const cat of results.categories) {
-    const factCount = cat.sources.reduce((n, s) => n + s.facts.length, 0);
-    const summaryCount = cat.sources.reduce((n, s) => n + s.summary.length, 0);
-    console.log(`  [LLM] category "${cat.category}": ${cat.sources.length} sources, ${factCount} facts, ${summaryCount} summaries, ${cat.candidateInsights?.length ?? 0} insights, ${cat.candidateSpovs?.length ?? 0} spovs`);
+    const mdLen = cat.categoryMarkdown?.length ?? 0;
+    const nodeCount = cat.parsedNodes?.length ?? 0;
+    console.log(`  [LLM] category "${cat.category}": markdown=${mdLen} chars, parsedNodes=${nodeCount}, insights=${cat.candidateInsights?.length ?? 0}, spovs=${cat.candidateSpovs?.length ?? 0}`);
   }
   for (const unk of results.unknownSections) {
     console.log(`  [LLM] unknown section: classified as ${unk.classification}, sources=${unk.sources?.length ?? 0}`);

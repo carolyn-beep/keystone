@@ -412,13 +412,16 @@ export default function PreformatBatchPage() {
     URL.revokeObjectURL(a.href);
   }, [results, errors]);
 
-  // Compute aggregate stats
-  const passed = results.filter(r => r.report?.passed);
-  const avgLoss = results.length > 0
-    ? results.reduce((sum, r) => sum + (r.report?.contentLossPercent ?? 100), 0) / results.length
+  // Filter to only needs-preformat, no errors
+  const displayResults = results.filter(r => r.evaluation?.needsPreformat && !r.error);
+
+  // Compute aggregate stats on filtered results
+  const passed = displayResults.filter(r => r.report?.passed);
+  const avgLoss = displayResults.length > 0
+    ? displayResults.reduce((sum, r) => sum + (r.report?.contentLossPercent ?? 100), 0) / displayResults.length
     : 0;
-  const avgHallucinations = results.length > 0
-    ? results.reduce((sum, r) => sum + (r.report?.hallucinationCount ?? 0), 0) / results.length
+  const avgHallucinations = displayResults.length > 0
+    ? displayResults.reduce((sum, r) => sum + (r.report?.hallucinationCount ?? 0), 0) / displayResults.length
     : 0;
 
   return (
@@ -455,7 +458,7 @@ export default function PreformatBatchPage() {
           >
             {loadingFile ? 'Loading...' : 'Refresh from File'}
           </button>
-          {results.length > 0 && (
+          {displayResults.length > 0 && (
             <button
               onClick={handleExportAll}
               className="px-4 py-2 rounded-lg border border-border bg-card text-foreground font-medium hover:bg-muted"
@@ -483,7 +486,7 @@ export default function PreformatBatchPage() {
         )}
 
         {/* Aggregate stats */}
-        {results.length > 0 && (
+        {displayResults.length > 0 && (
           <div className="grid grid-cols-4 gap-4 mb-6">
             <div className="text-center p-3 rounded-lg bg-card border border-border">
               <div className="text-2xl font-mono font-bold text-foreground">{passed.length}/{results.length}</div>
@@ -505,7 +508,7 @@ export default function PreformatBatchPage() {
         )}
 
         {/* Results table */}
-        {results.length > 0 && (
+        {displayResults.length > 0 && (
           <div className="rounded-lg border border-border overflow-hidden">
             <table className="w-full text-sm">
               <thead className="bg-muted">
@@ -524,7 +527,7 @@ export default function PreformatBatchPage() {
                 </tr>
               </thead>
               <tbody>
-                {results.map((r, i) => (
+                {displayResults.map((r, i) => (
                   <tr key={i} className="border-t border-border hover:bg-muted/30">
                     <td className="px-3 py-1.5 text-xs text-muted-foreground">{r.index + 1}</td>
                     <td className="px-3 py-1.5">

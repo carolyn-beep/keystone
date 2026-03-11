@@ -29,10 +29,13 @@ Your job is ONLY to decide WHERE each piece of text belongs in the structure.
 You are a filing clerk, not an editor.`;
 
 const DOK_DEFINITIONS = `DOK Levels (for classification only — you don't create these, you recognize them):
-- DOK1 (Facts): Individual facts, data points, quotes from a source. Raw information.
-- DOK2 (Summaries): The student's written interpretation/summary of a source.
-- DOK3 (Insights): Text the student ALREADY WROTE as cross-source analytical claims. Only include text explicitly written as an insight. Do NOT synthesize new insights.
-- DOK4 (SPOVs - Spiky Points of View): Text the student ALREADY WROTE as their original opinionated perspective. Only include text explicitly written as a SPOV. Do NOT create new SPOVs.`;
+- DOK1 (Facts): Objective data points, quotes, statistics extracted FROM a source. Same for anyone who reads the source. Raw information from the external world.
+- DOK2 (Summaries): The student's interpretation that logically ties facts from a source together. Must be directly supported by DOK1 facts. Understanding how/why based on source material.
+- DOK3 (Insights): Text the student ALREADY WROTE as cross-source analytical claims. Surprising, contrarian, subjective. Only include text explicitly written as an insight.
+- DOK4 (SPOVs - Spiky Points of View): Text the student ALREADY WROTE as their original opinionated perspective. Extended thinking, transference across domains.
+
+BRIGHT LINE: DOK1-2 = external world (objective, from sources). DOK3-4 = owner's expertise (subjective).
+Content that is the student's own ideas, plans, brainstorming, creative concepts, or operational notes is NOT DOK1 or DOK2 — it belongs in Scratchpad.`;
 
 const ROLE_CONTEXT = `You are restructuring a section of a BrainLift document. A BrainLift is a student's personal knowledge base organized around sources they've studied.
 
@@ -273,31 +276,51 @@ export function buildCategoryPrompt(chunk: PreformatChunk): PromptConfig {
 
 ${DOK_DEFINITIONS}
 
-Your task: Reorganize this Knowledge Tree category by placing each piece of text under the correct source and DOK level. COPY ALL TEXT VERBATIM.
+Your task: Reorganize this Knowledge Tree category into canonical BrainLift format. COPY ALL TEXT VERBATIM.
 
-Step by step:
+Output the reorganized category as an indented markdown bullet list in the "categoryMarkdown" field. Use this structure:
 
-1. **Identify sources** — A source is a book, article, podcast, video, person, or topic. It may be labeled "Source:", have a URL, or just be a title/topic name. Copy the source name exactly.
+\`\`\`
+- Source: Source Name
+  - DOK1 - facts
+    - fact text copied verbatim (objective, from the source)
+    - another fact
+  - DOK2 - summary
+    - summary text copied verbatim (ties facts together, supported by facts above)
+  - Scratchpad
+    - student's own ideas, notes, brainstorming related to this source
+  - link to source
+    - URL
+- Source: Another Source
+  - DOK1 - facts
+    - ...
+  - DOK2 - summary
+    - ...
+- Scratchpad
+  - general operational items not tied to any source
+\`\`\`
 
-2. **Place facts (DOK1) under their source** — Facts are individual data points, quotes, or observations that the student wrote. They may be labeled "DOK1", "Facts", or just be bullet points near a source. COPY EACH FACT VERBATIM. Do not merge, split, or reword facts.
+Rules for the markdown:
+1. **Identify sources** — A source is a book, article, podcast, video, person, or topic the student studied. Use "Source: " prefix followed by the source name copied exactly.
 
-3. **Place summaries (DOK2) under their source** — Summaries are the student's interpretation of the source. May be labeled "DOK2", "Summary". COPY EACH SUMMARY VERBATIM.
+2. **DOK1 - facts** under each source: Objective data points, quotes, statistics, observations extracted FROM the source. These are things anyone would find if they read the same source. Copy each fact verbatim.
 
-4. **Candidate DOK3 insights** — ONLY include text that is EXPLICITLY marked as an insight (e.g., "Insight:", inline "Insight:" annotation, or text in a node labeled "Insights"). Copy the text verbatim. Include sourceRefs if the student referenced specific source names. Do NOT synthesize insights from facts/summaries.
+3. **DOK2 - summary** under each source: The student's interpretation that logically ties facts from THIS source together. Must be directly supported by the DOK1 facts above. A DOK2 summary explains how/why based on source material — it is NOT the student's own ideas, plans, or brainstorming.
 
-5. **Candidate DOK4 SPOVs** — ONLY include text EXPLICITLY marked as a SPOV (e.g., "SPOV:", "Spiky POV:"). Copy the SPOV text verbatim. If the SPOV has child/nested text (supporting examples, elaborations, cross-references), copy each child text VERBATIM into the "context" array. Do NOT create SPOVs.
+4. **Scratchpad** per source or at the end: ANYTHING that does not fit as DOK1 facts or DOK2 summary goes here. If it's not an objective fact from a source and not a summary tying those facts together — it's scratchpad.
 
-6. **Scratchpad** — ONLY content that is CLEARLY non-research: TO-DO lists, episode scripts, SOPs, timelines, operational plans. Copy verbatim.
+   **The bright line:** DOK1-2 = external world (objective, from sources). Everything else = scratchpad.
 
-7. **strippedTemplateInstructions** — Template instructions like "What are experts", "Creating lists of experts is DOK 1". Copy the exact text you're stripping.
+5. **Preserve the student's nesting and sub-headers.** If a source has sub-sections, topic groupings, case study headings — keep them as nested bullets. Do NOT flatten the student's organization.
 
-CRITICAL: ZERO content loss. Every piece of text from the input MUST appear in EXACTLY ONE output field.
-- If text fits as a fact → put in facts
-- If text fits as a summary → put in summary
-- If text is explicitly an insight/SPOV → put in candidateInsights/candidateSpovs
-- If text is a template instruction → put in strippedTemplateInstructions
-- If text doesn't fit ANY of the above → put in scratchpad
-NEVER drop content. When in doubt, scratchpad.
+6. **Copy ALL text verbatim.** Every piece of text from the input must appear in the output. Include typos, grammar errors, formatting. NEVER drop content.
+
+Additionally, extract into JSON fields:
+- **candidateInsights**: ONLY text EXPLICITLY marked as an insight (e.g., "Insight:" prefix). Copy verbatim with sourceRefs.
+- **candidateSpovs**: ONLY text EXPLICITLY marked as a SPOV. Copy verbatim with context.
+- **strippedTemplateInstructions**: Template instructions like "What are experts", "Creating lists of experts is DOK 1".
+
+CRITICAL: ZERO content loss. Every piece of text from the input MUST appear in either the categoryMarkdown OR one of the JSON fields. When in doubt, include it in the markdown.
 
 ${CONSERVATIVE_DEFAULTS}`,
     user: chunk.markdown,
@@ -305,20 +328,7 @@ ${CONSERVATIVE_DEFAULTS}`,
       type: 'object',
       properties: {
         category: { type: 'string' },
-        sources: {
-          type: 'array',
-          items: {
-            type: 'object',
-            properties: {
-              name: { type: 'string' },
-              url: { type: ['string', 'null'] },
-              facts: { type: 'array', items: { type: 'string' } },
-              summary: { type: 'array', items: { type: 'string' } },
-            },
-            required: ['name', 'url', 'facts', 'summary'],
-            additionalProperties: false,
-          },
-        },
+        categoryMarkdown: { type: 'string' },
         candidateInsights: {
           type: 'array',
           items: {
@@ -344,10 +354,9 @@ ${CONSERVATIVE_DEFAULTS}`,
             additionalProperties: false,
           },
         },
-        scratchpad: { type: 'array', items: { type: 'string' } },
         strippedTemplateInstructions: { type: 'array', items: { type: 'string' } },
       },
-      required: ['category', 'sources', 'candidateInsights', 'candidateSpovs', 'scratchpad', 'strippedTemplateInstructions'],
+      required: ['category', 'categoryMarkdown', 'candidateInsights', 'candidateSpovs', 'strippedTemplateInstructions'],
     }),
   };
 }
@@ -360,23 +369,27 @@ ${DOK_DEFINITIONS}
 
 Your task: Organize this Knowledge Tree into categories with source-grouped content. COPY ALL TEXT VERBATIM.
 
-This Knowledge Tree has no explicit category markers. Identify logical groupings based on how the student organized their content.
+This Knowledge Tree has no explicit category markers. Identify logical groupings and output each as a separate category.
 
-For each category you identify:
-1. Name the category based on the student's existing labels/headers (copy them verbatim)
-2. Place each source's facts (DOK1) and summaries (DOK2) under that source — COPY VERBATIM
-3. Only include candidateInsights if text is EXPLICITLY marked as an insight — do NOT synthesize
-4. Only include candidateSpovs if text is EXPLICITLY marked as a SPOV — do NOT create. If a SPOV has child/nested text (supporting examples, elaborations), copy each child text VERBATIM into the "context" array.
-5. Only move to scratchpad if CLEARLY non-research (TO-DO, SOP, timeline, script)
-6. Copy stripped template instructions verbatim to strippedTemplateInstructions
+Each category's content goes in "categoryMarkdown" — an indented markdown bullet list following canonical BrainLift format:
 
-CRITICAL: ZERO content loss. Every piece of text from the input MUST appear in EXACTLY ONE output field.
-- If text fits as a fact → put in facts
-- If text fits as a summary → put in summary
-- If text is explicitly an insight/SPOV → put in candidateInsights/candidateSpovs
-- If text is a template instruction → put in strippedTemplateInstructions
-- If text doesn't fit ANY of the above → put in scratchpad
-NEVER drop content. When in doubt, scratchpad.
+\`\`\`
+- Source: Source Name
+  - DOK1 - facts
+    - fact text verbatim
+  - DOK2 - summary
+    - summary text verbatim
+  - link to source
+    - URL
+- Source: Another Source
+  - ...
+- Scratchpad
+  - operational content verbatim
+\`\`\`
+
+Preserve the student's nesting and sub-headers. Copy ALL text verbatim. ZERO content loss.
+
+Additionally extract candidateInsights (ONLY explicitly marked) and candidateSpovs (ONLY explicitly marked) as JSON.
 
 ${CONSERVATIVE_DEFAULTS}`,
     user: chunk.markdown,
@@ -389,20 +402,7 @@ ${CONSERVATIVE_DEFAULTS}`,
             type: 'object',
             properties: {
               category: { type: 'string' },
-              sources: {
-                type: 'array',
-                items: {
-                  type: 'object',
-                  properties: {
-                    name: { type: 'string' },
-                    url: { type: ['string', 'null'] },
-                    facts: { type: 'array', items: { type: 'string' } },
-                    summary: { type: 'array', items: { type: 'string' } },
-                  },
-                  required: ['name', 'url', 'facts', 'summary'],
-                  additionalProperties: false,
-                },
-              },
+              categoryMarkdown: { type: 'string' },
               candidateInsights: {
                 type: 'array',
                 items: {
@@ -422,15 +422,15 @@ ${CONSERVATIVE_DEFAULTS}`,
                   properties: {
                     text: { type: 'string' },
                     sourceRefs: { type: 'array', items: { type: 'string' } },
+                    context: { type: 'array', items: { type: 'string' } },
                   },
-                  required: ['text', 'sourceRefs'],
+                  required: ['text', 'sourceRefs', 'context'],
                   additionalProperties: false,
                 },
               },
-              scratchpad: { type: 'array', items: { type: 'string' } },
               strippedTemplateInstructions: { type: 'array', items: { type: 'string' } },
             },
-            required: ['category', 'sources', 'candidateInsights', 'candidateSpovs', 'scratchpad', 'strippedTemplateInstructions'],
+            required: ['category', 'categoryMarkdown', 'candidateInsights', 'candidateSpovs', 'strippedTemplateInstructions'],
             additionalProperties: false,
           },
         },

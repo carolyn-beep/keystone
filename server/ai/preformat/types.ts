@@ -124,13 +124,15 @@ export interface CandidateSpov {
   context: string[];
 }
 
-/** Category chunk result -- the critical one */
+/** Category chunk result — free-form markdown with parsed nodes */
 export interface CategoryChunkResult {
   category: string;
-  sources: CategorySourceResult[];
+  /** Raw markdown output from LLM — the reorganized category */
+  categoryMarkdown: string;
+  /** Parsed HierarchyNode[] from categoryMarkdown (set post-LLM) */
+  parsedNodes: HierarchyNode[];
   candidateInsights: CandidateInsight[];
   candidateSpovs: CandidateSpov[];
-  scratchpad: string[];
   strippedTemplateInstructions: string[];
 }
 
