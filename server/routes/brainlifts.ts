@@ -6,6 +6,8 @@ import multer from "multer";
 import { extractBrainlift } from "../ai/brainliftExtractor";
 import { extractContent, validateContent, type SourceType } from "../utils/content-extractor";
 import { saveBrainliftFromAI, runPostProcessingPipeline } from "../services/brainlift";
+import { preformatHierarchy } from "../services/brainlift-preformat";
+import { evaluateNeedsPreformat } from "../ai/preformat/evaluator";
 import { requireAuth } from "../middleware/auth";
 import { asyncHandler, BadRequestError } from "../middleware/error-handler";
 import {
@@ -126,6 +128,46 @@ brainliftsRouter.delete(
   })
 );
 
+// Evaluate brainlift content for preformat decision
+brainliftsRouter.post(
+  '/api/brainlifts/evaluate',
+  requireAuth,
+  upload.single('file'),
+  asyncHandler(async (req, res) => {
+    const sourceType = req.body.sourceType as SourceType;
+    if (!sourceType) {
+      throw new BadRequestError('Missing sourceType');
+    }
+
+    const { content: rawContent, sourceLabel, hierarchy } = await extractContent({
+      sourceType,
+      file: req.file,
+      url: req.body.url,
+    });
+
+    const content = validateContent(rawContent);
+
+    console.log(`[Evaluate] Processing ${sourceLabel}, content length: ${content.length} chars`);
+
+    if (!hierarchy || hierarchy.length === 0) {
+      // No hierarchy available — cannot evaluate, assume no formatting needed
+      res.json({
+        decision: 'no_formatting_needed' as const,
+        confidence: 'high' as const,
+        reasons: ['No hierarchy available for evaluation (non-Workflowy source)'],
+        contentSizeChars: content.length,
+      });
+      return;
+    }
+
+    const result = await evaluateNeedsPreformat(hierarchy);
+    res.json(result);
+  })
+);
+
+// Validation skip threshold: 200K chars
+const VALIDATION_SKIP_THRESHOLD = 200_000;
+
 // Import brainlift with SSE progress streaming
 brainliftsRouter.post(
   '/api/brainlifts/import-stream',
@@ -136,6 +178,7 @@ brainliftsRouter.post(
 
     try {
       const sourceType = req.body.sourceType as SourceType;
+      const shouldPreformat = req.body.preformat === 'true' || req.body.preformat === true;
 
       // Emit extracting progress
       sse.send({ stage: 'extracting', message: STAGE_LABELS.extracting });
@@ -148,12 +191,67 @@ brainliftsRouter.post(
 
       const content = validateContent(rawContent);
 
-      console.log(`[SSE Import] Processing ${sourceLabel}, content length: ${content.length} chars`);
+      console.log(`[SSE Import] Processing ${sourceLabel}, content length: ${content.length} chars, preformat: ${shouldPreformat}`);
       if (hierarchy) {
         console.log(`[SSE Import] Hierarchy available: ${hierarchy.length} roots`);
       }
 
-      const brainliftData = await extractBrainlift(content, sourceLabel, hierarchy);
+      // Determine effective hierarchy (preformat or original)
+      let effectiveHierarchy = hierarchy;
+
+      if (shouldPreformat && hierarchy && hierarchy.length > 0) {
+        try {
+          // Determine content size for validation threshold
+          const contentSizeChars = content.length;
+          const skipValidation = contentSizeChars > VALIDATION_SKIP_THRESHOLD;
+
+          // Emit initial formatting progress
+          sse.send({
+            stage: 'formatting',
+            message: STAGE_LABELS.formatting,
+            completed: 0,
+            total: 1, // Will be updated by onProgress
+          });
+
+          const preformatResult = await preformatHierarchy(hierarchy, {
+            onProgress: (completed, total) => {
+              sse.send({
+                stage: 'formatting',
+                message: `Formatting section ${completed}/${total}...`,
+                completed,
+                total,
+              });
+            },
+            skipValidation,
+          });
+
+          // Emit validating progress
+          if (skipValidation) {
+            sse.send({
+              stage: 'validating',
+              message: 'Validation skipped for large content',
+            });
+          } else {
+            sse.send({
+              stage: 'validating',
+              message: STAGE_LABELS.validating,
+            });
+          }
+
+          if (preformatResult && preformatResult.report.passed) {
+            effectiveHierarchy = preformatResult.cleanHierarchy;
+            console.log(`[SSE Import] Using preformatted hierarchy: loss=${preformatResult.report.contentLossPercent.toFixed(1)}%`);
+          } else if (preformatResult) {
+            console.log(`[SSE Import] Preformat validation failed (loss=${preformatResult.report.contentLossPercent.toFixed(1)}%), using original hierarchy`);
+          } else {
+            console.log('[SSE Import] Preformat returned null, using original hierarchy');
+          }
+        } catch (err) {
+          console.warn('[SSE Import] Preformat error, falling back to original hierarchy:', err);
+        }
+      }
+
+      const brainliftData = await extractBrainlift(content, sourceLabel, effectiveHierarchy ?? undefined);
 
       const autoLink = req.body.autoLink !== 'false'; // default: true
 
@@ -166,6 +264,11 @@ brainliftsRouter.post(
         sse.send,
         autoLink,
       );
+
+      // Save the hierarchy to the DB (preformatted if preformat ran, original otherwise)
+      if (effectiveHierarchy && effectiveHierarchy.length > 0) {
+        await storage.updateBrainliftFields(brainlift.id, { importHierarchy: effectiveHierarchy });
+      }
 
       // Mark import as complete
       await storage.updateImportStatus(brainlift.id, 'complete');
@@ -287,5 +390,46 @@ brainliftsRouter.get(
   asyncHandler(async (req, res) => {
     const versions = await storage.getVersionsByBrainliftId(req.brainlift!.id);
     res.json(versions);
+  })
+);
+
+// Reformat brainlift using preformat pipeline
+brainliftsRouter.post(
+  '/api/brainlifts/:slug/reformat',
+  requireAuth,
+  requireBrainliftModify,
+  asyncHandler(async (req, res) => {
+    const { confirm } = req.body;
+    if (!confirm) {
+      throw new BadRequestError('Must confirm reformat operation');
+    }
+
+    const brainlift = req.brainlift!;
+    const importHierarchy = brainlift.importHierarchy as unknown[] | null;
+    if (!importHierarchy || !Array.isArray(importHierarchy) || importHierarchy.length === 0) {
+      throw new BadRequestError('BrainLift has no import hierarchy');
+    }
+
+    try {
+      const result = await preformatHierarchy(importHierarchy as any);
+      if (result) {
+        res.json({
+          success: true,
+          report: result.report,
+          cleanHierarchy: result.cleanHierarchy,
+        });
+      } else {
+        res.json({
+          success: false,
+          error: 'Preformat validation failed',
+        });
+      }
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Unknown error';
+      res.status(500).json({
+        success: false,
+        error: message,
+      });
+    }
   })
 );

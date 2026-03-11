@@ -372,6 +372,7 @@ export async function extractBrainlift(
 
   if (USE_HIERARCHY_EXTRACTION && hierarchy && hierarchy.length > 0) {
     console.log('[DOK1 Extractor] Attempting hierarchy-based extraction...');
+
     const fullResult = extractAllFromHierarchy(hierarchy);
 
     // Always keep DOK2/DOK3/DOK4 from hierarchy, even if facts=0 (facts can fall back to regex/LLM)
