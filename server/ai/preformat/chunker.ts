@@ -279,33 +279,89 @@ export function identifyAndSerializeChunks(
     });
   }
 
-  // ── Split oversized chunks ─────────────────────────────────────
-  // If any chunk's markdown exceeds the threshold, split it by
-  // its top-level children into multiple sub-chunks.
-  // Applies to ALL section types (experts, insights, categories, unknown, etc.)
-  const MAX_CHUNK_CHARS = 15000;
-  const finalChunks: PreformatChunk[] = [];
-
-  for (const chunk of chunks) {
-    if (chunk.markdown.length > MAX_CHUNK_CHARS) {
-      // Split by the top-level node's children
-      const rootNode = chunk.originalNodes[0];
-      if (rootNode && rootNode.children.length > 1) {
-        for (const child of rootNode.children) {
-          const childIds = collectNodeIds(child);
-          finalChunks.push({
-            type: chunk.type,
-            label: `${chunk.label} > ${child.name}`,
-            markdown: buildChunkMarkdown(chunk.type, `${chunk.label} > ${child.name}`, [child]),
-            sourceNodeIds: childIds,
-            originalNodes: [child],
-          });
-        }
-        continue;
-      }
-    }
-    finalChunks.push(chunk);
-  }
+  // ── Split oversized chunks (recursive) ────────────────────────
+  const finalChunks = splitOversizedChunks(chunks);
 
   return { chunks: finalChunks, bypassedScratchpad };
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Recursive Chunk Splitting
+// ═══════════════════════════════════════════════════════════════════════════
+
+const MAX_CHUNK_CHARS = 15000;
+const MAX_SPLIT_DEPTH = 4;
+
+/**
+ * Recursively split oversized chunks until all are under the threshold.
+ *
+ * Three strategies, tried in order:
+ * 1. Multi-root: chunk has multiple originalNodes → split into one chunk per root
+ * 2. Single root with children → split by children
+ * 3. Can't split further (leaf or max depth) → send as-is
+ */
+export function splitOversizedChunks(
+  chunks: PreformatChunk[],
+  maxChars: number = MAX_CHUNK_CHARS,
+  maxDepth: number = MAX_SPLIT_DEPTH,
+): PreformatChunk[] {
+  const result: PreformatChunk[] = [];
+  // Queue entries: [chunk, currentDepth]
+  const queue: Array<[PreformatChunk, number]> = chunks.map(c => [c, 0]);
+
+  while (queue.length > 0) {
+    const [chunk, depth] = queue.shift()!;
+
+    // Under threshold or max depth reached → accept as-is
+    if (chunk.markdown.length <= maxChars || depth >= maxDepth) {
+      result.push(chunk);
+      continue;
+    }
+
+    // Debug: log what we're about to split
+    console.log(`  [ChunkSplit] Oversized: type=${chunk.type} label="${chunk.label}" len=${chunk.markdown.length} depth=${depth} originalNodes=${chunk.originalNodes.length} rootChildren=${chunk.originalNodes[0]?.children.length ?? 0}`);
+
+    // Strategy 1: Multiple originalNodes → split into one chunk per root
+    if (chunk.originalNodes.length > 1) {
+      for (const node of chunk.originalNodes) {
+        const nodeIds = collectNodeIds(node);
+        queue.push([{
+          type: chunk.type,
+          label: `${chunk.label} > ${node.name}`,
+          markdown: buildChunkMarkdown(chunk.type, `${chunk.label} > ${node.name}`, [node]),
+          sourceNodeIds: nodeIds,
+          originalNodes: [node],
+        }, depth + 1]);
+      }
+      continue;
+    }
+
+    // Strategy 2: Single root with splittable children → split by children
+    // If the root has exactly 1 child, unwrap it and split by grandchildren instead
+    let root = chunk.originalNodes[0];
+    let label = chunk.label;
+    if (root && root.children.length === 1 && root.children[0].children.length > 0) {
+      // Unwrap the single-child wrapper
+      label = `${label} > ${root.children[0].name}`;
+      root = root.children[0];
+    }
+    if (root && root.children.length > 1) {
+      for (const child of root.children) {
+        const childIds = collectNodeIds(child);
+        queue.push([{
+          type: chunk.type,
+          label: `${label} > ${child.name}`,
+          markdown: buildChunkMarkdown(chunk.type, `${label} > ${child.name}`, [child]),
+          sourceNodeIds: childIds,
+          originalNodes: [child],
+        }, depth + 1]);
+      }
+      continue;
+    }
+
+    // Strategy 3: Can't split further (leaf node or single child) → accept as-is
+    result.push(chunk);
+  }
+
+  return result;
 }

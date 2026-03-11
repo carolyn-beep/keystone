@@ -12,8 +12,9 @@ import {
   serializeSubtree,
   collectNodeIds,
   identifyAndSerializeChunks,
+  splitOversizedChunks,
 } from '../chunker';
-import type { ChunkType } from '../types';
+import type { ChunkType, PreformatChunk } from '../types';
 
 // ═══════════════════════════════════════════════════════════════════════════
 // Test Helpers
@@ -495,5 +496,167 @@ describe('identifyAndSerializeChunks', () => {
     const ownerChunk = chunks.find(c => c.type === 'owner');
     expect(ownerChunk).toBeDefined();
     expect(ownerChunk!.markdown).toMatch(/^## owner: Owner\n\n/);
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// FR5: Recursive Oversized Chunk Splitting
+// ═══════════════════════════════════════════════════════════════════════════
+
+/** Generate a long string of the given char length as a bullet list */
+function makeLongContent(targetChars: number): HierarchyNode[] {
+  const children: HierarchyNode[] = [];
+  let total = 0;
+  let i = 0;
+  while (total < targetChars) {
+    const text = `Item ${i}: ${'x'.repeat(100)}`;
+    children.push(makeNode({ name: text }));
+    total += text.length + 4; // "- " prefix + newline
+    i++;
+  }
+  return children;
+}
+
+function makeChunkFromNode(type: ChunkType, label: string, nodes: HierarchyNode[]): PreformatChunk {
+  let markdown = `## ${type}: ${label}\n\n`;
+  for (const node of nodes) {
+    markdown += serializeSubtree(node);
+  }
+  return {
+    type,
+    label,
+    markdown,
+    sourceNodeIds: nodes.flatMap(n => collectNodeIds(n)),
+    originalNodes: nodes,
+  };
+}
+
+describe('splitOversizedChunks', () => {
+  it('passes through chunks under the threshold', () => {
+    const smallChunk = makeChunkFromNode('experts', 'Experts', [
+      makeNode({ name: 'Expert 1', children: [makeNode({ name: 'Who: A researcher' })] }),
+    ]);
+
+    const result = splitOversizedChunks([smallChunk], 15000);
+    expect(result).toHaveLength(1);
+    expect(result[0].label).toBe('Experts');
+  });
+
+  it('splits multi-root chunks into one chunk per root', () => {
+    const node1 = makeNode({ name: 'Unknown Section A', children: makeLongContent(5000) });
+    const node2 = makeNode({ name: 'Unknown Section B', children: makeLongContent(5000) });
+    const node3 = makeNode({ name: 'Unknown Section C', children: makeLongContent(5000) });
+
+    const bigChunk = makeChunkFromNode('unknown', 'Unrecognized Sections', [node1, node2, node3]);
+    // Should be over 15K total
+    expect(bigChunk.markdown.length).toBeGreaterThan(15000);
+
+    const result = splitOversizedChunks([bigChunk], 15000);
+    // Each root should become its own chunk
+    expect(result.length).toBeGreaterThanOrEqual(3);
+    expect(result.every(c => c.originalNodes.length === 1)).toBe(true);
+  });
+
+  it('recursively splits single-root oversized chunks by children', () => {
+    // Create a root with 3 children, each ~8K (total ~24K)
+    const root = makeNode({
+      name: 'Experts',
+      children: [
+        makeNode({ name: 'Expert A', children: makeLongContent(8000) }),
+        makeNode({ name: 'Expert B', children: makeLongContent(8000) }),
+        makeNode({ name: 'Expert C', children: makeLongContent(8000) }),
+      ],
+    });
+
+    const bigChunk = makeChunkFromNode('experts', 'Experts', [root]);
+    expect(bigChunk.markdown.length).toBeGreaterThan(15000);
+
+    const result = splitOversizedChunks([bigChunk], 15000);
+    // Should split into at least 3 chunks (one per expert)
+    expect(result.length).toBeGreaterThanOrEqual(3);
+    expect(result.some(c => c.label.includes('Expert A'))).toBe(true);
+    expect(result.some(c => c.label.includes('Expert B'))).toBe(true);
+    expect(result.some(c => c.label.includes('Expert C'))).toBe(true);
+  });
+
+  it('splits recursively when first-level children are still oversized', () => {
+    // Root has 2 children, one of which is still oversized after first split
+    // Root > [Small Child, Big Child > [Sub A, Sub B]]
+    const root = makeNode({
+      name: 'Experts',
+      children: [
+        makeNode({ name: 'Small Expert', children: [makeNode({ name: 'Who: nobody' })] }),
+        makeNode({
+          name: 'Big Group',
+          children: [
+            makeNode({ name: 'Sub A', children: makeLongContent(10000) }),
+            makeNode({ name: 'Sub B', children: makeLongContent(10000) }),
+          ],
+        }),
+      ],
+    });
+
+    const bigChunk = makeChunkFromNode('experts', 'Experts', [root]);
+    const result = splitOversizedChunks([bigChunk], 15000);
+
+    // First split: Experts → [Small Expert, Big Group]
+    // Big Group still oversized → second split: Big Group → [Sub A, Sub B]
+    expect(result.some(c => c.label.includes('Sub A'))).toBe(true);
+    expect(result.some(c => c.label.includes('Sub B'))).toBe(true);
+    expect(result.some(c => c.label.includes('Small Expert'))).toBe(true);
+  });
+
+  it('respects max depth and stops splitting', () => {
+    // Create a deeply nested chain where every level is oversized
+    const leaf = makeNode({ name: 'Leaf', children: makeLongContent(20000) });
+    const deep3 = makeNode({ name: 'Deep3', children: [leaf, makeNode({ name: 'sibling3' })] });
+    const deep2 = makeNode({ name: 'Deep2', children: [deep3, makeNode({ name: 'sibling2' })] });
+    const deep1 = makeNode({ name: 'Deep1', children: [deep2, makeNode({ name: 'sibling1' })] });
+    const root = makeNode({ name: 'Root', children: [deep1, makeNode({ name: 'sibling0' })] });
+
+    const bigChunk = makeChunkFromNode('unknown', 'Test', [root]);
+    const result = splitOversizedChunks([bigChunk], 15000, 2);
+
+    // With maxDepth=2, should stop splitting after 2 levels even if still oversized
+    // The oversized leaf chunk should appear as-is
+    const oversized = result.filter(c => c.markdown.length > 15000);
+    expect(oversized.length).toBeGreaterThan(0); // at least one chunk couldn't be split further
+  });
+
+  it('accepts leaf nodes over threshold as-is', () => {
+    // Single node with no children but lots of text (can't split)
+    const bigLeaf = makeNode({ name: 'x'.repeat(20000) });
+    const chunk = makeChunkFromNode('unknown', 'Big Leaf', [bigLeaf]);
+
+    const result = splitOversizedChunks([chunk], 15000);
+    expect(result).toHaveLength(1);
+    expect(result[0].markdown.length).toBeGreaterThan(15000);
+  });
+
+  it('integration: identifyAndSerializeChunks splits oversized expert sections', () => {
+    const roots = [
+      makeNode({
+        name: 'BrainLift',
+        children: [
+          makeNode({ name: 'Owner', children: [makeNode({ name: 'Test' })] }),
+          makeNode({
+            name: 'Experts',
+            children: [
+              makeNode({ name: 'Expert A', children: makeLongContent(10000) }),
+              makeNode({ name: 'Expert B', children: makeLongContent(10000) }),
+            ],
+          }),
+        ],
+      }),
+    ];
+
+    const { chunks } = identifyAndSerializeChunks(roots);
+    const expertChunks = chunks.filter(c => c.type === 'experts');
+    // Should have been split into at least 2 chunks
+    expect(expertChunks.length).toBeGreaterThanOrEqual(2);
+    // Each should be under 15K (or close — small children might combine)
+    for (const c of expertChunks) {
+      expect(c.markdown.length).toBeLessThan(20000); // generous threshold for test
+    }
   });
 });
