@@ -13,6 +13,7 @@ interface ImportProgressProps {
   gradingDok4Progress?: GradingProgress | null;
   linkingDok3Progress?: GradingProgress | null;
   linkingDok4Progress?: GradingProgress | null;
+  formattingProgress?: GradingProgress | null;
   error: string | null;
   isVisible: boolean;
   orderedStages?: Exclude<ImportStage, 'complete' | 'error'>[];
@@ -21,6 +22,8 @@ interface ImportProgressProps {
 // DOK4 extraction is not a visible step — it happens during initial extraction.
 // Linking stages have no per-item progress (only start/end), so no counters.
 const DEFAULT_ORDERED_STAGES: Exclude<ImportStage, 'complete' | 'error'>[] = [
+  'formatting',
+  'validating',
   'extracting',
   'grading',
   'contradictions',
@@ -35,6 +38,7 @@ const DEFAULT_ORDERED_STAGES: Exclude<ImportStage, 'complete' | 'error'>[] = [
 
 // Stages that have per-item grading counters (displayed as "X of Y" below progress bar)
 const COUNTER_STAGES: Record<string, { prop: keyof ImportProgressProps; label: string }> = {
+  formatting: { prop: 'formattingProgress', label: 'chunks formatted' },
   grading: { prop: 'gradingProgress', label: 'facts graded' },
   grading_dok2: { prop: 'gradingDok2Progress', label: 'summaries graded' },
   grading_dok3: { prop: 'gradingDok3Progress', label: 'insights graded' },
@@ -43,6 +47,7 @@ const COUNTER_STAGES: Record<string, { prop: keyof ImportProgressProps; label: s
 
 // Stages that show inline counters in the checklist (right-aligned "X/Y")
 const INLINE_COUNTER_STAGES: Record<string, keyof ImportProgressProps> = {
+  formatting: 'formattingProgress',
   grading: 'gradingProgress',
   grading_dok2: 'gradingDok2Progress',
   grading_dok3: 'gradingDok3Progress',
@@ -57,21 +62,41 @@ export function ImportProgress({
   gradingDok2Progress,
   gradingDok3Progress,
   gradingDok4Progress,
+  formattingProgress,
   error,
   isVisible,
   orderedStages,
   ...props
 }: ImportProgressProps) {
   const stages = orderedStages ?? DEFAULT_ORDERED_STAGES;
+
+  // Filter out formatting/validating stages if they were never active
+  // (i.e., when preformat=false). We detect this by checking if the current
+  // stage index is beyond them or if formattingProgress was never set.
+  const visibleStages = stages.filter((stage) => {
+    // If formatting or validating are in the ordered list but were never reached,
+    // only hide them if the current stage is already past them (non-preformat flow)
+    if (stage === 'formatting' || stage === 'validating') {
+      // Show if we're currently on or have passed these stages
+      const currentIndex = currentStage ? stages.indexOf(currentStage as any) : -1;
+      const stageIndex = stages.indexOf(stage);
+      // Show if: we're on this stage, we've passed it, or we haven't started yet
+      if (currentIndex === -1) return false; // Haven't started
+      if (currentIndex >= stageIndex) return true; // At or past this stage
+      return false; // Current stage is before formatting (shouldn't happen normally)
+    }
+    return true;
+  });
+
   const currentIndex = (() => {
     if (!currentStage || currentStage === 'complete' || currentStage === 'error') return -1;
-    return stages.indexOf(currentStage);
+    return visibleStages.indexOf(currentStage);
   })();
   const isComplete = currentStage === 'complete';
   const isError = currentStage === 'error' || !!error;
 
   // Collect all counter props for lookup
-  const allProps = { gradingProgress, gradingDok2Progress, gradingDok3Progress, gradingDok4Progress, ...props };
+  const allProps = { gradingProgress, gradingDok2Progress, gradingDok3Progress, gradingDok4Progress, formattingProgress, ...props };
 
   return (
     <>
@@ -101,7 +126,7 @@ export function ImportProgress({
               <Progress value={progress} className="h-2" />
             </div>
 
-            {/* Active grading counter — only rendered for the current stage if it has counter data */}
+            {/* Active grading counter -- only rendered for the current stage if it has counter data */}
             {currentStage && COUNTER_STAGES[currentStage] && (() => {
               const config = COUNTER_STAGES[currentStage];
               const counterProgress = allProps[config.prop] as GradingProgress | null | undefined;
@@ -122,7 +147,7 @@ export function ImportProgress({
 
             {/* Stage checklist with staggered fade-in */}
             <div className="space-y-2 pt-2">
-              {stages.map((stage, index) => {
+              {visibleStages.map((stage, index) => {
                 const isCurrentStage = stage === currentStage;
                 const isPastStage = index < currentIndex || isComplete;
 
