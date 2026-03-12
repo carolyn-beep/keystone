@@ -9,9 +9,7 @@
  */
 
 import { z } from 'zod';
-import pRetry, { AbortError } from 'p-retry';
 import pLimit from 'p-limit';
-import { DOK3_MODELS, type DOK3Model } from '@shared/schema';
 import type { DOK3GradingProgress } from '@shared/import-progress';
 import { storage } from '../storage';
 import type { DOK3EvaluationContext } from '../storage/dok3';
@@ -21,10 +19,9 @@ import {
   buildDOK3UserPrompt,
   buildTraceabilityUserPrompt,
 } from '../prompts/dok3-grading';
+import { callModelWithFallback } from './client';
 
 export type DOK3ProgressCallback = (event: DOK3GradingProgress) => void;
-
-const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY;
 
 // ─── Zod Validation ───────────────────────────────────────────────────────────
 
@@ -123,93 +120,6 @@ export interface DOK3GradeResult {
   traceabilityFlagged: boolean;
   traceabilityFlaggedSource: string | null;
   evaluatorModel: string;
-}
-
-// ─── Shared Helper: OpenRouter API Call ───────────────────────────────────────
-
-async function callOpenRouterModel(
-  model: DOK3Model | string,
-  systemPrompt: string,
-  userPrompt: string,
-  temperature: number = 0.1,
-  jsonSchema?: { name: string; schema: Record<string, unknown> },
-): Promise<string> {
-  if (!OPENROUTER_API_KEY) {
-    throw new Error('OpenRouter API key not configured');
-  }
-
-  const responseFormat = jsonSchema
-    ? {
-        type: 'json_schema' as const,
-        json_schema: {
-          name: jsonSchema.name,
-          strict: true,
-          schema: jsonSchema.schema,
-        },
-      }
-    : { type: 'json_object' as const };
-
-  const run = async () => {
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 60_000);
-
-    let response: Response;
-    try {
-      response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${OPENROUTER_API_KEY}`,
-          'Content-Type': 'application/json',
-          'HTTP-Referer': 'https://replit.com',
-        },
-        body: JSON.stringify({
-          model,
-          messages: [
-            { role: 'system', content: systemPrompt },
-            { role: 'user', content: userPrompt },
-          ],
-          temperature,
-          response_format: responseFormat,
-        }),
-        signal: controller.signal,
-      });
-    } catch (err: any) {
-      clearTimeout(timeout);
-      if (err.name === 'AbortError') {
-        throw new Error(`Timeout: ${model} took >60s`);
-      }
-      throw err;
-    }
-    clearTimeout(timeout);
-
-    if (!response.ok) {
-      if (response.status === 429) {
-        console.error(`[DOK3-Grade] 429 rate limit from ${model}`);
-        throw new AbortError(`RATE_LIMIT: ${model}`);
-      }
-      throw new Error(`API error: ${response.status}`);
-    }
-
-    const data = await response.json();
-    const content = data.choices?.[0]?.message?.content;
-
-    if (!content) {
-      throw new Error('No response content');
-    }
-
-    // Validate JSON is parseable (catches truncation)
-    extractJSON(content);
-
-    return content as string;
-  };
-
-  return pRetry(run, {
-    retries: 2,
-    minTimeout: 500,
-    onFailedAttempt: error => {
-      console.log(`[DOK3-Grade] Model ${model} attempt ${error.attemptNumber} failed. ${error.retriesLeft} retries left.`);
-    },
-  });
 }
 
 /**
@@ -371,27 +281,23 @@ export async function checkSourceTraceability(
           source.content
         );
 
-        let raw: string;
-        try {
-          raw = await callOpenRouterModel(
-            DOK3_MODELS.GEMINI_FLASH,
-            DOK3_TRACEABILITY_SYSTEM_PROMPT,
-            userPrompt,
-            0.1,
-            TRACEABILITY_JSON_SCHEMA,
-          );
-        } catch (primaryErr: any) {
-          console.log(`[DOK3-Grade] Traceability Gemini failed for ${source.sourceName}: ${primaryErr.message}, trying Sonnet fallback`);
-          raw = await callOpenRouterModel(
-            DOK3_MODELS.SONNET_MID_FALLBACK,
-            DOK3_TRACEABILITY_SYSTEM_PROMPT,
-            userPrompt,
-            0.1,
-            TRACEABILITY_JSON_SCHEMA,
-          );
-        }
+        const result = await callModelWithFallback({
+          models: ['google/gemini-2.0-flash-001', 'anthropic/claude-sonnet-4.5'],
+          system: DOK3_TRACEABILITY_SYSTEM_PROMPT,
+          messages: [{ role: 'user', content: userPrompt }],
+          temperature: 0.1,
+          responseFormat: {
+            type: 'json_schema',
+            jsonSchema: {
+              name: TRACEABILITY_JSON_SCHEMA.name,
+              strict: true,
+              schema: TRACEABILITY_JSON_SCHEMA.schema,
+            },
+          },
+          caller: 'dok3Grader.sourceTraceability',
+        });
 
-        const parsed = traceabilitySchema.parse(extractJSON(raw));
+        const parsed = traceabilitySchema.parse(extractJSON(result.content));
         return { sourceName: source.sourceName, ...parsed };
       })
     )
@@ -455,56 +361,30 @@ async function evaluateConceptualCoherence(
     }
   );
 
-  // Try Opus primary, Sonnet fallback
-  let raw: string;
-  let usedModel: string;
-
-  try {
-    console.log('[DOK3-Grade] Calling Opus for conceptual coherence evaluation...');
-    raw = await callOpenRouterModel(
-      DOK3_MODELS.OPUS,
-      DOK3_GRADING_SYSTEM_PROMPT,
-      userPrompt,
-      0.1,
-      EVALUATION_JSON_SCHEMA,
-    );
-    usedModel = DOK3_MODELS.OPUS;
-  } catch (opusErr: any) {
-    console.log(`[DOK3-Grade] Opus failed (${opusErr.message}), trying Sonnet fallback...`);
-    try {
-      raw = await callOpenRouterModel(
-        DOK3_MODELS.SONNET_FALLBACK,
-        DOK3_GRADING_SYSTEM_PROMPT,
-        userPrompt,
-        0.1,
-        EVALUATION_JSON_SCHEMA,
-      );
-      usedModel = DOK3_MODELS.SONNET_FALLBACK;
-    } catch (sonnetErr: any) {
-      console.error(`[DOK3-Grade] Both models failed. Opus: ${opusErr.message}, Sonnet: ${sonnetErr.message}`);
-      throw new Error('Both grading models failed');
-    }
-  }
+  // Try Opus primary, Sonnet fallback via unified client
+  console.log('[DOK3-Grade] Calling unified client for conceptual coherence evaluation...');
+  const callResult = await callModelWithFallback({
+    models: ['anthropic/claude-opus-4.6', 'anthropic/claude-sonnet-4.5'],
+    system: DOK3_GRADING_SYSTEM_PROMPT,
+    messages: [{ role: 'user', content: userPrompt }],
+    temperature: 0.1,
+    responseFormat: {
+      type: 'json_schema',
+      jsonSchema: {
+        name: EVALUATION_JSON_SCHEMA.name,
+        strict: true,
+        schema: EVALUATION_JSON_SCHEMA.schema,
+      },
+    },
+    caller: 'dok3Grader.coherence',
+  });
 
   // Parse and validate
-  let parsed: unknown;
-  try {
-    parsed = extractJSON(raw);
-  } catch (jsonErr: any) {
-    // Fallback: try regex extraction for key fields
-    console.warn(`[DOK3-Grade] JSON extraction failed, attempting regex fallback: ${jsonErr.message}`);
-    const scoreMatch = raw.match(/"score"\s*:\s*(\d)/);
-    if (!scoreMatch) {
-      throw new Error('Could not parse evaluation response');
-    }
-    // Minimal fallback — can't reconstruct full criteria from regex
-    throw new Error('JSON parse failed and regex cannot reconstruct full DOK3 evaluation');
-  }
-
+  const parsed = extractJSON(callResult.content);
   const result = dok3EvaluationSchema.parse(parsed);
-  console.log(`[DOK3-Grade] Evaluation result: score=${result.score}, framework="${result.framework_name}", model=${usedModel}`);
+  console.log(`[DOK3-Grade] Evaluation result: score=${result.score}, framework="${result.framework_name}", model=${callResult.model}`);
 
-  return { result, model: usedModel };
+  return { result, model: callResult.model };
 }
 
 // ─── Step 4: Final Score Computation ──────────────────────────────────────────
