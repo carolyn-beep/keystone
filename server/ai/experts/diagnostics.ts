@@ -5,8 +5,8 @@ import {
   buildExpertDiagnosticsPrompt,
   type ExpertDiagnosticsLLMResponse,
 } from '../prompts/expert-diagnostics';
+import { callModelWithFallback } from '../client';
 
-const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY;
 const PRIMARY_MODEL = 'anthropic/claude-sonnet-4.5';
 const FALLBACK_MODEL = 'google/gemini-2.0-flash-001';
 
@@ -136,94 +136,47 @@ export async function diagnoseExpertFormat(content: string): Promise<FormatDiagn
 }
 
 /**
- * Call LLM with retry and fallback models
+ * Call LLM with fallback models via unified client.
+ * Retry and fallback are handled by callModelWithFallback.
  */
 async function callLLMForDiagnostics(
   expertSection: string
 ): Promise<ExpertDiagnosticsLLMResponse | null> {
-  if (!OPENROUTER_API_KEY) {
-    console.log('[Expert Diagnostics] No OPENROUTER_API_KEY, skipping LLM diagnostics');
-    return null;
-  }
-
   const prompt = buildExpertDiagnosticsPrompt(expertSection);
 
-  // Try primary model with retries
-  for (let attempt = 0; attempt < 2; attempt++) {
-    try {
-      const result = await callModel(PRIMARY_MODEL, prompt);
-      if (result) return result;
-    } catch (error) {
-      console.log(`[Expert Diagnostics] Primary model attempt ${attempt + 1} failed:`, error);
-    }
-  }
-
-  // Try fallback model with retries
-  console.log('[Expert Diagnostics] Primary model failed, trying fallback');
-  for (let attempt = 0; attempt < 2; attempt++) {
-    try {
-      const result = await callModel(FALLBACK_MODEL, prompt);
-      if (result) return result;
-    } catch (error) {
-      console.log(`[Expert Diagnostics] Fallback model attempt ${attempt + 1} failed:`, error);
-    }
-  }
-
-  console.log('[Expert Diagnostics] Both models failed');
-  return null;
-}
-
-/**
- * Call a specific model and parse the response
- */
-async function callModel(
-  model: string,
-  prompt: string
-): Promise<ExpertDiagnosticsLLMResponse | null> {
-  console.log(`[Expert Diagnostics] Calling model: ${model}`);
-
-  const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
-    method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${OPENROUTER_API_KEY}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      model,
+  try {
+    const result = await callModelWithFallback({
+      models: [PRIMARY_MODEL, FALLBACK_MODEL],
       messages: [{ role: 'user', content: prompt }],
       temperature: 0,
-      max_tokens: 1500,
-    }),
-  });
+      maxTokens: 1500,
+      caller: 'experts.diagnostics',
+    });
 
-  if (!response.ok) {
-    const errorText = await response.text();
-    console.log(`[Expert Diagnostics] API error ${response.status}: ${errorText}`);
-    throw new Error(`API error: ${response.status}`);
+    let content = result.content;
+    console.log(`[Expert Diagnostics] Raw LLM response:`, content);
+
+    // Extract JSON from response
+    content = content.replace(/```json\s*/g, '').replace(/```\s*/g, '').trim();
+    const jsonMatch = content.match(/\{[\s\S]*\}/);
+    if (!jsonMatch) {
+      console.log(`[Expert Diagnostics] No JSON found in response`);
+      return null;
+    }
+
+    const parsed = JSON.parse(jsonMatch[0]) as ExpertDiagnosticsLLMResponse;
+    console.log(`[Expert Diagnostics] Parsed LLM result:`, JSON.stringify(parsed, null, 2));
+
+    // Basic validation
+    if (typeof parsed.expertsFound !== 'number') {
+      return null;
+    }
+
+    return parsed;
+  } catch (error) {
+    console.log('[Expert Diagnostics] Both models failed:', error);
+    return null;
   }
-
-  const data = await response.json();
-  let content = data.choices?.[0]?.message?.content || '';
-
-  console.log(`[Expert Diagnostics] Raw LLM response:`, content);
-
-  // Extract JSON from response
-  content = content.replace(/```json\s*/g, '').replace(/```\s*/g, '').trim();
-  const jsonMatch = content.match(/\{[\s\S]*\}/);
-  if (!jsonMatch) {
-    console.log(`[Expert Diagnostics] No JSON found in response`);
-    throw new Error('No JSON found in response');
-  }
-
-  const parsed = JSON.parse(jsonMatch[0]) as ExpertDiagnosticsLLMResponse;
-  console.log(`[Expert Diagnostics] Parsed LLM result:`, JSON.stringify(parsed, null, 2));
-
-  // Basic validation
-  if (typeof parsed.expertsFound !== 'number') {
-    throw new Error('Invalid response: missing expertsFound');
-  }
-
-  return parsed;
 }
 
 /**

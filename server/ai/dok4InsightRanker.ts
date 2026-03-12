@@ -13,10 +13,9 @@
  */
 
 import pLimit from 'p-limit';
-import pRetry from 'p-retry';
 import { storage } from '../storage';
+import { callModel } from './client';
 
-const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY;
 const MODEL = 'anthropic/claude-haiku-4.5';
 
 interface SpovInput {
@@ -29,43 +28,19 @@ interface InsightInput {
   text: string;
 }
 
-async function callModel(
+async function callRankerModel(
   systemPrompt: string,
   userPrompt: string,
 ): Promise<string> {
-  if (!OPENROUTER_API_KEY) {
-    throw new Error('OpenRouter API key not configured');
-  }
-
-  const body = {
+  const result = await callModel({
     model: MODEL,
-    messages: [
-      { role: 'system', content: systemPrompt },
-      { role: 'user', content: userPrompt },
-    ],
+    system: systemPrompt,
+    messages: [{ role: 'user', content: userPrompt }],
     temperature: 0,
-  };
-
-  const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
-    method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${OPENROUTER_API_KEY}`,
-      'Content-Type': 'application/json',
-      'HTTP-Referer': 'https://replit.com',
-    },
-    body: JSON.stringify(body),
+    caller: 'dok4InsightRanker',
   });
 
-  if (!response.ok) {
-    const errBody = await response.text().catch(() => '');
-    if (response.status === 429) throw new Error(`RATE_LIMIT: ${MODEL}`);
-    throw new Error(`API error: ${response.status} - ${errBody.substring(0, 200)}`);
-  }
-
-  const data = await response.json();
-  const content = data.choices?.[0]?.message?.content;
-  if (!content) throw new Error('No response content');
-  return content as string;
+  return result.content;
 }
 
 const SYSTEM_PROMPT = `You are a research assistant helping a student link their DOK4 SPOVs (Spiky Points of View) to supporting DOK3 insights.
@@ -143,10 +118,7 @@ export async function rankInsightsForSpovs(
   await Promise.all(spovs.map(spov => limit(async () => {
     try {
       const userPrompt = buildUserPrompt(spov.text, insights);
-      const raw = await pRetry(
-        () => callModel(SYSTEM_PROMPT, userPrompt),
-        { retries: 2, minTimeout: 1000 }
-      );
+      const raw = await callRankerModel(SYSTEM_PROMPT, userPrompt);
       const rankings = parseRankings(raw, insights, spov.id);
 
       if (Object.keys(rankings).length > 0) {

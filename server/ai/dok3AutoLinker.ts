@@ -10,6 +10,7 @@
 
 import pLimit from 'p-limit';
 import { storage } from '../storage';
+import { callModel } from './client';
 
 const MODEL = 'anthropic/claude-haiku-4.5';
 const LINK_CONCURRENCY = 60;
@@ -119,11 +120,6 @@ async function callSemanticModel(
   insightText: string,
   dok2Summaries: DOK2Summary[],
 ): Promise<{ dok2Id: number; score: number }[]> {
-  const apiKey = process.env.OPENROUTER_API_KEY;
-  if (!apiKey) {
-    throw new Error('OpenRouter API key not configured');
-  }
-
   const dok2List = dok2Summaries
     .map((s, i) => {
       const title = s.displayTitle || s.points[0]?.text || 'Untitled';
@@ -147,16 +143,14 @@ Respond ONLY with a JSON object: {"rankings": [{"dok2Id": <id>, "score": <number
 DOK2 SUMMARIES:
 ${dok2List}`;
 
-  const body = {
+  const result = await callModel({
     model: MODEL,
-    messages: [
-      { role: 'system', content: systemPrompt },
-      { role: 'user', content: userPrompt },
-    ],
+    system: systemPrompt,
+    messages: [{ role: 'user', content: userPrompt }],
     temperature: 0,
-    response_format: {
+    responseFormat: {
       type: 'json_schema',
-      json_schema: {
+      jsonSchema: {
         name: 'dok3_rankings',
         strict: true,
         schema: {
@@ -180,30 +174,10 @@ ${dok2List}`;
         },
       },
     },
-  };
-
-  const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
-    method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${apiKey}`,
-      'Content-Type': 'application/json',
-      'HTTP-Referer': 'https://replit.com',
-    },
-    body: JSON.stringify(body),
+    caller: 'dok3AutoLinker',
   });
 
-  if (!response.ok) {
-    const errBody = await response.text().catch(() => '');
-    throw new Error(`API error: ${response.status} - ${errBody.substring(0, 200)}`);
-  }
-
-  const data = await response.json() as {
-    choices?: Array<{ message?: { content?: string } }>;
-  };
-  const content = data.choices?.[0]?.message?.content;
-  if (!content) throw new Error('No response content');
-
-  const parsed = JSON.parse(content) as { rankings: { dok2Id: number; score: number }[] };
+  const parsed = JSON.parse(result.content) as { rankings: { dok2Id: number; score: number }[] };
   return parsed.rankings || [];
 }
 
