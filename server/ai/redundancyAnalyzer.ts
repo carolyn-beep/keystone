@@ -1,6 +1,6 @@
 import { Fact } from '@shared/schema';
+import { callModel } from './client';
 
-const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY;
 const MODEL = 'anthropic/claude-sonnet-4';
 
 interface RedundancyGroup {
@@ -57,7 +57,7 @@ Rules:
 - If no redundancies exist, return empty redundancyGroups array and all fact IDs in coreFactIds`;
 
 export async function analyzeFactRedundancy(facts: Fact[]): Promise<RedundancyAnalysisResult> {
-  if (!OPENROUTER_API_KEY) {
+  if (!process.env.OPENROUTER_API_KEY) {
     throw new Error('OpenRouter API key not configured');
   }
 
@@ -87,32 +87,16 @@ ${JSON.stringify(factsForAnalysis, null, 2)}
 Find redundant groups and identify the core non-redundant facts.`;
 
   try {
-    const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${OPENROUTER_API_KEY}`,
-        'Content-Type': 'application/json',
-        'HTTP-Referer': 'https://replit.com',
-      },
-      body: JSON.stringify({
-        model: MODEL,
-        messages: [
-          { role: 'system', content: REDUNDANCY_SYSTEM_PROMPT },
-          { role: 'user', content: userPrompt },
-        ],
-        temperature: 0.1,
-        max_tokens: 4000,
-      }),
+    const result = await callModel({
+      model: MODEL,
+      system: REDUNDANCY_SYSTEM_PROMPT,
+      messages: [{ role: 'user', content: userPrompt }],
+      temperature: 0.1,
+      maxTokens: 4000,
+      caller: 'redundancyAnalyzer',
     });
 
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error('Redundancy analysis failed:', errorText);
-      throw new Error(`API error: ${response.status}`);
-    }
-
-    const data = await response.json();
-    const content = data.choices?.[0]?.message?.content;
+    const content = result.content;
 
     if (!content) {
       throw new Error('No response from AI model');
@@ -124,7 +108,7 @@ Find redundant groups and identify the core non-redundant facts.`;
     }
 
     const parsed = JSON.parse(jsonMatch[0]);
-    
+
     const redundancyGroups: RedundancyGroup[] = (parsed.redundancyGroups || []).map((g: any) => ({
       groupName: g.groupName || 'Unnamed group',
       factIds: g.factIds || [],
@@ -135,9 +119,9 @@ Find redundant groups and identify the core non-redundant facts.`;
 
     const allRedundantFactIds = new Set<number>();
     redundancyGroups.forEach(g => g.factIds.forEach(id => allRedundantFactIds.add(id)));
-    
+
     const redundantFactCount = allRedundantFactIds.size - redundancyGroups.length;
-    
+
     const coreFactIds: number[] = parsed.coreFactIds || facts
       .filter(f => !allRedundantFactIds.has(f.id) || redundancyGroups.some(g => g.primaryFactId === f.id))
       .map(f => f.id);

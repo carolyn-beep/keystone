@@ -6,6 +6,7 @@
  */
 
 import type { ImageGenerationContext } from '../storage/brainlifts';
+import { callModel } from './client';
 
 const CLAUDE_PROMPT = `You are a visual concept designer. Given a brainlift's learning context,
 generate a single symbolic object or scene that represents its core theme.
@@ -49,33 +50,15 @@ export async function generateImagePrompt(
     console.log('='.repeat(80) + '\n');
   }
 
-  const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
-    method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${process.env.OPENROUTER_API_KEY}`,
-      'Content-Type': 'application/json',
-      'HTTP-Referer': 'https://dok1grader.com',
-    },
-    body: JSON.stringify({
-      model: 'anthropic/claude-sonnet-4',
-      messages: [
-        {
-          role: 'user',
-          content: prompt,
-        },
-      ],
-      max_tokens: 100,
-      temperature: 0.7,
-    }),
+  const result = await callModel({
+    model: 'anthropic/claude-sonnet-4',
+    messages: [{ role: 'user', content: prompt }],
+    maxTokens: 100,
+    temperature: 0.7,
+    caller: 'imagePromptGenerator',
   });
 
-  if (!response.ok) {
-    const errorText = await response.text();
-    throw new Error(`Claude API error: ${response.status} - ${errorText}`);
-  }
-
-  const data = await response.json();
-  const visualConcept = data.choices[0]?.message?.content?.trim();
+  const visualConcept = result.content.trim();
 
   if (verbose) {
     console.log('='.repeat(80));
