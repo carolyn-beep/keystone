@@ -3,7 +3,7 @@ import pLimit from 'p-limit';
 import { CLASSIFICATION } from '@shared/schema';
 import type { HierarchyNode, DOK2SummaryGroup, DOK3ExtractedInsight, DOK4ExtractedSpov } from '@shared/hierarchy-types';
 import { extractAllFromHierarchy, convertToExtractorFormat, extractPurposeFromHierarchy } from './hierarchyExtractor';
-import { callModel } from './client';
+import { callModel, callModelWithFallback } from './client';
 
 // Feature flag for hierarchy-based extraction
 const USE_HIERARCHY_EXTRACTION = process.env.USE_HIERARCHY_EXTRACTION === 'true';
@@ -261,8 +261,8 @@ async function summarizePurposeForDisplay(fullPurpose: string, title: string): P
   console.log(`[Purpose Summarizer] Summarizing ${fullPurpose.length} char purpose...`);
 
   try {
-    const result = await callModel({
-      model: 'google/gemini-2.0-flash-001',
+    const result = await callModelWithFallback({
+      models: ['google/gemini-2.0-flash-001', 'anthropic/claude-sonnet-4.6'],
       system: `Compress a purpose statement into ONE punchy sentence (50-120 chars).
 
 FORMAT: "[Topic]: [key question or goal]"
@@ -291,7 +291,9 @@ One-line summary:`
       ],
       temperature: 0.2,
       maxTokens: 80,
-      caller: 'brainliftExtractor.purposeSummarization',
+      timeout: 15_000,
+      retries: 2,
+      caller: 'brainliftExtractor.purposeSummary',
     });
 
     const summary = result.content.trim() || '';
@@ -757,6 +759,7 @@ export async function findContradictions(facts: any[]): Promise<any[]> {
   if (facts.length < 2) return [];
 
   try {
+    const contradictionStart = performance.now();
     const callResult = await callModel({
       model: 'anthropic/claude-sonnet-4',
       system: `You detect FACTUAL / LOGICAL contradictions (aka "competing claims") between facts.
@@ -806,8 +809,10 @@ If NO tension exists, return EXACTLY:
           content: `List of Facts:\n${facts.map(f => `ID: ${f.id} - ${f.fact}`).join('\n')}\n\nAnalyze the facts and return JSON as specified.`
         }
       ],
-      caller: 'brainliftExtractor.contradictionDetection',
+      caller: 'brainliftExtractor.contradictions',
     });
+    const contradictionDuration = performance.now() - contradictionStart;
+    console.log(`[Contradiction Detection] completed in ${(contradictionDuration / 1000).toFixed(1)}s`);
 
     const content = callResult.content.trim() || "";
     const jsonMatch = content.match(/\{[\s\S]*\}/);

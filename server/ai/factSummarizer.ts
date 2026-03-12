@@ -9,11 +9,13 @@ export async function summarizeFact(fullText: string): Promise<string> {
 
   try {
     const result = await callModelWithFallback({
-      models: ['google/gemini-2.0-flash-001', 'qwen/qwen3-32b'],
+      models: ['google/gemini-2.0-flash-001', 'anthropic/claude-haiku-4.5'],
       system: SYSTEM_PROMPT,
       messages: [{ role: 'user', content: `Summarize this fact:\n\n${fullText}` }],
       maxTokens: 150,
       temperature: 0.3,
+      timeout: 20_000,
+      retries: 2,
       caller: 'factSummarizer',
     });
 

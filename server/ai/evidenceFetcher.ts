@@ -125,11 +125,12 @@ Provide a substantive evidence summary (max 500 words) with specific references 
   try {
     console.log('[Evidence] Searching with AI models...');
     const result = await callModelWithFallback({
-      models: ['google/gemini-2.0-flash-001', 'qwen/qwen3-32b'],
+      models: ['google/gemini-2.0-flash-001', 'anthropic/claude-haiku-4.5'],
       messages: [{ role: 'user', content: prompt }],
       temperature: 0.1,
       maxTokens: 1000,
-      caller: 'evidenceFetcher',
+      timeout: 45_000,
+      caller: 'evidenceFetcher.aiSearch',
     });
 
     const content = result.content;

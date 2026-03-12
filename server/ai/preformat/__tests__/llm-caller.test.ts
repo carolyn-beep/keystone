@@ -484,7 +484,7 @@ describe('FR3: Parallel LLM Dispatch', () => {
     expect(mockCallModel).toHaveBeenCalledWith(
       expect.objectContaining({
         retries: 3,
-        caller: 'preformat.llmCaller',
+        caller: 'preformat.sectionClassification',
         model: 'anthropic/claude-haiku-4.5',
       }),
     );

@@ -21,6 +21,7 @@ import type { ModelDef } from '../types';
 describe('MODEL_REGISTRY', () => {
   const EXPECTED_MODELS = [
     'anthropic/claude-opus-4.6',
+    'anthropic/claude-sonnet-4.6',
     'anthropic/claude-sonnet-4.5',
     'anthropic/claude-sonnet-4',
     'anthropic/claude-haiku-4.5',
@@ -29,12 +30,12 @@ describe('MODEL_REGISTRY', () => {
     'meta-llama/llama-3.1-8b-instruct',
   ];
 
-  it('contains all 7 expected models', () => {
+  it('contains all 8 expected models', () => {
     const registeredIds = Object.keys(MODEL_REGISTRY);
     for (const modelId of EXPECTED_MODELS) {
       expect(registeredIds).toContain(modelId);
     }
-    expect(registeredIds).toHaveLength(7);
+    expect(registeredIds).toHaveLength(8);
   });
 
   it.each(EXPECTED_MODELS)('model "%s" has required metadata fields', (modelId) => {
@@ -51,6 +52,7 @@ describe('MODEL_REGISTRY', () => {
 
   it('assigns correct tiers', () => {
     expect(MODEL_REGISTRY['anthropic/claude-opus-4.6'].tier).toBe('premium');
+    expect(MODEL_REGISTRY['anthropic/claude-sonnet-4.6'].tier).toBe('standard');
     expect(MODEL_REGISTRY['anthropic/claude-sonnet-4.5'].tier).toBe('standard');
     expect(MODEL_REGISTRY['anthropic/claude-sonnet-4'].tier).toBe('standard');
     expect(MODEL_REGISTRY['anthropic/claude-haiku-4.5'].tier).toBe('fast');

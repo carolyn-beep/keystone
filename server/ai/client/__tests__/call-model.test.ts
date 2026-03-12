@@ -435,3 +435,116 @@ describe('CallRecord observability', () => {
     expect(record.maxTokens).toBe(2048);
   });
 });
+
+// ═══════════════════════════════════════════════════════════════════════════
+// callModel — validate option
+// ═══════════════════════════════════════════════════════════════════════════
+
+describe('callModel — validate option', () => {
+  it('validate passes — call succeeds normally', async () => {
+    const { callModel } = await import('../index');
+    globalThis.fetch = mockFetchSuccess('{"valid": true}');
+
+    const validate = vi.fn(); // doesn't throw = passes
+    const result = await callModel({
+      ...DEFAULT_OPTIONS,
+      validate,
+    });
+
+    expect(result.content).toBe('{"valid": true}');
+    expect(result.attempts).toBe(1);
+    expect(validate).toHaveBeenCalledTimes(1);
+    expect(validate).toHaveBeenCalledWith('{"valid": true}');
+  });
+
+  it('validate fails then succeeds on retry — retries the HTTP call', async () => {
+    const { callModel } = await import('../index');
+
+    // First call returns bad content, second returns valid JSON
+    let callCount = 0;
+    globalThis.fetch = vi.fn().mockImplementation(async () => {
+      callCount++;
+      const content = callCount === 1 ? 'not json' : '{"ok": true}';
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({
+          choices: [{ message: { content } }],
+          usage: { prompt_tokens: 10, completion_tokens: 20, total_tokens: 30 },
+          model: 'anthropic/claude-haiku-4.5',
+        }),
+      };
+    });
+
+    const result = await callModel({
+      ...DEFAULT_OPTIONS,
+      retries: 2,
+      validate: (content) => { JSON.parse(content); },
+    });
+
+    expect(result.attempts).toBe(2);
+    expect(result.content).toBe('{"ok": true}');
+    expect(globalThis.fetch).toHaveBeenCalledTimes(2);
+  });
+
+  it('validate fails on all attempts — throws after exhausting retries', async () => {
+    const { callModel } = await import('../index');
+    const { RetryableError } = await import('../errors');
+
+    globalThis.fetch = mockFetchSuccess('always bad content');
+
+    await expect(
+      callModel({
+        ...DEFAULT_OPTIONS,
+        retries: 2,
+        validate: () => { throw new Error('Invalid format'); },
+      }),
+    ).rejects.toThrow(/Content validation failed/);
+
+    // 1 initial + 2 retries = 3 total calls
+    expect(globalThis.fetch).toHaveBeenCalledTimes(3);
+  });
+
+  it('validate not provided — backward compatible', async () => {
+    const { callModel } = await import('../index');
+    globalThis.fetch = mockFetchSuccess('plain text response');
+
+    const result = await callModel({ ...DEFAULT_OPTIONS });
+
+    expect(result.content).toBe('plain text response');
+    expect(result.attempts).toBe(1);
+  });
+
+  it('validate failure produces correct CallRecord', async () => {
+    const { callModel, setCallRecorder } = await import('../index');
+    const records: CallRecord[] = [];
+    setCallRecorder((record) => records.push(record));
+
+    // First call returns bad content, second returns valid JSON
+    let callCount = 0;
+    globalThis.fetch = vi.fn().mockImplementation(async () => {
+      callCount++;
+      const content = callCount === 1 ? 'bad' : '{"good": true}';
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({
+          choices: [{ message: { content } }],
+          usage: { prompt_tokens: 10, completion_tokens: 20, total_tokens: 30 },
+          model: 'anthropic/claude-haiku-4.5',
+        }),
+      };
+    });
+
+    const result = await callModel({
+      ...DEFAULT_OPTIONS,
+      retries: 2,
+      validate: (content) => { JSON.parse(content); },
+    });
+
+    expect(records).toHaveLength(1);
+    expect(records[0].status).toBe('success');
+    expect(records[0].attempts).toBe(2);
+    expect(result.attempts).toBe(2);
+  });
+});

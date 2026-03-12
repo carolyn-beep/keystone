@@ -13,9 +13,7 @@
 import type { HierarchyNode } from '@shared/hierarchy-types';
 import { serializeSubtree } from './chunker';
 import { extractAllFromHierarchy } from '../hierarchyExtractor';
-import { callModel } from '../client';
-
-const MODEL = 'anthropic/claude-opus-4-6';
+import { callModelWithFallback } from '../client';
 
 export type EvaluationDecision = 'needs_formatting' | 'no_formatting_needed' | 'not_a_brainlift';
 
@@ -246,8 +244,8 @@ export async function evaluateNeedsPreformat(
 
   const userMessage = `${diagnostics}\n\n---\n\n## BrainLift Hierarchy\n\n${markdown}`;
 
-  const result = await callModel({
-    model: MODEL,
+  const result = await callModelWithFallback({
+    models: ['anthropic/claude-opus-4.6', 'anthropic/claude-sonnet-4.6'],
     system: EVALUATION_SYSTEM_PROMPT,
     messages: [{ role: 'user', content: userMessage }],
     temperature: 0,
@@ -268,7 +266,7 @@ export async function evaluateNeedsPreformat(
         },
       },
     },
-    caller: 'preformat.evaluator',
+    caller: 'preformat.evaluation',
   });
 
   const parsed = JSON.parse(result.content) as { decision: EvaluationDecision; confidence: 'high' | 'medium' | 'low'; reasons: string[] };

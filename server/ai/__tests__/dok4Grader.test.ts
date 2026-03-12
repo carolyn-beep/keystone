@@ -106,6 +106,7 @@ const FIXTURE_EVALUATION_CONTEXT: DOK4EvaluationContext = {
 
 // Model ID constants for assertions
 const MID_TIER_MODELS = ['google/gemini-2.0-flash-001', 'anthropic/claude-sonnet-4.5'];
+const DIVERGENCE_TIER_MODELS = ['google/gemini-2.0-flash-001', 'anthropic/claude-haiku-4.5'];
 const QUALITY_TIER_MODELS = ['anthropic/claude-opus-4.6', 'anthropic/claude-sonnet-4.5'];
 
 
@@ -171,6 +172,8 @@ describe('POV Validation', () => {
     const opts = mockCallModelWithFallback.mock.calls[0][0];
     expect(opts.models).toEqual(MID_TIER_MODELS);
     expect(opts.temperature).toBe(0);
+    expect(opts.timeout).toBe(60_000);
+    expect(opts.retries).toBe(2);
     expect(opts.caller).toBe('dok4Grader.povValidation');
     expect(opts.responseFormat.type).toBe('json_schema');
     expect(opts.responseFormat.jsonSchema.name).toBe('pov_validation');
@@ -321,6 +324,8 @@ describe('Source Traceability Check', () => {
       const opts = call[0];
       expect(opts.models).toEqual(MID_TIER_MODELS);
       expect(opts.temperature).toBe(0.1);
+      expect(opts.timeout).toBe(60_000);
+      expect(opts.retries).toBe(2);
       expect(opts.caller).toBe('dok4Grader.traceability');
       expect(opts.responseFormat.type).toBe('json_schema');
       expect(opts.responseFormat.jsonSchema.name).toBe('traceability_check');
@@ -425,15 +430,19 @@ describe('LLM Divergence Check', () => {
 
     // First call: question extraction, temperature 0.1
     const opts1 = mockCallModelWithFallback.mock.calls[0][0];
-    expect(opts1.models).toEqual(MID_TIER_MODELS);
+    expect(opts1.models).toEqual(DIVERGENCE_TIER_MODELS);
     expect(opts1.temperature).toBe(0.1);
+    expect(opts1.timeout).toBe(30_000);
+    expect(opts1.retries).toBe(2);
     expect(opts1.caller).toBe('dok4Grader.divergenceQuestion');
     expect(opts1.responseFormat.jsonSchema.name).toBe('divergence_question');
 
     // Second call: vanilla response, temperature 0.3
     const opts2 = mockCallModelWithFallback.mock.calls[1][0];
-    expect(opts2.models).toEqual(MID_TIER_MODELS);
+    expect(opts2.models).toEqual(DIVERGENCE_TIER_MODELS);
     expect(opts2.temperature).toBe(0.3);
+    expect(opts2.timeout).toBe(30_000);
+    expect(opts2.retries).toBe(2);
     expect(opts2.caller).toBe('dok4Grader.divergenceVanilla');
     expect(opts2.responseFormat.jsonSchema.name).toBe('divergence_vanilla');
   });
@@ -455,7 +464,7 @@ describe('LLM Divergence Check', () => {
 
   it('propagates AllModelsFailed on question extraction failure', async () => {
     mockCallModelWithFallback.mockRejectedValueOnce(
-      new AllModelsFailed(MID_TIER_MODELS, [new Error('fail')])
+      new AllModelsFailed(DIVERGENCE_TIER_MODELS, [new Error('fail')])
     );
 
     await expect(
@@ -469,7 +478,7 @@ describe('LLM Divergence Check', () => {
         question: 'How should outcomes be measured?',
       })))
       .mockRejectedValueOnce(
-        new AllModelsFailed(MID_TIER_MODELS, [new Error('fail')])
+        new AllModelsFailed(DIVERGENCE_TIER_MODELS, [new Error('fail')])
       );
 
     await expect(
@@ -515,6 +524,8 @@ describe('Quality Evaluation', () => {
     const opts = mockCallModelWithFallback.mock.calls[0][0];
     expect(opts.models).toEqual(QUALITY_TIER_MODELS);
     expect(opts.temperature).toBe(0.1);
+    expect(opts.timeout).toBe(60_000);
+    expect(opts.retries).toBe(2);
     expect(opts.caller).toBe('dok4Grader.qualityEvaluation');
     expect(opts.responseFormat.type).toBe('json_schema');
     expect(opts.responseFormat.jsonSchema.name).toBe('quality_evaluation');
@@ -611,6 +622,8 @@ describe('Antimemetic Assessment', () => {
     const opts = mockCallModelWithFallback.mock.calls[0][0];
     expect(opts.models).toEqual(QUALITY_TIER_MODELS);
     expect(opts.temperature).toBe(0.3);
+    expect(opts.timeout).toBe(60_000);
+    expect(opts.retries).toBe(2);
     expect(opts.caller).toBe('dok4Grader.antimemetic');
     expect(opts.responseFormat.type).toBe('json_schema');
     expect(opts.responseFormat.jsonSchema.name).toBe('antimemetic_assessment');

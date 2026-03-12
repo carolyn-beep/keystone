@@ -44,6 +44,7 @@ import {
 // ─── Model Constants ─────────────────────────────────────────────────────────
 
 const MID_TIER_MODELS = ['google/gemini-2.0-flash-001', 'anthropic/claude-sonnet-4.5'] as const;
+const DIVERGENCE_TIER_MODELS = ['google/gemini-2.0-flash-001', 'anthropic/claude-haiku-4.5'] as const;
 const QUALITY_TIER_MODELS = ['anthropic/claude-opus-4.6', 'anthropic/claude-sonnet-4.5'] as const;
 
 
@@ -261,17 +262,22 @@ export async function validatePOV(
 ): Promise<POVValidationResult> {
   const userPrompt = buildPOVValidationUserPrompt(spovText, primaryDok3Text, brainliftPurpose);
 
+  const t0 = performance.now();
   const result = await callModelWithFallback({
     models: [...MID_TIER_MODELS],
     system: DOK4_POV_VALIDATION_SYSTEM_PROMPT,
     messages: [{ role: 'user', content: userPrompt }],
     temperature: 0,
+    timeout: 60_000,
+    retries: 2,
     responseFormat: {
       type: 'json_schema',
       jsonSchema: { name: POV_VALIDATION_JSON_SCHEMA.name, strict: true, schema: POV_VALIDATION_JSON_SCHEMA.schema },
     },
     caller: 'dok4Grader.povValidation',
+    validate: (content) => { povValidationSchema.parse(extractJSON(content)); },
   });
+  console.log(`[DOK4-Grade] POV Validation: ${(performance.now() - t0).toFixed(0)}ms (model: ${result.model})`);
 
   const parsed = povValidationSchema.parse(extractJSON(result.content));
 
@@ -311,17 +317,22 @@ export async function checkDOK4SourceTraceability(
           source.content,
         );
 
+        const t0 = performance.now();
         const result = await callModelWithFallback({
           models: [...MID_TIER_MODELS],
           system: DOK4_TRACEABILITY_SYSTEM_PROMPT,
           messages: [{ role: 'user', content: userPrompt }],
           temperature: 0.1,
+          timeout: 60_000,
+          retries: 2,
           responseFormat: {
             type: 'json_schema',
             jsonSchema: { name: TRACEABILITY_JSON_SCHEMA.name, strict: true, schema: TRACEABILITY_JSON_SCHEMA.schema },
           },
           caller: 'dok4Grader.traceability',
+          validate: (content) => { traceabilityPerSourceSchema.parse(extractJSON(content)); },
         });
+        console.log(`[DOK4-Grade] Source Traceability: ${(performance.now() - t0).toFixed(0)}ms (model: ${result.model})`);
 
         const parsed = traceabilityPerSourceSchema.parse(extractJSON(result.content));
         return { sourceName: source.sourceName, ...parsed };
@@ -356,34 +367,44 @@ export async function checkLLMDivergence(
   // Call 1: Extract neutral question from SPOV
   const questionPrompt = buildDivergenceQuestionPrompt(spovText);
 
+  const t0q = performance.now();
   const questionResult = await callModelWithFallback({
-    models: [...MID_TIER_MODELS],
+    models: [...DIVERGENCE_TIER_MODELS],
     system: DOK4_DIVERGENCE_QUESTION_SYSTEM_PROMPT,
     messages: [{ role: 'user', content: questionPrompt }],
     temperature: 0.1,
+    timeout: 30_000,
+    retries: 2,
     responseFormat: {
       type: 'json_schema',
       jsonSchema: { name: DIVERGENCE_QUESTION_JSON_SCHEMA.name, strict: true, schema: DIVERGENCE_QUESTION_JSON_SCHEMA.schema },
     },
     caller: 'dok4Grader.divergenceQuestion',
+    validate: (content) => { divergenceQuestionSchema.parse(extractJSON(content)); },
   });
+  console.log(`[DOK4-Grade] Divergence Question: ${(performance.now() - t0q).toFixed(0)}ms (model: ${questionResult.model})`);
 
   const { question } = divergenceQuestionSchema.parse(extractJSON(questionResult.content));
 
   // Call 2: Get vanilla LLM response to the question
   const vanillaPrompt = buildDivergenceVanillaPrompt(question);
 
+  const t0v = performance.now();
   const vanillaResult = await callModelWithFallback({
-    models: [...MID_TIER_MODELS],
+    models: [...DIVERGENCE_TIER_MODELS],
     system: DOK4_DIVERGENCE_VANILLA_SYSTEM_PROMPT,
     messages: [{ role: 'user', content: vanillaPrompt }],
     temperature: 0.3,
+    timeout: 30_000,
+    retries: 2,
     responseFormat: {
       type: 'json_schema',
       jsonSchema: { name: DIVERGENCE_VANILLA_JSON_SCHEMA.name, strict: true, schema: DIVERGENCE_VANILLA_JSON_SCHEMA.schema },
     },
     caller: 'dok4Grader.divergenceVanilla',
+    validate: (content) => { divergenceVanillaSchema.parse(extractJSON(content)); },
   });
+  console.log(`[DOK4-Grade] Divergence Vanilla: ${(performance.now() - t0v).toFixed(0)}ms (model: ${vanillaResult.model})`);
 
   const { response: vanillaResponse } = divergenceVanillaSchema.parse(extractJSON(vanillaResult.content));
 
@@ -403,21 +424,24 @@ export async function evaluateDOK4Quality(
 ): Promise<DOK4QualityResult> {
   const userPrompt = buildQualityEvaluationUserPrompt(context);
 
+  const t0 = performance.now();
   const result = await callModelWithFallback({
     models: [...QUALITY_TIER_MODELS],
     system: DOK4_QUALITY_EVALUATION_SYSTEM_PROMPT,
     messages: [{ role: 'user', content: userPrompt }],
     temperature: 0.1,
+    timeout: 70_000,
+    retries: 2,
     responseFormat: {
       type: 'json_schema',
       jsonSchema: { name: QUALITY_EVALUATION_JSON_SCHEMA.name, strict: true, schema: QUALITY_EVALUATION_JSON_SCHEMA.schema },
     },
     caller: 'dok4Grader.qualityEvaluation',
+    validate: (content) => { qualityEvaluationSchema.parse(extractJSON(content)); },
   });
+  console.log(`[DOK4-Grade] Quality Evaluation: ${(performance.now() - t0).toFixed(0)}ms (model: ${result.model})`);
 
   const parsed = qualityEvaluationSchema.parse(extractJSON(result.content));
-
-  console.log(`[DOK4-Grade] Quality evaluation: score=${parsed.score}, model=${result.model}`);
 
   return {
     positionSummary: parsed.position_summary,
@@ -446,21 +470,24 @@ export async function assessAntimemetic(
 ): Promise<DOK4AntimemeticAssessment> {
   const userPrompt = buildAntimemeticUserPrompt(spovText, brainliftPurpose, positionSummary);
 
+  const t0 = performance.now();
   const result = await callModelWithFallback({
     models: [...QUALITY_TIER_MODELS],
     system: DOK4_ANTIMEMETIC_SYSTEM_PROMPT,
     messages: [{ role: 'user', content: userPrompt }],
     temperature: 0.3,
+    timeout: 70_000,
+    retries: 2,
     responseFormat: {
       type: 'json_schema',
       jsonSchema: { name: ANTIMEMETIC_JSON_SCHEMA.name, strict: true, schema: ANTIMEMETIC_JSON_SCHEMA.schema },
     },
     caller: 'dok4Grader.antimemetic',
+    validate: (content) => { antimemeticSchema.parse(extractJSON(content)); },
   });
+  console.log(`[DOK4-Grade] Antimemetic Assessment: ${(performance.now() - t0).toFixed(0)}ms (model: ${result.model})`);
 
   const parsed = antimemeticSchema.parse(extractJSON(result.content));
-
-  console.log(`[DOK4-Grade] Antimemetic assessment: barrier=${parsed.barrier_type}`);
 
   return {
     barrier_type: parsed.barrier_type as DOK4AntimemeticAssessment['barrier_type'],

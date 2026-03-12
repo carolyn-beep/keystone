@@ -202,14 +202,19 @@ export async function gradeDOK2Summary(
   // Step 3: Call the grading model via unified client (Gemini primary, Qwen fallback)
   try {
     console.log('[DOK2-Grade] Calling unified client for grading...');
+    const t0 = performance.now();
     const result = await callModelWithFallback({
-      models: ['google/gemini-2.0-flash-001', 'qwen/qwen3-32b'],
+      models: ['google/gemini-2.0-flash-001', 'anthropic/claude-sonnet-4.6'],
       system: DOK2_GRADING_SYSTEM_PROMPT,
       messages: [{ role: 'user', content: userPrompt }],
       temperature: 0.1,
       maxTokens: 1500,
-      caller: 'dok2Grader',
+      timeout: 60_000,
+      retries: 2,
+      caller: 'dok2Grader.summaryGrading',
+      validate: (content) => { parseGradingResponse(content); },
     });
+    console.log(`[DOK2-Grade] Summary grading: ${(performance.now() - t0).toFixed(0)}ms (model: ${result.model})`);
 
     console.log(`[DOK2-Grade] Model result from ${result.model}: parsing response...`);
     const gradeResult = parseGradingResponse(result.content);

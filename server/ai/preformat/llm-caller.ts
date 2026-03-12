@@ -98,7 +98,8 @@ async function callChunkLLM(
       jsonSchema: config.jsonSchema as { name: string; strict?: boolean; schema: Record<string, unknown> },
     },
     retries: 3,
-    caller: 'preformat.llmCaller',
+    caller: 'preformat.sectionClassification',
+    validate: (content) => { JSON.parse(content); },
   });
 
   return JSON.parse(result.content);

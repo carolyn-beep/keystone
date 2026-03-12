@@ -54,6 +54,7 @@ export interface CallModelOptions {
   retries?: number;
   signal?: AbortSignal;
   caller?: string;
+  validate?: (content: string) => void;
 }
 
 export interface CallModelWithFallbackOptions extends Omit<CallModelOptions, 'model'> {

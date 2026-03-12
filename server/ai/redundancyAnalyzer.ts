@@ -1,7 +1,5 @@
 import { Fact } from '@shared/schema';
-import { callModel } from './client';
-
-const MODEL = 'anthropic/claude-sonnet-4';
+import { callModelWithFallback } from './client';
 
 interface RedundancyGroup {
   groupName: string;
@@ -87,8 +85,8 @@ ${JSON.stringify(factsForAnalysis, null, 2)}
 Find redundant groups and identify the core non-redundant facts.`;
 
   try {
-    const result = await callModel({
-      model: MODEL,
+    const result = await callModelWithFallback({
+      models: ['anthropic/claude-opus-4.6', 'anthropic/claude-sonnet-4.6'],
       system: REDUNDANCY_SYSTEM_PROMPT,
       messages: [{ role: 'user', content: userPrompt }],
       temperature: 0.1,

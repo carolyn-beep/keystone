@@ -140,7 +140,17 @@ async function resolveSemanticLinks(
   dok3Insights: DOK3Insight[],
 ): Promise<Array<{ dok3InsightId: number; isPrimary: boolean }>> {
   try {
-    const rankings = await callSemanticModel(spovText, dok3Insights);
+    const rawRankings = await callSemanticModel(spovText, dok3Insights);
+
+    // Filter out any hallucinated IDs not in the actual insights list
+    const validIds = new Set(dok3Insights.map(i => i.id));
+    const rankings = rawRankings.filter(r => {
+      if (!validIds.has(r.dok3Id)) {
+        console.warn(`[DOK4 AutoLinker] Filtered hallucinated dok3Id=${r.dok3Id} (not in insights list)`);
+        return false;
+      }
+      return true;
+    });
 
     // Sort by score descending, deduplicate by dok3Id
     const seen = new Set<number>();
@@ -190,6 +200,8 @@ A DOK4 SPOV is a student's defensible, evidence-backed position. DOK3 insights a
 Score each DOK3 insight from 0.01 (no relevance) to 0.99 (directly supports the SPOV's core argument).
 Most insights should be below 0.5 -- be discriminating.
 
+IMPORTANT: Each dok3Id in your response must be one of the exact IDs listed in the DOK3 INSIGHTS below. Only use IDs that appear in the [ID: X] markers.
+
 Respond ONLY with a JSON object: {"rankings": [{"dok3Id": <id>, "score": <number>}, ...]}`;
 
   const userPrompt = `DOK4 SPOV:
@@ -216,7 +228,7 @@ ${insightList}`;
               items: {
                 type: 'object',
                 properties: {
-                  dok3Id: { type: 'number' },
+                  dok3Id: { type: 'number', enum: dok3Insights.map(i => i.id) },
                   score: { type: 'number' },
                 },
                 required: ['dok3Id', 'score'],

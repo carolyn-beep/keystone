@@ -89,10 +89,12 @@ describe('DOK2 Grader — Unified Client Migration', () => {
 
       expect(mockCallModelWithFallback).toHaveBeenCalledTimes(1);
       const callArgs = mockCallModelWithFallback.mock.calls[0][0];
-      expect(callArgs.models).toEqual(['google/gemini-2.0-flash-001', 'qwen/qwen3-32b']);
+      expect(callArgs.models).toEqual(['google/gemini-2.0-flash-001', 'anthropic/claude-sonnet-4.6']);
       expect(callArgs.temperature).toBe(0.1);
       expect(callArgs.maxTokens).toBe(1500);
-      expect(callArgs.caller).toBe('dok2Grader');
+      expect(callArgs.timeout).toBe(60_000);
+      expect(callArgs.retries).toBe(2);
+      expect(callArgs.caller).toBe('dok2Grader.summaryGrading');
     });
   });
 
@@ -159,8 +161,8 @@ describe('DOK2 Grader — Unified Client Migration', () => {
     it('returns default grade (score 3) when callModelWithFallback throws AllModelsFailed', async () => {
       mockCallModelWithFallback.mockRejectedValue(
         new AllModelsFailed(
-          ['google/gemini-2.0-flash-001', 'qwen/qwen3-32b'],
-          [new Error('Gemini failed'), new Error('Qwen failed')],
+          ['google/gemini-2.0-flash-001', 'anthropic/claude-sonnet-4.6'],
+          [new Error('Gemini failed'), new Error('Sonnet failed')],
         ),
       );
 

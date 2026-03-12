@@ -185,7 +185,11 @@ describe('FR1: checkSourceTraceability — unified client', () => {
     expect(callArgs.responseFormat.jsonSchema.name).toBe('dok3_traceability');
 
     // Caller tag
-    expect(callArgs.caller).toBe('dok3Grader.sourceTraceability');
+    expect(callArgs.caller).toBe('dok3Grader.traceability');
+
+    // Timeout and retries
+    expect(callArgs.timeout).toBe(60_000);
+    expect(callArgs.retries).toBe(2);
   });
 
   it('passes user message with source-specific content', async () => {
@@ -319,6 +323,8 @@ describe('FR2: evaluateConceptualCoherence — unified client (via gradeDOK3Insi
     const lastCall = mockCallModelWithFallback.mock.calls[mockCallModelWithFallback.mock.calls.length - 1][0];
 
     expect(lastCall.temperature).toBe(0.1);
+    expect(lastCall.timeout).toBe(60_000);
+    expect(lastCall.retries).toBe(2);
     expect(lastCall.responseFormat.type).toBe('json_schema');
     expect(lastCall.responseFormat.jsonSchema.name).toBe('dok3_evaluation');
     expect(lastCall.caller).toBe('dok3Grader.coherence');

@@ -2,7 +2,7 @@
  * Tests for DOK3 Auto-Linker (unified client migration)
  *
  * Tests DOK3->DOK2 semantic auto-linking with multi-source constraint.
- * Storage and unified client (callModel) are mocked.
+ * Storage and unified client (callModelWithFallback) are mocked.
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
@@ -17,19 +17,19 @@ vi.mock('../../storage', () => ({
 
 // Mock the unified AI client
 vi.mock('../client', () => ({
-  callModel: vi.fn(),
+  callModelWithFallback: vi.fn(),
 }));
 
 import { storage } from '../../storage';
-import { callModel } from '../client';
+import { callModelWithFallback } from '../client';
 import { autoLinkDOK3Insights } from '../dok3AutoLinker';
 import type { DOK2Summary, DOK3Insight } from '../dok3AutoLinker';
 
-const mockCallModel = vi.mocked(callModel);
+const mockCallModelWithFallback = vi.mocked(callModelWithFallback);
 
-// Helper to configure mock callModel response
-function mockCallModelResponse(responseBody: object) {
-  mockCallModel.mockResolvedValue({
+// Helper to configure mock callModelWithFallback response
+function mockCallModelWithFallbackResponse(responseBody: object) {
+  mockCallModelWithFallback.mockResolvedValue({
     content: JSON.stringify(responseBody),
     model: 'anthropic/claude-haiku-4.5',
     durationMs: 100,
@@ -82,8 +82,8 @@ describe('DOK3 Auto-Linker', () => {
   // -- FR1: LLM Semantic Scoring (via unified client) ---------------------
 
   describe('FR1: LLM Semantic Scoring', () => {
-    it('calls callModel with correct caller and responseFormat', async () => {
-      mockCallModelResponse({
+    it('calls callModelWithFallback with correct caller and responseFormat', async () => {
+      mockCallModelWithFallbackResponse({
         rankings: [
           { dok2Id: 1, score: 0.8 },
           { dok2Id: 2, score: 0.7 },
@@ -92,9 +92,9 @@ describe('DOK3 Auto-Linker', () => {
 
       await autoLinkDOK3Insights(1, [INSIGHT_FIXTURES[0]], DOK2_FIXTURES);
 
-      expect(mockCallModel).toHaveBeenCalledWith(
+      expect(mockCallModelWithFallback).toHaveBeenCalledWith(
         expect.objectContaining({
-          model: 'anthropic/claude-haiku-4.5',
+          models: ['anthropic/claude-haiku-4.5', 'google/gemini-2.0-flash-001'],
           caller: 'dok3AutoLinker',
           temperature: 0,
           responseFormat: expect.objectContaining({
@@ -107,8 +107,8 @@ describe('DOK3 Auto-Linker', () => {
       );
     });
 
-    it('passes system prompt and user content via callModel options', async () => {
-      mockCallModelResponse({
+    it('passes system prompt and user content via callModelWithFallback options', async () => {
+      mockCallModelWithFallbackResponse({
         rankings: [
           { dok2Id: 1, score: 0.8 },
           { dok2Id: 2, score: 0.7 },
@@ -117,7 +117,7 @@ describe('DOK3 Auto-Linker', () => {
 
       await autoLinkDOK3Insights(1, [INSIGHT_FIXTURES[0]], DOK2_FIXTURES);
 
-      const callArgs = mockCallModel.mock.calls[0][0];
+      const callArgs = mockCallModelWithFallback.mock.calls[0][0];
       expect(callArgs.system).toContain('DOK3');
       expect(callArgs.messages).toHaveLength(1);
       expect(callArgs.messages[0].role).toBe('user');
@@ -126,7 +126,7 @@ describe('DOK3 Auto-Linker', () => {
     });
 
     it('includes all DOK2 summaries with displayTitle + points in prompt', async () => {
-      mockCallModelResponse({
+      mockCallModelWithFallbackResponse({
         rankings: [
           { dok2Id: 1, score: 0.8 },
           { dok2Id: 2, score: 0.7 },
@@ -135,7 +135,7 @@ describe('DOK3 Auto-Linker', () => {
 
       await autoLinkDOK3Insights(1, [INSIGHT_FIXTURES[0]], DOK2_FIXTURES);
 
-      const callArgs = mockCallModel.mock.calls[0][0];
+      const callArgs = mockCallModelWithFallback.mock.calls[0][0];
       const userContent = callArgs.messages[0].content;
 
       // All DOK2s should appear in the prompt
@@ -150,7 +150,7 @@ describe('DOK3 Auto-Linker', () => {
     });
 
     it('parses JSON response with rankings structure', async () => {
-      mockCallModelResponse({
+      mockCallModelWithFallbackResponse({
         rankings: [
           { dok2Id: 1, score: 0.85 },
           { dok2Id: 2, score: 0.72 },
@@ -185,7 +185,7 @@ describe('DOK3 Auto-Linker', () => {
         },
       ];
 
-      mockCallModelResponse({
+      mockCallModelWithFallbackResponse({
         rankings: [
           { dok2Id: 10, score: 0.8 },
           { dok2Id: 11, score: 0.7 },
@@ -194,7 +194,7 @@ describe('DOK3 Auto-Linker', () => {
 
       await autoLinkDOK3Insights(1, [INSIGHT_FIXTURES[0]], dok2sWithNullTitle);
 
-      const callArgs = mockCallModel.mock.calls[0][0];
+      const callArgs = mockCallModelWithFallback.mock.calls[0][0];
       const userContent = callArgs.messages[0].content;
 
       // Should still include the DOK2 with null displayTitle using point text
@@ -207,7 +207,7 @@ describe('DOK3 Auto-Linker', () => {
 
   describe('FR2: Multi-Source Link Selection', () => {
     it('links insight to >=2 DOK2s from >=2 sources (happy path)', async () => {
-      mockCallModelResponse({
+      mockCallModelWithFallbackResponse({
         rankings: [
           { dok2Id: 1, score: 0.9 },  // Source A
           { dok2Id: 2, score: 0.8 },  // Source B
@@ -230,7 +230,7 @@ describe('DOK3 Auto-Linker', () => {
 
     it('selects additional DOK2s from other sources when top scorers are same source', async () => {
       // Top 2 scores are both from Source A
-      mockCallModelResponse({
+      mockCallModelWithFallbackResponse({
         rankings: [
           { dok2Id: 1, score: 0.95 },  // Source A
           { dok2Id: 3, score: 0.90 },  // Source A
@@ -255,7 +255,7 @@ describe('DOK3 Auto-Linker', () => {
         { id: 21, sourceName: 'Only Source', sourceUrl: 'https://only.com', displayTitle: 'Title B', points: [{ text: 'Point B' }] },
       ];
 
-      mockCallModelResponse({
+      mockCallModelWithFallbackResponse({
         rankings: [
           { dok2Id: 20, score: 0.9 },
           { dok2Id: 21, score: 0.8 },
@@ -270,7 +270,7 @@ describe('DOK3 Auto-Linker', () => {
     });
 
     it('links top 2 DOK2s with flagged=true when all scores below threshold', async () => {
-      mockCallModelResponse({
+      mockCallModelWithFallbackResponse({
         rankings: [
           { dok2Id: 1, score: 0.4 },  // Source A - below 0.5
           { dok2Id: 2, score: 0.3 },  // Source B - below 0.5
@@ -294,7 +294,7 @@ describe('DOK3 Auto-Linker', () => {
         { id: 32, sourceName: 'Source B', sourceUrl: 'https://source-b.com', displayTitle: 'Title 3', points: [{ text: 'Point' }] },
       ];
 
-      mockCallModelResponse({
+      mockCallModelWithFallbackResponse({
         rankings: [
           { dok2Id: 30, score: 0.9 },
           { dok2Id: 31, score: 0.8 },
@@ -315,7 +315,7 @@ describe('DOK3 Auto-Linker', () => {
 
   describe('FR3: Flagging', () => {
     it('returns LinkResult with flagged=false when constraint met', async () => {
-      mockCallModelResponse({
+      mockCallModelWithFallbackResponse({
         rankings: [
           { dok2Id: 1, score: 0.9 },  // Source A
           { dok2Id: 2, score: 0.8 },  // Source B
@@ -334,7 +334,7 @@ describe('DOK3 Auto-Linker', () => {
         { id: 41, sourceName: 'Same Source', sourceUrl: 'https://same.com', displayTitle: 'Title 2', points: [{ text: 'Point 2' }] },
       ];
 
-      mockCallModelResponse({
+      mockCallModelWithFallbackResponse({
         rankings: [
           { dok2Id: 40, score: 0.9 },
           { dok2Id: 41, score: 0.8 },
@@ -352,7 +352,7 @@ describe('DOK3 Auto-Linker', () => {
         { id: 50, sourceName: 'Sole Source', sourceUrl: 'https://sole.com', displayTitle: 'Only Summary', points: [{ text: 'Only point' }] },
       ];
 
-      mockCallModelResponse({
+      mockCallModelWithFallbackResponse({
         rankings: [{ dok2Id: 50, score: 0.9 }],
       });
 
@@ -368,9 +368,9 @@ describe('DOK3 Auto-Linker', () => {
   // -- FR4: Error Resilience ----------------------------------------------
 
   describe('FR4: Error Resilience', () => {
-    it('logs error and continues when callModel fails', async () => {
+    it('logs error and continues when callModelWithFallback fails', async () => {
       const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
-      mockCallModel.mockRejectedValue(new Error('Network error'));
+      mockCallModelWithFallback.mockRejectedValue(new Error('Network error'));
 
       const results = await autoLinkDOK3Insights(1, [INSIGHT_FIXTURES[0]], DOK2_FIXTURES);
 
@@ -381,9 +381,9 @@ describe('DOK3 Auto-Linker', () => {
       consoleSpy.mockRestore();
     });
 
-    it('logs error and continues when callModel returns unparseable content', async () => {
+    it('logs error and continues when callModelWithFallback returns unparseable content', async () => {
       const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
-      mockCallModel.mockResolvedValue({
+      mockCallModelWithFallback.mockResolvedValue({
         content: 'not valid json at all',
         model: 'anthropic/claude-haiku-4.5',
         durationMs: 100,
@@ -402,7 +402,7 @@ describe('DOK3 Auto-Linker', () => {
       const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
       (storage.linkDOK3Insight as ReturnType<typeof vi.fn>).mockRejectedValueOnce(new Error('DB error'));
 
-      mockCallModelResponse({
+      mockCallModelWithFallbackResponse({
         rankings: [
           { dok2Id: 1, score: 0.9 },
           { dok2Id: 2, score: 0.8 },
@@ -419,10 +419,10 @@ describe('DOK3 Auto-Linker', () => {
     it('returns partial LinkResult array on mixed success/failure', async () => {
       const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
 
-      // First insight: callModel fails
-      // Second insight: callModel succeeds
+      // First insight: callModelWithFallback fails
+      // Second insight: callModelWithFallback succeeds
       let callCount = 0;
-      mockCallModel.mockImplementation(async () => {
+      mockCallModelWithFallback.mockImplementation(async () => {
         callCount++;
         if (callCount === 1) {
           throw new Error('LLM failed for first');
@@ -456,14 +456,14 @@ describe('DOK3 Auto-Linker', () => {
       const results = await autoLinkDOK3Insights(1, [], DOK2_FIXTURES);
 
       expect(results).toEqual([]);
-      expect(mockCallModel).not.toHaveBeenCalled();
+      expect(mockCallModelWithFallback).not.toHaveBeenCalled();
     });
 
     it('returns empty array when dok2Summaries is empty', async () => {
       const results = await autoLinkDOK3Insights(1, INSIGHT_FIXTURES, []);
 
       expect(results).toEqual([]);
-      expect(mockCallModel).not.toHaveBeenCalled();
+      expect(mockCallModelWithFallback).not.toHaveBeenCalled();
     });
   });
 });

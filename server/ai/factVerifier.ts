@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { type VerificationStatus } from '@shared/schema';
-import { callModel as unifiedCallModel } from './client/index';
+import { callModelWithFallback } from './client/index';
 
 const modelGradeSchema = z.object({
   score: z.number().min(1).max(5),
@@ -141,7 +141,6 @@ function parseVerificationResponse(content: string): {
  * Call a single model for fact verification using the unified AI client.
  */
 async function callVerificationModel(
-  model: string,
   fact: string,
   source: string,
   evidence: string,
@@ -161,20 +160,23 @@ SOURCE_LINK_FAILED: ${linkFailed}
 Grade this claim based on available evidence OR your knowledge of educational research literature. Provide a substantive rationale explaining your assessment.`;
 
   try {
-    const result = await unifiedCallModel({
-      model,
+    const result = await callModelWithFallback({
+      models: ['google/gemini-2.0-flash-001', 'anthropic/claude-haiku-4.5'],
       system: GRADING_SYSTEM_PROMPT,
       messages: [{ role: 'user', content: userPrompt }],
       temperature: 0.1,
       maxTokens: 800,
       responseFormat: FACT_VERIFICATION_SCHEMA,
+      timeout: 45_000,
+      retries: 2,
       caller: 'factVerifier',
+      validate: (content) => { parseVerificationResponse(content); },
     });
 
     const parsed = parseVerificationResponse(result.content);
 
     return {
-      model,
+      model: result.model,
       score: parsed.isNonGradeable ? 0 : parsed.score,
       rationale: parsed.rationale,
       isNonGradeable: parsed.isNonGradeable,
@@ -182,9 +184,9 @@ Grade this claim based on available evidence OR your knowledge of educational re
       error: null,
     };
   } catch (err: any) {
-    console.error(`Model ${model} final failure:`, err);
+    console.error(`Fact verification failed:`, err);
     return {
-      model,
+      model: 'unknown',
       score: null,
       rationale: null,
       status: 'failed',
@@ -254,14 +256,7 @@ export async function verifyFactWithAllModels(
   linkFailed: boolean = false,
   modelWeights?: ModelWeights
 ): Promise<VerificationResult & { consensus: ConsensusResult & { isNonGradeable?: boolean } }> {
-  // Primary: Gemini Flash
-  let result = await callVerificationModel('google/gemini-2.0-flash-001', fact, source, evidence, linkFailed);
-
-  // Fallback: Qwen if Gemini fails
-  if (result.status === 'failed') {
-    console.log('Gemini verification failed, trying Qwen fallback...');
-    result = await callVerificationModel('qwen/qwen3-32b', fact, source, evidence, linkFailed);
-  }
+  const result = await callVerificationModel(fact, source, evidence, linkFailed);
 
   const modelResults = [result];
   const consensus = calculateConsensus(modelResults, modelWeights);

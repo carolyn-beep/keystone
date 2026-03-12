@@ -1,7 +1,7 @@
 /**
  * Tests for FR2: Fact Verifier Migration to Unified Client
  *
- * Validates that factVerifier.ts uses callModel from the unified
+ * Validates that factVerifier.ts uses callModelWithFallback from the unified
  * AI client while preserving consensus logic and response parsing.
  */
 
@@ -9,7 +9,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 // Mock the unified AI client
 vi.mock('../../ai/client/index', () => ({
-  callModel: vi.fn(),
+  callModelWithFallback: vi.fn(),
 }));
 
 import {
@@ -18,9 +18,9 @@ import {
   type ModelGradeResult,
   type VerificationResult,
 } from '../../ai/factVerifier';
-import { callModel } from '../../ai/client/index';
+import { callModelWithFallback } from '../../ai/client/index';
 
-const mockCallModel = vi.mocked(callModel);
+const mockCallModelWithFallback = vi.mocked(callModelWithFallback);
 
 describe('Fact Verifier — Unified Client Migration', () => {
   beforeEach(() => {
@@ -34,9 +34,9 @@ describe('Fact Verifier — Unified Client Migration', () => {
     linkFailed: false,
   };
 
-  describe('successful verification via unified callModel', () => {
+  describe('successful verification via unified callModelWithFallback', () => {
     it('returns verification result with model score and rationale', async () => {
-      mockCallModel.mockResolvedValue({
+      mockCallModelWithFallback.mockResolvedValue({
         content: JSON.stringify({
           score: 5,
           rationale: 'Well-supported by research',
@@ -60,8 +60,8 @@ describe('Fact Verifier — Unified Client Migration', () => {
       expect(result.modelResults[0].status).toBe('completed');
     });
 
-    it('calls unified callModel with correct model, temperature, maxTokens, and caller', async () => {
-      mockCallModel.mockResolvedValue({
+    it('calls callModelWithFallback with correct models, temperature, maxTokens, timeout, retries, and caller', async () => {
+      mockCallModelWithFallback.mockResolvedValue({
         content: JSON.stringify({
           score: 4,
           rationale: 'Mostly verified',
@@ -79,33 +79,32 @@ describe('Fact Verifier — Unified Client Migration', () => {
         defaultArgs.linkFailed,
       );
 
-      expect(mockCallModel).toHaveBeenCalledTimes(1);
-      const callArgs = mockCallModel.mock.calls[0][0];
-      expect(callArgs.model).toBe('google/gemini-2.0-flash-001');
+      expect(mockCallModelWithFallback).toHaveBeenCalledTimes(1);
+      const callArgs = mockCallModelWithFallback.mock.calls[0][0];
+      expect(callArgs.models).toEqual(['google/gemini-2.0-flash-001', 'anthropic/claude-haiku-4.5']);
       expect(callArgs.temperature).toBe(0.1);
       expect(callArgs.maxTokens).toBe(800);
+      expect(callArgs.timeout).toBe(45_000);
+      expect(callArgs.retries).toBe(2);
       expect(callArgs.caller).toBe('factVerifier');
       expect(callArgs.responseFormat).toBeDefined();
       expect(callArgs.responseFormat?.type).toBe('json_schema');
     });
   });
 
-  describe('fallback from Gemini to Qwen', () => {
-    it('falls back to Qwen when Gemini fails', async () => {
-      // First call (Gemini) fails
-      mockCallModel
-        .mockRejectedValueOnce(new Error('Gemini unavailable'))
-        // Second call (Qwen) succeeds
-        .mockResolvedValueOnce({
-          content: JSON.stringify({
-            score: 4,
-            rationale: 'Qwen verified this',
-            isNonGradeable: false,
-          }),
-          model: 'qwen/qwen3-32b',
-          durationMs: 600,
-          attempts: 1,
-        });
+  describe('fallback handled by callModelWithFallback', () => {
+    it('uses callModelWithFallback which handles model fallback internally', async () => {
+      // callModelWithFallback handles fallback internally — only one call from our code
+      mockCallModelWithFallback.mockResolvedValue({
+        content: JSON.stringify({
+          score: 4,
+          rationale: 'Fallback model verified this',
+          isNonGradeable: false,
+        }),
+        model: 'anthropic/claude-haiku-4.5',
+        durationMs: 600,
+        attempts: 2,
+      });
 
       const result = await verifyFactWithAllModels(
         defaultArgs.fact,
@@ -114,18 +113,16 @@ describe('Fact Verifier — Unified Client Migration', () => {
         defaultArgs.linkFailed,
       );
 
-      expect(mockCallModel).toHaveBeenCalledTimes(2);
+      expect(mockCallModelWithFallback).toHaveBeenCalledTimes(1);
       expect(result.modelResults).toHaveLength(1);
       expect(result.modelResults[0].status).toBe('completed');
       expect(result.modelResults[0].score).toBe(4);
     });
   });
 
-  describe('both models fail', () => {
-    it('returns consensus with low confidence when all models fail', async () => {
-      mockCallModel
-        .mockRejectedValueOnce(new Error('Gemini failed'))
-        .mockRejectedValueOnce(new Error('Qwen failed'));
+  describe('all models fail', () => {
+    it('returns consensus with low confidence when callModelWithFallback fails', async () => {
+      mockCallModelWithFallback.mockRejectedValue(new Error('All models failed'));
 
       const result = await verifyFactWithAllModels(
         defaultArgs.fact,
@@ -134,7 +131,7 @@ describe('Fact Verifier — Unified Client Migration', () => {
         defaultArgs.linkFailed,
       );
 
-      // Both models failed, should have a failed result
+      // callModelWithFallback failed, should have a failed result
       expect(result.modelResults).toHaveLength(1);
       expect(result.modelResults[0].status).toBe('failed');
       expect(result.modelResults[0].error).toBeTruthy();
@@ -144,7 +141,7 @@ describe('Fact Verifier — Unified Client Migration', () => {
 
   describe('isNonGradeable flag propagation', () => {
     it('propagates isNonGradeable through consensus', async () => {
-      mockCallModel.mockResolvedValue({
+      mockCallModelWithFallback.mockResolvedValue({
         content: JSON.stringify({
           score: 3,
           rationale: 'Cannot evaluate this obscure claim',
@@ -172,7 +169,7 @@ describe('Fact Verifier — Unified Client Migration', () => {
     it('handles response with markdown code blocks', async () => {
       const contentWithMarkdown = '```json\n{"score": 4, "rationale": "Good claim", "isNonGradeable": false}\n```';
 
-      mockCallModel.mockResolvedValue({
+      mockCallModelWithFallback.mockResolvedValue({
         content: contentWithMarkdown,
         model: 'google/gemini-2.0-flash-001',
         durationMs: 300,
@@ -194,7 +191,7 @@ describe('Fact Verifier — Unified Client Migration', () => {
       // JSON with embedded control characters in string values
       const contentWithControlChars = '{"score": 3, "rationale": "This has a\ttab and\nnewline", "isNonGradeable": false}';
 
-      mockCallModel.mockResolvedValue({
+      mockCallModelWithFallback.mockResolvedValue({
         content: contentWithControlChars,
         model: 'google/gemini-2.0-flash-001',
         durationMs: 300,

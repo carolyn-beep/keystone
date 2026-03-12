@@ -151,6 +151,15 @@ async function callLLMForDiagnostics(
       temperature: 0,
       maxTokens: 1500,
       caller: 'experts.diagnostics',
+      validate: (content) => {
+        const clean = content.replace(/```json\s*/g, '').replace(/```\s*/g, '').trim();
+        const jsonMatch = clean.match(/\{[\s\S]*\}/);
+        if (!jsonMatch) throw new Error('No JSON found in response');
+        const parsed = JSON.parse(jsonMatch[0]);
+        if (typeof parsed.expertsFound !== 'number') {
+          throw new Error('Missing required field: expertsFound');
+        }
+      },
     });
 
     let content = result.content;

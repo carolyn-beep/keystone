@@ -37,12 +37,12 @@ vi.mock('../../hierarchyExtractor', () => ({
 
 // Mock the unified AI client
 vi.mock('../../client', () => ({
-  callModel: vi.fn(),
+  callModelWithFallback: vi.fn(),
 }));
 
-import { callModel } from '../../client';
+import { callModelWithFallback } from '../../client';
 
-const mockCallModel = vi.mocked(callModel);
+const mockCallModelWithFallback = vi.mocked(callModelWithFallback);
 
 // ═══════════════════════════════════════════════════════════════════════════
 // Test Helpers
@@ -70,8 +70,8 @@ function makeNode(
 }
 
 /** Configure mock callModel to return a successful response */
-function mockCallModelResponse(responseBody: object) {
-  mockCallModel.mockResolvedValue({
+function mockCallModelWithFallbackResponse(responseBody: object) {
+  mockCallModelWithFallback.mockResolvedValue({
     content: JSON.stringify(responseBody),
     model: 'anthropic/claude-opus-4-6',
     durationMs: 500,
@@ -96,7 +96,7 @@ describe('evaluateNeedsPreformat', () => {
     it('returns needs_formatting decision for a BrainLift with no DOK markers', async () => {
       const { evaluateNeedsPreformat } = await import('../evaluator');
 
-      mockCallModelResponse({
+      mockCallModelWithFallbackResponse({
         decision: 'needs_formatting',
         confidence: 'high',
         reasons: ['No DOK markers found in the hierarchy'],
@@ -121,7 +121,7 @@ describe('evaluateNeedsPreformat', () => {
     it('returns no_formatting_needed decision for a well-structured BrainLift', async () => {
       const { evaluateNeedsPreformat } = await import('../evaluator');
 
-      mockCallModelResponse({
+      mockCallModelWithFallbackResponse({
         decision: 'no_formatting_needed',
         confidence: 'high',
         reasons: ['All DOK sections present and properly structured'],
@@ -150,7 +150,7 @@ describe('evaluateNeedsPreformat', () => {
     it('returns not_a_brainlift decision for non-BrainLift content', async () => {
       const { evaluateNeedsPreformat } = await import('../evaluator');
 
-      mockCallModelResponse({
+      mockCallModelWithFallbackResponse({
         decision: 'not_a_brainlift',
         confidence: 'high',
         reasons: ['Content appears to be a to-do list, not a knowledge base'],
@@ -171,10 +171,10 @@ describe('evaluateNeedsPreformat', () => {
       expect(result.reasons).toContain('Content appears to be a to-do list, not a knowledge base');
     });
 
-    it('calls callModel with correct caller and responseFormat', async () => {
+    it('calls callModelWithFallback with correct caller and responseFormat', async () => {
       const { evaluateNeedsPreformat } = await import('../evaluator');
 
-      mockCallModelResponse({
+      mockCallModelWithFallbackResponse({
         decision: 'needs_formatting',
         confidence: 'medium',
         reasons: ['test'],
@@ -182,11 +182,11 @@ describe('evaluateNeedsPreformat', () => {
 
       await evaluateNeedsPreformat([makeNode('Test')]);
 
-      expect(mockCallModel).toHaveBeenCalledTimes(1);
-      const callArgs = mockCallModel.mock.calls[0][0];
+      expect(mockCallModelWithFallback).toHaveBeenCalledTimes(1);
+      const callArgs = mockCallModelWithFallback.mock.calls[0][0];
 
-      expect(callArgs.caller).toBe('preformat.evaluator');
-      expect(callArgs.model).toBe('anthropic/claude-opus-4-6');
+      expect(callArgs.caller).toBe('preformat.evaluation');
+      expect(callArgs.models).toEqual(['anthropic/claude-opus-4.6', 'anthropic/claude-sonnet-4.6']);
       expect(callArgs.temperature).toBe(0);
 
       // Verify the responseFormat has decision as enum
@@ -204,7 +204,7 @@ describe('evaluateNeedsPreformat', () => {
     it('system prompt describes all three decision outcomes', async () => {
       const { evaluateNeedsPreformat } = await import('../evaluator');
 
-      mockCallModelResponse({
+      mockCallModelWithFallbackResponse({
         decision: 'no_formatting_needed',
         confidence: 'high',
         reasons: [],
@@ -212,7 +212,7 @@ describe('evaluateNeedsPreformat', () => {
 
       await evaluateNeedsPreformat([makeNode('Test')]);
 
-      const callArgs = mockCallModel.mock.calls[0][0];
+      const callArgs = mockCallModelWithFallback.mock.calls[0][0];
       const systemPrompt = callArgs.system!;
 
       expect(systemPrompt).toContain('needs_formatting');
@@ -223,7 +223,7 @@ describe('evaluateNeedsPreformat', () => {
     it('result has decision, confidence, reasons, and contentSizeChars fields', async () => {
       const { evaluateNeedsPreformat } = await import('../evaluator');
 
-      mockCallModelResponse({
+      mockCallModelWithFallbackResponse({
         decision: 'needs_formatting',
         confidence: 'low',
         reasons: ['reason1', 'reason2'],
@@ -250,7 +250,7 @@ describe('evaluateNeedsPreformat', () => {
     it('contentSizeChars matches serialized hierarchy length', async () => {
       const { evaluateNeedsPreformat } = await import('../evaluator');
 
-      mockCallModelResponse({
+      mockCallModelWithFallbackResponse({
         decision: 'no_formatting_needed',
         confidence: 'high',
         reasons: [],
@@ -274,7 +274,7 @@ describe('evaluateNeedsPreformat', () => {
     it('returns contentSizeChars of 0 for empty hierarchy', async () => {
       const { evaluateNeedsPreformat } = await import('../evaluator');
 
-      mockCallModelResponse({
+      mockCallModelWithFallbackResponse({
         decision: 'not_a_brainlift',
         confidence: 'high',
         reasons: ['Empty document'],
@@ -288,7 +288,7 @@ describe('evaluateNeedsPreformat', () => {
     it('captures full size even when hierarchy exceeds truncation limit', async () => {
       const { evaluateNeedsPreformat } = await import('../evaluator');
 
-      mockCallModelResponse({
+      mockCallModelWithFallbackResponse({
         decision: 'needs_formatting',
         confidence: 'medium',
         reasons: ['Large unstructured document'],
@@ -309,7 +309,7 @@ describe('evaluateNeedsPreformat', () => {
       expect(result.contentSizeChars).toBeGreaterThan(50000);
 
       // But the LLM should receive truncated content
-      const callArgs = mockCallModel.mock.calls[0][0];
+      const callArgs = mockCallModelWithFallback.mock.calls[0][0];
       const userMessage = callArgs.messages[0].content;
       expect(userMessage).toContain('[... truncated');
     });
@@ -323,7 +323,7 @@ describe('evaluateNeedsPreformat', () => {
     it('throws when callModel fails', async () => {
       const { evaluateNeedsPreformat } = await import('../evaluator');
 
-      mockCallModel.mockRejectedValue(new Error('API error 429'));
+      mockCallModelWithFallback.mockRejectedValue(new Error('API error 429'));
 
       await expect(evaluateNeedsPreformat([makeNode('Test')])).rejects.toThrow(
         'API error 429',
@@ -333,7 +333,7 @@ describe('evaluateNeedsPreformat', () => {
     it('throws when callModel returns unparseable JSON content', async () => {
       const { evaluateNeedsPreformat } = await import('../evaluator');
 
-      mockCallModel.mockResolvedValue({
+      mockCallModelWithFallback.mockResolvedValue({
         content: 'not valid json {{{',
         model: 'anthropic/claude-opus-4-6',
         durationMs: 100,

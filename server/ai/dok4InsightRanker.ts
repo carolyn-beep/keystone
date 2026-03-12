@@ -14,9 +14,7 @@
 
 import pLimit from 'p-limit';
 import { storage } from '../storage';
-import { callModel } from './client';
-
-const MODEL = 'anthropic/claude-haiku-4.5';
+import { callModelWithFallback } from './client';
 
 interface SpovInput {
   id: number;
@@ -32,13 +30,15 @@ async function callRankerModel(
   systemPrompt: string,
   userPrompt: string,
 ): Promise<string> {
-  const result = await callModel({
-    model: MODEL,
+  const t0 = performance.now();
+  const result = await callModelWithFallback({
+    models: ['anthropic/claude-haiku-4.5', 'google/gemini-2.0-flash-001'],
     system: systemPrompt,
     messages: [{ role: 'user', content: userPrompt }],
     temperature: 0,
     caller: 'dok4InsightRanker',
   });
+  console.log(`[DOK4 InsightRanker] Semantic ranking: ${(performance.now() - t0).toFixed(0)}ms (model: ${result.model})`);
 
   return result.content;
 }

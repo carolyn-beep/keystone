@@ -6,7 +6,7 @@
  */
 
 import type { ImageGenerationContext } from '../storage/brainlifts';
-import { callModel } from './client';
+import { callModelWithFallback } from './client';
 
 const CLAUDE_PROMPT = `You are a visual concept designer. Given a brainlift's learning context,
 generate a single symbolic object or scene that represents its core theme.
@@ -50,8 +50,8 @@ export async function generateImagePrompt(
     console.log('='.repeat(80) + '\n');
   }
 
-  const result = await callModel({
-    model: 'anthropic/claude-sonnet-4',
+  const result = await callModelWithFallback({
+    models: ['anthropic/claude-opus-4.6', 'anthropic/claude-sonnet-4.6'],
     messages: [{ role: 'user', content: prompt }],
     maxTokens: 100,
     temperature: 0.7,

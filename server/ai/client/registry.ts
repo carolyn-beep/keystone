@@ -18,6 +18,12 @@ export const MODEL_REGISTRY: Record<string, ModelDef> = {
   },
 
   // Standard tier
+  'anthropic/claude-sonnet-4.6': {
+    id: 'anthropic/claude-sonnet-4.6',
+    provider: 'openrouter',
+    tier: 'standard',
+    displayName: 'Claude Sonnet 4.6',
+  },
   'anthropic/claude-sonnet-4.5': {
     id: 'anthropic/claude-sonnet-4.5',
     provider: 'openrouter',

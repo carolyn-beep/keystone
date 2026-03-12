@@ -10,9 +10,7 @@
 
 import pLimit from 'p-limit';
 import { storage } from '../storage';
-import { callModel } from './client';
-
-const MODEL = 'anthropic/claude-haiku-4.5';
+import { callModelWithFallback } from './client';
 const LINK_CONCURRENCY = 60;
 
 // Minimum semantic relevance score to create a link
@@ -135,6 +133,8 @@ A DOK3 insight is a cross-source analytical claim that synthesizes information f
 Score each DOK2 summary from 0.01 (no relevance) to 0.99 (directly supports the insight's core claim).
 Most summaries should be below 0.5 -- be discriminating.
 
+IMPORTANT: Each dok2Id in your response must be one of the exact IDs listed in the DOK2 SUMMARIES below. Only use IDs that appear in the [ID: X] markers.
+
 Respond ONLY with a JSON object: {"rankings": [{"dok2Id": <id>, "score": <number>}, ...]}`;
 
   const userPrompt = `DOK3 INSIGHT:
@@ -143,8 +143,9 @@ Respond ONLY with a JSON object: {"rankings": [{"dok2Id": <id>, "score": <number
 DOK2 SUMMARIES:
 ${dok2List}`;
 
-  const result = await callModel({
-    model: MODEL,
+  const t0 = performance.now();
+  const result = await callModelWithFallback({
+    models: ['anthropic/claude-haiku-4.5', 'google/gemini-2.0-flash-001'],
     system: systemPrompt,
     messages: [{ role: 'user', content: userPrompt }],
     temperature: 0,
@@ -161,7 +162,7 @@ ${dok2List}`;
               items: {
                 type: 'object',
                 properties: {
-                  dok2Id: { type: 'number' },
+                  dok2Id: { type: 'number', enum: dok2Summaries.map(s => s.id) },
                   score: { type: 'number' },
                 },
                 required: ['dok2Id', 'score'],
@@ -176,6 +177,7 @@ ${dok2List}`;
     },
     caller: 'dok3AutoLinker',
   });
+  console.log(`[DOK3 AutoLinker] Semantic ranking: ${(performance.now() - t0).toFixed(0)}ms (model: ${result.model})`);
 
   const parsed = JSON.parse(result.content) as { rankings: { dok2Id: number; score: number }[] };
   return parsed.rankings || [];

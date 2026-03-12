@@ -1,24 +1,24 @@
 /**
  * Tests for FR4: Migrate redundancyAnalyzer to unified client
  *
- * Validates that analyzeFactRedundancy() uses callModel()
- * with the correct model and parameters, and that JSON parsing
+ * Validates that analyzeFactRedundancy() uses callModelWithFallback()
+ * with the correct models and parameters, and that JSON parsing
  * and error handling are preserved.
  *
- * Mocks: server/ai/client module (callModel)
+ * Mocks: server/ai/client module (callModelWithFallback)
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 // Mock the unified client
 vi.mock('../client', () => ({
-  callModel: vi.fn(),
+  callModelWithFallback: vi.fn(),
 }));
 
-import { callModel } from '../client';
+import { callModelWithFallback } from '../client';
 import { analyzeFactRedundancy } from '../redundancyAnalyzer';
 
-const mockCallModel = vi.mocked(callModel);
+const mockCallModelWithFallback = vi.mocked(callModelWithFallback);
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -34,8 +34,8 @@ describe('redundancyAnalyzer', () => {
     { id: 3, originalId: '3', fact: 'Sleep affects memory consolidation', score: 5, source: 'Research C', category: 'Memory' },
   ] as any[];
 
-  it('calls callModel with correct model, temperature, maxTokens, and caller', async () => {
-    mockCallModel.mockResolvedValue({
+  it('calls callModelWithFallback with correct models, temperature, maxTokens, and caller', async () => {
+    mockCallModelWithFallback.mockResolvedValue({
       content: JSON.stringify({
         redundancyGroups: [
           {
@@ -48,16 +48,16 @@ describe('redundancyAnalyzer', () => {
         ],
         coreFactIds: [1, 3],
       }),
-      model: 'anthropic/claude-sonnet-4',
+      model: 'anthropic/claude-opus-4.6',
       durationMs: 300,
       attempts: 1,
     });
 
     await analyzeFactRedundancy(sampleFacts);
 
-    expect(mockCallModel).toHaveBeenCalledWith(
+    expect(mockCallModelWithFallback).toHaveBeenCalledWith(
       expect.objectContaining({
-        model: 'anthropic/claude-sonnet-4',
+        models: ['anthropic/claude-opus-4.6', 'anthropic/claude-sonnet-4.6'],
         temperature: 0.1,
         maxTokens: 4000,
         caller: 'redundancyAnalyzer',
@@ -71,7 +71,7 @@ describe('redundancyAnalyzer', () => {
     await expect(analyzeFactRedundancy(sampleFacts))
       .rejects.toThrow('OpenRouter API key not configured');
 
-    expect(mockCallModel).not.toHaveBeenCalled();
+    expect(mockCallModelWithFallback).not.toHaveBeenCalled();
 
     process.env.OPENROUTER_API_KEY = 'test-key';
   });
@@ -87,11 +87,11 @@ describe('redundancyAnalyzer', () => {
       redundantFactCount: 0,
       coreFactIds: [1],
     });
-    expect(mockCallModel).not.toHaveBeenCalled();
+    expect(mockCallModelWithFallback).not.toHaveBeenCalled();
   });
 
-  it('parses redundancy groups from callModel response', async () => {
-    mockCallModel.mockResolvedValue({
+  it('parses redundancy groups from callModelWithFallback response', async () => {
+    mockCallModelWithFallback.mockResolvedValue({
       content: JSON.stringify({
         redundancyGroups: [
           {
@@ -104,7 +104,7 @@ describe('redundancyAnalyzer', () => {
         ],
         coreFactIds: [1, 3],
       }),
-      model: 'anthropic/claude-sonnet-4',
+      model: 'anthropic/claude-opus-4.6',
       durationMs: 250,
       attempts: 1,
     });
@@ -118,17 +118,17 @@ describe('redundancyAnalyzer', () => {
     expect(result.coreFactIds).toEqual([1, 3]);
   });
 
-  it('re-throws on callModel failure', async () => {
-    mockCallModel.mockRejectedValue(new Error('API timeout'));
+  it('re-throws on callModelWithFallback failure', async () => {
+    mockCallModelWithFallback.mockRejectedValue(new Error('API timeout'));
 
     await expect(analyzeFactRedundancy(sampleFacts))
       .rejects.toThrow('API timeout');
   });
 
   it('handles JSON wrapped in markdown code blocks', async () => {
-    mockCallModel.mockResolvedValue({
+    mockCallModelWithFallback.mockResolvedValue({
       content: '```json\n{"redundancyGroups": [], "coreFactIds": [1, 2, 3]}\n```',
-      model: 'anthropic/claude-sonnet-4',
+      model: 'anthropic/claude-opus-4.6',
       durationMs: 200,
       attempts: 1,
     });

@@ -3,11 +3,10 @@ import { expertExtractionSchema } from './types';
 import { extractExpertsFromDocument } from './parsers';
 import { extractExpertsFromFactSources } from './extractors';
 import { buildExpertProfiles, computeImpactScore } from './profiler';
-import { callModel, callModelWithFallback } from '../client';
+import { callModelWithFallback } from '../client';
 
-const MODEL = 'anthropic/claude-sonnet-4';
 const CLEANUP_MODEL_PRIMARY = 'google/gemini-2.0-flash-001';
-const CLEANUP_MODEL_FALLBACK = 'meta-llama/llama-3.1-8b-instruct';
+const CLEANUP_MODEL_FALLBACK = 'anthropic/claude-haiku-4.5';
 
 const SYSTEM_PROMPT = `You are an expert analyst performing STACK RANKING of researchers based on their MEASURED IMPACT on a document.
 
@@ -89,7 +88,7 @@ Example: ["John Smith", "0", "Jane Doe", "Focus"] → [true, false, true, false]
         messages: [{ role: 'user', content: JSON.stringify(names) }],
         temperature: 0,
         maxTokens: 200,
-        caller: 'experts.ranker.cleanup',
+        caller: 'expertRanker.cleanup',
       });
 
       let content = result.content;
@@ -216,14 +215,16 @@ ${input.originalContent?.slice(0, 10000)}`}
 Assign differentiated scores (1-10) based on the citation counts or relevance in the text. ${allExperts.length > 0 ? 'No two experts with different citation counts should have the same score.' : 'Identify the top 5-10 experts mentioned in the text if none were explicitly listed.'}`;
 
   try {
-    const result = await callModel({
-      model: MODEL,
+    const t0 = performance.now();
+    const result = await callModelWithFallback({
+      models: ['anthropic/claude-sonnet-4.6', 'anthropic/claude-haiku-4.5'],
       system: SYSTEM_PROMPT,
       messages: [{ role: 'user', content: userPrompt }],
       temperature: 0.1,
       maxTokens: 2000,
-      caller: 'experts.ranker.grading',
+      caller: 'expertRanker.stackRanking',
     });
+    console.log(`[Expert Ranker] Stack ranking: ${(performance.now() - t0).toFixed(0)}ms (model: ${result.model})`);
 
     let content = result.content;
     content = content.replace(/```json\s*/g, '').replace(/```\s*/g, '').trim();

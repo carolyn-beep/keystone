@@ -50,10 +50,11 @@ describe('evidenceFetcher - LLM search path', () => {
 
     expect(mockCallModelWithFallback).toHaveBeenCalledWith(
       expect.objectContaining({
-        models: ['google/gemini-2.0-flash-001', 'qwen/qwen3-32b'],
+        models: ['google/gemini-2.0-flash-001', 'anthropic/claude-haiku-4.5'],
         temperature: 0.1,
         maxTokens: 1000,
-        caller: 'evidenceFetcher',
+        timeout: 45_000,
+        caller: 'evidenceFetcher.aiSearch',
       }),
     );
 

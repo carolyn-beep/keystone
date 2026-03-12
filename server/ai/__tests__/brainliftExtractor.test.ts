@@ -3,9 +3,9 @@
  *
  * Validates that the 3 LLM call sites in brainliftExtractor
  * (extractChunk, summarizePurposeForDisplay, findContradictions)
- * use callModel() with correct parameters.
+ * use callModel()/callModelWithFallback() with correct parameters.
  *
- * Mocks: server/ai/client module (callModel)
+ * Mocks: server/ai/client module (callModel, callModelWithFallback)
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
@@ -13,6 +13,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 // Mock the unified client
 vi.mock('../client', () => ({
   callModel: vi.fn(),
+  callModelWithFallback: vi.fn(),
 }));
 
 // Mock hierarchyExtractor to avoid pulling in the full module
@@ -33,10 +34,11 @@ vi.mock('p-limit', () => ({
   default: () => <T>(fn: () => T) => fn(),
 }));
 
-import { callModel } from '../client';
+import { callModel, callModelWithFallback } from '../client';
 import { extractBrainlift, findContradictions } from '../brainliftExtractor';
 
 const mockCallModel = vi.mocked(callModel);
+const mockCallModelWithFallback = vi.mocked(callModelWithFallback);
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -116,27 +118,21 @@ describe('brainliftExtractor - extractChunk (via extractBrainlift LLM fallback)'
 // ═══════════════════════════════════════════════════════════════════════════
 
 describe('brainliftExtractor - summarizePurposeForDisplay', () => {
-  it('calls callModel with correct model, maxTokens, and caller for long purpose', async () => {
-    // First call: chunk extraction (LLM fallback)
-    // Second call: purpose summarization
-    let callCount = 0;
-    mockCallModel.mockImplementation(async (opts) => {
-      callCount++;
-      if (opts.caller === 'brainliftExtractor.purposeSummarization') {
-        return {
-          content: 'Short summary of purpose',
-          model: 'google/gemini-2.0-flash-001',
-          durationMs: 50,
-          attempts: 1,
-        };
-      }
-      // chunk extraction
-      return {
-        content: JSON.stringify({ facts: [{ fact: 'A fact', source: null }] }),
-        model: 'google/gemini-2.0-flash-001',
-        durationMs: 100,
-        attempts: 1,
-      };
+  it('calls callModelWithFallback with correct models, maxTokens, timeout, retries, and caller for long purpose', async () => {
+    // extractChunk uses callModel (LLM fallback for facts)
+    mockCallModel.mockResolvedValue({
+      content: JSON.stringify({ facts: [{ fact: 'A fact', source: null }] }),
+      model: 'google/gemini-2.0-flash-001',
+      durationMs: 100,
+      attempts: 1,
+    });
+
+    // summarizePurposeForDisplay uses callModelWithFallback
+    mockCallModelWithFallback.mockResolvedValue({
+      content: 'Short summary of purpose',
+      model: 'google/gemini-2.0-flash-001',
+      durationMs: 50,
+      attempts: 1,
     });
 
     // Content with a long purpose that exceeds 200 chars threshold
@@ -145,12 +141,14 @@ describe('brainliftExtractor - summarizePurposeForDisplay', () => {
 
     const result = await extractBrainlift(content, 'test');
 
-    // Verify purpose summarization was called
-    expect(mockCallModel).toHaveBeenCalledWith(
+    // Verify purpose summarization was called via callModelWithFallback
+    expect(mockCallModelWithFallback).toHaveBeenCalledWith(
       expect.objectContaining({
-        model: 'google/gemini-2.0-flash-001',
+        models: ['google/gemini-2.0-flash-001', 'anthropic/claude-sonnet-4.6'],
         maxTokens: 80,
-        caller: 'brainliftExtractor.purposeSummarization',
+        timeout: 15_000,
+        retries: 2,
+        caller: 'brainliftExtractor.purposeSummary',
       }),
     );
   });
@@ -179,7 +177,7 @@ describe('brainliftExtractor - findContradictions', () => {
     expect(mockCallModel).toHaveBeenCalledWith(
       expect.objectContaining({
         model: 'anthropic/claude-sonnet-4',
-        caller: 'brainliftExtractor.contradictionDetection',
+        caller: 'brainliftExtractor.contradictions',
       }),
     );
   });

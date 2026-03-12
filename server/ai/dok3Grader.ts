@@ -189,7 +189,6 @@ export function computeFoundationIndex(context: DOK3EvaluationContext): Foundati
     console.log(`[DOK3-Foundation]   DOK2#${dok2.id} "${dok2.sourceName}": grade=${dok2.grade}, ${dok2.dok1Facts.length} DOK1 facts`);
     for (const fact of dok2.dok1Facts) {
       // DOK1 score = facts.score (the extraction quality score, 1-5)
-      console.log(`[DOK3-Foundation]     Fact#${fact.id}: score=${fact.score}, gradeable=${fact.isGradeable}`);
       dok1Values.push(fact.score);
       dok1Weights.push(1); // Equal weight — score IS the value
     }
@@ -281,11 +280,14 @@ export async function checkSourceTraceability(
           source.content
         );
 
+        const t0 = performance.now();
         const result = await callModelWithFallback({
           models: ['google/gemini-2.0-flash-001', 'anthropic/claude-sonnet-4.5'],
           system: DOK3_TRACEABILITY_SYSTEM_PROMPT,
           messages: [{ role: 'user', content: userPrompt }],
           temperature: 0.1,
+          timeout: 60_000,
+          retries: 2,
           responseFormat: {
             type: 'json_schema',
             jsonSchema: {
@@ -294,8 +296,10 @@ export async function checkSourceTraceability(
               schema: TRACEABILITY_JSON_SCHEMA.schema,
             },
           },
-          caller: 'dok3Grader.sourceTraceability',
+          caller: 'dok3Grader.traceability',
+          validate: (content) => { traceabilitySchema.parse(extractJSON(content)); },
         });
+        console.log(`[DOK3-Grade] Traceability: ${(performance.now() - t0).toFixed(0)}ms (model: ${result.model})`);
 
         const parsed = traceabilitySchema.parse(extractJSON(result.content));
         return { sourceName: source.sourceName, ...parsed };
@@ -363,11 +367,14 @@ async function evaluateConceptualCoherence(
 
   // Try Opus primary, Sonnet fallback via unified client
   console.log('[DOK3-Grade] Calling unified client for conceptual coherence evaluation...');
+  const t0 = performance.now();
   const callResult = await callModelWithFallback({
     models: ['anthropic/claude-opus-4.6', 'anthropic/claude-sonnet-4.5'],
     system: DOK3_GRADING_SYSTEM_PROMPT,
     messages: [{ role: 'user', content: userPrompt }],
     temperature: 0.1,
+    timeout: 60_000,
+    retries: 2,
     responseFormat: {
       type: 'json_schema',
       jsonSchema: {
@@ -377,7 +384,9 @@ async function evaluateConceptualCoherence(
       },
     },
     caller: 'dok3Grader.coherence',
+    validate: (content) => { dok3EvaluationSchema.parse(extractJSON(content)); },
   });
+  console.log(`[DOK3-Grade] Coherence: ${(performance.now() - t0).toFixed(0)}ms (model: ${callResult.model})`);
 
   // Parse and validate
   const parsed = extractJSON(callResult.content);

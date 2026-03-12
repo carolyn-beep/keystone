@@ -15,9 +15,7 @@
 
 import pLimit from 'p-limit';
 import { storage } from '../storage';
-import { callModel } from './client';
-
-const MODEL = 'anthropic/claude-haiku-4.5';
+import { callModelWithFallback } from './client';
 
 interface InsightInput {
   id: number;
@@ -34,15 +32,17 @@ async function callRankerModel(
   systemPrompt: string,
   userPrompt: string,
 ): Promise<string> {
-  console.log(`[DOK3 Ranker] API request to ${MODEL}, prompt length: ${systemPrompt.length + userPrompt.length} chars`);
+  console.log(`[DOK3 Ranker] API request, prompt length: ${systemPrompt.length + userPrompt.length} chars`);
 
-  const result = await callModel({
-    model: MODEL,
+  const t0 = performance.now();
+  const result = await callModelWithFallback({
+    models: ['anthropic/claude-haiku-4.5', 'google/gemini-2.0-flash-001'],
     system: systemPrompt,
     messages: [{ role: 'user', content: userPrompt }],
     temperature: 0,
     caller: 'dok3SourceRanker',
   });
+  console.log(`[DOK3 SourceRanker] Semantic ranking: ${(performance.now() - t0).toFixed(0)}ms (model: ${result.model})`);
 
   return result.content;
 }
@@ -174,7 +174,7 @@ export async function rankSourcesForInsights(
   }
 
   console.log(`[DOK3 Ranker] ═══════════════════════════════════════════════════`);
-  console.log(`[DOK3 Ranker] Starting ranking: ${uniqueSources.length} sources, ${insights.length} insights, model: ${MODEL}`);
+  console.log(`[DOK3 Ranker] Starting ranking: ${uniqueSources.length} sources, ${insights.length} insights`);
   console.log(`[DOK3 Ranker] Sources:`);
   for (let i = 0; i < uniqueSources.length; i++) {
     const s = uniqueSources[i];

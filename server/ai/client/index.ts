@@ -137,6 +137,21 @@ export async function callModel(options: CallModelOptions): Promise<CallModelRes
         options.signal.removeEventListener('abort', onExternalAbort);
       }
 
+      // Validate content if callback provided (e.g. JSON parse, zod schema)
+      // Failure triggers retry with same backoff as HTTP errors
+      if (options.validate) {
+        try {
+          options.validate(response.content);
+        } catch (validationError: any) {
+          response = null;
+          throw new RetryableError(
+            `Content validation failed: ${validationError.message}`,
+            options.model,
+            200,
+          );
+        }
+      }
+
       // Success — break out of retry loop
       break;
     } catch (error: any) {
