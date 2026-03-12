@@ -10,12 +10,13 @@
  *
  * Step 2 (Foundation Integrity) is pure math in shared/dok4-foundation.ts.
  * Orchestration (job sequencing, status management) is in Spec 04.
+ *
+ * All LLM calls use the unified AI client (callModelWithFallback).
  */
 
 import { z } from 'zod';
-import pRetry, { AbortError } from 'p-retry';
 import pLimit from 'p-limit';
-import { DOK4_MODELS, type DOK4Model } from '@shared/schema';
+import { callModelWithFallback } from './client';
 import type {
   DOK4RejectionCategory,
   DOK4TraceabilityResult,
@@ -39,7 +40,11 @@ import {
   buildAntimemeticUserPrompt,
 } from '../prompts/dok4-grading';
 
-const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY;
+
+// ─── Model Constants ─────────────────────────────────────────────────────────
+
+const MID_TIER_MODELS = ['google/gemini-2.0-flash-001', 'anthropic/claude-sonnet-4.5'] as const;
+const QUALITY_TIER_MODELS = ['anthropic/claude-opus-4.6', 'anthropic/claude-sonnet-4.5'] as const;
 
 
 // ─── JSON Schemas (for structured output enforcement) ────────────────────────
@@ -222,100 +227,6 @@ export function extractJSON(raw: string): unknown {
   return JSON.parse(jsonMatch[0]);
 }
 
-/**
- * Call OpenRouter API with configurable temperature and optional JSON schema enforcement.
- *
- * When a jsonSchema is provided, the API uses structured output (`json_schema` response format)
- * which guarantees valid JSON conforming to the schema — no truncation or malformed responses.
- * Without a schema, falls back to `json_object` mode.
- *
- * Retries on API errors (429, 5xx) and on JSON parse failures.
- */
-export async function callDOK4Model(
-  model: DOK4Model | string,
-  systemPrompt: string,
-  userPrompt: string,
-  temperature: number,
-  jsonSchema?: { name: string; schema: Record<string, unknown> },
-): Promise<string> {
-  if (!OPENROUTER_API_KEY) {
-    throw new Error('OpenRouter API key not configured');
-  }
-
-  const responseFormat = jsonSchema
-    ? {
-        type: 'json_schema' as const,
-        json_schema: {
-          name: jsonSchema.name,
-          strict: true,
-          schema: jsonSchema.schema,
-        },
-      }
-    : { type: 'json_object' as const };
-
-  const run = async () => {
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 60_000);
-
-    let response: Response;
-    try {
-      response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${OPENROUTER_API_KEY}`,
-          'Content-Type': 'application/json',
-          'HTTP-Referer': 'https://replit.com',
-        },
-        body: JSON.stringify({
-          model,
-          messages: [
-            { role: 'system', content: systemPrompt },
-            { role: 'user', content: userPrompt },
-          ],
-          temperature,
-          response_format: responseFormat,
-        }),
-        signal: controller.signal,
-      });
-    } catch (err: any) {
-      clearTimeout(timeout);
-      if (err.name === 'AbortError') {
-        throw new Error(`Timeout: ${model} took >60s`);
-      }
-      throw err;
-    }
-    clearTimeout(timeout);
-
-    if (!response.ok) {
-      if (response.status === 429) {
-        console.error(`[DOK4-Grade] 429 rate limit from ${model}`);
-        throw new AbortError(`RATE_LIMIT: ${model}`);
-      }
-      throw new Error(`API error: ${response.status}`);
-    }
-
-    const data = await response.json();
-    const content = data.choices?.[0]?.message?.content;
-
-    if (!content) {
-      throw new Error('No response content');
-    }
-
-    // Validate that the response is parseable JSON (catches truncation)
-    extractJSON(content);
-
-    return content as string;
-  };
-
-  return pRetry(run, {
-    retries: 2,
-    minTimeout: 500,
-    onFailedAttempt: error => {
-      console.log(`[DOK4-Grade] Model ${model} attempt ${error.attemptNumber} failed. ${error.retriesLeft} retries left.`);
-    },
-  });
-}
-
 
 // ─── Result Types (local to grader) ─────────────────────────────────────────
 
@@ -350,27 +261,19 @@ export async function validatePOV(
 ): Promise<POVValidationResult> {
   const userPrompt = buildPOVValidationUserPrompt(spovText, primaryDok3Text, brainliftPurpose);
 
-  let raw: string;
-  try {
-    raw = await callDOK4Model(
-      DOK4_MODELS.GEMINI_FLASH,
-      DOK4_POV_VALIDATION_SYSTEM_PROMPT,
-      userPrompt,
-      0.0,
-      POV_VALIDATION_JSON_SCHEMA,
-    );
-  } catch (primaryErr: any) {
-    console.log(`[DOK4-Grade] POV Validation Gemini failed: ${primaryErr.message}, trying Sonnet fallback`);
-    raw = await callDOK4Model(
-      DOK4_MODELS.SONNET_MID_FALLBACK,
-      DOK4_POV_VALIDATION_SYSTEM_PROMPT,
-      userPrompt,
-      0.0,
-      POV_VALIDATION_JSON_SCHEMA,
-    );
-  }
+  const result = await callModelWithFallback({
+    models: [...MID_TIER_MODELS],
+    system: DOK4_POV_VALIDATION_SYSTEM_PROMPT,
+    messages: [{ role: 'user', content: userPrompt }],
+    temperature: 0,
+    responseFormat: {
+      type: 'json_schema',
+      jsonSchema: { name: POV_VALIDATION_JSON_SCHEMA.name, strict: true, schema: POV_VALIDATION_JSON_SCHEMA.schema },
+    },
+    caller: 'dok4Grader.povValidation',
+  });
 
-  const parsed = povValidationSchema.parse(extractJSON(raw));
+  const parsed = povValidationSchema.parse(extractJSON(result.content));
 
   return {
     accept: parsed.accept,
@@ -408,27 +311,19 @@ export async function checkDOK4SourceTraceability(
           source.content,
         );
 
-        let raw: string;
-        try {
-          raw = await callDOK4Model(
-            DOK4_MODELS.GEMINI_FLASH,
-            DOK4_TRACEABILITY_SYSTEM_PROMPT,
-            userPrompt,
-            0.1,
-            TRACEABILITY_JSON_SCHEMA,
-          );
-        } catch (primaryErr: any) {
-          console.log(`[DOK4-Grade] Traceability Gemini failed for ${source.sourceName}: ${primaryErr.message}, trying Sonnet fallback`);
-          raw = await callDOK4Model(
-            DOK4_MODELS.SONNET_MID_FALLBACK,
-            DOK4_TRACEABILITY_SYSTEM_PROMPT,
-            userPrompt,
-            0.1,
-            TRACEABILITY_JSON_SCHEMA,
-          );
-        }
+        const result = await callModelWithFallback({
+          models: [...MID_TIER_MODELS],
+          system: DOK4_TRACEABILITY_SYSTEM_PROMPT,
+          messages: [{ role: 'user', content: userPrompt }],
+          temperature: 0.1,
+          responseFormat: {
+            type: 'json_schema',
+            jsonSchema: { name: TRACEABILITY_JSON_SCHEMA.name, strict: true, schema: TRACEABILITY_JSON_SCHEMA.schema },
+          },
+          caller: 'dok4Grader.traceability',
+        });
 
-        const parsed = traceabilityPerSourceSchema.parse(extractJSON(raw));
+        const parsed = traceabilityPerSourceSchema.parse(extractJSON(result.content));
         return { sourceName: source.sourceName, ...parsed };
       })
     )
@@ -461,52 +356,36 @@ export async function checkLLMDivergence(
   // Call 1: Extract neutral question from SPOV
   const questionPrompt = buildDivergenceQuestionPrompt(spovText);
 
-  let questionRaw: string;
-  try {
-    questionRaw = await callDOK4Model(
-      DOK4_MODELS.GEMINI_FLASH,
-      DOK4_DIVERGENCE_QUESTION_SYSTEM_PROMPT,
-      questionPrompt,
-      0.1,
-      DIVERGENCE_QUESTION_JSON_SCHEMA,
-    );
-  } catch (primaryErr: any) {
-    console.log(`[DOK4-Grade] Divergence question Gemini failed: ${primaryErr.message}, trying Sonnet fallback`);
-    questionRaw = await callDOK4Model(
-      DOK4_MODELS.SONNET_MID_FALLBACK,
-      DOK4_DIVERGENCE_QUESTION_SYSTEM_PROMPT,
-      questionPrompt,
-      0.1,
-      DIVERGENCE_QUESTION_JSON_SCHEMA,
-    );
-  }
+  const questionResult = await callModelWithFallback({
+    models: [...MID_TIER_MODELS],
+    system: DOK4_DIVERGENCE_QUESTION_SYSTEM_PROMPT,
+    messages: [{ role: 'user', content: questionPrompt }],
+    temperature: 0.1,
+    responseFormat: {
+      type: 'json_schema',
+      jsonSchema: { name: DIVERGENCE_QUESTION_JSON_SCHEMA.name, strict: true, schema: DIVERGENCE_QUESTION_JSON_SCHEMA.schema },
+    },
+    caller: 'dok4Grader.divergenceQuestion',
+  });
 
-  const { question } = divergenceQuestionSchema.parse(extractJSON(questionRaw));
+  const { question } = divergenceQuestionSchema.parse(extractJSON(questionResult.content));
 
   // Call 2: Get vanilla LLM response to the question
   const vanillaPrompt = buildDivergenceVanillaPrompt(question);
 
-  let vanillaRaw: string;
-  try {
-    vanillaRaw = await callDOK4Model(
-      DOK4_MODELS.GEMINI_FLASH,
-      DOK4_DIVERGENCE_VANILLA_SYSTEM_PROMPT,
-      vanillaPrompt,
-      0.3,
-      DIVERGENCE_VANILLA_JSON_SCHEMA,
-    );
-  } catch (primaryErr: any) {
-    console.log(`[DOK4-Grade] Divergence vanilla Gemini failed: ${primaryErr.message}, trying Sonnet fallback`);
-    vanillaRaw = await callDOK4Model(
-      DOK4_MODELS.SONNET_MID_FALLBACK,
-      DOK4_DIVERGENCE_VANILLA_SYSTEM_PROMPT,
-      vanillaPrompt,
-      0.3,
-      DIVERGENCE_VANILLA_JSON_SCHEMA,
-    );
-  }
+  const vanillaResult = await callModelWithFallback({
+    models: [...MID_TIER_MODELS],
+    system: DOK4_DIVERGENCE_VANILLA_SYSTEM_PROMPT,
+    messages: [{ role: 'user', content: vanillaPrompt }],
+    temperature: 0.3,
+    responseFormat: {
+      type: 'json_schema',
+      jsonSchema: { name: DIVERGENCE_VANILLA_JSON_SCHEMA.name, strict: true, schema: DIVERGENCE_VANILLA_JSON_SCHEMA.schema },
+    },
+    caller: 'dok4Grader.divergenceVanilla',
+  });
 
-  const { response: vanillaResponse } = divergenceVanillaSchema.parse(extractJSON(vanillaRaw));
+  const { response: vanillaResponse } = divergenceVanillaSchema.parse(extractJSON(vanillaResult.content));
 
   console.log(`[DOK4-Grade] Divergence check complete. Question: "${question.substring(0, 60)}..."`);
 
@@ -524,39 +403,21 @@ export async function evaluateDOK4Quality(
 ): Promise<DOK4QualityResult> {
   const userPrompt = buildQualityEvaluationUserPrompt(context);
 
-  let raw: string;
-  let usedModel: string;
+  const result = await callModelWithFallback({
+    models: [...QUALITY_TIER_MODELS],
+    system: DOK4_QUALITY_EVALUATION_SYSTEM_PROMPT,
+    messages: [{ role: 'user', content: userPrompt }],
+    temperature: 0.1,
+    responseFormat: {
+      type: 'json_schema',
+      jsonSchema: { name: QUALITY_EVALUATION_JSON_SCHEMA.name, strict: true, schema: QUALITY_EVALUATION_JSON_SCHEMA.schema },
+    },
+    caller: 'dok4Grader.qualityEvaluation',
+  });
 
-  try {
-    console.log('[DOK4-Grade] Calling Opus for quality evaluation...');
-    raw = await callDOK4Model(
-      DOK4_MODELS.OPUS,
-      DOK4_QUALITY_EVALUATION_SYSTEM_PROMPT,
-      userPrompt,
-      0.1,
-      QUALITY_EVALUATION_JSON_SCHEMA,
-    );
-    usedModel = DOK4_MODELS.OPUS;
-  } catch (opusErr: any) {
-    console.log(`[DOK4-Grade] Opus failed (${opusErr.message}), trying Sonnet fallback...`);
-    try {
-      raw = await callDOK4Model(
-        DOK4_MODELS.SONNET_FALLBACK,
-        DOK4_QUALITY_EVALUATION_SYSTEM_PROMPT,
-        userPrompt,
-        0.1,
-        QUALITY_EVALUATION_JSON_SCHEMA,
-      );
-      usedModel = DOK4_MODELS.SONNET_FALLBACK;
-    } catch (sonnetErr: any) {
-      console.error(`[DOK4-Grade] Both models failed. Opus: ${opusErr.message}, Sonnet: ${sonnetErr.message}`);
-      throw new Error('Both grading models failed');
-    }
-  }
+  const parsed = qualityEvaluationSchema.parse(extractJSON(result.content));
 
-  const parsed = qualityEvaluationSchema.parse(extractJSON(raw));
-
-  console.log(`[DOK4-Grade] Quality evaluation: score=${parsed.score}, model=${usedModel}`);
+  console.log(`[DOK4-Grade] Quality evaluation: score=${parsed.score}, model=${result.model}`);
 
   return {
     positionSummary: parsed.position_summary,
@@ -585,34 +446,19 @@ export async function assessAntimemetic(
 ): Promise<DOK4AntimemeticAssessment> {
   const userPrompt = buildAntimemeticUserPrompt(spovText, brainliftPurpose, positionSummary);
 
-  let raw: string;
+  const result = await callModelWithFallback({
+    models: [...QUALITY_TIER_MODELS],
+    system: DOK4_ANTIMEMETIC_SYSTEM_PROMPT,
+    messages: [{ role: 'user', content: userPrompt }],
+    temperature: 0.3,
+    responseFormat: {
+      type: 'json_schema',
+      jsonSchema: { name: ANTIMEMETIC_JSON_SCHEMA.name, strict: true, schema: ANTIMEMETIC_JSON_SCHEMA.schema },
+    },
+    caller: 'dok4Grader.antimemetic',
+  });
 
-  try {
-    console.log('[DOK4-Grade] Calling Opus for antimemetic assessment...');
-    raw = await callDOK4Model(
-      DOK4_MODELS.OPUS,
-      DOK4_ANTIMEMETIC_SYSTEM_PROMPT,
-      userPrompt,
-      0.3,
-      ANTIMEMETIC_JSON_SCHEMA,
-    );
-  } catch (opusErr: any) {
-    console.log(`[DOK4-Grade] Opus failed (${opusErr.message}), trying Sonnet fallback...`);
-    try {
-      raw = await callDOK4Model(
-        DOK4_MODELS.SONNET_FALLBACK,
-        DOK4_ANTIMEMETIC_SYSTEM_PROMPT,
-        userPrompt,
-        0.3,
-        ANTIMEMETIC_JSON_SCHEMA,
-      );
-    } catch (sonnetErr: any) {
-      console.error(`[DOK4-Grade] Both models failed. Opus: ${opusErr.message}, Sonnet: ${sonnetErr.message}`);
-      throw new Error('Both antimemetic assessment models failed');
-    }
-  }
-
-  const parsed = antimemeticSchema.parse(extractJSON(raw));
+  const parsed = antimemeticSchema.parse(extractJSON(result.content));
 
   console.log(`[DOK4-Grade] Antimemetic assessment: barrier=${parsed.barrier_type}`);
 

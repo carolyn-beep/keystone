@@ -613,17 +613,6 @@ export const DOK3_MODELS = {
 
 export type DOK3Model = typeof DOK3_MODELS[keyof typeof DOK3_MODELS];
 
-// DOK4 Models — same structure as DOK3_MODELS
-export const DOK4_MODELS = {
-  // Quality-tier (quality evaluation, antimemetic assessment)
-  OPUS: 'anthropic/claude-opus-4.6',
-  SONNET_FALLBACK: 'anthropic/claude-sonnet-4.5',
-  // Mid-tier (POV validation, traceability, divergence) — Gemini primary, Sonnet fallback on rate limit
-  GEMINI_FLASH: 'google/gemini-2.0-flash-001',
-  SONNET_MID_FALLBACK: 'anthropic/claude-sonnet-4.5',
-} as const;
-
-export type DOK4Model = typeof DOK4_MODELS[keyof typeof DOK4_MODELS];
 
 // DOK3 Insight Status
 export const DOK3_INSIGHT_STATUS = {
