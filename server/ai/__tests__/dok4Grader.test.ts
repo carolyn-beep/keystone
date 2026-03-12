@@ -1,55 +1,46 @@
 /**
- * Tests for 03-ai-pipeline: DOK4 AI Grading Pipeline
+ * Tests for DOK4 AI Grading Pipeline (02-migrate-dok4)
  *
  * Tests all 5 LLM-powered grading functions plus shared utilities.
- * All LLM calls are mocked via global fetch mock.
+ * LLM calls are mocked via unified AI client mock (callModelWithFallback).
  */
 
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 import type { DOK4EvaluationContext } from '@shared/dok4-types';
+import { AllModelsFailed } from '../client/errors';
 
 // ─── Mock Setup ──────────────────────────────────────────────────────────────
 
-// We need to set OPENROUTER_API_KEY before importing the module
-vi.stubEnv('OPENROUTER_API_KEY', 'test-api-key');
+// Mock the unified AI client
+const mockCallModelWithFallback = vi.fn();
+vi.mock('../client', () => ({
+  callModelWithFallback: (...args: unknown[]) => mockCallModelWithFallback(...args),
+}));
 
-// Mock global fetch
-const mockFetch = vi.fn();
-vi.stubGlobal('fetch', mockFetch);
-
-// Helper to create a successful OpenRouter response
-function makeOpenRouterResponse(content: string) {
+// Helper to create a successful CallModelResult
+function makeCallResult(content: string, model = 'google/gemini-2.0-flash-001') {
   return {
-    ok: true,
-    status: 200,
-    json: () => Promise.resolve({
-      choices: [{ message: { content } }],
-    }),
+    content,
+    model,
+    usage: { promptTokens: 100, completionTokens: 50, totalTokens: 150 },
+    costUsd: 0.001,
+    durationMs: 500,
+    attempts: 1,
   };
 }
 
-// Helper to create a failed response
-function makeErrorResponse(status: number) {
-  return {
-    ok: false,
-    status,
-    json: () => Promise.resolve({ error: 'test error' }),
-  };
-}
+// Import module under test (after mocks)
+import {
+  extractJSON,
+  validatePOV,
+  checkDOK4SourceTraceability,
+  checkLLMDivergence,
+  evaluateDOK4Quality,
+  assessAntimemetic,
+} from '../dok4Grader';
 
-// ─── Import module under test (after mocks) ─────────────────────────────────
-
-// Dynamic import to ensure env is set before module loads
-let mod: typeof import('../dok4Grader');
-
-beforeEach(async () => {
-  mockFetch.mockReset();
-  // Re-import to get fresh module state
-  mod = await import('../dok4Grader');
-});
-
-afterEach(() => {
-  vi.restoreAllMocks();
+beforeEach(() => {
+  mockCallModelWithFallback.mockReset();
 });
 
 
@@ -113,158 +104,89 @@ const FIXTURE_EVALUATION_CONTEXT: DOK4EvaluationContext = {
   },
 };
 
+// Model ID constants for assertions
+const MID_TIER_MODELS = ['google/gemini-2.0-flash-001', 'anthropic/claude-sonnet-4.5'];
+const QUALITY_TIER_MODELS = ['anthropic/claude-opus-4.6', 'anthropic/claude-sonnet-4.5'];
+
 
 // =============================================================================
-// FR1: DOK4 Model Constants and Shared Utilities
+// extractJSON utility (unchanged — domain-level JSON extraction)
 // =============================================================================
 
-describe('FR1: DOK4 Model Constants and Shared Utilities', () => {
-
-  describe('DOK4_MODELS', () => {
-    it('has all 4 model identifiers', async () => {
-      const { DOK4_MODELS } = await import('@shared/schema');
-      expect(DOK4_MODELS.OPUS).toBe('anthropic/claude-opus-4.6');
-      expect(DOK4_MODELS.SONNET_FALLBACK).toBe('anthropic/claude-sonnet-4.5');
-      expect(DOK4_MODELS.GEMINI_FLASH).toBe('google/gemini-2.0-flash-001');
-      expect(DOK4_MODELS.SONNET_MID_FALLBACK).toBe('anthropic/claude-sonnet-4.5');
-    });
+describe('extractJSON', () => {
+  it('strips markdown fences and extracts JSON', () => {
+    const raw = '```json\n{"accept": true, "rejection_reason": null}\n```';
+    const result = extractJSON(raw);
+    expect(result).toEqual({ accept: true, rejection_reason: null });
   });
 
-  describe('extractJSON', () => {
-    it('strips markdown fences and extracts JSON', () => {
-      const raw = '```json\n{"accept": true, "rejection_reason": null}\n```';
-      const result = mod.extractJSON(raw);
-      expect(result).toEqual({ accept: true, rejection_reason: null });
-    });
-
-    it('extracts JSON without markdown fences', () => {
-      const raw = '{"accept": false, "rejection_reason": "Not a claim"}';
-      const result = mod.extractJSON(raw);
-      expect(result).toEqual({ accept: false, rejection_reason: 'Not a claim' });
-    });
-
-    it('extracts JSON with surrounding text', () => {
-      const raw = 'Here is the result:\n{"flagged": true}\nEnd of response';
-      const result = mod.extractJSON(raw);
-      expect(result).toEqual({ flagged: true });
-    });
-
-    it('throws when no JSON found', () => {
-      expect(() => mod.extractJSON('no json here')).toThrow('Could not find JSON');
-    });
+  it('extracts JSON without markdown fences', () => {
+    const raw = '{"accept": false, "rejection_reason": "Not a claim"}';
+    const result = extractJSON(raw);
+    expect(result).toEqual({ accept: false, rejection_reason: 'Not a claim' });
   });
 
-  describe('callDOK4Model', () => {
-    it('makes HTTP request with correct params including temperature', async () => {
-      mockFetch.mockResolvedValueOnce(makeOpenRouterResponse('{"test": true}'));
+  it('extracts JSON with surrounding text', () => {
+    const raw = 'Here is the result:\n{"flagged": true}\nEnd of response';
+    const result = extractJSON(raw);
+    expect(result).toEqual({ flagged: true });
+  });
 
-      await mod.callDOK4Model('test-model', 'system prompt', 'user prompt', 0.3);
-
-      expect(mockFetch).toHaveBeenCalledOnce();
-      const [url, options] = mockFetch.mock.calls[0];
-      expect(url).toBe('https://openrouter.ai/api/v1/chat/completions');
-
-      const body = JSON.parse(options.body);
-      expect(body.model).toBe('test-model');
-      expect(body.temperature).toBe(0.3);
-      expect(body.max_tokens).toBeUndefined();
-      expect(body.response_format.type).toBe('json_object');
-      expect(body.messages[0].content).toBe('system prompt');
-      expect(body.messages[1].content).toBe('user prompt');
-    });
-
-    it('uses json_schema response format when schema provided', async () => {
-      mockFetch.mockResolvedValueOnce(makeOpenRouterResponse('{"test": true}'));
-
-      const schema = { name: 'test', schema: { type: 'object', properties: { test: { type: 'boolean' } }, required: ['test'], additionalProperties: false } };
-      await mod.callDOK4Model('test-model', 'sys', 'usr', 0.1, schema);
-
-      const body = JSON.parse(mockFetch.mock.calls[0][1].body);
-      expect(body.response_format.type).toBe('json_schema');
-      expect(body.response_format.json_schema.name).toBe('test');
-      expect(body.response_format.json_schema.strict).toBe(true);
-    });
-
-    it('retries on transient failure (pRetry with 2 retries)', async () => {
-      mockFetch
-        .mockResolvedValueOnce(makeErrorResponse(500))
-        .mockResolvedValueOnce(makeErrorResponse(500))
-        .mockResolvedValueOnce(makeOpenRouterResponse('{"result": "ok"}'));
-
-      const result = await mod.callDOK4Model('test-model', 'sys', 'usr', 0.1);
-      expect(result).toBe('{"result": "ok"}');
-      expect(mockFetch).toHaveBeenCalledTimes(3);
-    });
-
-    it('retries on JSON parse failure', async () => {
-      mockFetch
-        .mockResolvedValueOnce(makeOpenRouterResponse('not json'))
-        .mockResolvedValueOnce(makeOpenRouterResponse('{"result": "ok"}'));
-
-      const result = await mod.callDOK4Model('test-model', 'sys', 'usr', 0.1);
-      expect(result).toBe('{"result": "ok"}');
-      expect(mockFetch).toHaveBeenCalledTimes(2);
-    });
-
-    it('throws on 429 rate limit', async () => {
-      mockFetch.mockResolvedValue(makeErrorResponse(429));
-
-      await expect(
-        mod.callDOK4Model('test-model', 'sys', 'usr', 0.1)
-      ).rejects.toThrow('RATE_LIMIT');
-    });
-
-    it('returns content string from successful response', async () => {
-      mockFetch.mockResolvedValueOnce(makeOpenRouterResponse('{"valid": true}'));
-
-      const result = await mod.callDOK4Model('test-model', 'sys', 'usr', 0.1);
-      expect(result).toBe('{"valid": true}');
-    });
-
-    it('throws when response has no content', async () => {
-      // Use mockResolvedValue (not Once) so all retry attempts get the same response
-      mockFetch.mockResolvedValue({
-        ok: true,
-        status: 200,
-        json: () => Promise.resolve({ choices: [{ message: {} }] }),
-      });
-
-      await expect(
-        mod.callDOK4Model('test-model', 'sys', 'usr', 0.1)
-      ).rejects.toThrow('No response content');
-    });
+  it('throws when no JSON found', () => {
+    expect(() => extractJSON('no json here')).toThrow('Could not find JSON');
   });
 });
 
 
 // =============================================================================
-// FR2: POV Validation
+// POV Validation
 // =============================================================================
 
-describe('FR2: POV Validation', () => {
+describe('POV Validation', () => {
 
   it('accepts clear SPOV claim with null reason/category', async () => {
-    mockFetch.mockResolvedValueOnce(makeOpenRouterResponse(JSON.stringify({
+    mockCallModelWithFallback.mockResolvedValueOnce(makeCallResult(JSON.stringify({
       accept: true,
       rejection_reason: null,
       rejection_category: null,
     })));
 
-    const result = await mod.validatePOV(FIXTURE_SPOV_TEXT, FIXTURE_DOK3_TEXT, FIXTURE_BRAINLIFT_PURPOSE);
+    const result = await validatePOV(FIXTURE_SPOV_TEXT, FIXTURE_DOK3_TEXT, FIXTURE_BRAINLIFT_PURPOSE);
 
     expect(result.accept).toBe(true);
     expect(result.rejectionReason).toBeNull();
     expect(result.rejectionCategory).toBeNull();
   });
 
+  it('calls callModelWithFallback with mid-tier models and correct options', async () => {
+    mockCallModelWithFallback.mockResolvedValueOnce(makeCallResult(JSON.stringify({
+      accept: true,
+      rejection_reason: null,
+      rejection_category: null,
+    })));
+
+    await validatePOV(FIXTURE_SPOV_TEXT, FIXTURE_DOK3_TEXT, FIXTURE_BRAINLIFT_PURPOSE);
+
+    expect(mockCallModelWithFallback).toHaveBeenCalledOnce();
+    const opts = mockCallModelWithFallback.mock.calls[0][0];
+    expect(opts.models).toEqual(MID_TIER_MODELS);
+    expect(opts.temperature).toBe(0);
+    expect(opts.caller).toBe('dok4Grader.povValidation');
+    expect(opts.responseFormat.type).toBe('json_schema');
+    expect(opts.responseFormat.jsonSchema.name).toBe('pov_validation');
+    expect(opts.system).toBeTruthy();
+    expect(opts.messages).toHaveLength(1);
+    expect(opts.messages[0].role).toBe('user');
+  });
+
   it('rejects question without assertion as not_a_claim', async () => {
-    mockFetch.mockResolvedValueOnce(makeOpenRouterResponse(JSON.stringify({
+    mockCallModelWithFallback.mockResolvedValueOnce(makeCallResult(JSON.stringify({
       accept: false,
-      rejection_reason: 'Your text asks a question rather than committing to a position. What do you believe about standardized testing?',
+      rejection_reason: 'Your text asks a question rather than committing to a position.',
       rejection_category: 'not_a_claim',
     })));
 
-    const result = await mod.validatePOV(
+    const result = await validatePOV(
       'What if schools stopped using standardized tests?',
       FIXTURE_DOK3_TEXT,
       FIXTURE_BRAINLIFT_PURPOSE,
@@ -275,13 +197,13 @@ describe('FR2: POV Validation', () => {
   });
 
   it('rejects DOK3 restated as dok3_misclassification', async () => {
-    mockFetch.mockResolvedValueOnce(makeOpenRouterResponse(JSON.stringify({
+    mockCallModelWithFallback.mockResolvedValueOnce(makeCallResult(JSON.stringify({
       accept: false,
-      rejection_reason: 'This text describes a pattern you noticed rather than a position you are taking. To make it a Spiky POV, commit to what should change.',
+      rejection_reason: 'This text describes a pattern you noticed rather than a position you are taking.',
       rejection_category: 'dok3_misclassification',
     })));
 
-    const result = await mod.validatePOV(
+    const result = await validatePOV(
       'Educational metrics fail to capture compound skills.',
       FIXTURE_DOK3_TEXT,
       FIXTURE_BRAINLIFT_PURPOSE,
@@ -292,13 +214,13 @@ describe('FR2: POV Validation', () => {
   });
 
   it('rejects bare assertion as opinion_without_evidence', async () => {
-    mockFetch.mockResolvedValueOnce(makeOpenRouterResponse(JSON.stringify({
+    mockCallModelWithFallback.mockResolvedValueOnce(makeCallResult(JSON.stringify({
       accept: false,
-      rejection_reason: 'Your claim lacks any supporting reasoning or evidence. Try grounding it in specific findings from your sources.',
+      rejection_reason: 'Your claim lacks any supporting reasoning or evidence.',
       rejection_category: 'opinion_without_evidence',
     })));
 
-    const result = await mod.validatePOV(
+    const result = await validatePOV(
       'Testing is bad.',
       FIXTURE_DOK3_TEXT,
       FIXTURE_BRAINLIFT_PURPOSE,
@@ -310,54 +232,45 @@ describe('FR2: POV Validation', () => {
 
   it('includes custom feedback in rejection reason', async () => {
     const feedback = 'Your text describes how educational metrics undervalue compound skills. To make it a Spiky POV, commit to a position.';
-    mockFetch.mockResolvedValueOnce(makeOpenRouterResponse(JSON.stringify({
+    mockCallModelWithFallback.mockResolvedValueOnce(makeCallResult(JSON.stringify({
       accept: false,
       rejection_reason: feedback,
       rejection_category: 'dok3_misclassification',
     })));
 
-    const result = await mod.validatePOV('test', FIXTURE_DOK3_TEXT, FIXTURE_BRAINLIFT_PURPOSE);
+    const result = await validatePOV('test', FIXTURE_DOK3_TEXT, FIXTURE_BRAINLIFT_PURPOSE);
 
     expect(result.rejectionReason).toBe(feedback);
     expect(result.rejectionReason!.length).toBeGreaterThan(10);
   });
 
-  it('falls back to Sonnet when primary model fails', async () => {
-    // First call (Gemini) fails, second call (Sonnet) succeeds
-    mockFetch
-      .mockResolvedValueOnce(makeErrorResponse(500))
-      .mockResolvedValueOnce(makeErrorResponse(500))
-      .mockResolvedValueOnce(makeErrorResponse(500)) // 3 attempts for primary (1 + 2 retries)
-      .mockResolvedValueOnce(makeOpenRouterResponse(JSON.stringify({
-        accept: true,
-        rejection_reason: null,
-        rejection_category: null,
-      })));
-
-    const result = await mod.validatePOV(FIXTURE_SPOV_TEXT, FIXTURE_DOK3_TEXT, FIXTURE_BRAINLIFT_PURPOSE);
-    expect(result.accept).toBe(true);
-    // Should have called fetch 4 times (3 primary retries + 1 fallback)
-    expect(mockFetch).toHaveBeenCalledTimes(4);
-  });
-
   it('validates Zod schema rejects invalid LLM output', async () => {
-    // Missing required fields
-    mockFetch.mockResolvedValueOnce(makeOpenRouterResponse(JSON.stringify({
+    mockCallModelWithFallback.mockResolvedValueOnce(makeCallResult(JSON.stringify({
       accept: 'yes', // should be boolean
     })));
 
     await expect(
-      mod.validatePOV(FIXTURE_SPOV_TEXT, FIXTURE_DOK3_TEXT, FIXTURE_BRAINLIFT_PURPOSE)
+      validatePOV(FIXTURE_SPOV_TEXT, FIXTURE_DOK3_TEXT, FIXTURE_BRAINLIFT_PURPOSE)
     ).rejects.toThrow(); // ZodError
+  });
+
+  it('propagates AllModelsFailed when unified client rejects both models', async () => {
+    mockCallModelWithFallback.mockRejectedValueOnce(
+      new AllModelsFailed(MID_TIER_MODELS, [new Error('Gemini failed'), new Error('Sonnet failed')])
+    );
+
+    await expect(
+      validatePOV(FIXTURE_SPOV_TEXT, FIXTURE_DOK3_TEXT, FIXTURE_BRAINLIFT_PURPOSE)
+    ).rejects.toThrow(AllModelsFailed);
   });
 });
 
 
 // =============================================================================
-// FR3: Source Traceability Check
+// Source Traceability Check
 // =============================================================================
 
-describe('FR3: Source Traceability Check', () => {
+describe('Source Traceability Check', () => {
 
   const sources = [
     {
@@ -373,40 +286,61 @@ describe('FR3: Source Traceability Check', () => {
   ];
 
   it('returns unflagged for original position', async () => {
-    // Both sources return not flagged
-    mockFetch
-      .mockResolvedValueOnce(makeOpenRouterResponse(JSON.stringify({
+    mockCallModelWithFallback
+      .mockResolvedValueOnce(makeCallResult(JSON.stringify({
         flagged: false,
         reasoning: 'This source does not state the SPOV.',
         overlap_summary: null,
       })))
-      .mockResolvedValueOnce(makeOpenRouterResponse(JSON.stringify({
+      .mockResolvedValueOnce(makeCallResult(JSON.stringify({
         flagged: false,
         reasoning: 'This source does not imply the SPOV.',
         overlap_summary: null,
       })));
 
-    const result = await mod.checkDOK4SourceTraceability(FIXTURE_SPOV_TEXT, sources);
+    const result = await checkDOK4SourceTraceability(FIXTURE_SPOV_TEXT, sources);
 
     expect(result.flagged).toBe(false);
     expect(result.flaggedSource).toBeNull();
     expect(result.overlapSummary).toBeNull();
   });
 
+  it('calls callModelWithFallback per source with mid-tier models', async () => {
+    mockCallModelWithFallback
+      .mockResolvedValueOnce(makeCallResult(JSON.stringify({
+        flagged: false, reasoning: 'Clear.', overlap_summary: null,
+      })))
+      .mockResolvedValueOnce(makeCallResult(JSON.stringify({
+        flagged: false, reasoning: 'Clear.', overlap_summary: null,
+      })));
+
+    await checkDOK4SourceTraceability(FIXTURE_SPOV_TEXT, sources);
+
+    expect(mockCallModelWithFallback).toHaveBeenCalledTimes(2);
+    for (const call of mockCallModelWithFallback.mock.calls) {
+      const opts = call[0];
+      expect(opts.models).toEqual(MID_TIER_MODELS);
+      expect(opts.temperature).toBe(0.1);
+      expect(opts.caller).toBe('dok4Grader.traceability');
+      expect(opts.responseFormat.type).toBe('json_schema');
+      expect(opts.responseFormat.jsonSchema.name).toBe('traceability_check');
+    }
+  });
+
   it('returns flagged with source when position restates single source', async () => {
-    mockFetch
-      .mockResolvedValueOnce(makeOpenRouterResponse(JSON.stringify({
+    mockCallModelWithFallback
+      .mockResolvedValueOnce(makeCallResult(JSON.stringify({
         flagged: true,
         reasoning: 'Smith directly states this position.',
         overlap_summary: 'The SPOV directly restates Smith\'s conclusion about testing reform.',
       })))
-      .mockResolvedValueOnce(makeOpenRouterResponse(JSON.stringify({
+      .mockResolvedValueOnce(makeCallResult(JSON.stringify({
         flagged: false,
         reasoning: 'Jones does not state this position.',
         overlap_summary: null,
       })));
 
-    const result = await mod.checkDOK4SourceTraceability(FIXTURE_SPOV_TEXT, sources);
+    const result = await checkDOK4SourceTraceability(FIXTURE_SPOV_TEXT, sources);
 
     expect(result.flagged).toBe(true);
     expect(result.flaggedSource).toBe('Smith 2024');
@@ -414,75 +348,61 @@ describe('FR3: Source Traceability Check', () => {
   });
 
   it('returns unflagged for empty sources array with no LLM calls', async () => {
-    const result = await mod.checkDOK4SourceTraceability(FIXTURE_SPOV_TEXT, []);
+    const result = await checkDOK4SourceTraceability(FIXTURE_SPOV_TEXT, []);
 
     expect(result.flagged).toBe(false);
     expect(result.flaggedSource).toBeNull();
     expect(result.overlapSummary).toBeNull();
-    expect(mockFetch).not.toHaveBeenCalled();
+    expect(mockCallModelWithFallback).not.toHaveBeenCalled();
   });
 
   it('returns first flagged source when multiple flagged', async () => {
-    mockFetch
-      .mockResolvedValueOnce(makeOpenRouterResponse(JSON.stringify({
+    mockCallModelWithFallback
+      .mockResolvedValueOnce(makeCallResult(JSON.stringify({
         flagged: true,
         reasoning: 'Smith states this.',
         overlap_summary: 'Smith overlap.',
       })))
-      .mockResolvedValueOnce(makeOpenRouterResponse(JSON.stringify({
+      .mockResolvedValueOnce(makeCallResult(JSON.stringify({
         flagged: true,
         reasoning: 'Jones also states this.',
         overlap_summary: 'Jones overlap.',
       })));
 
-    const result = await mod.checkDOK4SourceTraceability(FIXTURE_SPOV_TEXT, sources);
+    const result = await checkDOK4SourceTraceability(FIXTURE_SPOV_TEXT, sources);
 
     expect(result.flagged).toBe(true);
-    // Should return the first flagged source found
     expect(result.flaggedSource).toBeTruthy();
   });
 
-  it('falls back to Sonnet per-source when primary fails', async () => {
-    // First source: Gemini fails (3 attempts), Sonnet succeeds
-    mockFetch
-      .mockResolvedValueOnce(makeErrorResponse(500))
-      .mockResolvedValueOnce(makeErrorResponse(500))
-      .mockResolvedValueOnce(makeErrorResponse(500))
-      .mockResolvedValueOnce(makeOpenRouterResponse(JSON.stringify({
-        flagged: false,
-        reasoning: 'Not flagged.',
-        overlap_summary: null,
-      })))
-      // Second source: Gemini succeeds
-      .mockResolvedValueOnce(makeOpenRouterResponse(JSON.stringify({
-        flagged: false,
-        reasoning: 'Not flagged.',
-        overlap_summary: null,
-      })));
+  it('propagates AllModelsFailed for individual source check', async () => {
+    mockCallModelWithFallback.mockRejectedValue(
+      new AllModelsFailed(MID_TIER_MODELS, [new Error('fail')])
+    );
 
-    const result = await mod.checkDOK4SourceTraceability(FIXTURE_SPOV_TEXT, sources);
-    expect(result.flagged).toBe(false);
+    await expect(
+      checkDOK4SourceTraceability(FIXTURE_SPOV_TEXT, sources)
+    ).rejects.toThrow(AllModelsFailed);
   });
 });
 
 
 // =============================================================================
-// FR4: LLM Divergence Check
+// LLM Divergence Check
 // =============================================================================
 
-describe('FR4: LLM Divergence Check', () => {
+describe('LLM Divergence Check', () => {
 
   it('returns valid question and vanilla response', async () => {
-    // Call 1: question extraction
-    mockFetch.mockResolvedValueOnce(makeOpenRouterResponse(JSON.stringify({
-      question: 'What is the best approach to measuring educational outcomes?',
-    })));
-    // Call 2: vanilla response
-    mockFetch.mockResolvedValueOnce(makeOpenRouterResponse(JSON.stringify({
-      response: 'The best approach combines standardized testing with formative assessments to capture both knowledge retention and growth.',
-    })));
+    mockCallModelWithFallback
+      .mockResolvedValueOnce(makeCallResult(JSON.stringify({
+        question: 'What is the best approach to measuring educational outcomes?',
+      })))
+      .mockResolvedValueOnce(makeCallResult(JSON.stringify({
+        response: 'The best approach combines standardized testing with formative assessments.',
+      })));
 
-    const result = await mod.checkLLMDivergence(FIXTURE_SPOV_TEXT);
+    const result = await checkLLMDivergence(FIXTURE_SPOV_TEXT);
 
     expect(result.question).toBeTruthy();
     expect(typeof result.question).toBe('string');
@@ -490,90 +410,80 @@ describe('FR4: LLM Divergence Check', () => {
     expect(typeof result.vanillaResponse).toBe('string');
   });
 
-  it('makes two sequential calls with correct temperatures', async () => {
-    mockFetch
-      .mockResolvedValueOnce(makeOpenRouterResponse(JSON.stringify({
+  it('makes two sequential calls with correct temperatures and caller strings', async () => {
+    mockCallModelWithFallback
+      .mockResolvedValueOnce(makeCallResult(JSON.stringify({
         question: 'How should educational outcomes be measured?',
       })))
-      .mockResolvedValueOnce(makeOpenRouterResponse(JSON.stringify({
+      .mockResolvedValueOnce(makeCallResult(JSON.stringify({
         response: 'A balanced approach using multiple assessment types.',
       })));
 
-    await mod.checkLLMDivergence(FIXTURE_SPOV_TEXT);
+    await checkLLMDivergence(FIXTURE_SPOV_TEXT);
 
-    expect(mockFetch).toHaveBeenCalledTimes(2);
+    expect(mockCallModelWithFallback).toHaveBeenCalledTimes(2);
 
-    // Verify first call has temperature 0.1
-    const call1Body = JSON.parse(mockFetch.mock.calls[0][1].body);
-    expect(call1Body.temperature).toBe(0.1);
+    // First call: question extraction, temperature 0.1
+    const opts1 = mockCallModelWithFallback.mock.calls[0][0];
+    expect(opts1.models).toEqual(MID_TIER_MODELS);
+    expect(opts1.temperature).toBe(0.1);
+    expect(opts1.caller).toBe('dok4Grader.divergenceQuestion');
+    expect(opts1.responseFormat.jsonSchema.name).toBe('divergence_question');
 
-    // Verify second call has temperature 0.3
-    const call2Body = JSON.parse(mockFetch.mock.calls[1][1].body);
-    expect(call2Body.temperature).toBe(0.3);
+    // Second call: vanilla response, temperature 0.3
+    const opts2 = mockCallModelWithFallback.mock.calls[1][0];
+    expect(opts2.models).toEqual(MID_TIER_MODELS);
+    expect(opts2.temperature).toBe(0.3);
+    expect(opts2.caller).toBe('dok4Grader.divergenceVanilla');
+    expect(opts2.responseFormat.jsonSchema.name).toBe('divergence_vanilla');
   });
 
   it('handles very short SPOV text', async () => {
-    mockFetch
-      .mockResolvedValueOnce(makeOpenRouterResponse(JSON.stringify({
+    mockCallModelWithFallback
+      .mockResolvedValueOnce(makeCallResult(JSON.stringify({
         question: 'Is testing bad?',
       })))
-      .mockResolvedValueOnce(makeOpenRouterResponse(JSON.stringify({
+      .mockResolvedValueOnce(makeCallResult(JSON.stringify({
         response: 'Testing serves important evaluation purposes.',
       })));
 
-    const result = await mod.checkLLMDivergence('Testing is bad.');
+    const result = await checkLLMDivergence('Testing is bad.');
 
     expect(result.question).toBeTruthy();
     expect(result.vanillaResponse).toBeTruthy();
   });
 
-  it('falls back to Sonnet on first call failure', async () => {
-    // Primary fails for question extraction (3 attempts)
-    mockFetch
-      .mockResolvedValueOnce(makeErrorResponse(500))
-      .mockResolvedValueOnce(makeErrorResponse(500))
-      .mockResolvedValueOnce(makeErrorResponse(500))
-      // Fallback succeeds for question
-      .mockResolvedValueOnce(makeOpenRouterResponse(JSON.stringify({
-        question: 'How should outcomes be measured?',
-      })))
-      // Primary succeeds for vanilla response
-      .mockResolvedValueOnce(makeOpenRouterResponse(JSON.stringify({
-        response: 'Through balanced assessment.',
-      })));
+  it('propagates AllModelsFailed on question extraction failure', async () => {
+    mockCallModelWithFallback.mockRejectedValueOnce(
+      new AllModelsFailed(MID_TIER_MODELS, [new Error('fail')])
+    );
 
-    const result = await mod.checkLLMDivergence(FIXTURE_SPOV_TEXT);
-    expect(result.question).toBeTruthy();
-    expect(result.vanillaResponse).toBeTruthy();
+    await expect(
+      checkLLMDivergence(FIXTURE_SPOV_TEXT)
+    ).rejects.toThrow(AllModelsFailed);
   });
 
-  it('falls back to Sonnet on second call failure', async () => {
-    // Primary succeeds for question extraction
-    mockFetch
-      .mockResolvedValueOnce(makeOpenRouterResponse(JSON.stringify({
+  it('propagates AllModelsFailed on vanilla response failure', async () => {
+    mockCallModelWithFallback
+      .mockResolvedValueOnce(makeCallResult(JSON.stringify({
         question: 'How should outcomes be measured?',
       })))
-      // Primary fails for vanilla response (3 attempts)
-      .mockResolvedValueOnce(makeErrorResponse(500))
-      .mockResolvedValueOnce(makeErrorResponse(500))
-      .mockResolvedValueOnce(makeErrorResponse(500))
-      // Fallback succeeds for vanilla response
-      .mockResolvedValueOnce(makeOpenRouterResponse(JSON.stringify({
-        response: 'Through balanced assessment.',
-      })));
+      .mockRejectedValueOnce(
+        new AllModelsFailed(MID_TIER_MODELS, [new Error('fail')])
+      );
 
-    const result = await mod.checkLLMDivergence(FIXTURE_SPOV_TEXT);
-    expect(result.question).toBeTruthy();
-    expect(result.vanillaResponse).toBeTruthy();
+    await expect(
+      checkLLMDivergence(FIXTURE_SPOV_TEXT)
+    ).rejects.toThrow(AllModelsFailed);
   });
 });
 
 
 // =============================================================================
-// FR5: Quality Evaluation
+// Quality Evaluation
 // =============================================================================
 
-describe('FR5: Quality Evaluation', () => {
+describe('Quality Evaluation', () => {
 
   const qualityResponse = {
     position_summary: 'The student argues that standardized testing should be replaced with longitudinal skill-stack assessments.',
@@ -590,14 +500,30 @@ describe('FR5: Quality Evaluation', () => {
       O2: { assessment: 'strong', evidence: 'Voice distinct from sources, uses original framing.' },
     },
     score: 4,
-    rationale: 'The student presents an original, well-grounded position that diverges from consensus. Foundation Index of 3.65 supports confidence in the evidence chain. Source traceability is clear with no flags.',
-    feedback: 'Strengthen the ownership dimension by explaining the causal mechanism behind compound skill emergence more precisely.',
+    rationale: 'The student presents an original, well-grounded position that diverges from consensus.',
+    feedback: 'Strengthen the ownership dimension by explaining the causal mechanism more precisely.',
   };
 
-  it('returns all 7 criteria with strong/partial/weak assessments', async () => {
-    mockFetch.mockResolvedValueOnce(makeOpenRouterResponse(JSON.stringify(qualityResponse)));
+  it('calls callModelWithFallback with quality-tier models', async () => {
+    mockCallModelWithFallback.mockResolvedValueOnce(
+      makeCallResult(JSON.stringify(qualityResponse), 'anthropic/claude-opus-4.6')
+    );
 
-    const result = await mod.evaluateDOK4Quality(FIXTURE_EVALUATION_CONTEXT);
+    await evaluateDOK4Quality(FIXTURE_EVALUATION_CONTEXT);
+
+    expect(mockCallModelWithFallback).toHaveBeenCalledOnce();
+    const opts = mockCallModelWithFallback.mock.calls[0][0];
+    expect(opts.models).toEqual(QUALITY_TIER_MODELS);
+    expect(opts.temperature).toBe(0.1);
+    expect(opts.caller).toBe('dok4Grader.qualityEvaluation');
+    expect(opts.responseFormat.type).toBe('json_schema');
+    expect(opts.responseFormat.jsonSchema.name).toBe('quality_evaluation');
+  });
+
+  it('returns all 7 criteria with strong/partial/weak assessments', async () => {
+    mockCallModelWithFallback.mockResolvedValueOnce(makeCallResult(JSON.stringify(qualityResponse)));
+
+    const result = await evaluateDOK4Quality(FIXTURE_EVALUATION_CONTEXT);
 
     const criteriaKeys = ['S1', 'S2', 'S3', 'S4', 'S5', 'O1', 'O2'];
     for (const key of criteriaKeys) {
@@ -608,18 +534,18 @@ describe('FR5: Quality Evaluation', () => {
   });
 
   it('returns score in 1-5 range', async () => {
-    mockFetch.mockResolvedValueOnce(makeOpenRouterResponse(JSON.stringify(qualityResponse)));
+    mockCallModelWithFallback.mockResolvedValueOnce(makeCallResult(JSON.stringify(qualityResponse)));
 
-    const result = await mod.evaluateDOK4Quality(FIXTURE_EVALUATION_CONTEXT);
+    const result = await evaluateDOK4Quality(FIXTURE_EVALUATION_CONTEXT);
 
     expect(result.score).toBeGreaterThanOrEqual(1);
     expect(result.score).toBeLessThanOrEqual(5);
   });
 
   it('returns positionSummary, frameworkDependency, keyEvidence, vulnerabilityPoints', async () => {
-    mockFetch.mockResolvedValueOnce(makeOpenRouterResponse(JSON.stringify(qualityResponse)));
+    mockCallModelWithFallback.mockResolvedValueOnce(makeCallResult(JSON.stringify(qualityResponse)));
 
-    const result = await mod.evaluateDOK4Quality(FIXTURE_EVALUATION_CONTEXT);
+    const result = await evaluateDOK4Quality(FIXTURE_EVALUATION_CONTEXT);
 
     expect(result.positionSummary).toBeTruthy();
     expect(result.frameworkDependency).toBeTruthy();
@@ -629,9 +555,9 @@ describe('FR5: Quality Evaluation', () => {
   });
 
   it('returns rationale and feedback strings', async () => {
-    mockFetch.mockResolvedValueOnce(makeOpenRouterResponse(JSON.stringify(qualityResponse)));
+    mockCallModelWithFallback.mockResolvedValueOnce(makeCallResult(JSON.stringify(qualityResponse)));
 
-    const result = await mod.evaluateDOK4Quality(FIXTURE_EVALUATION_CONTEXT);
+    const result = await evaluateDOK4Quality(FIXTURE_EVALUATION_CONTEXT);
 
     expect(typeof result.rationale).toBe('string');
     expect(result.rationale.length).toBeGreaterThan(10);
@@ -640,35 +566,33 @@ describe('FR5: Quality Evaluation', () => {
   });
 
   it('validates Zod schema rejects invalid structure', async () => {
-    mockFetch.mockResolvedValueOnce(makeOpenRouterResponse(JSON.stringify({
+    mockCallModelWithFallback.mockResolvedValueOnce(makeCallResult(JSON.stringify({
       score: 'four', // should be number
       criteria: {},
     })));
 
     await expect(
-      mod.evaluateDOK4Quality(FIXTURE_EVALUATION_CONTEXT)
+      evaluateDOK4Quality(FIXTURE_EVALUATION_CONTEXT)
     ).rejects.toThrow();
   });
 
-  it('falls back to Sonnet when Opus fails', async () => {
-    // Opus fails (3 attempts = 1 initial + 2 retries), then Sonnet succeeds
-    mockFetch
-      .mockResolvedValueOnce(makeErrorResponse(500))
-      .mockResolvedValueOnce(makeErrorResponse(500))
-      .mockResolvedValueOnce(makeErrorResponse(500))
-      .mockResolvedValueOnce(makeOpenRouterResponse(JSON.stringify(qualityResponse)));
+  it('propagates AllModelsFailed when both models fail', async () => {
+    mockCallModelWithFallback.mockRejectedValueOnce(
+      new AllModelsFailed(QUALITY_TIER_MODELS, [new Error('Opus failed'), new Error('Sonnet failed')])
+    );
 
-    const result = await mod.evaluateDOK4Quality(FIXTURE_EVALUATION_CONTEXT);
-    expect(result.score).toBe(4);
+    await expect(
+      evaluateDOK4Quality(FIXTURE_EVALUATION_CONTEXT)
+    ).rejects.toThrow(AllModelsFailed);
   });
 });
 
 
 // =============================================================================
-// FR6: Antimemetic Assessment
+// Antimemetic Assessment
 // =============================================================================
 
-describe('FR6: Antimemetic Assessment', () => {
+describe('Antimemetic Assessment', () => {
 
   const antimemeticResponse = {
     barrier_type: 'immunity',
@@ -676,10 +600,26 @@ describe('FR6: Antimemetic Assessment', () => {
     strategy: 'Lead with the shared goal of better student outcomes before introducing the critique of current testing. Use specific student success stories that illustrate what longitudinal assessment reveals.',
   };
 
-  it('returns valid barrier_type', async () => {
-    mockFetch.mockResolvedValueOnce(makeOpenRouterResponse(JSON.stringify(antimemeticResponse)));
+  it('calls callModelWithFallback with quality-tier models', async () => {
+    mockCallModelWithFallback.mockResolvedValueOnce(
+      makeCallResult(JSON.stringify(antimemeticResponse), 'anthropic/claude-opus-4.6')
+    );
 
-    const result = await mod.assessAntimemetic(
+    await assessAntimemetic(FIXTURE_SPOV_TEXT, FIXTURE_BRAINLIFT_PURPOSE, 4, 'Strong educational stance');
+
+    expect(mockCallModelWithFallback).toHaveBeenCalledOnce();
+    const opts = mockCallModelWithFallback.mock.calls[0][0];
+    expect(opts.models).toEqual(QUALITY_TIER_MODELS);
+    expect(opts.temperature).toBe(0.3);
+    expect(opts.caller).toBe('dok4Grader.antimemetic');
+    expect(opts.responseFormat.type).toBe('json_schema');
+    expect(opts.responseFormat.jsonSchema.name).toBe('antimemetic_assessment');
+  });
+
+  it('returns valid barrier_type', async () => {
+    mockCallModelWithFallback.mockResolvedValueOnce(makeCallResult(JSON.stringify(antimemeticResponse)));
+
+    const result = await assessAntimemetic(
       FIXTURE_SPOV_TEXT, FIXTURE_BRAINLIFT_PURPOSE, 4, 'Strong educational stance',
     );
 
@@ -687,9 +627,9 @@ describe('FR6: Antimemetic Assessment', () => {
   });
 
   it('returns non-empty barrier_diagnosis', async () => {
-    mockFetch.mockResolvedValueOnce(makeOpenRouterResponse(JSON.stringify(antimemeticResponse)));
+    mockCallModelWithFallback.mockResolvedValueOnce(makeCallResult(JSON.stringify(antimemeticResponse)));
 
-    const result = await mod.assessAntimemetic(
+    const result = await assessAntimemetic(
       FIXTURE_SPOV_TEXT, FIXTURE_BRAINLIFT_PURPOSE, 4, 'Strong educational stance',
     );
 
@@ -698,9 +638,9 @@ describe('FR6: Antimemetic Assessment', () => {
   });
 
   it('returns actionable strategy', async () => {
-    mockFetch.mockResolvedValueOnce(makeOpenRouterResponse(JSON.stringify(antimemeticResponse)));
+    mockCallModelWithFallback.mockResolvedValueOnce(makeCallResult(JSON.stringify(antimemeticResponse)));
 
-    const result = await mod.assessAntimemetic(
+    const result = await assessAntimemetic(
       FIXTURE_SPOV_TEXT, FIXTURE_BRAINLIFT_PURPOSE, 4, 'Strong educational stance',
     );
 
@@ -709,29 +649,24 @@ describe('FR6: Antimemetic Assessment', () => {
   });
 
   it('validates Zod schema rejects invalid output', async () => {
-    mockFetch.mockResolvedValueOnce(makeOpenRouterResponse(JSON.stringify({
+    mockCallModelWithFallback.mockResolvedValueOnce(makeCallResult(JSON.stringify({
       barrier_type: 'invalid_type', // not in enum
       barrier_diagnosis: 'test',
       strategy: 'test',
     })));
 
     await expect(
-      mod.assessAntimemetic(FIXTURE_SPOV_TEXT, FIXTURE_BRAINLIFT_PURPOSE, 4, 'test')
+      assessAntimemetic(FIXTURE_SPOV_TEXT, FIXTURE_BRAINLIFT_PURPOSE, 4, 'test')
     ).rejects.toThrow();
   });
 
-  it('falls back to Sonnet when Opus fails', async () => {
-    // Opus fails (3 attempts = 1 initial + 2 retries), then Sonnet succeeds
-    mockFetch
-      .mockResolvedValueOnce(makeErrorResponse(500))
-      .mockResolvedValueOnce(makeErrorResponse(500))
-      .mockResolvedValueOnce(makeErrorResponse(500))
-      .mockResolvedValueOnce(makeOpenRouterResponse(JSON.stringify(antimemeticResponse)));
-
-    const result = await mod.assessAntimemetic(
-      FIXTURE_SPOV_TEXT, FIXTURE_BRAINLIFT_PURPOSE, 4, 'test',
+  it('propagates AllModelsFailed when both models fail', async () => {
+    mockCallModelWithFallback.mockRejectedValueOnce(
+      new AllModelsFailed(QUALITY_TIER_MODELS, [new Error('Opus failed'), new Error('Sonnet failed')])
     );
 
-    expect(result.barrier_type).toBe('immunity');
+    await expect(
+      assessAntimemetic(FIXTURE_SPOV_TEXT, FIXTURE_BRAINLIFT_PURPOSE, 4, 'test')
+    ).rejects.toThrow(AllModelsFailed);
   });
 });
