@@ -189,6 +189,22 @@ export function buildDiscussionTools(
         }
 
         if (content.contentType === 'embed') {
+          // YouTube embeds with transcript: return transcript text
+          if (content.embedType === 'youtube' && content.transcript) {
+            let markdown = content.transcript;
+            const words = markdown.split(/\s+/);
+            if (words.length > 3000) {
+              markdown =
+                words.slice(0, 3000).join(' ') +
+                '\n\n[Content truncated — approximately 3000 words shown]';
+            }
+            return {
+              contentType: 'transcript',
+              title: freshItem.topic,
+              markdown,
+            };
+          }
+
           return {
             contentType: 'embed',
             embedType: content.embedType,

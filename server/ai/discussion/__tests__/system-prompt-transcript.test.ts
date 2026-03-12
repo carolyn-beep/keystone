@@ -27,6 +27,7 @@ function makeItem(overrides: Partial<LearningStreamItem> = {}): LearningStreamIt
     aiRationale: 'Relevant to testing',
     extractedContent: null,
     createdAt: new Date(),
+    ...overrides,
   } as LearningStreamItem;
 }
 
