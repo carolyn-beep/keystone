@@ -30,10 +30,8 @@ export function getItemTextContent(item: LearningStreamItem): string | null {
   }
 
   if (content.contentType === 'embed' && content.embedType === 'youtube') {
-    // transcript field is added by spec 01 (youtube-transcripts)
-    // Until then, YouTube items without transcript return null
-    const transcript = (content as any).transcript;
-    return typeof transcript === 'string' ? transcript : null;
+    // transcript field is optional — available when YouTube transcript extraction succeeds
+    return content.transcript ?? null;
   }
 
   // PDF, Spotify, Apple Podcast, Tweet, Fallback — no text available
