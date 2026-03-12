@@ -284,7 +284,7 @@ Assign differentiated scores (1-10) based on the citation counts or relevance in
       }
 
       // Try to extract names from the malformed JSON response
-      const expertMatches = content.matchAll(/"name":\s*"([^"]+)"/g);
+      const expertMatches = Array.from(content.matchAll(/"name":\s*"([^"]+)"/g));
       const manualExperts: InsertExpert[] = [];
       const seenNames = new Set<string>();
 
