@@ -15,8 +15,8 @@ export interface ModelDef {
   provider: ProviderName;
   tier: ModelTier;
   displayName: string;
-  defaultTimeout: number;
-  defaultMaxRetries: number;
+  defaultTimeout?: number;
+  defaultMaxRetries?: number;
   costPer1kInput?: number;
   costPer1kOutput?: number;
 }

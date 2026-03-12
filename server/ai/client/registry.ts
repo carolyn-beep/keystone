@@ -2,7 +2,8 @@
  * Unified AI Client — Model Registry
  *
  * Central registry of all AI models used in the codebase.
- * Each model includes provider, tier, display name, and defaults.
+ * Each model includes provider, tier, and display name.
+ * Timeout and retries are opt-in per call site, not forced by the registry.
  */
 
 import type { ModelDef } from './types';
@@ -14,8 +15,6 @@ export const MODEL_REGISTRY: Record<string, ModelDef> = {
     provider: 'openrouter',
     tier: 'premium',
     displayName: 'Claude Opus 4.6',
-    defaultTimeout: 90_000,
-    defaultMaxRetries: 2,
   },
 
   // Standard tier
@@ -24,16 +23,12 @@ export const MODEL_REGISTRY: Record<string, ModelDef> = {
     provider: 'openrouter',
     tier: 'standard',
     displayName: 'Claude Sonnet 4.5',
-    defaultTimeout: 60_000,
-    defaultMaxRetries: 2,
   },
   'anthropic/claude-sonnet-4': {
     id: 'anthropic/claude-sonnet-4',
     provider: 'openrouter',
     tier: 'standard',
     displayName: 'Claude Sonnet 4',
-    defaultTimeout: 60_000,
-    defaultMaxRetries: 2,
   },
 
   // Fast tier
@@ -42,16 +37,12 @@ export const MODEL_REGISTRY: Record<string, ModelDef> = {
     provider: 'openrouter',
     tier: 'fast',
     displayName: 'Claude Haiku 4.5',
-    defaultTimeout: 30_000,
-    defaultMaxRetries: 2,
   },
   'google/gemini-2.0-flash-001': {
     id: 'google/gemini-2.0-flash-001',
     provider: 'openrouter',
     tier: 'fast',
     displayName: 'Gemini 2.0 Flash',
-    defaultTimeout: 30_000,
-    defaultMaxRetries: 2,
   },
 
   // Budget tier
@@ -60,16 +51,12 @@ export const MODEL_REGISTRY: Record<string, ModelDef> = {
     provider: 'openrouter',
     tier: 'budget',
     displayName: 'Qwen3 32B',
-    defaultTimeout: 30_000,
-    defaultMaxRetries: 2,
   },
   'meta-llama/llama-3.1-8b-instruct': {
     id: 'meta-llama/llama-3.1-8b-instruct',
     provider: 'openrouter',
     tier: 'budget',
     displayName: 'Llama 3.1 8B',
-    defaultTimeout: 30_000,
-    defaultMaxRetries: 2,
   },
 };
 

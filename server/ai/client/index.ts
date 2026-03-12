@@ -93,8 +93,8 @@ function sleep(ms: number, signal?: AbortSignal): Promise<void> {
  */
 export async function callModel(options: CallModelOptions): Promise<CallModelResult> {
   const modelDef = getModelOrThrow(options.model);
-  const timeout = options.timeout ?? modelDef.defaultTimeout ?? 60_000;
-  const maxRetries = options.retries ?? modelDef.defaultMaxRetries ?? 2;
+  const timeout = options.timeout ?? modelDef.defaultTimeout;
+  const maxRetries = options.retries ?? modelDef.defaultMaxRetries ?? 0;
   const caller = options.caller ?? 'unknown';
 
   const startTime = performance.now();
@@ -105,15 +105,15 @@ export async function callModel(options: CallModelOptions): Promise<CallModelRes
   for (let attempt = 0; attempt <= maxRetries; attempt++) {
     attempts = attempt + 1;
 
-    // Create per-attempt AbortController with timeout
+    // Create per-attempt AbortController with optional timeout
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), timeout);
+    const timeoutId = timeout ? setTimeout(() => controller.abort(), timeout) : null;
 
     // Link external signal if provided
     let onExternalAbort: (() => void) | null = null;
     if (options.signal) {
       if (options.signal.aborted) {
-        clearTimeout(timeoutId);
+        if (timeoutId) clearTimeout(timeoutId);
         throw new DOMException('The operation was aborted.', 'AbortError');
       }
       onExternalAbort = () => controller.abort();
@@ -132,7 +132,7 @@ export async function callModel(options: CallModelOptions): Promise<CallModelRes
         signal: controller.signal,
       });
 
-      clearTimeout(timeoutId);
+      if (timeoutId) clearTimeout(timeoutId);
       if (onExternalAbort && options.signal) {
         options.signal.removeEventListener('abort', onExternalAbort);
       }
@@ -140,7 +140,7 @@ export async function callModel(options: CallModelOptions): Promise<CallModelRes
       // Success — break out of retry loop
       break;
     } catch (error: any) {
-      clearTimeout(timeoutId);
+      if (timeoutId) clearTimeout(timeoutId);
       if (onExternalAbort && options.signal) {
         options.signal.removeEventListener('abort', onExternalAbort);
       }
@@ -152,7 +152,7 @@ export async function callModel(options: CallModelOptions): Promise<CallModelRes
           throw error;
         }
         // It was a timeout
-        lastError = new TimeoutError(options.model, timeout);
+        lastError = new TimeoutError(options.model, timeout ?? 0);
         if (attempt < maxRetries) {
           await sleep(100 * Math.pow(2, attempt), options.signal);
           continue;

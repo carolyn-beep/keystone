@@ -44,10 +44,9 @@ describe('MODEL_REGISTRY', () => {
     expect(model.provider).toBe('openrouter');
     expect(['premium', 'standard', 'fast', 'budget']).toContain(model.tier);
     expect(model.displayName).toBeTruthy();
-    expect(typeof model.defaultTimeout).toBe('number');
-    expect(model.defaultTimeout).toBeGreaterThan(0);
-    expect(typeof model.defaultMaxRetries).toBe('number');
-    expect(model.defaultMaxRetries).toBeGreaterThanOrEqual(0);
+    // timeout and retries are opt-in, not forced by registry
+    expect(model.defaultTimeout).toBeUndefined();
+    expect(model.defaultMaxRetries).toBeUndefined();
   });
 
   it('assigns correct tiers', () => {
