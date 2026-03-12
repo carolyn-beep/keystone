@@ -52,12 +52,10 @@ let originalFetch: typeof globalThis.fetch;
 
 beforeEach(() => {
   originalFetch = globalThis.fetch;
-  vi.useFakeTimers({ shouldAdvanceTime: true });
 });
 
 afterEach(() => {
   globalThis.fetch = originalFetch;
-  vi.useRealTimers();
 });
 
 // ═══════════════════════════════════════════════════════════════════════════

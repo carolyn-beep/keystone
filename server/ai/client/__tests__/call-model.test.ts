@@ -5,22 +5,16 @@
  * retry with exponential backoff, external abort, CallRecord emission,
  * and the setCallRecorder API.
  *
- * Mocks: provider (OpenRouterProvider), fetch, timers for timeout/backoff.
+ * Mocks: globalThis.fetch for OpenRouter API responses.
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import type { CallModelOptions, CallRecord, ProviderResponse } from '../types';
-
-// We test callModel/setCallRecorder by importing from index.
-// The provider is injected via a mock approach.
+import type { CallModelOptions, CallRecord } from '../types';
 
 // ═══════════════════════════════════════════════════════════════════════════
 // Test Helpers
 // ═══════════════════════════════════════════════════════════════════════════
 
-/**
- * Creates a mock fetch that returns a successful OpenRouter response.
- */
 function mockFetchSuccess(content = 'response', usage?: Partial<{ prompt_tokens: number; completion_tokens: number; total_tokens: number; cost: number }>) {
   return vi.fn().mockResolvedValue({
     ok: true,
@@ -38,9 +32,6 @@ function mockFetchSuccess(content = 'response', usage?: Partial<{ prompt_tokens:
   });
 }
 
-/**
- * Creates a mock fetch that returns an error response.
- */
 function mockFetchError(status: number, body = `Error ${status}`) {
   return vi.fn().mockResolvedValue({
     ok: false,
@@ -49,9 +40,6 @@ function mockFetchError(status: number, body = `Error ${status}`) {
   });
 }
 
-/**
- * Creates a mock fetch that fails N times then succeeds.
- */
 function mockFetchFailThenSucceed(failCount: number, failStatus: number, successContent = 'recovered') {
   let callCount = 0;
   return vi.fn().mockImplementation(async () => {
@@ -76,37 +64,26 @@ function mockFetchFailThenSucceed(failCount: number, failStatus: number, success
 }
 
 /**
- * Creates a mock fetch that throws a network error.
+ * Creates a mock fetch that hangs until signal is aborted.
+ * Uses a .catch() on the internal promise to avoid unhandled rejections.
  */
-function mockFetchNetworkError() {
-  return vi.fn().mockRejectedValue(new TypeError('fetch failed'));
-}
-
-/**
- * Creates a mock fetch that takes a very long time (simulates timeout).
- */
-function mockFetchSlow(delayMs: number) {
-  return vi.fn().mockImplementation(async (_url: string, options: { signal?: AbortSignal }) => {
-    return new Promise((resolve, reject) => {
-      const timer = setTimeout(() => {
-        resolve({
-          ok: true,
-          status: 200,
-          json: async () => ({
-            choices: [{ message: { content: 'slow response' } }],
-            usage: { prompt_tokens: 1, completion_tokens: 1, total_tokens: 2 },
-            model: 'anthropic/claude-haiku-4.5',
-          }),
-        });
-      }, delayMs);
-
+function mockFetchHanging() {
+  return vi.fn().mockImplementation((_url: string, options: { signal?: AbortSignal }) => {
+    const promise = new Promise<Response>((resolve, reject) => {
       if (options?.signal) {
-        options.signal.addEventListener('abort', () => {
-          clearTimeout(timer);
+        if (options.signal.aborted) {
           reject(new DOMException('The operation was aborted.', 'AbortError'));
-        });
+          return;
+        }
+        options.signal.addEventListener('abort', () => {
+          reject(new DOMException('The operation was aborted.', 'AbortError'));
+        }, { once: true });
       }
+      // Never resolves otherwise — simulates a hanging request
     });
+    // Attach a no-op catch to prevent unhandled rejection warnings
+    promise.catch(() => {});
+    return promise;
   });
 }
 
@@ -120,13 +97,10 @@ let originalFetch: typeof globalThis.fetch;
 
 beforeEach(() => {
   originalFetch = globalThis.fetch;
-  // Reset module state between tests
-  vi.useFakeTimers({ shouldAdvanceTime: true });
 });
 
 afterEach(() => {
   globalThis.fetch = originalFetch;
-  vi.useRealTimers();
 });
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -169,35 +143,35 @@ describe('callModel — timeout', () => {
   it('throws TimeoutError when call exceeds configured timeout', async () => {
     const { callModel } = await import('../index');
     const { TimeoutError } = await import('../errors');
-    globalThis.fetch = mockFetchSlow(120_000);
 
-    const promise = callModel({
-      ...DEFAULT_OPTIONS,
-      timeout: 100,
-      retries: 0,
-    });
+    // Use a hanging fetch that responds to abort signal
+    globalThis.fetch = mockFetchHanging();
 
-    await vi.advanceTimersByTimeAsync(200);
-
-    await expect(promise).rejects.toThrow(TimeoutError);
-  });
+    // Use a very short timeout so the test doesn't wait long
+    await expect(
+      callModel({
+        ...DEFAULT_OPTIONS,
+        timeout: 50,
+        retries: 0,
+      }),
+    ).rejects.toThrow(TimeoutError);
+  }, 5000);
 
   it('per-call timeout override works', async () => {
     const { callModel } = await import('../index');
     const { TimeoutError } = await import('../errors');
-    // Model default is 60s, but we override to 50ms
-    globalThis.fetch = mockFetchSlow(120_000);
 
-    const promise = callModel({
-      ...DEFAULT_OPTIONS,
-      timeout: 50,
-      retries: 0,
-    });
+    globalThis.fetch = mockFetchHanging();
 
-    await vi.advanceTimersByTimeAsync(100);
-
-    await expect(promise).rejects.toThrow(TimeoutError);
-  });
+    // Model default timeout is 30s, but we override to 50ms
+    await expect(
+      callModel({
+        ...DEFAULT_OPTIONS,
+        timeout: 50,
+        retries: 0,
+      }),
+    ).rejects.toThrow(TimeoutError);
+  }, 5000);
 });
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -308,20 +282,11 @@ describe('callModel — external abort', () => {
     const { callModel } = await import('../index');
     const controller = new AbortController();
 
-    // Fetch that aborts when signal fires
-    globalThis.fetch = vi.fn().mockImplementation(async (_url: string, opts: { signal?: AbortSignal }) => {
-      return new Promise((_resolve, reject) => {
-        if (opts?.signal) {
-          opts.signal.addEventListener('abort', () => {
-            reject(new DOMException('The operation was aborted.', 'AbortError'));
-          });
-        }
-        // Abort immediately
-        setTimeout(() => controller.abort(), 10);
-      });
-    });
+    // Fetch that hangs until signal fires
+    globalThis.fetch = mockFetchHanging();
 
-    await vi.advanceTimersByTimeAsync(0);
+    // Abort after 20ms
+    setTimeout(() => controller.abort(), 20);
 
     const promise = callModel({
       ...DEFAULT_OPTIONS,
@@ -330,12 +295,10 @@ describe('callModel — external abort', () => {
       timeout: 30_000,
     });
 
-    await vi.advanceTimersByTimeAsync(50);
-
     await expect(promise).rejects.toThrow();
     // Should only have been called once (no retries after abort)
     expect(globalThis.fetch).toHaveBeenCalledTimes(1);
-  });
+  }, 5000);
 });
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -425,7 +388,6 @@ describe('CallRecord observability', () => {
     await callModel({
       model: 'anthropic/claude-haiku-4.5',
       messages: [{ role: 'user', content: 'test' }],
-      // no caller field
     });
 
     expect(records[0].caller).toBe('unknown');
@@ -445,7 +407,7 @@ describe('CallRecord observability', () => {
     setCallRecorder((r) => records2.push(r));
     await callModel({ ...DEFAULT_OPTIONS });
     expect(records2).toHaveLength(1);
-    expect(records1).toHaveLength(1); // first recorder should not get second call
+    expect(records1).toHaveLength(1);
   });
 
   it('CallRecord includes usage and cost fields', async () => {
