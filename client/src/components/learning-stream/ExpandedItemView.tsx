@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { motion } from 'framer-motion';
 import { X, ExternalLink, Bookmark, Star, Trash2, User, Clock, ChevronLeft, ChevronRight } from 'lucide-react';
 import { Panel, PanelGroup, PanelResizeHandle } from 'react-resizable-panels';
@@ -6,8 +6,12 @@ import { TactileButton } from '@/components/ui/tactile-button';
 import { ResourceTypeBadge } from './ResourceTypeBadge';
 import { ContentViewer } from './ContentViewer';
 import { DiscussionPanel } from './DiscussionPanel';
+import { KnowledgeCheckPanel } from './KnowledgeCheckPanel';
 import { useItemContent } from '@/hooks/useItemContent';
+import { tokens } from '@/lib/colors';
 import type { LearningStreamItem } from '@/hooks/useLearningStream';
+
+type RightPanelTab = 'discuss' | 'quiz';
 
 interface ExpandedItemViewProps {
   item: LearningStreamItem;
@@ -32,6 +36,7 @@ export function ExpandedItemView({
 }: ExpandedItemViewProps) {
   const { data: content, retryExtraction } = useItemContent(slug, item);
   const containerRef = useRef<HTMLDivElement>(null);
+  const [activePanel, setActivePanel] = useState<RightPanelTab>('discuss');
 
   // Close on Escape key
   useEffect(() => {
@@ -119,9 +124,39 @@ export function ExpandedItemView({
         {/* Resize handle */}
         <PanelResizeHandle className="w-[3px] bg-border hover:bg-primary/40 transition-colors cursor-col-resize hidden lg:block" />
 
-        {/* Right: Discussion panel (hidden on small screens) */}
+        {/* Right: Discussion / Knowledge Check panel (hidden on small screens) */}
         <Panel defaultSize={40} minSize={20} className="hidden lg:block">
-          <DiscussionPanel slug={slug} itemId={item.id} item={item} />
+          <div className="flex flex-col h-full">
+            {/* Panel toggle tabs */}
+            <div className="flex gap-1 border-b border-border px-4 shrink-0">
+              {([
+                { key: 'discuss' as const, label: 'Discuss' },
+                { key: 'quiz' as const, label: 'Knowledge Check' },
+              ]).map((tab) => (
+                <button
+                  key={tab.key}
+                  onClick={() => setActivePanel(tab.key)}
+                  className="px-4 py-2.5 bg-transparent border-none cursor-pointer text-[12px] font-medium transition-colors duration-150 -mb-px font-serif"
+                  style={{
+                    borderBottom: activePanel === tab.key ? `2px solid ${tokens.primary}` : '2px solid transparent',
+                    color: activePanel === tab.key ? tokens.primary : tokens.textSecondary,
+                  }}
+                >
+                  {tab.label}
+                </button>
+              ))}
+            </div>
+
+            {/* Panel content — both mounted, visibility toggled */}
+            <div className="flex-1 min-h-0">
+              <div style={{ display: activePanel === 'discuss' ? 'contents' : 'none' }}>
+                <DiscussionPanel slug={slug} itemId={item.id} item={item} />
+              </div>
+              <div style={{ display: activePanel === 'quiz' ? 'contents' : 'none' }}>
+                <KnowledgeCheckPanel slug={slug} itemId={item.id} item={item} />
+              </div>
+            </div>
+          </div>
         </Panel>
       </PanelGroup>
 
