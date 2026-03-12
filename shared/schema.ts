@@ -430,7 +430,7 @@ export const factRedundancyGroupsRelations = relations(factRedundancyGroups, ({ 
 
 // Learning Stream - Extracted content types (discriminated union)
 export type ExtractedContent =
-  | { contentType: 'embed'; embedType: 'youtube'; embedId: string }
+  | { contentType: 'embed'; embedType: 'youtube'; embedId: string; transcript?: string }
   | { contentType: 'embed'; embedType: 'spotify'; embedId: string }
   | { contentType: 'embed'; embedType: 'apple-podcast'; embedUrl: string }
   | { contentType: 'embed'; embedType: 'tweet'; tweetId: string }
@@ -480,6 +480,46 @@ export const learningStreamItems = pgTable("learning_stream_items", {
 
 export type LearningStreamItem = typeof learningStreamItems.$inferSelect;
 export type NewLearningStreamItem = typeof learningStreamItems.$inferInsert;
+
+// Knowledge Check - Quiz question and answer types
+export interface QuizQuestion {
+  question: string;          // The question text
+  options: string[];         // 4 options (shuffled, correct position varies)
+  correctIndex: number;      // Index of correct answer in options array
+  explanation: string;       // Why the correct answer is correct (shown as feedback)
+  conceptTested: string;     // The concept this question tests (from phase 1)
+  misconceptions: string[];  // What each distractor targets (parallel to non-correct options)
+}
+
+export interface QuizAnswer {
+  questionIndex: number;     // Index into questions array
+  selectedIndex: number;     // Which option the student selected
+  correct: boolean;          // Whether selectedIndex === correctIndex
+}
+
+// Knowledge Check - Quiz storage
+export const knowledgeCheckQuizzes = pgTable("knowledge_check_quizzes", {
+  id: serial("id").primaryKey(),
+  itemId: integer("item_id").notNull()
+    .references(() => learningStreamItems.id, { onDelete: "cascade" }),
+  brainliftId: integer("brainlift_id").notNull()
+    .references(() => brainlifts.id, { onDelete: "cascade" }),
+
+  // Generated quiz content
+  questions: jsonb("questions").$type<QuizQuestion[]>().notNull(),
+
+  // Student responses (null until submitted)
+  answers: jsonb("answers").$type<QuizAnswer[] | null>(),
+  score: integer("score"),                    // number correct, null until submitted
+  completedAt: timestamp("completed_at"),     // null until submitted
+
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+}, (table) => [
+  // One quiz per item per brainlift
+  unique("unique_quiz_per_item").on(table.itemId, table.brainliftId),
+]);
+
+export type KnowledgeCheckQuiz = typeof knowledgeCheckQuizzes.$inferSelect;
 
 // DOK2 Grading - Fail reasons for auto-fail conditions
 export const DOK2_FAIL_REASON = {

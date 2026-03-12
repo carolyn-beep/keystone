@@ -1,4 +1,5 @@
 import type { ExtractedContent } from '@shared/schema';
+import { fetchYouTubeTranscript } from './youtube-transcript';
 
 // === Embed pattern matchers (pure URL parsing, no network) ===
 
@@ -82,7 +83,17 @@ export async function extractContent(rawUrl: string): Promise<ExtractedContent> 
     // 1. Check embed patterns (instant, no network)
     for (const pattern of EMBED_PATTERNS) {
       if (pattern.test(url)) {
-        return pattern.extract(url);
+        const result = pattern.extract(url);
+
+        // For YouTube embeds, attempt transcript extraction
+        if (result.contentType === 'embed' && result.embedType === 'youtube' && result.embedId) {
+          const transcript = await fetchYouTubeTranscript(result.embedId);
+          if (transcript) {
+            return { ...result, transcript };
+          }
+        }
+
+        return result;
       }
     }
 
