@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { storage } from '../storage';
-import { LLM_MODEL_NAMES } from '@shared/schema';
+import { getModelDisplayName } from '../ai/client/registry';
 import { requireAdmin } from '../middleware/auth';
 
 export const analyticsRouter = Router();
@@ -27,7 +27,7 @@ analyticsRouter.get('/api/analytics/model-accuracy', requireAdmin, async (req, r
 
       return {
         model: stat.model,
-        modelName: LLM_MODEL_NAMES[stat.model as keyof typeof LLM_MODEL_NAMES] || stat.model,
+        modelName: getModelDisplayName(stat.model),
         totalSamples: stat.totalSamples,
         meanAbsoluteError: mae.toFixed(3),
         weight: parseFloat(stat.weight).toFixed(3),

@@ -20,7 +20,7 @@ export type {
   Fact, ContradictionCluster,
   BrainliftVersion, Expert, InsertExpert,
   FactVerification, InsertFactVerification, FactModelScore, InsertFactModelScore,
-  FactWithVerification, LLMModel, LlmFeedback, ModelAccuracyStats,
+  FactWithVerification, LlmFeedback, ModelAccuracyStats,
   FactRedundancyGroup, InsertFactRedundancyGroup, RedundancyStatus,
   AuthContext
 } from './base';
