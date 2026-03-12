@@ -148,13 +148,26 @@ Provide a substantive evidence summary (max 500 words) with specific references 
 export async function fetchEvidenceForFact(
   fact: string,
   source: string,
-  failedUrlCache?: Map<string, string>
+  failedUrlCache?: Map<string, string>,
+  cachedTranscript?: string | null
 ): Promise<EvidenceResult> {
   const fetchedAt = new Date();
 
   console.log(`[Evidence] === Starting evidence fetch ===`);
   console.log(`[Evidence] Fact: "${fact.substring(0, 100)}..."`);
   console.log(`[Evidence] Source: "${source}"`);
+
+  // If a cached transcript is provided, use it directly as evidence
+  if (cachedTranscript && cachedTranscript.length > 0) {
+    const url = extractUrlFromSource(source);
+    console.log(`[Evidence] Using cached transcript (${cachedTranscript.length} chars)`);
+    return {
+      url,
+      content: cachedTranscript,
+      error: null,
+      fetchedAt,
+    };
+  }
 
   const url = extractUrlFromSource(source);
   let fetchError: string | null = null;

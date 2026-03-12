@@ -151,10 +151,12 @@ describe('discussionVerifyFactJob - transcript integration', () => {
     // Should NOT have looked up by URL (not a YouTube URL)
     expect(mockGetItemByUrl).not.toHaveBeenCalled();
 
-    // Should have called fetchEvidenceForFact without cached transcript
+    // Should have called fetchEvidenceForFact with null cached transcript
     expect(mockFetchEvidence).toHaveBeenCalledWith(
       'Some fact from article',
-      'https://example.com/article'
+      'https://example.com/article',
+      undefined,
+      null
     );
   });
 
