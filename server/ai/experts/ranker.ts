@@ -3,11 +3,10 @@ import { expertExtractionSchema } from './types';
 import { extractExpertsFromDocument } from './parsers';
 import { extractExpertsFromFactSources } from './extractors';
 import { buildExpertProfiles, computeImpactScore } from './profiler';
+import { callModelWithFallback } from '../client';
 
-const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY;
-const MODEL = 'anthropic/claude-sonnet-4';
 const CLEANUP_MODEL_PRIMARY = 'google/gemini-2.0-flash-001';
-const CLEANUP_MODEL_FALLBACK = 'meta-llama/llama-3.1-8b-instruct';
+const CLEANUP_MODEL_FALLBACK = 'anthropic/claude-haiku-4.5';
 
 const SYSTEM_PROMPT = `You are an expert analyst performing STACK RANKING of researchers based on their MEASURED IMPACT on a document.
 
@@ -52,7 +51,7 @@ Sort by rankScore descending. Keep rationales under 50 chars with actual numbers
 export async function cleanupExpertNames(
   experts: ExtractedExpert[]
 ): Promise<ExtractedExpert[]> {
-  if (!OPENROUTER_API_KEY || experts.length === 0) return experts;
+  if (experts.length === 0) return experts;
 
   const BATCH_SIZE = 15;
   const batches: ExtractedExpert[][] = [];
@@ -78,59 +77,35 @@ INVALID - discard these:
 Return ONLY a JSON array of booleans, true=keep, false=discard.
 Example: ["John Smith", "0", "Jane Doe", "Focus"] → [true, false, true, false]`;
 
-  async function processBatch(
-    batch: ExtractedExpert[],
-    model: string
-  ): Promise<boolean[]> {
-    const names = batch.map(e => e.name);
-    const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${OPENROUTER_API_KEY}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        model,
-        messages: [
-          { role: 'system', content: cleanupPrompt },
-          { role: 'user', content: JSON.stringify(names) },
-        ],
-        temperature: 0,
-        max_tokens: 200,
-      }),
-    });
-
-    if (!response.ok) throw new Error(`API error: ${response.status}`);
-
-    const data = await response.json();
-    let content = data.choices?.[0]?.message?.content || '';
-
-    // Extract JSON array from response
-    content = content.replace(/```json\s*/g, '').replace(/```\s*/g, '').trim();
-    const jsonMatch = content.match(/\[[\s\S]*\]/);
-    if (!jsonMatch) throw new Error('No JSON array found');
-
-    const result = JSON.parse(jsonMatch[0]);
-    if (!Array.isArray(result) || result.length !== batch.length) {
-      throw new Error('Invalid response length');
-    }
-    return result;
-  }
-
   async function processBatchWithFallback(
     batch: ExtractedExpert[]
   ): Promise<boolean[]> {
+    const names = batch.map(e => e.name);
     try {
-      return await processBatch(batch, CLEANUP_MODEL_PRIMARY);
-    } catch (primaryError) {
-      console.log(`Cleanup primary model failed, trying fallback:`, primaryError);
-      try {
-        return await processBatch(batch, CLEANUP_MODEL_FALLBACK);
-      } catch (fallbackError) {
-        console.log(`Cleanup fallback model also failed, keeping all:`, fallbackError);
-        // Both failed - keep all experts in this batch
-        return batch.map(() => true);
+      const result = await callModelWithFallback({
+        models: [CLEANUP_MODEL_PRIMARY, CLEANUP_MODEL_FALLBACK],
+        system: cleanupPrompt,
+        messages: [{ role: 'user', content: JSON.stringify(names) }],
+        temperature: 0,
+        maxTokens: 200,
+        caller: 'expertRanker.cleanup',
+      });
+
+      let content = result.content;
+      // Extract JSON array from response
+      content = content.replace(/```json\s*/g, '').replace(/```\s*/g, '').trim();
+      const jsonMatch = content.match(/\[[\s\S]*\]/);
+      if (!jsonMatch) throw new Error('No JSON array found');
+
+      const parsed = JSON.parse(jsonMatch[0]);
+      if (!Array.isArray(parsed) || parsed.length !== batch.length) {
+        throw new Error('Invalid response length');
       }
+      return parsed;
+    } catch (error) {
+      console.log(`Cleanup models failed, keeping all:`, error);
+      // Both failed - keep all experts in this batch
+      return batch.map(() => true);
     }
   }
 
@@ -155,10 +130,6 @@ Example: ["John Smith", "0", "Jane Doe", "Focus"] → [true, false, true, false]
  * Main entry point: Extract and rank experts from a brainlift
  */
 export async function extractAndRankExperts(input: ExtractionInput): Promise<InsertExpert[]> {
-  if (!OPENROUTER_API_KEY) {
-    console.error('OPENROUTER_API_KEY not configured');
-    return [];
-  }
 
   // Extract experts from document "Experts" section
   const documentExperts = extractExpertsFromDocument(input.originalContent || '');
@@ -244,38 +215,18 @@ ${input.originalContent?.slice(0, 10000)}`}
 Assign differentiated scores (1-10) based on the citation counts or relevance in the text. ${allExperts.length > 0 ? 'No two experts with different citation counts should have the same score.' : 'Identify the top 5-10 experts mentioned in the text if none were explicitly listed.'}`;
 
   try {
-    const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${OPENROUTER_API_KEY}`,
-        'Content-Type': 'application/json',
-        'HTTP-Referer': 'https://replit.com',
-      },
-      body: JSON.stringify({
-        model: MODEL,
-        messages: [
-          { role: 'system', content: SYSTEM_PROMPT },
-          { role: 'user', content: userPrompt },
-        ],
-        temperature: 0.1,
-        max_tokens: 2000,
-      }),
+    const t0 = performance.now();
+    const result = await callModelWithFallback({
+      models: ['anthropic/claude-sonnet-4.6', 'anthropic/claude-haiku-4.5'],
+      system: SYSTEM_PROMPT,
+      messages: [{ role: 'user', content: userPrompt }],
+      temperature: 0.1,
+      maxTokens: 2000,
+      caller: 'expertRanker.stackRanking',
     });
+    console.log(`[Expert Ranker] Stack ranking: ${(performance.now() - t0).toFixed(0)}ms (model: ${result.model})`);
 
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error('OpenRouter API error:', errorText);
-      return [];
-    }
-
-    const data = await response.json();
-    let content = data.choices?.[0]?.message?.content;
-
-    if (!content) {
-      console.error('No content in response');
-      return [];
-    }
-
+    let content = result.content;
     content = content.replace(/```json\s*/g, '').replace(/```\s*/g, '').trim();
 
     // Clean up response if it contains conversational text
@@ -334,7 +285,7 @@ Assign differentiated scores (1-10) based on the citation counts or relevance in
       }
 
       // Try to extract names from the malformed JSON response
-      const expertMatches = content.matchAll(/"name":\s*"([^"]+)"/g);
+      const expertMatches = Array.from(content.matchAll(/"name":\s*"([^"]+)"/g));
       const manualExperts: InsertExpert[] = [];
       const seenNames = new Set<string>();
 

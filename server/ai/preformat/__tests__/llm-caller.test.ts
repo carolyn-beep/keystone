@@ -1,8 +1,8 @@
 /**
- * Tests for 02-llm-calls: Parallel LLM Classification Calls
+ * Tests for 02-llm-calls: Parallel LLM Classification Calls (unified client migration)
  *
  * Tests prompt builders, parallel dispatch, aggregation, and error handling.
- * OpenRouter API is mocked via globalThis.fetch.
+ * callModel from the unified client is mocked.
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
@@ -19,6 +19,15 @@ import type {
   UnstructuredChunkResult,
   PreformatLLMResults,
 } from '../types';
+
+// Mock the unified AI client
+vi.mock('../../client', () => ({
+  callModel: vi.fn(),
+}));
+
+import { callModel } from '../../client';
+
+const mockCallModel = vi.mocked(callModel);
 
 // ═══════════════════════════════════════════════════════════════════════════
 // Test Helpers
@@ -54,13 +63,13 @@ function makeChunk(type: ChunkType, label: string, markdown?: string): Preformat
   };
 }
 
-/** Create a mock fetch that returns a successful OpenRouter JSON response */
-function createMockFetch(responseBody: object) {
-  return vi.fn().mockResolvedValue({
-    ok: true,
-    json: async () => ({
-      choices: [{ message: { content: JSON.stringify(responseBody) } }],
-    }),
+/** Configure mock callModel to return a successful response */
+function mockCallModelResponse(responseBody: object) {
+  mockCallModel.mockResolvedValue({
+    content: JSON.stringify(responseBody),
+    model: 'anthropic/claude-haiku-4.5',
+    durationMs: 100,
+    attempts: 1,
   });
 }
 
@@ -291,21 +300,12 @@ describe('FR2: Section-Specific Prompt Templates', () => {
 import { runPreformatLLMCalls } from '../llm-caller';
 
 describe('FR3: Parallel LLM Dispatch', () => {
-  let originalFetch: typeof globalThis.fetch;
-  const originalEnv = process.env.OPENROUTER_API_KEY;
-
   beforeEach(() => {
-    originalFetch = globalThis.fetch;
-    process.env.OPENROUTER_API_KEY = 'test-key';
-  });
-
-  afterEach(() => {
-    globalThis.fetch = originalFetch;
-    process.env.OPENROUTER_API_KEY = originalEnv;
+    vi.clearAllMocks();
   });
 
   it('category chunk returns markdown-based result with parsedNodes', async () => {
-    globalThis.fetch = createMockFetch(CATEGORY_RESPONSE);
+    mockCallModelResponse(CATEGORY_RESPONSE);
 
     const chunks = [makeChunk('category', 'Category 1: Branding')];
     const results = await runPreformatLLMCalls(chunks);
@@ -317,7 +317,7 @@ describe('FR3: Parallel LLM Dispatch', () => {
   });
 
   it('experts chunk returns markdown-based result with parsedNodes', async () => {
-    globalThis.fetch = createMockFetch(EXPERTS_RESPONSE);
+    mockCallModelResponse(EXPERTS_RESPONSE);
 
     const chunks = [makeChunk('experts', 'Experts')];
     const results = await runPreformatLLMCalls(chunks);
@@ -328,7 +328,7 @@ describe('FR3: Parallel LLM Dispatch', () => {
   });
 
   it('spovs chunk returns markdown-based result with parsedNodes', async () => {
-    globalThis.fetch = createMockFetch(SPOVS_RESPONSE);
+    mockCallModelResponse(SPOVS_RESPONSE);
 
     const chunks = [makeChunk('spovs', 'DOK4 SPOVs')];
     const results = await runPreformatLLMCalls(chunks);
@@ -339,8 +339,6 @@ describe('FR3: Parallel LLM Dispatch', () => {
   });
 
   it('empty chunks array returns empty PreformatLLMResults with no LLM calls', async () => {
-    globalThis.fetch = vi.fn();
-
     const results = await runPreformatLLMCalls([]);
 
     expect(results.owner).toBeNull();
@@ -351,7 +349,7 @@ describe('FR3: Parallel LLM Dispatch', () => {
     expect(results.categories).toEqual([]);
     expect(results.unknownSections).toEqual([]);
     expect(results.scratchpad).toEqual([]);
-    expect(globalThis.fetch).not.toHaveBeenCalled();
+    expect(mockCallModel).not.toHaveBeenCalled();
   });
 
   it('multiple category chunks each append to categories[]', async () => {
@@ -362,15 +360,15 @@ describe('FR3: Parallel LLM Dispatch', () => {
     };
 
     let callCount = 0;
-    globalThis.fetch = vi.fn().mockImplementation(() => {
+    mockCallModel.mockImplementation(async () => {
       callCount++;
       const response = callCount === 1 ? CATEGORY_RESPONSE : catResponse2;
-      return Promise.resolve({
-        ok: true,
-        json: async () => ({
-          choices: [{ message: { content: JSON.stringify(response) } }],
-        }),
-      });
+      return {
+        content: JSON.stringify(response),
+        model: 'anthropic/claude-haiku-4.5',
+        durationMs: 100,
+        attempts: 1,
+      };
     });
 
     const chunks = [
@@ -383,7 +381,7 @@ describe('FR3: Parallel LLM Dispatch', () => {
   });
 
   it('owner/purpose use first non-null result when duplicate chunks exist', async () => {
-    globalThis.fetch = createMockFetch(OWNER_RESPONSE);
+    mockCallModelResponse(OWNER_RESPONSE);
 
     const chunks = [
       makeChunk('owner', 'Owner'),
@@ -396,17 +394,8 @@ describe('FR3: Parallel LLM Dispatch', () => {
     expect(results.owner!.name).toBe('John Doe');
   });
 
-  it('missing OPENROUTER_API_KEY throws immediately', async () => {
-    delete process.env.OPENROUTER_API_KEY;
-    globalThis.fetch = vi.fn();
-
-    const chunks = [makeChunk('owner', 'Owner')];
-    await expect(runPreformatLLMCalls(chunks)).rejects.toThrow(/API key/i);
-    expect(globalThis.fetch).not.toHaveBeenCalled();
-  });
-
   it('unstructured chunk result stores markdown and parsedNodes', async () => {
-    globalThis.fetch = createMockFetch(UNSTRUCTURED_RESPONSE);
+    mockCallModelResponse(UNSTRUCTURED_RESPONSE);
 
     const chunks = [makeChunk('unstructured', 'Full Document')];
     const results = await runPreformatLLMCalls(chunks);
@@ -420,7 +409,7 @@ describe('FR3: Parallel LLM Dispatch', () => {
     const ktResponse = {
       categories: [CATEGORY_RESPONSE],
     };
-    globalThis.fetch = createMockFetch(ktResponse);
+    mockCallModelResponse(ktResponse);
 
     const chunks = [makeChunk('knowledge_tree', 'Knowledge Tree')];
     const results = await runPreformatLLMCalls(chunks);
@@ -431,7 +420,7 @@ describe('FR3: Parallel LLM Dispatch', () => {
   });
 
   it('unknown chunk results append to unknownSections[] with parsedNodes', async () => {
-    globalThis.fetch = createMockFetch(UNKNOWN_RESPONSE);
+    mockCallModelResponse(UNKNOWN_RESPONSE);
 
     const chunks = [makeChunk('unknown', 'Unrecognized Sections')];
     const results = await runPreformatLLMCalls(chunks);
@@ -442,7 +431,7 @@ describe('FR3: Parallel LLM Dispatch', () => {
   });
 
   it('insights chunk returns markdown-based result with parsedNodes', async () => {
-    globalThis.fetch = createMockFetch(INSIGHTS_RESPONSE);
+    mockCallModelResponse(INSIGHTS_RESPONSE);
 
     const chunks = [makeChunk('insights', 'DOK3 Insights')];
     const results = await runPreformatLLMCalls(chunks);
@@ -461,15 +450,15 @@ describe('FR3: Parallel LLM Dispatch', () => {
       4: CATEGORY_RESPONSE,
     };
 
-    globalThis.fetch = vi.fn().mockImplementation(() => {
+    mockCallModel.mockImplementation(async () => {
       callCount++;
       const response = responseMap[callCount] || OWNER_RESPONSE;
-      return Promise.resolve({
-        ok: true,
-        json: async () => ({
-          choices: [{ message: { content: JSON.stringify(response) } }],
-        }),
-      });
+      return {
+        content: JSON.stringify(response),
+        model: 'anthropic/claude-haiku-4.5',
+        durationMs: 100,
+        attempts: 1,
+      };
     });
 
     const chunks = [
@@ -486,164 +475,58 @@ describe('FR3: Parallel LLM Dispatch', () => {
     expect(results.experts).toBeDefined();
     expect(results.categories).toHaveLength(1);
   });
+
+  it('callModel is called with retries: 3 and correct caller', async () => {
+    mockCallModelResponse(OWNER_RESPONSE);
+
+    await runPreformatLLMCalls([makeChunk('owner', 'Owner')]);
+
+    expect(mockCallModel).toHaveBeenCalledWith(
+      expect.objectContaining({
+        retries: 3,
+        caller: 'preformat.sectionClassification',
+        model: 'anthropic/claude-haiku-4.5',
+      }),
+    );
+  });
 });
 
 // ═══════════════════════════════════════════════════════════════════════════
-// FR4: Error Handling and Retry Logic
+// FR4: Error Handling (unified client errors)
 // ═══════════════════════════════════════════════════════════════════════════
 
-describe('FR4: Error Handling and Retry', () => {
-  let originalFetch: typeof globalThis.fetch;
-  const originalEnv = process.env.OPENROUTER_API_KEY;
-
+describe('FR4: Error Handling', () => {
   beforeEach(() => {
-    originalFetch = globalThis.fetch;
-    process.env.OPENROUTER_API_KEY = 'test-key';
+    vi.clearAllMocks();
     vi.spyOn(console, 'warn').mockImplementation(() => {});
     vi.spyOn(console, 'error').mockImplementation(() => {});
   });
 
   afterEach(() => {
-    globalThis.fetch = originalFetch;
-    process.env.OPENROUTER_API_KEY = originalEnv;
     vi.restoreAllMocks();
   });
 
-  it('429 response triggers retry', async () => {
-    let callCount = 0;
-    globalThis.fetch = vi.fn().mockImplementation(() => {
-      callCount++;
-      if (callCount <= 2) {
-        return Promise.resolve({
-          ok: false,
-          status: 429,
-          text: async () => 'Rate limited',
-          headers: new Map(),
-        });
-      }
-      return Promise.resolve({
-        ok: true,
-        json: async () => ({
-          choices: [{ message: { content: JSON.stringify(OWNER_RESPONSE) } }],
-        }),
-      });
-    });
-
-    const results = await runPreformatLLMCalls([makeChunk('owner', 'Owner')]);
-
-    expect(results.owner).toBeDefined();
-    expect(results.owner!.name).toBe('John Doe');
-    expect(callCount).toBe(3); // 2 retries + 1 success
-  });
-
-  it('500/502/503 responses trigger retry', async () => {
-    for (const status of [500, 502, 503]) {
-      let callCount = 0;
-      globalThis.fetch = vi.fn().mockImplementation(() => {
-        callCount++;
-        if (callCount === 1) {
-          return Promise.resolve({
-            ok: false,
-            status,
-            text: async () => 'Server error',
-            headers: new Map(),
-          });
-        }
-        return Promise.resolve({
-          ok: true,
-          json: async () => ({
-            choices: [{ message: { content: JSON.stringify(OWNER_RESPONSE) } }],
-          }),
-        });
-      });
-
-      const results = await runPreformatLLMCalls([makeChunk('owner', 'Owner')]);
-      expect(results.owner).toBeDefined();
-      expect(callCount).toBeGreaterThan(1);
-    }
-  });
-
-  it('400/401/403 responses skip immediately without retry', async () => {
-    for (const status of [400, 401, 403]) {
-      let callCount = 0;
-      globalThis.fetch = vi.fn().mockImplementation(() => {
-        callCount++;
-        return Promise.resolve({
-          ok: false,
-          status,
-          text: async () => 'Client error',
-          headers: new Map(),
-        });
-      });
-
-      const results = await runPreformatLLMCalls([makeChunk('owner', 'Owner')]);
-      expect(results.owner).toBeNull();
-      expect(callCount).toBe(1); // No retries
-    }
-  });
-
-  it('after 3 retries, chunk is skipped with null result', async () => {
-    globalThis.fetch = vi.fn().mockResolvedValue({
-      ok: false,
-      status: 429,
-      text: async () => 'Rate limited',
-      headers: new Map(),
-    });
+  it('callModel failure results in null chunk result (chunk skipped)', async () => {
+    mockCallModel.mockRejectedValue(new Error('API error 429: Rate limited'));
 
     const results = await runPreformatLLMCalls([makeChunk('owner', 'Owner')]);
 
     expect(results.owner).toBeNull();
-    // Should have been called 4 times: 1 initial + 3 retries
-    expect(globalThis.fetch).toHaveBeenCalledTimes(4);
-  });
-
-  it('malformed JSON in response triggers retry', async () => {
-    let callCount = 0;
-    globalThis.fetch = vi.fn().mockImplementation(() => {
-      callCount++;
-      if (callCount === 1) {
-        return Promise.resolve({
-          ok: true,
-          json: async () => ({
-            choices: [{ message: { content: 'not valid json{{{' } }],
-          }),
-        });
-      }
-      return Promise.resolve({
-        ok: true,
-        json: async () => ({
-          choices: [{ message: { content: JSON.stringify(OWNER_RESPONSE) } }],
-        }),
-      });
-    });
-
-    const results = await runPreformatLLMCalls([makeChunk('owner', 'Owner')]);
-    expect(results.owner).toBeDefined();
-    expect(callCount).toBe(2);
   });
 
   it('single chunk failure does not prevent other chunks from processing', async () => {
-    globalThis.fetch = vi.fn().mockImplementation((_url: string, options: { body: string }) => {
-      const body = JSON.parse(options.body);
-      const userContent: string = body.messages[1]?.content ?? '';
-
-      // Owner chunk always fails (500)
-      if (userContent.includes('owner:') || userContent.includes('Owner')) {
-        return Promise.resolve({
-          ok: false,
-          status: 500,
-          text: async () => 'Server error',
-          headers: new Map(),
-        });
+    let callCount = 0;
+    mockCallModel.mockImplementation(async () => {
+      callCount++;
+      if (callCount === 1) {
+        throw new Error('Server error');
       }
-
-      // Purpose chunk succeeds
-      return Promise.resolve({
-        ok: true,
-        json: async () => ({
-          choices: [{ message: { content: JSON.stringify(PURPOSE_RESPONSE) } }],
-        }),
-      });
+      return {
+        content: JSON.stringify(PURPOSE_RESPONSE),
+        model: 'anthropic/claude-haiku-4.5',
+        durationMs: 100,
+        attempts: 1,
+      };
     });
 
     const chunks = [
@@ -655,25 +538,5 @@ describe('FR4: Error Handling and Retry', () => {
     expect(results.owner).toBeNull(); // Failed
     expect(results.purpose).toBeDefined(); // Succeeded
     expect(results.purpose!.sectionMarkdown).toContain('branding and marketing');
-  });
-
-  it('network error (fetch throws) triggers retry', async () => {
-    let callCount = 0;
-    globalThis.fetch = vi.fn().mockImplementation(() => {
-      callCount++;
-      if (callCount === 1) {
-        return Promise.reject(new Error('ECONNRESET'));
-      }
-      return Promise.resolve({
-        ok: true,
-        json: async () => ({
-          choices: [{ message: { content: JSON.stringify(OWNER_RESPONSE) } }],
-        }),
-      });
-    });
-
-    const results = await runPreformatLLMCalls([makeChunk('owner', 'Owner')]);
-    expect(results.owner).toBeDefined();
-    expect(callCount).toBe(2);
   });
 });

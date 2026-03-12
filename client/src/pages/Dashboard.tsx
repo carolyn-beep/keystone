@@ -94,6 +94,7 @@ export default function Dashboard({ slug, isSharedView = false }: DashboardProps
       params.set('tab', tab);
     }
     params.delete('view'); // Clear view when switching tabs
+    document.querySelector('main')?.scrollTo(0, 0);
     const newSearch = params.toString();
     const newUrl = newSearch ? `?${newSearch}` : window.location.pathname;
     window.history.replaceState(null, '', newUrl);

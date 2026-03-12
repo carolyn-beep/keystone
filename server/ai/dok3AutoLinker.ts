@@ -10,8 +10,7 @@
 
 import pLimit from 'p-limit';
 import { storage } from '../storage';
-
-const MODEL = 'anthropic/claude-haiku-4.5';
+import { callModelWithFallback } from './client';
 const LINK_CONCURRENCY = 60;
 
 // Minimum semantic relevance score to create a link
@@ -119,11 +118,6 @@ async function callSemanticModel(
   insightText: string,
   dok2Summaries: DOK2Summary[],
 ): Promise<{ dok2Id: number; score: number }[]> {
-  const apiKey = process.env.OPENROUTER_API_KEY;
-  if (!apiKey) {
-    throw new Error('OpenRouter API key not configured');
-  }
-
   const dok2List = dok2Summaries
     .map((s, i) => {
       const title = s.displayTitle || s.points[0]?.text || 'Untitled';
@@ -139,6 +133,8 @@ A DOK3 insight is a cross-source analytical claim that synthesizes information f
 Score each DOK2 summary from 0.01 (no relevance) to 0.99 (directly supports the insight's core claim).
 Most summaries should be below 0.5 -- be discriminating.
 
+IMPORTANT: Each dok2Id in your response must be one of the exact IDs listed in the DOK2 SUMMARIES below. Only use IDs that appear in the [ID: X] markers.
+
 Respond ONLY with a JSON object: {"rankings": [{"dok2Id": <id>, "score": <number>}, ...]}`;
 
   const userPrompt = `DOK3 INSIGHT:
@@ -147,16 +143,15 @@ Respond ONLY with a JSON object: {"rankings": [{"dok2Id": <id>, "score": <number
 DOK2 SUMMARIES:
 ${dok2List}`;
 
-  const body = {
-    model: MODEL,
-    messages: [
-      { role: 'system', content: systemPrompt },
-      { role: 'user', content: userPrompt },
-    ],
+  const t0 = performance.now();
+  const result = await callModelWithFallback({
+    models: ['anthropic/claude-haiku-4.5', 'google/gemini-2.0-flash-001'],
+    system: systemPrompt,
+    messages: [{ role: 'user', content: userPrompt }],
     temperature: 0,
-    response_format: {
+    responseFormat: {
       type: 'json_schema',
-      json_schema: {
+      jsonSchema: {
         name: 'dok3_rankings',
         strict: true,
         schema: {
@@ -167,7 +162,7 @@ ${dok2List}`;
               items: {
                 type: 'object',
                 properties: {
-                  dok2Id: { type: 'number' },
+                  dok2Id: { type: 'number', enum: dok2Summaries.map(s => s.id) },
                   score: { type: 'number' },
                 },
                 required: ['dok2Id', 'score'],
@@ -180,30 +175,11 @@ ${dok2List}`;
         },
       },
     },
-  };
-
-  const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
-    method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${apiKey}`,
-      'Content-Type': 'application/json',
-      'HTTP-Referer': 'https://replit.com',
-    },
-    body: JSON.stringify(body),
+    caller: 'dok3AutoLinker',
   });
+  console.log(`[DOK3 AutoLinker] Semantic ranking: ${(performance.now() - t0).toFixed(0)}ms (model: ${result.model})`);
 
-  if (!response.ok) {
-    const errBody = await response.text().catch(() => '');
-    throw new Error(`API error: ${response.status} - ${errBody.substring(0, 200)}`);
-  }
-
-  const data = await response.json() as {
-    choices?: Array<{ message?: { content?: string } }>;
-  };
-  const content = data.choices?.[0]?.message?.content;
-  if (!content) throw new Error('No response content');
-
-  const parsed = JSON.parse(content) as { rankings: { dok2Id: number; score: number }[] };
+  const parsed = JSON.parse(result.content) as { rankings: { dok2Id: number; score: number }[] };
   return parsed.rankings || [];
 }
 

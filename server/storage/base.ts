@@ -7,7 +7,7 @@ export type {
   Fact, ContradictionCluster,
   BrainliftVersion, Expert, InsertExpert,
   FactVerification, InsertFactVerification, FactModelScore, InsertFactModelScore,
-  FactWithVerification, LLMModel, LlmFeedback, ModelAccuracyStats,
+  FactWithVerification, LlmFeedback, ModelAccuracyStats,
   FactRedundancyGroup, InsertFactRedundancyGroup, RedundancyStatus,
   LearningStreamItem, NewLearningStreamItem,
   ExtractedContent, AuthContext,
@@ -19,7 +19,7 @@ export type {
 export {
   brainlifts, facts, contradictionClusters,
   brainliftVersions, experts, factVerifications, factModelScores,
-  llmFeedback, modelAccuracyStats, factRedundancyGroups, LLM_MODELS,
+  llmFeedback, modelAccuracyStats, factRedundancyGroups,
   dok2Summaries, dok2Points, dok2FactRelations, learningStreamItems, swarmUsage,
   dok3Insights, dok3InsightLinks,
   dok4Spovs, dok4Dok3Links,

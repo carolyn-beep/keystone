@@ -13,8 +13,7 @@
 import type { HierarchyNode } from '@shared/hierarchy-types';
 import { serializeSubtree } from './chunker';
 import { extractAllFromHierarchy } from '../hierarchyExtractor';
-
-const MODEL = 'anthropic/claude-opus-4-6';
+import { callModelWithFallback } from '../client';
 
 export type EvaluationDecision = 'needs_formatting' | 'no_formatting_needed' | 'not_a_brainlift';
 
@@ -228,11 +227,6 @@ If in doubt between "needs_formatting" and "no_formatting_needed", say it does N
 export async function evaluateNeedsPreformat(
   hierarchy: HierarchyNode[],
 ): Promise<EvaluationResult> {
-  const apiKey = process.env.OPENROUTER_API_KEY;
-  if (!apiKey) {
-    throw new Error('OpenRouter API key not configured');
-  }
-
   // Serialize hierarchy and capture full size before truncation
   let markdown = '';
   for (const node of hierarchy) {
@@ -250,16 +244,14 @@ export async function evaluateNeedsPreformat(
 
   const userMessage = `${diagnostics}\n\n---\n\n## BrainLift Hierarchy\n\n${markdown}`;
 
-  const body = {
-    model: MODEL,
-    messages: [
-      { role: 'system', content: EVALUATION_SYSTEM_PROMPT },
-      { role: 'user', content: userMessage },
-    ],
+  const result = await callModelWithFallback({
+    models: ['anthropic/claude-opus-4.6', 'anthropic/claude-sonnet-4.6'],
+    system: EVALUATION_SYSTEM_PROMPT,
+    messages: [{ role: 'user', content: userMessage }],
     temperature: 0,
-    response_format: {
+    responseFormat: {
       type: 'json_schema',
-      json_schema: {
+      jsonSchema: {
         name: 'evaluation_result',
         strict: true,
         schema: {
@@ -274,31 +266,10 @@ export async function evaluateNeedsPreformat(
         },
       },
     },
-  };
-
-  const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
-    method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${apiKey}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify(body),
+    caller: 'preformat.evaluation',
   });
 
-  if (!response.ok) {
-    const errBody = await response.text().catch(() => '');
-    throw new Error(`Evaluation API error ${response.status}: ${errBody.substring(0, 200)}`);
-  }
-
-  const data = (await response.json()) as {
-    choices?: Array<{ message?: { content?: string } }>;
-  };
-  const content = data.choices?.[0]?.message?.content;
-  if (!content) {
-    throw new Error('No response content from evaluation LLM');
-  }
-
-  const parsed = JSON.parse(content) as { decision: EvaluationDecision; confidence: 'high' | 'medium' | 'low'; reasons: string[] };
+  const parsed = JSON.parse(result.content) as { decision: EvaluationDecision; confidence: 'high' | 'medium' | 'low'; reasons: string[] };
   return {
     ...parsed,
     contentSizeChars,

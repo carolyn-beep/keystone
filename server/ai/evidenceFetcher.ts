@@ -1,4 +1,4 @@
-const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY;
+import { callModelWithFallback } from './client';
 
 export interface EvidenceResult {
   url: string | null;
@@ -9,12 +9,12 @@ export interface EvidenceResult {
 
 function extractUrlFromSource(source: string): string | null {
   if (!source) return null;
-  
+
   const urlMatch = source.match(/https?:\/\/[^\s\)]+/i);
   if (urlMatch) {
     return urlMatch[0].replace(/[.,;:]+$/, '');
   }
-  
+
   return null;
 }
 
@@ -56,7 +56,7 @@ async function fetchWebContent(url: string): Promise<{ content: string | null; e
       console.log(`[Evidence] Unsupported content type: ${contentType}`);
       return { content: null, error: `Unsupported content type: ${contentType}` };
     }
-    
+
     const html = await response.text();
 
     const textContent = html
@@ -84,42 +84,12 @@ async function fetchWebContent(url: string): Promise<{ content: string | null; e
   }
 }
 
-async function callEvidenceSearchModel(model: string, prompt: string): Promise<string | null> {
-  const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
-    method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${OPENROUTER_API_KEY}`,
-      'Content-Type': 'application/json',
-      'HTTP-Referer': 'https://replit.com',
-    },
-    body: JSON.stringify({
-      model,
-      messages: [{ role: 'user', content: prompt }],
-      temperature: 0.1,
-      max_tokens: 1000,
-    }),
-  });
-
-  if (!response.ok) {
-    if (response.status === 429) {
-      console.error(`[RATE-LIMIT] 429 from ${model} - too many requests`);
-      throw new Error(`RATE_LIMIT: ${model}`);
-    }
-    throw new Error(`API error: ${response.status}`);
-  }
-
-  const data = await response.json();
-  const content = data.choices?.[0]?.message?.content;
-  if (!content) throw new Error('Empty response');
-  return content;
-}
-
 async function searchForEvidence(
   fact: string,
   source: string,
   fetchError?: string | null
 ): Promise<string | null> {
-  if (!OPENROUTER_API_KEY) {
+  if (!process.env.OPENROUTER_API_KEY) {
     console.log('[Evidence] No OpenRouter API key configured');
     return null;
   }
@@ -152,28 +122,24 @@ If the claim references such sources, draw on your knowledge of these works. Do 
 
 Provide a substantive evidence summary (max 500 words) with specific references to research. Plain text only, no markdown or emojis.`;
 
-  // Primary: Gemini Flash
   try {
-    console.log('[Evidence] Searching with Gemini Flash...');
-    const result = await callEvidenceSearchModel('google/gemini-2.0-flash-001', prompt);
-    if (result) {
-      console.log(`[Evidence] Gemini found ${result.length} chars of evidence`);
-      return result;
-    }
-  } catch (err: any) {
-    console.log(`[Evidence] Gemini search failed: ${err.message}, trying Qwen fallback...`);
-  }
+    console.log('[Evidence] Searching with AI models...');
+    const result = await callModelWithFallback({
+      models: ['google/gemini-2.0-flash-001', 'anthropic/claude-haiku-4.5'],
+      messages: [{ role: 'user', content: prompt }],
+      temperature: 0.1,
+      maxTokens: 1000,
+      timeout: 45_000,
+      caller: 'evidenceFetcher.aiSearch',
+    });
 
-  // Fallback: Qwen
-  try {
-    console.log('[Evidence] Searching with Qwen fallback...');
-    const result = await callEvidenceSearchModel('qwen/qwen3-32b', prompt);
-    if (result) {
-      console.log(`[Evidence] Qwen found ${result.length} chars of evidence`);
-      return result;
+    const content = result.content;
+    if (content) {
+      console.log(`[Evidence] AI search found ${content.length} chars of evidence`);
+      return content;
     }
   } catch (err: any) {
-    console.log(`[Evidence] Qwen search also failed: ${err.message}`);
+    console.log(`[Evidence] AI search failed: ${err.message}`);
   }
 
   return null;
