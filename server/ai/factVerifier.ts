@@ -1,8 +1,6 @@
 import { z } from 'zod';
-import { LLM_MODELS, LLM_MODEL_NAMES, type LLMModel, type VerificationStatus } from '@shared/schema';
-import pRetry from 'p-retry';
-
-const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY;
+import { type VerificationStatus } from '@shared/schema';
+import { callModel as unifiedCallModel } from './client/index';
 
 const modelGradeSchema = z.object({
   score: z.number().min(1).max(5),
@@ -10,7 +8,7 @@ const modelGradeSchema = z.object({
 });
 
 export interface ModelGradeResult {
-  model: LLMModel;
+  model: string;
   score: number | null;
   rationale: string | null;
   status: VerificationStatus;
@@ -55,23 +53,100 @@ Output Format:
   "isNonGradeable": <boolean - rarely true>
 }`;
 
-async function callModel(
-  model: LLMModel,
+const FACT_VERIFICATION_SCHEMA = {
+  type: 'json_schema' as const,
+  jsonSchema: {
+    name: 'fact_verification',
+    strict: true,
+    schema: {
+      type: 'object',
+      properties: {
+        score: { type: 'number', description: 'Score from 1-5' },
+        rationale: { type: 'string', description: 'Substantive explanation referencing research/evidence' },
+        isNonGradeable: { type: 'boolean', description: 'True only for highly obscure claims that cannot be evaluated' },
+      },
+      required: ['score', 'rationale', 'isNonGradeable'],
+      additionalProperties: false,
+    },
+  },
+};
+
+/**
+ * Parse the LLM response content into a verification result.
+ * Handles JSON extraction, control char sanitization, and regex fallback.
+ */
+function parseVerificationResponse(content: string): {
+  score: number;
+  rationale: string;
+  isNonGradeable: boolean;
+} {
+  // Remove markdown code blocks if present
+  let cleanContent = content
+    .replace(/```json\s*/gi, '')
+    .replace(/```\s*/g, '')
+    .trim();
+
+  // Use greedy match to get the full JSON object
+  let jsonMatch = cleanContent.match(/\{[\s\S]*\}/);
+  if (!jsonMatch) throw new Error('Could not find JSON in response');
+
+  // Try to parse, if it fails try to fix common issues
+  let parsed;
+  try {
+    parsed = JSON.parse(jsonMatch[0]);
+  } catch {
+    // Raw parse failed — escape control chars only inside JSON string values
+    // (preserving structural whitespace between properties)
+    try {
+      const sanitized = jsonMatch[0].replace(
+        /"(?:[^"\\]|\\.)*"/g,
+        (str: string) => str.replace(/[\x00-\x1F\x7F]/g, (ch: string) =>
+          ch === '\n' ? '\\n' : ch === '\t' ? '\\t' : ch === '\r' ? '\\r' : ''
+        )
+      );
+      parsed = JSON.parse(sanitized);
+    } catch (parseErr) {
+    // JSON.parse failed — fall back to regex extraction
+    console.warn('[FactVerifier] JSON.parse failed, using regex fallback', {
+      error: (parseErr as Error).message,
+      rawSnippet: jsonMatch[0].slice(0, 200),
+    });
+
+    const scoreMatch = cleanContent.match(/"score"\s*:\s*(\d)/);
+    const rationaleMatch = cleanContent.match(/"rationale"\s*:\s*"((?:[^"\\]|\\.)*)"/s);
+    const nonGradeableMatch = cleanContent.match(/"isNonGradeable"\s*:\s*(true|false)/i);
+
+    if (scoreMatch) {
+      if (!rationaleMatch) {
+        console.warn('[FactVerifier] Could not extract rationale via regex');
+      }
+      parsed = {
+        score: parseInt(scoreMatch[1]),
+        rationale: rationaleMatch ? rationaleMatch[1] : 'Unable to parse full rationale',
+        isNonGradeable: nonGradeableMatch ? nonGradeableMatch[1].toLowerCase() === 'true' : false
+      };
+    } else {
+      throw new Error('Could not parse JSON response');
+    }
+  }}
+
+  return {
+    score: parsed.score,
+    rationale: parsed.rationale,
+    isNonGradeable: parsed.isNonGradeable === true || parsed.isNonGradeable === 'true'
+  };
+}
+
+/**
+ * Call a single model for fact verification using the unified AI client.
+ */
+async function callVerificationModel(
+  model: string,
   fact: string,
   source: string,
   evidence: string,
   linkFailed: boolean = false
 ): Promise<ModelGradeResult & { isNonGradeable?: boolean }> {
-  if (!OPENROUTER_API_KEY) {
-    return {
-      model,
-      score: null,
-      rationale: null,
-      status: 'failed',
-      error: 'OpenRouter API key not configured',
-    };
-  }
-
   const userPrompt = `CLAIM TO VERIFY:
 "${fact}"
 
@@ -85,127 +160,24 @@ SOURCE_LINK_FAILED: ${linkFailed}
 
 Grade this claim based on available evidence OR your knowledge of educational research literature. Provide a substantive rationale explaining your assessment.`;
 
-  const run = async () => {
-    const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${OPENROUTER_API_KEY}`,
-        'Content-Type': 'application/json',
-        'HTTP-Referer': 'https://replit.com',
-      },
-      body: JSON.stringify({
-        model,
-        messages: [
-          { role: 'system', content: GRADING_SYSTEM_PROMPT },
-          { role: 'user', content: userPrompt },
-        ],
-        temperature: 0.1,
-        max_tokens: 800,
-        response_format: {
-          type: 'json_schema',
-          json_schema: {
-            name: 'fact_verification',
-            strict: true,
-            schema: {
-              type: 'object',
-              properties: {
-                score: { type: 'number', description: 'Score from 1-5' },
-                rationale: { type: 'string', description: 'Substantive explanation referencing research/evidence' },
-                isNonGradeable: { type: 'boolean', description: 'True only for highly obscure claims that cannot be evaluated' },
-              },
-              required: ['score', 'rationale', 'isNonGradeable'],
-              additionalProperties: false,
-            },
-          },
-        },
-      }),
-    });
-
-    if (!response.ok) {
-      if (response.status === 429) {
-        console.error(`[RATE-LIMIT] 429 from ${model} - too many requests`);
-        throw new Error(`RATE_LIMIT: ${model}`);
-      }
-      throw new Error(`API error: ${response.status}`);
-    }
-
-    const data = await response.json();
-    const content = data.choices?.[0]?.message?.content;
-
-    if (!content) {
-      throw new Error('No response content');
-    }
-
-    // Remove markdown code blocks if present
-    let cleanContent = content
-      .replace(/```json\s*/gi, '')
-      .replace(/```\s*/g, '')
-      .trim();
-
-    // Use greedy match to get the full JSON object
-    let jsonMatch = cleanContent.match(/\{[\s\S]*\}/);
-    if (!jsonMatch) throw new Error('Could not find JSON in response');
-
-    // Try to parse, if it fails try to fix common issues
-    let parsed;
-    try {
-      parsed = JSON.parse(jsonMatch[0]);
-    } catch {
-      // Raw parse failed — escape control chars only inside JSON string values
-      // (preserving structural whitespace between properties)
-      try {
-        const sanitized = jsonMatch[0].replace(
-          /"(?:[^"\\]|\\.)*"/g,
-          (str: string) => str.replace(/[\x00-\x1F\x7F]/g, (ch: string) =>
-            ch === '\n' ? '\\n' : ch === '\t' ? '\\t' : ch === '\r' ? '\\r' : ''
-          )
-        );
-        parsed = JSON.parse(sanitized);
-      } catch (parseErr) {
-      // JSON.parse failed — fall back to regex extraction
-      console.warn('[FactVerifier] JSON.parse failed, using regex fallback', {
-        error: (parseErr as Error).message,
-        rawSnippet: jsonMatch[0].slice(0, 200),
-      });
-
-      const scoreMatch = cleanContent.match(/"score"\s*:\s*(\d)/);
-      const rationaleMatch = cleanContent.match(/"rationale"\s*:\s*"((?:[^"\\]|\\.)*)"/s);
-      const nonGradeableMatch = cleanContent.match(/"isNonGradeable"\s*:\s*(true|false)/i);
-
-      if (scoreMatch) {
-        if (!rationaleMatch) {
-          console.warn('[FactVerifier] Could not extract rationale via regex');
-        }
-        parsed = {
-          score: parseInt(scoreMatch[1]),
-          rationale: rationaleMatch ? rationaleMatch[1] : 'Unable to parse full rationale',
-          isNonGradeable: nonGradeableMatch ? nonGradeableMatch[1].toLowerCase() === 'true' : false
-        };
-      } else {
-        throw new Error('Could not parse JSON response');
-      }
-    }}
-    
-    return {
-      score: parsed.score,
-      rationale: parsed.rationale,
-      isNonGradeable: parsed.isNonGradeable === true || parsed.isNonGradeable === 'true'
-    };
-  };
-
   try {
-    const result = await pRetry(run, {
-      retries: 2,
-      onFailedAttempt: error => {
-        console.log(`Model ${model} attempt ${error.attemptNumber} failed. ${error.retriesLeft} retries left.`);
-      }
+    const result = await unifiedCallModel({
+      model,
+      system: GRADING_SYSTEM_PROMPT,
+      messages: [{ role: 'user', content: userPrompt }],
+      temperature: 0.1,
+      maxTokens: 800,
+      responseFormat: FACT_VERIFICATION_SCHEMA,
+      caller: 'factVerifier',
     });
+
+    const parsed = parseVerificationResponse(result.content);
 
     return {
       model,
-      score: result.isNonGradeable ? 0 : result.score,
-      rationale: result.rationale,
-      isNonGradeable: result.isNonGradeable,
+      score: parsed.isNonGradeable ? 0 : parsed.score,
+      rationale: parsed.rationale,
+      isNonGradeable: parsed.isNonGradeable,
       status: 'completed',
       error: null,
     };
@@ -221,7 +193,7 @@ Grade this claim based on available evidence OR your knowledge of educational re
   }
 }
 
-type ModelWeights = Record<LLMModel, number>;
+type ModelWeights = Record<string, number>;
 
 function calculateWeightedMedian(scores: number[], weights: number[]): number {
   if (scores.length === 0) return 0;
@@ -242,7 +214,7 @@ export function calculateConsensus(
   modelWeights?: ModelWeights
 ): ConsensusResult & { isNonGradeable?: boolean } {
   const validResults = modelResults.filter(r => r.status === 'completed');
-  
+
   if (validResults.length === 0) {
     return {
       consensusScore: 3,
@@ -283,12 +255,12 @@ export async function verifyFactWithAllModels(
   modelWeights?: ModelWeights
 ): Promise<VerificationResult & { consensus: ConsensusResult & { isNonGradeable?: boolean } }> {
   // Primary: Gemini Flash
-  let result = await callModel(LLM_MODELS.GEMINI_FLASH, fact, source, evidence, linkFailed);
+  let result = await callVerificationModel('google/gemini-2.0-flash-001', fact, source, evidence, linkFailed);
 
   // Fallback: Qwen if Gemini fails
   if (result.status === 'failed') {
     console.log('Gemini verification failed, trying Qwen fallback...');
-    result = await callModel(LLM_MODELS.QWEN_32B, fact, source, evidence, linkFailed);
+    result = await callVerificationModel('qwen/qwen3-32b', fact, source, evidence, linkFailed);
   }
 
   const modelResults = [result];
@@ -296,4 +268,3 @@ export async function verifyFactWithAllModels(
 
   return { modelResults, consensus };
 }
-
