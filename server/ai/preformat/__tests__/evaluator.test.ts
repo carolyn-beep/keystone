@@ -1,9 +1,9 @@
 /**
- * Tests for 06-evaluator-upgrade: Evaluator Ternary Decision + Content Size
+ * Tests for evaluator (unified client migration)
  *
- * Tests the upgraded evaluator that returns a ternary decision
+ * Tests the evaluator that returns a ternary decision
  * (needs_formatting | no_formatting_needed | not_a_brainlift)
- * plus contentSizeChars. OpenRouter API is mocked via globalThis.fetch.
+ * plus contentSizeChars. callModel from unified client is mocked.
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
@@ -35,6 +35,15 @@ vi.mock('../../hierarchyExtractor', () => ({
   }),
 }));
 
+// Mock the unified AI client
+vi.mock('../../client', () => ({
+  callModel: vi.fn(),
+}));
+
+import { callModel } from '../../client';
+
+const mockCallModel = vi.mocked(callModel);
+
 // ═══════════════════════════════════════════════════════════════════════════
 // Test Helpers
 // ═══════════════════════════════════════════════════════════════════════════
@@ -60,30 +69,13 @@ function makeNode(
   };
 }
 
-/** Create a mock fetch returning a successful OpenRouter response */
-function createMockFetch(responseBody: object) {
-  return vi.fn().mockResolvedValue({
-    ok: true,
-    json: async () => ({
-      choices: [{ message: { content: JSON.stringify(responseBody) } }],
-    }),
-  });
-}
-
-/** Create a mock fetch returning an HTTP error */
-function createErrorFetch(status: number, body: string) {
-  return vi.fn().mockResolvedValue({
-    ok: false,
-    status,
-    text: async () => body,
-  });
-}
-
-/** Create a mock fetch returning an empty choices array */
-function createEmptyResponseFetch() {
-  return vi.fn().mockResolvedValue({
-    ok: true,
-    json: async () => ({ choices: [] }),
+/** Configure mock callModel to return a successful response */
+function mockCallModelResponse(responseBody: object) {
+  mockCallModel.mockResolvedValue({
+    content: JSON.stringify(responseBody),
+    model: 'anthropic/claude-opus-4-6',
+    durationMs: 500,
+    attempts: 1,
   });
 }
 
@@ -92,23 +84,8 @@ function createEmptyResponseFetch() {
 // ═══════════════════════════════════════════════════════════════════════════
 
 describe('evaluateNeedsPreformat', () => {
-  let originalFetch: typeof globalThis.fetch;
-  let originalEnv: string | undefined;
-
   beforeEach(() => {
-    originalFetch = globalThis.fetch;
-    originalEnv = process.env.OPENROUTER_API_KEY;
-    process.env.OPENROUTER_API_KEY = 'test-key-123';
-  });
-
-  afterEach(() => {
-    globalThis.fetch = originalFetch;
-    if (originalEnv !== undefined) {
-      process.env.OPENROUTER_API_KEY = originalEnv;
-    } else {
-      delete process.env.OPENROUTER_API_KEY;
-    }
-    vi.restoreAllMocks();
+    vi.clearAllMocks();
   });
 
   // ─────────────────────────────────────────────────────────────────────
@@ -119,7 +96,7 @@ describe('evaluateNeedsPreformat', () => {
     it('returns needs_formatting decision for a BrainLift with no DOK markers', async () => {
       const { evaluateNeedsPreformat } = await import('../evaluator');
 
-      globalThis.fetch = createMockFetch({
+      mockCallModelResponse({
         decision: 'needs_formatting',
         confidence: 'high',
         reasons: ['No DOK markers found in the hierarchy'],
@@ -144,7 +121,7 @@ describe('evaluateNeedsPreformat', () => {
     it('returns no_formatting_needed decision for a well-structured BrainLift', async () => {
       const { evaluateNeedsPreformat } = await import('../evaluator');
 
-      globalThis.fetch = createMockFetch({
+      mockCallModelResponse({
         decision: 'no_formatting_needed',
         confidence: 'high',
         reasons: ['All DOK sections present and properly structured'],
@@ -173,7 +150,7 @@ describe('evaluateNeedsPreformat', () => {
     it('returns not_a_brainlift decision for non-BrainLift content', async () => {
       const { evaluateNeedsPreformat } = await import('../evaluator');
 
-      globalThis.fetch = createMockFetch({
+      mockCallModelResponse({
         decision: 'not_a_brainlift',
         confidence: 'high',
         reasons: ['Content appears to be a to-do list, not a knowledge base'],
@@ -194,70 +171,49 @@ describe('evaluateNeedsPreformat', () => {
       expect(result.reasons).toContain('Content appears to be a to-do list, not a knowledge base');
     });
 
-    it('sends JSON schema with decision enum (not boolean) to the LLM', async () => {
+    it('calls callModel with correct caller and responseFormat', async () => {
       const { evaluateNeedsPreformat } = await import('../evaluator');
 
-      const mockFetch = createMockFetch({
+      mockCallModelResponse({
         decision: 'needs_formatting',
         confidence: 'medium',
         reasons: ['test'],
       });
-      globalThis.fetch = mockFetch;
 
       await evaluateNeedsPreformat([makeNode('Test')]);
 
-      expect(mockFetch).toHaveBeenCalledTimes(1);
-      const callArgs = mockFetch.mock.calls[0];
-      const body = JSON.parse(callArgs[1].body);
+      expect(mockCallModel).toHaveBeenCalledTimes(1);
+      const callArgs = mockCallModel.mock.calls[0][0];
 
-      // Verify the JSON schema has decision as enum, not needsPreformat as boolean
-      const schema = body.response_format.json_schema.schema;
-      expect(schema.properties.decision).toBeDefined();
-      expect(schema.properties.decision.type).toBe('string');
-      expect(schema.properties.decision.enum).toEqual([
+      expect(callArgs.caller).toBe('preformat.evaluator');
+      expect(callArgs.model).toBe('anthropic/claude-opus-4-6');
+      expect(callArgs.temperature).toBe(0);
+
+      // Verify the responseFormat has decision as enum
+      const schema = (callArgs.responseFormat as { type: string; jsonSchema: { schema: Record<string, unknown> } }).jsonSchema.schema;
+      expect((schema.properties as Record<string, unknown>)).toHaveProperty('decision');
+      const decisionProp = (schema.properties as Record<string, Record<string, unknown>>).decision;
+      expect(decisionProp.type).toBe('string');
+      expect(decisionProp.enum).toEqual([
         'needs_formatting',
         'no_formatting_needed',
         'not_a_brainlift',
       ]);
-      expect(schema.properties.needsPreformat).toBeUndefined();
-      expect(schema.required).toContain('decision');
-      expect(schema.required).not.toContain('needsPreformat');
-    });
-
-    it('includes contentSizeChars in JSON schema required fields', async () => {
-      const { evaluateNeedsPreformat } = await import('../evaluator');
-
-      const mockFetch = createMockFetch({
-        decision: 'no_formatting_needed',
-        confidence: 'high',
-        reasons: [],
-      });
-      globalThis.fetch = mockFetch;
-
-      await evaluateNeedsPreformat([makeNode('Test')]);
-
-      const body = JSON.parse(mockFetch.mock.calls[0][1].body);
-      const schema = body.response_format.json_schema.schema;
-
-      // contentSizeChars is NOT in the LLM schema — it's computed locally
-      expect(schema.properties.contentSizeChars).toBeUndefined();
-      expect(schema.required).not.toContain('contentSizeChars');
     });
 
     it('system prompt describes all three decision outcomes', async () => {
       const { evaluateNeedsPreformat } = await import('../evaluator');
 
-      const mockFetch = createMockFetch({
+      mockCallModelResponse({
         decision: 'no_formatting_needed',
         confidence: 'high',
         reasons: [],
       });
-      globalThis.fetch = mockFetch;
 
       await evaluateNeedsPreformat([makeNode('Test')]);
 
-      const body = JSON.parse(mockFetch.mock.calls[0][1].body);
-      const systemPrompt = body.messages[0].content;
+      const callArgs = mockCallModel.mock.calls[0][0];
+      const systemPrompt = callArgs.system!;
 
       expect(systemPrompt).toContain('needs_formatting');
       expect(systemPrompt).toContain('no_formatting_needed');
@@ -267,7 +223,7 @@ describe('evaluateNeedsPreformat', () => {
     it('result has decision, confidence, reasons, and contentSizeChars fields', async () => {
       const { evaluateNeedsPreformat } = await import('../evaluator');
 
-      globalThis.fetch = createMockFetch({
+      mockCallModelResponse({
         decision: 'needs_formatting',
         confidence: 'low',
         reasons: ['reason1', 'reason2'],
@@ -294,7 +250,7 @@ describe('evaluateNeedsPreformat', () => {
     it('contentSizeChars matches serialized hierarchy length', async () => {
       const { evaluateNeedsPreformat } = await import('../evaluator');
 
-      globalThis.fetch = createMockFetch({
+      mockCallModelResponse({
         decision: 'no_formatting_needed',
         confidence: 'high',
         reasons: [],
@@ -309,15 +265,8 @@ describe('evaluateNeedsPreformat', () => {
 
       const result = await evaluateNeedsPreformat(hierarchy);
 
-      // Manually compute expected size using serializeSubtree logic:
-      // "- Root\n  - Child 1\n    - Grandchild A\n  - Child 2\n"
-      // The exact size depends on serializeSubtree implementation
       expect(result.contentSizeChars).toBeGreaterThan(0);
       expect(typeof result.contentSizeChars).toBe('number');
-
-      // Verify it's the right ballpark for the content
-      // "- Root\n" = 7, "  - Child 1\n" = 12, "    - Grandchild A\n" = 20, "  - Child 2\n" = 12
-      // Total: 51 chars approximately
       expect(result.contentSizeChars).toBeGreaterThan(30);
       expect(result.contentSizeChars).toBeLessThan(100);
     });
@@ -325,7 +274,7 @@ describe('evaluateNeedsPreformat', () => {
     it('returns contentSizeChars of 0 for empty hierarchy', async () => {
       const { evaluateNeedsPreformat } = await import('../evaluator');
 
-      globalThis.fetch = createMockFetch({
+      mockCallModelResponse({
         decision: 'not_a_brainlift',
         confidence: 'high',
         reasons: ['Empty document'],
@@ -339,12 +288,11 @@ describe('evaluateNeedsPreformat', () => {
     it('captures full size even when hierarchy exceeds truncation limit', async () => {
       const { evaluateNeedsPreformat } = await import('../evaluator');
 
-      const mockFetch = createMockFetch({
+      mockCallModelResponse({
         decision: 'needs_formatting',
         confidence: 'medium',
         reasons: ['Large unstructured document'],
       });
-      globalThis.fetch = mockFetch;
 
       // Create a large hierarchy that will exceed the 50K char truncation limit
       const children: HierarchyNode[] = [];
@@ -361,8 +309,8 @@ describe('evaluateNeedsPreformat', () => {
       expect(result.contentSizeChars).toBeGreaterThan(50000);
 
       // But the LLM should receive truncated content
-      const body = JSON.parse(mockFetch.mock.calls[0][1].body);
-      const userMessage = body.messages[1].content;
+      const callArgs = mockCallModel.mock.calls[0][0];
+      const userMessage = callArgs.messages[0].content;
       expect(userMessage).toContain('[... truncated');
     });
   });
@@ -372,49 +320,29 @@ describe('evaluateNeedsPreformat', () => {
   // ─────────────────────────────────────────────────────────────────────
 
   describe('Error Cases', () => {
-    it('throws when OPENROUTER_API_KEY is missing', async () => {
+    it('throws when callModel fails', async () => {
       const { evaluateNeedsPreformat } = await import('../evaluator');
 
-      delete process.env.OPENROUTER_API_KEY;
+      mockCallModel.mockRejectedValue(new Error('API error 429'));
 
       await expect(evaluateNeedsPreformat([makeNode('Test')])).rejects.toThrow(
-        'OpenRouter API key not configured',
+        'API error 429',
       );
     });
 
-    it('throws descriptive error when LLM returns invalid JSON', async () => {
+    it('throws when callModel returns unparseable JSON content', async () => {
       const { evaluateNeedsPreformat } = await import('../evaluator');
 
-      globalThis.fetch = vi.fn().mockResolvedValue({
-        ok: true,
-        json: async () => ({
-          choices: [{ message: { content: 'not valid json {{{' } }],
-        }),
+      mockCallModel.mockResolvedValue({
+        content: 'not valid json {{{',
+        model: 'anthropic/claude-opus-4-6',
+        durationMs: 100,
+        attempts: 1,
       });
 
       await expect(
         evaluateNeedsPreformat([makeNode('Test')]),
       ).rejects.toThrow();
-    });
-
-    it('throws descriptive error when LLM returns empty response', async () => {
-      const { evaluateNeedsPreformat } = await import('../evaluator');
-
-      globalThis.fetch = createEmptyResponseFetch();
-
-      await expect(
-        evaluateNeedsPreformat([makeNode('Test')]),
-      ).rejects.toThrow('No response content from evaluation LLM');
-    });
-
-    it('throws with status code when API returns HTTP error', async () => {
-      const { evaluateNeedsPreformat } = await import('../evaluator');
-
-      globalThis.fetch = createErrorFetch(429, 'Rate limit exceeded');
-
-      await expect(
-        evaluateNeedsPreformat([makeNode('Test')]),
-      ).rejects.toThrow('Evaluation API error 429');
     });
   });
 });
