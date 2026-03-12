@@ -82,7 +82,7 @@ describe('getItemTextContent', () => {
           embedType: 'youtube',
           embedId: 'abc123',
           transcript: 'This is the video transcript text.',
-        } as any, // transcript field added by spec 01
+        }
       });
 
       const result = getItemTextContent(item);
