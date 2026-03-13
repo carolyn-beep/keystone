@@ -159,6 +159,7 @@ export const storage = {
   getQuizByItemId: knowledgeCheckStorage.getQuizByItemId,
   createQuiz: knowledgeCheckStorage.createQuiz,
   submitQuizAnswers: knowledgeCheckStorage.submitQuizAnswers,
+  hasQuizJobPending: knowledgeCheckStorage.hasQuizJobPending,
 };
 
 // Export individual modules for direct access if needed

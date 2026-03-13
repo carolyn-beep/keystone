@@ -10,6 +10,7 @@ import {
   knowledgeCheckQuizzes,
   type KnowledgeCheckQuiz, type QuizQuestion, type QuizAnswer,
 } from './base';
+import { pool } from '../db';
 
 /**
  * Get a quiz by learning stream item ID and brainlift ID.
@@ -76,4 +77,21 @@ export async function submitQuizAnswers(
     )
     .returning();
   return rows[0] ?? null;
+}
+
+/**
+ * Check if there's a pending or running quiz generation job for this item.
+ * Queries graphile_worker's jobs table directly (follows hasResearchJobPending pattern).
+ */
+export async function hasQuizJobPending(itemId: number): Promise<boolean> {
+  const result = await pool.query(
+    `SELECT 1 FROM graphile_worker._private_jobs j
+     JOIN graphile_worker._private_tasks t ON j.task_id = t.id
+     WHERE t.identifier = 'learning-stream:generate-quiz'
+       AND j.payload->>'itemId' = $1::text
+     LIMIT 1`,
+    [itemId.toString()]
+  );
+
+  return result.rows.length > 0;
 }

@@ -10,15 +10,30 @@ import { storage } from '../storage';
 import { requireAuth } from '../middleware/auth';
 import { asyncHandler, BadRequestError, NotFoundError } from '../middleware/error-handler';
 import { requireBrainliftAccess, requireBrainliftModify } from '../middleware/brainlift-auth';
-import { getItemTextContent } from '../utils/item-text-content';
+import { isQuizzableContent, ensureItemTextContent } from '../utils/item-text-content';
 import { generateQuiz } from '../services/quiz-generator';
 import type { QuizAnswer } from '@shared/schema';
 
 export const knowledgeCheckRouter = Router();
 
+/** Exponential backoff delays for long poll (total ~15.5s) */
+const POLL_DELAYS = [500, 1000, 2000, 3000, 4000, 5000];
+
+/** Sleep utility for backoff delays */
+function sleep(ms: number): Promise<void> {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
 /**
  * POST /api/brainlifts/:slug/learning-stream/:itemId/quiz
  * Generate a new quiz or return existing one.
+ *
+ * Flow:
+ * 1. Existing quiz -> return immediately (instant, 99% case)
+ * 2. Non-quizzable content -> return unavailable
+ * 3. Null content -> return { status: 'generating' }
+ * 4. Quizzable, pending job -> long poll with exponential backoff, then inline fallback
+ * 5. Quizzable, no job -> inline generation immediately (backward compat)
  */
 knowledgeCheckRouter.post(
   '/api/brainlifts/:slug/learning-stream/:itemId/quiz',
@@ -31,28 +46,53 @@ knowledgeCheckRouter.post(
       throw new BadRequestError('Invalid item ID');
     }
 
-    // Fetch item and verify it belongs to this brainlift
-    const item = await storage.getLearningStreamItemById(itemId);
-    if (!item || item.brainliftId !== brainlift.id) {
-      throw new NotFoundError('Item not found');
-    }
-
-    // Check for existing quiz
+    // 1. Check for existing quiz first (instant return)
     const existingQuiz = await storage.getQuizByItemId(itemId, brainlift.id);
     if (existingQuiz) {
       return res.json({ quiz: existingQuiz });
     }
 
-    // Check text content availability
-    const textContent = getItemTextContent(item);
-    if (!textContent) {
+    // 2. Fetch item and verify it belongs to this brainlift
+    const item = await storage.getLearningStreamItemById(itemId, brainlift.id);
+    if (!item || item.brainliftId !== brainlift.id) {
+      throw new NotFoundError('Item not found');
+    }
+
+    // 3. Check content type
+    const ec = item.extractedContent;
+    if (!ec) {
+      // Content not yet extracted (defensive; frontend guard should prevent this)
+      return res.json({ status: 'generating' });
+    }
+
+    if (!isQuizzableContent(ec)) {
       return res.json({
         unavailable: true,
         reason: 'Quiz not available for this content type',
       });
     }
 
-    // Generate quiz
+    // 4. Check for pending background quiz generation job
+    const jobPending = await storage.hasQuizJobPending(itemId);
+
+    if (jobPending) {
+      // Long poll with exponential backoff
+      for (const delay of POLL_DELAYS) {
+        await sleep(delay);
+        const quiz = await storage.getQuizByItemId(itemId, brainlift.id);
+        if (quiz) {
+          return res.json({ quiz });
+        }
+      }
+      // Poll exhausted — fall through to inline generation
+    }
+
+    // 5. Inline generation fallback (backward compat for old items or poll timeout)
+    const textContent = await ensureItemTextContent(item);
+    if (!textContent) {
+      return res.json({ status: 'generating' });
+    }
+
     try {
       const generated = await generateQuiz({
         textContent,
