@@ -1,4 +1,4 @@
-import { createYouTubeTranscriptApi } from '@playzone/youtube-transcript';
+import { createYouTubeTranscriptApi } from '@playzone/youtube-transcript/dist/api/index.js';
 
 const api = createYouTubeTranscriptApi();
 
