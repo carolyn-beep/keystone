@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef } from 'react';
+import { useState, useCallback, useRef, useEffect } from 'react';
 import { useMutation } from '@tanstack/react-query';
 import { apiRequest } from '@/lib/queryClient';
 import type { QuizQuestion, QuizAnswer } from '@shared/schema';
@@ -26,7 +26,7 @@ interface SubmitResponse {
 
 export interface UseKnowledgeCheckReturn {
   quiz: KnowledgeCheckQuiz | null;
-  isLoading: boolean;
+  isGenerating: boolean;
   unavailableReason: string | null;
   generateOrGet: () => void;
   submitAnswers: (answers: QuizAnswer[]) => Promise<void>;
@@ -36,7 +36,13 @@ export interface UseKnowledgeCheckReturn {
 export function useKnowledgeCheck(slug: string, itemId: number): UseKnowledgeCheckReturn {
   const [quiz, setQuiz] = useState<KnowledgeCheckQuiz | null>(null);
   const [unavailableReason, setUnavailableReason] = useState<string | null>(null);
+  const [isGenerating, setIsGenerating] = useState(false);
   const retryCountRef = useRef(0);
+  const retryTimerRef = useRef<ReturnType<typeof setTimeout>>();
+
+  useEffect(() => {
+    return () => { clearTimeout(retryTimerRef.current); };
+  }, []);
 
   const generateMutation = useMutation({
     mutationFn: async (): Promise<GenerateResponse> => {
@@ -46,19 +52,29 @@ export function useKnowledgeCheck(slug: string, itemId: number): UseKnowledgeChe
       );
       return res.json();
     },
+    onMutate: () => {
+      setIsGenerating(true);
+    },
     onSuccess: (data) => {
       if ('unavailable' in data && data.unavailable) {
         setUnavailableReason(data.reason);
+        setIsGenerating(false);
       } else if ('quiz' in data) {
         setQuiz(data.quiz);
         retryCountRef.current = 0;
+        setIsGenerating(false);
       } else if ('status' in data && data.status === 'generating') {
-        // Auto-retry once after 3s delay (max 1 retry to prevent loops)
         if (retryCountRef.current < 1) {
           retryCountRef.current += 1;
-          setTimeout(() => generateMutation.mutate(), 3000);
+          retryTimerRef.current = setTimeout(() => generateMutation.mutate(), 3000);
+          // isGenerating stays true through the 3s gap
+        } else {
+          setIsGenerating(false);
         }
       }
+    },
+    onError: () => {
+      setIsGenerating(false);
     },
   });
 
@@ -78,6 +94,7 @@ export function useKnowledgeCheck(slug: string, itemId: number): UseKnowledgeChe
 
   const generateOrGet = useCallback(() => {
     retryCountRef.current = 0;
+    setUnavailableReason(null);
     generateMutation.mutate();
   }, [generateMutation]);
 
@@ -90,7 +107,7 @@ export function useKnowledgeCheck(slug: string, itemId: number): UseKnowledgeChe
 
   return {
     quiz,
-    isLoading: generateMutation.isPending,
+    isGenerating,
     unavailableReason,
     generateOrGet,
     submitAnswers,

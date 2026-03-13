@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { motion } from 'framer-motion';
 import { AlertCircle, Loader2 } from 'lucide-react';
-import { useKnowledgeCheck } from '@/hooks/useKnowledgeCheck';
+import { useKnowledgeCheck, type KnowledgeCheckQuiz } from '@/hooks/useKnowledgeCheck';
 import { QuizQuestion } from './QuizQuestion';
 import { QuizResults } from './QuizResults';
 import { tokens } from '@/lib/colors';
@@ -14,7 +14,7 @@ interface KnowledgeCheckPanelProps {
   item: LearningStreamItem;
 }
 
-type PanelState = 'loading' | 'unavailable' | 'quiz' | 'results' | 'completed';
+type Phase = 'loading' | 'unavailable' | 'quiz' | 'results' | 'completed';
 
 /** Client-side unavailability check to avoid unnecessary POST. */
 function getClientUnavailableReason(ec: ExtractedContent | null): string | null {
@@ -25,6 +25,22 @@ function getClientUnavailableReason(ec: ExtractedContent | null): string | null 
     if (ec.embedType === 'tweet') return 'tweet';
   }
   return null;
+}
+
+/** Pure derivation — no hooks, no state sync. */
+function derivePhase(
+  clientUnavailable: string | null,
+  serverUnavailable: string | null,
+  isGenerating: boolean,
+  quiz: KnowledgeCheckQuiz | null,
+  hasSubmitted: boolean,
+): Phase {
+  if (clientUnavailable) return 'unavailable';
+  if (serverUnavailable) return 'unavailable';
+  if (isGenerating || !quiz) return 'loading';
+  if (quiz.completedAt && !hasSubmitted) return 'completed';
+  if (hasSubmitted) return 'results';
+  return 'quiz';
 }
 
 const UNAVAILABLE_MESSAGES: Record<string, { title: string; message: string }> = {
@@ -43,8 +59,8 @@ const UNAVAILABLE_MESSAGES: Record<string, { title: string; message: string }> =
     message: "We couldn't extract this content. Try the Discussion tab instead.",
   },
   pending: {
-    title: 'Processing',
-    message: 'Content is still being extracted. Check back in a moment.',
+    title: 'Preparing Quiz',
+    message: 'Content is still being processed. This will only take a moment.',
   },
 };
 
@@ -55,53 +71,32 @@ export function KnowledgeCheckPanel({
 }: KnowledgeCheckPanelProps) {
   const {
     quiz,
-    isLoading,
+    isGenerating,
     unavailableReason: serverUnavailableReason,
     generateOrGet,
     submitAnswers,
     isSubmitting,
   } = useKnowledgeCheck(slug, itemId);
 
-  const [panelState, setPanelState] = useState<PanelState>('loading');
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
   const [answers, setAnswers] = useState<QuizAnswer[]>([]);
-  const hasInitialized = useRef(false);
+  const [hasSubmitted, setHasSubmitted] = useState(false);
 
-  // Check client-side unavailability first
+  // Trigger quiz generation when content becomes available.
+  // generateKey is null while content is unavailable, stable string when ready.
+  // The ref prevents re-firing on unrelated re-renders.
   const clientUnavailable = getClientUnavailableReason(item.extractedContent);
+  const generateKey = clientUnavailable ? null : `ready-${itemId}`;
+  const lastGenerateKeyRef = useRef<string | null>(null);
 
-  // Initialize on mount
   useEffect(() => {
-    if (hasInitialized.current) return;
-    hasInitialized.current = true;
-
-    if (clientUnavailable) {
-      setPanelState('unavailable');
-      return;
+    if (generateKey && generateKey !== lastGenerateKeyRef.current) {
+      lastGenerateKeyRef.current = generateKey;
+      generateOrGet();
     }
+  }, [generateKey, generateOrGet]);
 
-    generateOrGet();
-  }, [clientUnavailable, generateOrGet]);
-
-  // React to hook state changes
-  useEffect(() => {
-    if (clientUnavailable) return; // already handled
-
-    if (serverUnavailableReason) {
-      setPanelState('unavailable');
-      return;
-    }
-
-    if (quiz) {
-      if (quiz.answers && quiz.answers.length > 0) {
-        // Already completed — show previous results
-        setPanelState('completed');
-      } else if (panelState === 'loading') {
-        // Fresh quiz loaded
-        setPanelState('quiz');
-      }
-    }
-  }, [quiz, serverUnavailableReason, clientUnavailable, panelState]);
+  const phase = derivePhase(clientUnavailable, serverUnavailableReason, isGenerating, quiz, hasSubmitted);
 
   // Handle answer selection
   const handleAnswer = useCallback(
@@ -122,21 +117,19 @@ export function KnowledgeCheckPanel({
     if (!quiz) return;
 
     if (currentQuestionIndex < quiz.questions.length - 1) {
-      // More questions
       setCurrentQuestionIndex((prev) => prev + 1);
     } else {
-      // Last question — submit answers
       await submitAnswers(answers);
-      setPanelState('results');
+      setHasSubmitted(true);
     }
   }, [quiz, currentQuestionIndex, answers, submitAnswers]);
 
   // Determine effective unavailable reason
   const unavailableKey = clientUnavailable || serverUnavailableReason || 'fallback';
 
-  // --- Render states ---
+  // --- Render by phase ---
 
-  if (panelState === 'unavailable') {
+  if (phase === 'unavailable') {
     const msg = UNAVAILABLE_MESSAGES[unavailableKey] || UNAVAILABLE_MESSAGES.fallback;
     return (
       <div className="flex flex-col h-full bg-card-elevated">
@@ -164,7 +157,7 @@ export function KnowledgeCheckPanel({
     );
   }
 
-  if (panelState === 'loading' || isLoading) {
+  if (phase === 'loading') {
     return (
       <div className="flex flex-col h-full bg-card-elevated">
         <div className="flex-1 flex items-center justify-center p-6">
@@ -191,10 +184,10 @@ export function KnowledgeCheckPanel({
     );
   }
 
-  if ((panelState === 'results' || panelState === 'completed') && quiz) {
-    const effectiveAnswers = panelState === 'completed' ? quiz.answers! : answers;
+  if ((phase === 'results' || phase === 'completed') && quiz) {
+    const effectiveAnswers = phase === 'completed' ? quiz.answers! : answers;
     const effectiveScore =
-      panelState === 'completed'
+      phase === 'completed'
         ? quiz.score!
         : effectiveAnswers.filter((a) => a.correct).length;
 
@@ -204,17 +197,17 @@ export function KnowledgeCheckPanel({
           questions={quiz.questions}
           answers={effectiveAnswers}
           score={effectiveScore}
-          isRevisit={panelState === 'completed'}
+          isRevisit={phase === 'completed'}
         />
       </div>
     );
   }
 
-  if (panelState === 'quiz' && quiz) {
+  if (phase === 'quiz' && quiz) {
     return (
-      <div className="flex flex-col h-full bg-card-elevated">
+      <div className="flex flex-col bg-card-elevated">
         {/* Progress bar */}
-        <div className="px-5 pb-2">
+        <div className="px-5 pt-3 pb-3">
           <div className="h-1 rounded-full bg-muted overflow-hidden">
             <motion.div
               className="h-full rounded-full"
@@ -229,7 +222,7 @@ export function KnowledgeCheckPanel({
         </div>
 
         {/* Current question */}
-        <div className="flex-1 min-h-0">
+        <div>
           <QuizQuestion
             key={currentQuestionIndex}
             question={quiz.questions[currentQuestionIndex]}
