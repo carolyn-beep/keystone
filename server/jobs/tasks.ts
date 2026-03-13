@@ -2,6 +2,7 @@ import { exampleJob } from './exampleJob';
 import { learningStreamResearchJob } from './learningStreamResearchJob';
 import { brainliftImageJob } from './brainliftImageJob';
 import { contentExtractJob } from './contentExtractJob';
+import { quizGenerateJob } from './quizGenerateJob';
 import { discussionVerifyFactJob } from './discussionVerifyFactJob';
 import { discussionGradeDok2Job } from './discussionGradeDok2Job';
 import { dok3GradeJob } from './dok3GradeJob';
@@ -20,6 +21,7 @@ const tasks = {
   'example:hello': exampleJob,
   'learning-stream:research': learningStreamResearchJob,
   'learning-stream:extract-content': contentExtractJob,
+  'learning-stream:generate-quiz': quizGenerateJob,
   'brainlift:generate-image': brainliftImageJob,
   'discussion:verify-fact': discussionVerifyFactJob,
   'discussion:grade-dok2': discussionGradeDok2Job,

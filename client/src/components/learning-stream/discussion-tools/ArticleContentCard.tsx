@@ -43,7 +43,9 @@ export const ArticleContentToolUI = makeAssistantToolUI<ArticleArgs, ArticleResu
       : null;
 
     let summary: string;
-    if (result.contentType === 'article' && wordCount) {
+    if (result.contentType === 'transcript' && wordCount) {
+      summary = `Read transcript (~${wordCount.toLocaleString()} words)`;
+    } else if (result.contentType === 'article' && wordCount) {
       summary = `Read article (~${wordCount.toLocaleString()} words)`;
     } else if (result.contentType === 'embed') {
       summary = `Detected ${result.embedType || 'embed'} — working from metadata`;

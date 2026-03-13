@@ -3,6 +3,7 @@ import { db, eq, facts } from '../storage/base';
 import { verifyFactWithAllModels } from '../ai/factVerifier';
 import { fetchEvidenceForFact } from '../ai/evidenceFetcher';
 import { storage } from '../storage';
+import { resolveYouTubeTranscript } from '../utils/resolve-youtube-transcript';
 
 /**
  * Background job: verify a DOK1 fact saved during a discussion session.
@@ -26,7 +27,9 @@ export async function discussionVerifyFactJob(
   let linkFailed = false;
   if (fact.source) {
     try {
-      const evidence = await fetchEvidenceForFact(fact.fact, fact.source);
+      const transcriptCache = new Map<string, string | null>();
+      const cachedTranscript = await resolveYouTubeTranscript(fact.source, transcriptCache);
+      const evidence = await fetchEvidenceForFact(fact.fact, fact.source, undefined, cachedTranscript);
       evidenceContent = evidence.content || '';
       linkFailed = !!evidence.error;
     } catch (err) {

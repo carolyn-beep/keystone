@@ -13,6 +13,7 @@ import * as dok3Storage from './dok3';
 import * as dok4Storage from './dok4';
 import * as importAgentStorage from './import-agent';
 import * as brainliftSourcesStorage from './brainlift-sources';
+import * as knowledgeCheckStorage from './knowledge-check';
 
 // Re-export types from base
 export type {
@@ -101,6 +102,7 @@ export const storage = {
   addLearningStreamItem: learningStreamStorage.addLearningStreamItem,
   getLearningStreamItems: learningStreamStorage.getLearningStreamItems,
   getLearningStreamItemById: learningStreamStorage.getLearningStreamItemById,
+  getLearningStreamItemByUrl: learningStreamStorage.getLearningStreamItemByUrl,
   updateLearningStreamItemStatus: learningStreamStorage.updateLearningStreamItemStatus,
   gradeLearningStreamItem: learningStreamStorage.gradeLearningStreamItem,
   getLearningStreamStats: learningStreamStorage.getLearningStreamStats,
@@ -152,7 +154,13 @@ export const storage = {
   saveBrainliftSources: brainliftSourcesStorage.saveBrainliftSources,
   getBrainliftSources: brainliftSourcesStorage.getBrainliftSources,
   deleteBrainliftSources: brainliftSourcesStorage.deleteBrainliftSources,
+
+  // Knowledge Check
+  getQuizByItemId: knowledgeCheckStorage.getQuizByItemId,
+  createQuiz: knowledgeCheckStorage.createQuiz,
+  submitQuizAnswers: knowledgeCheckStorage.submitQuizAnswers,
+  hasQuizJobPending: knowledgeCheckStorage.hasQuizJobPending,
 };
 
 // Export individual modules for direct access if needed
-export { brainliftsStorage, expertsStorage, verificationsStorage, redundancyStorage, analyticsStorage, dok2Storage, sharesStorage, learningStreamStorage, dok3Storage, dok4Storage, importAgentStorage, brainliftSourcesStorage };
+export { brainliftsStorage, expertsStorage, verificationsStorage, redundancyStorage, analyticsStorage, dok2Storage, sharesStorage, learningStreamStorage, dok3Storage, dok4Storage, importAgentStorage, brainliftSourcesStorage, knowledgeCheckStorage };
