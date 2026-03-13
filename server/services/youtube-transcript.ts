@@ -1,7 +1,12 @@
-import { YoutubeTranscript } from 'youtube-transcript';
+import { createYouTubeTranscriptApi } from '@playzone/youtube-transcript/dist/api';
+
+const api = createYouTubeTranscriptApi();
 
 /**
- * Fetch the auto-generated transcript for a YouTube video.
+ * Fetch the transcript for a YouTube video.
+ *
+ * Uses @playzone/youtube-transcript which handles auto-generated captions
+ * and falls back to Invidious when YouTube blocks server IPs.
  *
  * Returns cleaned plain text (no timestamps), or null on any failure.
  * Never throws — all errors are caught and logged.
@@ -11,19 +16,18 @@ import { YoutubeTranscript } from 'youtube-transcript';
  */
 export async function fetchYouTubeTranscript(videoId: string): Promise<string | null> {
   try {
-    const segments = await Promise.race([
-      YoutubeTranscript.fetchTranscript(videoId),
+    const result = await Promise.race([
+      api.fetch(videoId),
       new Promise<never>((_, reject) =>
         setTimeout(() => reject(new Error('Transcript fetch timed out (10s)')), 10_000)
       ),
     ]);
 
-    if (!segments || segments.length === 0) {
+    if (!result?.snippets || result.snippets.length === 0) {
       return null;
     }
 
-    // Join segments into plain text, stripping timestamps
-    const text = segments.map((s) => s.text).join(' ');
+    const text = result.snippets.map((s: { text: string }) => s.text).join(' ');
 
     return text || null;
   } catch (error: any) {

@@ -1,10 +1,10 @@
 /**
- * Tests for FR5: Discussion Verify Fact Job - transcript lookup
+ * Tests for Discussion Verify Fact Job - YouTube transcript resolution
  *
- * Validates that the job looks up YouTube transcripts from learning stream
- * items and passes them to fetchEvidenceForFact as cachedTranscript.
+ * Validates that the job resolves YouTube transcripts via resolveYouTubeTranscript
+ * and passes them to fetchEvidenceForFact as cachedTranscript.
  *
- * Mocks: storage, fetchEvidenceForFact, verifyFactWithAllModels
+ * Mocks: storage, fetchEvidenceForFact, verifyFactWithAllModels, resolveYouTubeTranscript
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
@@ -12,7 +12,6 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 vi.mock('../../storage', () => ({
   storage: {
     getFactByIdForBrainlift: vi.fn(),
-    getLearningStreamItemByUrl: vi.fn(),
     createFactVerification: vi.fn(),
   },
 }));
@@ -23,6 +22,10 @@ vi.mock('../../ai/evidenceFetcher', () => ({
 
 vi.mock('../../ai/factVerifier', () => ({
   verifyFactWithAllModels: vi.fn(),
+}));
+
+vi.mock('../../utils/resolve-youtube-transcript', () => ({
+  resolveYouTubeTranscript: vi.fn(),
 }));
 
 vi.mock('../../storage/base', () => ({
@@ -40,13 +43,14 @@ vi.mock('../../storage/base', () => ({
 import { storage } from '../../storage';
 import { fetchEvidenceForFact } from '../../ai/evidenceFetcher';
 import { verifyFactWithAllModels } from '../../ai/factVerifier';
+import { resolveYouTubeTranscript } from '../../utils/resolve-youtube-transcript';
 import { discussionVerifyFactJob } from '../discussionVerifyFactJob';
 import type { JobHelpers } from 'graphile-worker';
 
 const mockGetFact = vi.mocked(storage.getFactByIdForBrainlift);
-const mockGetItemByUrl = vi.mocked(storage.getLearningStreamItemByUrl);
 const mockFetchEvidence = vi.mocked(fetchEvidenceForFact);
 const mockVerify = vi.mocked(verifyFactWithAllModels);
+const mockResolveTranscript = vi.mocked(resolveYouTubeTranscript);
 
 const mockHelpers = {
   logger: {
@@ -59,10 +63,11 @@ const mockHelpers = {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  mockResolveTranscript.mockResolvedValue(null);
 });
 
 describe('discussionVerifyFactJob - transcript integration', () => {
-  it('passes cached transcript for facts with YouTube source URL', async () => {
+  it('passes resolved transcript for facts with YouTube source URL', async () => {
     mockGetFact.mockResolvedValue({
       id: 1,
       brainliftId: 10,
@@ -75,16 +80,9 @@ describe('discussionVerifyFactJob - transcript integration', () => {
       note: null,
     } as any);
 
-    mockGetItemByUrl.mockResolvedValue({
-      id: 42,
-      brainliftId: 10,
-      extractedContent: {
-        contentType: 'embed',
-        embedType: 'youtube',
-        embedId: 'abc123',
-        transcript: 'This is the video transcript about testing and retention.',
-      },
-    } as any);
+    mockResolveTranscript.mockResolvedValue(
+      'This is the video transcript about testing and retention.'
+    );
 
     mockFetchEvidence.mockResolvedValue({
       content: 'This is the video transcript about testing and retention.',
@@ -103,10 +101,10 @@ describe('discussionVerifyFactJob - transcript integration', () => {
 
     await discussionVerifyFactJob({ factId: 1, brainliftId: 10 }, mockHelpers);
 
-    // Should have looked up item by URL
-    expect(mockGetItemByUrl).toHaveBeenCalledWith(
+    // Should have called resolveYouTubeTranscript with the source URL
+    expect(mockResolveTranscript).toHaveBeenCalledWith(
       'https://www.youtube.com/watch?v=abc123',
-      10
+      expect.any(Map)
     );
 
     // Should have passed transcript to fetchEvidenceForFact
@@ -148,10 +146,13 @@ describe('discussionVerifyFactJob - transcript integration', () => {
 
     await discussionVerifyFactJob({ factId: 2, brainliftId: 10 }, mockHelpers);
 
-    // Should NOT have looked up by URL (not a YouTube URL)
-    expect(mockGetItemByUrl).not.toHaveBeenCalled();
+    // resolveYouTubeTranscript returns null for non-YouTube URLs
+    expect(mockResolveTranscript).toHaveBeenCalledWith(
+      'https://example.com/article',
+      expect.any(Map)
+    );
 
-    // Should have called fetchEvidenceForFact with null cached transcript
+    // Should have called fetchEvidenceForFact with null transcript
     expect(mockFetchEvidence).toHaveBeenCalledWith(
       'Some fact from article',
       'https://example.com/article',
@@ -160,7 +161,7 @@ describe('discussionVerifyFactJob - transcript integration', () => {
     );
   });
 
-  it('falls back when YouTube URL has no matching learning stream item', async () => {
+  it('passes null transcript when YouTube transcript is unavailable', async () => {
     mockGetFact.mockResolvedValue({
       id: 3,
       brainliftId: 10,
@@ -173,7 +174,7 @@ describe('discussionVerifyFactJob - transcript integration', () => {
       note: null,
     } as any);
 
-    mockGetItemByUrl.mockResolvedValue(null); // No matching item
+    mockResolveTranscript.mockResolvedValue(null);
 
     mockFetchEvidence.mockResolvedValue({
       content: null,
@@ -192,65 +193,9 @@ describe('discussionVerifyFactJob - transcript integration', () => {
 
     await discussionVerifyFactJob({ factId: 3, brainliftId: 10 }, mockHelpers);
 
-    expect(mockGetItemByUrl).toHaveBeenCalledWith(
-      'https://www.youtube.com/watch?v=orphan456',
-      10
-    );
-
-    // Should pass null/undefined transcript (falls back to existing behavior)
     expect(mockFetchEvidence).toHaveBeenCalledWith(
       'A fact from video',
       'https://www.youtube.com/watch?v=orphan456',
-      undefined,
-      null
-    );
-  });
-
-  it('falls back when YouTube item exists but has no transcript', async () => {
-    mockGetFact.mockResolvedValue({
-      id: 4,
-      brainliftId: 10,
-      fact: 'A fact without transcript',
-      source: 'https://www.youtube.com/watch?v=notrans789',
-      originalId: '4',
-      category: 'Testing',
-      score: 0,
-      isGradeable: true,
-      note: null,
-    } as any);
-
-    mockGetItemByUrl.mockResolvedValue({
-      id: 99,
-      brainliftId: 10,
-      extractedContent: {
-        contentType: 'embed',
-        embedType: 'youtube',
-        embedId: 'notrans789',
-        // No transcript field
-      },
-    } as any);
-
-    mockFetchEvidence.mockResolvedValue({
-      content: null,
-      url: 'https://www.youtube.com/watch?v=notrans789',
-      error: 'No evidence found',
-      fetchedAt: new Date(),
-    });
-
-    mockVerify.mockResolvedValue({
-      consensus: {
-        consensusScore: 0,
-        verificationNotes: 'No evidence',
-        isNonGradeable: true,
-      },
-    } as any);
-
-    await discussionVerifyFactJob({ factId: 4, brainliftId: 10 }, mockHelpers);
-
-    // Should pass null transcript (no transcript on item)
-    expect(mockFetchEvidence).toHaveBeenCalledWith(
-      'A fact without transcript',
-      'https://www.youtube.com/watch?v=notrans789',
       undefined,
       null
     );

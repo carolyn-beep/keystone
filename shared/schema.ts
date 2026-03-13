@@ -430,7 +430,7 @@ export const factRedundancyGroupsRelations = relations(factRedundancyGroups, ({ 
 
 // Learning Stream - Extracted content types (discriminated union)
 export type ExtractedContent =
-  | { contentType: 'embed'; embedType: 'youtube'; embedId: string; transcript?: string }
+  | { contentType: 'embed'; embedType: 'youtube'; embedId: string }
   | { contentType: 'embed'; embedType: 'spotify'; embedId: string }
   | { contentType: 'embed'; embedType: 'apple-podcast'; embedUrl: string }
   | { contentType: 'embed'; embedType: 'tweet'; tweetId: string }

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Check, X as XIcon } from 'lucide-react';
 import { TactileButton } from '@/components/ui/tactile-button';
@@ -25,6 +25,7 @@ export function QuizQuestion({
   disabled = false,
 }: QuizQuestionProps) {
   const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
+  const feedbackRef = useRef<HTMLDivElement>(null);
   const answered = selectedIndex !== null;
   const isCorrect = answered && selectedIndex === question.correctIndex;
 
@@ -32,6 +33,9 @@ export function QuizQuestion({
     if (answered || disabled) return;
     setSelectedIndex(index);
     onAnswer(index);
+    requestAnimationFrame(() => {
+      feedbackRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
+    });
   }
 
   function getOptionStyle(index: number) {
@@ -81,9 +85,9 @@ export function QuizQuestion({
   }
 
   return (
-    <div className="flex flex-col h-full">
+    <div className="flex flex-col">
       {/* Question counter */}
-      <div className="px-5 pt-5 pb-2">
+      <div className="px-5 pt-3 pb-3">
         <span className="text-[10px] uppercase tracking-[0.35em] font-semibold text-muted-foreground">
           Question {questionNumber} of {totalQuestions}
         </span>
@@ -97,7 +101,7 @@ export function QuizQuestion({
       </div>
 
       {/* Options */}
-      <div className="flex-1 overflow-y-auto px-5 space-y-2.5 scrollbar-styled">
+      <div className="px-5 pb-4 space-y-2.5">
         {question.options.map((option, index) => {
           const optionStyle = getOptionStyle(index);
           return (
@@ -146,6 +150,7 @@ export function QuizQuestion({
       <AnimatePresence>
         {answered && (
           <motion.div
+            ref={feedbackRef}
             initial={{ opacity: 0, y: 8 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: 8 }}

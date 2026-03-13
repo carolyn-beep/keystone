@@ -1,24 +1,17 @@
 /**
  * Uniform text content accessor for learning stream items.
  *
- * Returns the text content of a learning stream item, or null
- * if text extraction is not available for that content type.
- *
  * Consumers: quiz generator, discussion agent, evidence fetcher.
  */
 
 import type { LearningStreamItem, ExtractedContent } from '@shared/schema';
-import { fetchYouTubeTranscript } from '../services/youtube-transcript';
+import { resolveYouTubeTranscript } from './resolve-youtube-transcript';
 
 /**
- * Get the text content from a learning stream item (synchronous).
+ * Get stored text content from a learning stream item (synchronous).
  *
- * Content type mapping:
- * - Article -> extractedContent.markdown
- * - YouTube embed with transcript -> extractedContent.transcript (from spec 01)
- * - YouTube embed without transcript -> null
- * - PDF, Podcast, Tweet, Fallback -> null
- * - No extractedContent -> null
+ * Only returns content already in the DB (article markdown).
+ * For YouTube transcripts, use ensureItemTextContent() which fetches on demand.
  */
 export function getItemTextContent(item: LearningStreamItem): string | null {
   const content = item.extractedContent;
@@ -30,41 +23,39 @@ export function getItemTextContent(item: LearningStreamItem): string | null {
     return content.markdown;
   }
 
-  if (content.contentType === 'embed' && content.embedType === 'youtube') {
-    // transcript field is optional — available when YouTube transcript extraction succeeds
-    return content.transcript ?? null;
-  }
-
-  // PDF, Spotify, Apple Podcast, Tweet, Fallback — no text available
   return null;
 }
 
 /**
- * Get the text content from a learning stream item (async).
- * For YouTube items without a cached transcript, fetches it on demand.
+ * Get text content from a learning stream item, fetching the YouTube
+ * transcript on-the-fly if needed.
  *
- * Used by quizGenerateJob where we can afford the async fetch.
+ * Transcripts are NOT persisted — they're fetched on demand and cached
+ * per-batch via the transcriptCache map to avoid duplicate fetches within
+ * a single operation.
+ *
+ * @param item - The learning stream item
+ * @param transcriptCache - Optional shared cache for batched operations
  */
-export async function ensureItemTextContent(item: LearningStreamItem): Promise<string | null> {
+export async function ensureItemTextContent(
+  item: LearningStreamItem,
+  transcriptCache?: Map<string, string | null>,
+): Promise<string | null> {
+  const existing = getItemTextContent(item);
+  if (existing) {
+    return existing;
+  }
+
   const content = item.extractedContent;
-  if (!content) {
+  if (!content || content.contentType !== 'embed' || content.embedType !== 'youtube') {
     return null;
   }
 
-  if (content.contentType === 'article') {
-    return content.markdown;
-  }
-
-  if (content.contentType === 'embed' && content.embedType === 'youtube') {
-    // Use cached transcript if available
-    if (content.transcript) {
-      return content.transcript;
-    }
-    // Otherwise fetch on demand
-    return fetchYouTubeTranscript(content.embedId);
-  }
-
-  return null;
+  const cache = transcriptCache ?? new Map<string, string | null>();
+  return resolveYouTubeTranscript(
+    `https://www.youtube.com/watch?v=${content.embedId}`,
+    cache,
+  );
 }
 
 /**

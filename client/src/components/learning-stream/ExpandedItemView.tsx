@@ -1,6 +1,8 @@
 import { useState, useEffect, useRef } from 'react';
 import { motion } from 'framer-motion';
 import { X, ExternalLink, Bookmark, Star, Trash2, User, Clock, ChevronLeft, ChevronRight } from 'lucide-react';
+import { GoDiscussionClosed } from 'react-icons/go';
+import { MdOutlineQuiz } from 'react-icons/md';
 import { Panel, PanelGroup, PanelResizeHandle } from 'react-resizable-panels';
 import { TactileButton } from '@/components/ui/tactile-button';
 import { ResourceTypeBadge } from './ResourceTypeBadge';
@@ -127,28 +129,44 @@ export function ExpandedItemView({
         {/* Right: Discussion / Knowledge Check panel (hidden on small screens) */}
         <Panel defaultSize={40} minSize={20} className="hidden lg:block">
           <div className="flex flex-col h-full">
-            {/* Panel toggle tabs */}
-            <div className="flex gap-1 border-b border-border px-4 shrink-0">
-              {([
-                { key: 'discuss' as const, label: 'Discuss' },
-                { key: 'quiz' as const, label: 'Knowledge Check' },
-              ]).map((tab) => (
-                <button
-                  key={tab.key}
-                  onClick={() => setActivePanel(tab.key)}
-                  className="px-4 py-2.5 bg-transparent border-none cursor-pointer text-[12px] font-medium transition-colors duration-150 -mb-px font-serif"
-                  style={{
-                    borderBottom: activePanel === tab.key ? `2px solid ${tokens.primary}` : '2px solid transparent',
-                    color: activePanel === tab.key ? tokens.primary : tokens.textSecondary,
-                  }}
-                >
-                  {tab.label}
-                </button>
-              ))}
+            {/* Floating pill toggle */}
+            <div className="flex justify-center py-2.5 shrink-0">
+              <div className="inline-flex rounded-full p-0.5" style={{ backgroundColor: tokens.surfaceAlt, boxShadow: 'inset 0 1px 3px rgba(0,0,0,0.08)' }}>
+                {([
+                  { key: 'discuss' as const, label: 'Discuss', Icon: GoDiscussionClosed },
+                  { key: 'quiz' as const, label: 'Quiz', Icon: MdOutlineQuiz },
+                ] as const).map((tab) => {
+                  const isActive = activePanel === tab.key;
+                  return (
+                    <button
+                      key={tab.key}
+                      onClick={() => setActivePanel(tab.key)}
+                      className="relative flex items-center justify-center gap-1.5 px-5 py-1.5 rounded-full border-none cursor-pointer text-[11px] font-semibold uppercase tracking-[0.15em] transition-colors duration-200 bg-transparent"
+                      style={{ color: isActive ? '#3D2A1A' : tokens.textMuted }}
+                    >
+                      {isActive && (
+                        <motion.div
+                          layoutId="panel-toggle-pill"
+                          className="absolute inset-0 rounded-full"
+                          style={{
+                            background: 'linear-gradient(to bottom, #E8D9C8, #D4C4AD)',
+                            boxShadow: '0 2px 6px rgba(0,0,0,0.15), 0 1px 2px rgba(0,0,0,0.1)',
+                          }}
+                          transition={{ type: 'spring', stiffness: 400, damping: 30 }}
+                        />
+                      )}
+                      <span className="relative z-10 flex items-center gap-1.5">
+                        <tab.Icon size={14} />
+                        {tab.label}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
             </div>
 
             {/* Panel content — both mounted, visibility toggled */}
-            <div className="flex-1 min-h-0">
+            <div className="flex-1 min-h-0 overflow-y-auto scrollbar-styled">
               <div style={{ display: activePanel === 'discuss' ? 'contents' : 'none' }}>
                 <DiscussionPanel slug={slug} itemId={item.id} item={item} />
               </div>

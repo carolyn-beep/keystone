@@ -1,15 +1,14 @@
 /**
- * Tests for FR4: Wire Transcript into Discussion Agent (tools.ts)
+ * Tests for Discussion Agent tools - YouTube transcript on-demand fetch
  *
- * Validates that read_article_section returns transcript content for
- * YouTube items with transcripts, and preserves existing behavior otherwise.
+ * Validates that read_article_section fetches transcripts on demand
+ * via ensureItemTextContent for YouTube items.
  *
- * Mocks: storage module (getLearningStreamItemById)
+ * Mocks: storage, withJob, ensureItemTextContent
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
-// Mock storage
 vi.mock('../../../storage', () => ({
   storage: {
     getLearningStreamItemById: vi.fn(),
@@ -17,7 +16,6 @@ vi.mock('../../../storage', () => ({
   },
 }));
 
-// Mock withJob
 vi.mock('../../../utils/withJob', () => ({
   withJob: vi.fn(() => ({
     forPayload: vi.fn().mockReturnThis(),
@@ -26,7 +24,6 @@ vi.mock('../../../utils/withJob', () => ({
   })),
 }));
 
-// Mock storage/base for db, eq, sql etc
 vi.mock('../../../storage/base', () => ({
   db: { select: vi.fn(), insert: vi.fn() },
   eq: vi.fn(),
@@ -35,16 +32,21 @@ vi.mock('../../../storage/base', () => ({
   learningStreamItems: {},
 }));
 
-// Mock storage/dok2
 vi.mock('../../../storage/dok2', () => ({
   saveSingleDOK2Summary: vi.fn(),
 }));
 
+vi.mock('../../../utils/item-text-content', () => ({
+  ensureItemTextContent: vi.fn(),
+}));
+
 import { storage } from '../../../storage';
+import { ensureItemTextContent } from '../../../utils/item-text-content';
 import { buildDiscussionTools } from '../tools';
 import type { LearningStreamItem, Brainlift } from '../../../storage/base';
 
 const mockGetItem = vi.mocked(storage.getLearningStreamItemById);
+const mockEnsureContent = vi.mocked(ensureItemTextContent);
 
 const mockItem: LearningStreamItem = {
   id: 42,
@@ -73,61 +75,43 @@ const mockBrainlift = {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  mockEnsureContent.mockResolvedValue(null);
 });
 
-describe('read_article_section - YouTube transcript', () => {
-  it('returns transcript text for YouTube item with transcript', async () => {
-    mockGetItem.mockResolvedValue({
+describe('read_article_section - YouTube transcript on-demand', () => {
+  it('returns transcript fetched on demand for YouTube item', async () => {
+    const freshItem = {
       ...mockItem,
       extractedContent: {
-        contentType: 'embed',
-        embedType: 'youtube',
+        contentType: 'embed' as const,
+        embedType: 'youtube' as const,
         embedId: 'abc123',
-        transcript: 'This is the video transcript about software testing best practices.',
-      } as any,
-    });
+      },
+    };
+    mockGetItem.mockResolvedValue(freshItem);
+    mockEnsureContent.mockResolvedValue('This is the video transcript about testing.');
 
     const tools = buildDiscussionTools(mockItem, mockBrainlift);
     const result = await tools.read_article_section.execute({}, { toolCallId: 'test', messages: [], abortSignal: undefined as any });
 
+    expect(mockEnsureContent).toHaveBeenCalledWith(freshItem);
     expect(result).toEqual({
       contentType: 'transcript',
       title: 'Understanding Testing',
-      markdown: 'This is the video transcript about software testing best practices.',
+      markdown: 'This is the video transcript about testing.',
     });
   });
 
-  it('caps transcript at ~3000 words', async () => {
-    const longTranscript = Array(4000).fill('word').join(' ');
+  it('returns "cannot read" when transcript is unavailable', async () => {
     mockGetItem.mockResolvedValue({
       ...mockItem,
       extractedContent: {
-        contentType: 'embed',
-        embedType: 'youtube',
-        embedId: 'abc123',
-        transcript: longTranscript,
-      } as any,
-    });
-
-    const tools = buildDiscussionTools(mockItem, mockBrainlift);
-    const result = await tools.read_article_section.execute({}, { toolCallId: 'test', messages: [], abortSignal: undefined as any });
-
-    expect(result.contentType).toBe('transcript');
-    const wordCount = (result as any).markdown.split(/\s+/).length;
-    // 3000 words + truncation notice
-    expect(wordCount).toBeLessThanOrEqual(3010);
-    expect((result as any).markdown).toContain('[Content truncated');
-  });
-
-  it('returns "cannot read" message for YouTube item without transcript', async () => {
-    mockGetItem.mockResolvedValue({
-      ...mockItem,
-      extractedContent: {
-        contentType: 'embed',
-        embedType: 'youtube',
+        contentType: 'embed' as const,
+        embedType: 'youtube' as const,
         embedId: 'abc123',
       },
     });
+    mockEnsureContent.mockResolvedValue(null);
 
     const tools = buildDiscussionTools(mockItem, mockBrainlift);
     const result = await tools.read_article_section.execute({}, { toolCallId: 'test', messages: [], abortSignal: undefined as any });
@@ -143,8 +127,8 @@ describe('read_article_section - YouTube transcript', () => {
     mockGetItem.mockResolvedValue({
       ...mockItem,
       extractedContent: {
-        contentType: 'embed',
-        embedType: 'spotify',
+        contentType: 'embed' as const,
+        embedType: 'spotify' as const,
         embedId: 'sp123',
       },
     });

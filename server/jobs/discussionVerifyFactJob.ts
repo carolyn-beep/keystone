@@ -3,9 +3,7 @@ import { db, eq, facts } from '../storage/base';
 import { verifyFactWithAllModels } from '../ai/factVerifier';
 import { fetchEvidenceForFact } from '../ai/evidenceFetcher';
 import { storage } from '../storage';
-import { getItemTextContent } from '../utils/item-text-content';
-
-const YOUTUBE_URL_RE = /(?:youtube\.com\/watch|youtu\.be\/|youtube\.com\/embed\/)/i;
+import { resolveYouTubeTranscript } from '../utils/resolve-youtube-transcript';
 
 /**
  * Background job: verify a DOK1 fact saved during a discussion session.
@@ -29,19 +27,8 @@ export async function discussionVerifyFactJob(
   let linkFailed = false;
   if (fact.source) {
     try {
-      // For YouTube sources, try to use cached transcript as evidence
-      let cachedTranscript: string | null = null;
-      if (YOUTUBE_URL_RE.test(fact.source)) {
-        try {
-          const item = await storage.getLearningStreamItemByUrl(fact.source, brainliftId);
-          if (item) {
-            cachedTranscript = getItemTextContent(item);
-          }
-        } catch (err) {
-          helpers.logger.warn(`[Discussion Verify] Transcript lookup failed for ${fact.source}:`, { err });
-        }
-      }
-
+      const transcriptCache = new Map<string, string | null>();
+      const cachedTranscript = await resolveYouTubeTranscript(fact.source, transcriptCache);
       const evidence = await fetchEvidenceForFact(fact.fact, fact.source, undefined, cachedTranscript);
       evidenceContent = evidence.content || '';
       linkFailed = !!evidence.error;

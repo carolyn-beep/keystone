@@ -60,7 +60,7 @@ export function QuizResults({
       {/* Header */}
       <div className="px-5 pt-5 pb-2">
         <span className="text-[10px] uppercase tracking-[0.35em] font-semibold text-muted-foreground">
-          {isRevisit ? 'Previous Results' : 'Results'}
+          {isRevisit ? 'Quiz Completed' : 'Results'}
         </span>
       </div>
 
@@ -84,12 +84,14 @@ export function QuizResults({
         </p>
       </div>
 
-      {/* DOK2 nudge */}
-      <div className="px-5 pb-4">
-        <p className="font-serif text-[13px] leading-relaxed text-muted-foreground italic m-0">
-          {DOK2_NUDGE}
-        </p>
-      </div>
+      {/* DOK2 nudge — only when score is strong but not perfect */}
+      {score >= total - 1 && (
+        <div className="px-5 pb-4">
+          <p className="font-serif text-[13px] leading-relaxed text-muted-foreground italic m-0">
+            {DOK2_NUDGE}
+          </p>
+        </div>
+      )}
 
       {/* Divider */}
       <div className="mx-5 border-t border-border" />

@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { motion } from 'framer-motion';
-import { BookOpen, AlertCircle, Loader2 } from 'lucide-react';
+import { AlertCircle, Loader2 } from 'lucide-react';
 import { useKnowledgeCheck } from '@/hooks/useKnowledgeCheck';
 import { QuizQuestion } from './QuizQuestion';
 import { QuizResults } from './QuizResults';
@@ -213,14 +213,6 @@ export function KnowledgeCheckPanel({
   if (panelState === 'quiz' && quiz) {
     return (
       <div className="flex flex-col h-full bg-card-elevated">
-        {/* Quiz header */}
-        <div className="px-5 pt-4 pb-2 flex items-center gap-2">
-          <BookOpen size={14} style={{ color: tokens.primary }} />
-          <span className="text-[10px] uppercase tracking-[0.35em] font-semibold text-muted-foreground">
-            Knowledge Check
-          </span>
-        </div>
-
         {/* Progress bar */}
         <div className="px-5 pb-2">
           <div className="h-1 rounded-full bg-muted overflow-hidden">

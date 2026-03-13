@@ -165,7 +165,8 @@ export async function gradeDOK2Summary(
   relatedDOK1s: RelatedDOK1[],
   brainliftPurpose: string,
   sourceUrl?: string | null,
-  failedUrlCache?: Map<string, string>
+  failedUrlCache?: Map<string, string>,
+  cachedTranscript?: string | null,
 ): Promise<DOK2GradeResult> {
   console.log(`[DOK2-Grade] === Starting DOK2 grading ===`);
   console.log(`[DOK2-Grade] Summary points: ${summaryPoints.length}, Related DOK1s: ${relatedDOK1s.length}`);
@@ -179,7 +180,7 @@ export async function gradeDOK2Summary(
     try {
       // Combine the summary points as a "fact" to search for
       const combinedSummary = summaryPoints.slice(0, 3).join(' ').substring(0, 200);
-      const evidence = await fetchEvidenceForFact(combinedSummary, sourceUrl, failedUrlCache);
+      const evidence = await fetchEvidenceForFact(combinedSummary, sourceUrl, failedUrlCache, cachedTranscript);
 
       if (evidence.content && evidence.content.length > 100) {
         sourceContent = evidence.content;

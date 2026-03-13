@@ -4,6 +4,7 @@ import { db, eq, sql, facts, learningStreamItems } from '../../storage/base';
 import { storage } from '../../storage';
 import { saveSingleDOK2Summary } from '../../storage/dok2';
 import { withJob } from '../../utils/withJob';
+import { ensureItemTextContent } from '../../utils/item-text-content';
 import type { LearningStreamItem, Brainlift } from '../../storage/base';
 
 /**
@@ -189,20 +190,23 @@ export function buildDiscussionTools(
         }
 
         if (content.contentType === 'embed') {
-          // YouTube embeds with transcript: return transcript text
-          if (content.embedType === 'youtube' && content.transcript) {
-            let markdown = content.transcript;
-            const words = markdown.split(/\s+/);
-            if (words.length > 3000) {
-              markdown =
-                words.slice(0, 3000).join(' ') +
-                '\n\n[Content truncated — approximately 3000 words shown]';
+          // YouTube embeds: fetch transcript on demand
+          if (content.embedType === 'youtube') {
+            const transcript = await ensureItemTextContent(freshItem);
+            if (transcript) {
+              let markdown = transcript;
+              const words = markdown.split(/\s+/);
+              if (words.length > 3000) {
+                markdown =
+                  words.slice(0, 3000).join(' ') +
+                  '\n\n[Content truncated — approximately 3000 words shown]';
+              }
+              return {
+                contentType: 'transcript',
+                title: freshItem.topic,
+                markdown,
+              };
             }
-            return {
-              contentType: 'transcript',
-              title: freshItem.topic,
-              markdown,
-            };
           }
 
           return {

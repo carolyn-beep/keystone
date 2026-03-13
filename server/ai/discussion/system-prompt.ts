@@ -12,15 +12,13 @@ export function buildDiscussionSystemPrompt(
     ? ('contentType' in item.extractedContent ? item.extractedContent.contentType : 'unknown')
     : 'pending';
 
-  const hasTranscript = !!(
+  const isYouTube = !!(
     item.extractedContent &&
     'embedType' in item.extractedContent &&
-    item.extractedContent.embedType === 'youtube' &&
-    'transcript' in item.extractedContent &&
-    (item.extractedContent as any).transcript
+    item.extractedContent.embedType === 'youtube'
   );
 
-  const contentNote = buildContentNote(contentType, item.type, hasTranscript);
+  const contentNote = buildContentNote(contentType, item.type, isYouTube);
 
   return `You are a study partner helping the user actively learn from a source they're reading. Your goal is to help them extract meaningful knowledge — not just summarize, but genuinely understand and reorganize what they're learning.
 
@@ -92,12 +90,12 @@ Auto-fail conditions: verbatim copy-paste, no relation to purpose, factual misre
 - Don't be sycophantic — give honest, direct feedback`;
 }
 
-function buildContentNote(contentType: string, itemType: string, hasTranscript: boolean = false): string {
+function buildContentNote(contentType: string, itemType: string, isYouTube: boolean = false): string {
   switch (contentType) {
     case 'article':
       return 'You have access to the full article text via the `read_article_section` tool.';
     case 'embed':
-      if (hasTranscript) {
+      if (isYouTube) {
         return 'You have access to the video transcript via the `read_article_section` tool.';
       }
       if (itemType === 'Video' || itemType === 'Podcast') {

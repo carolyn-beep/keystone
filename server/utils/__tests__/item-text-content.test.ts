@@ -67,7 +67,7 @@ describe('getItemTextContent', () => {
   });
 
   describe('YouTube embed content', () => {
-    it('returns null for YouTube embed without transcript', () => {
+    it('returns null for YouTube embed (transcripts fetched on demand, not stored)', () => {
       const item = makeItem({
         extractedContent: {
           contentType: 'embed',
@@ -78,20 +78,6 @@ describe('getItemTextContent', () => {
 
       const result = getItemTextContent(item);
       expect(result).toBeNull();
-    });
-
-    it('returns transcript for YouTube embed with transcript', () => {
-      const item = makeItem({
-        extractedContent: {
-          contentType: 'embed',
-          embedType: 'youtube',
-          embedId: 'abc123',
-          transcript: 'This is the video transcript text.',
-        }
-      });
-
-      const result = getItemTextContent(item);
-      expect(result).toBe('This is the video transcript text.');
     });
   });
 

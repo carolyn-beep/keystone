@@ -1,8 +1,8 @@
 /**
- * Tests for FR4: Wire Transcript into Discussion Agent (system-prompt.ts)
+ * Tests for Discussion Agent system prompt - YouTube transcript awareness
  *
- * Validates that buildDiscussionSystemPrompt and buildContentNote
- * correctly handle YouTube items with and without transcripts.
+ * Validates that buildDiscussionSystemPrompt tells the agent that
+ * YouTube videos have transcript access via read_article_section.
  */
 
 import { describe, it, expect } from 'vitest';
@@ -37,25 +37,8 @@ const mockBrainlift = {
   title: 'Testing BrainLift',
 } as Pick<Brainlift, 'displayPurpose' | 'description' | 'title'>;
 
-describe('buildDiscussionSystemPrompt - transcript awareness', () => {
-  it('includes transcript tool message for YouTube video with transcript', () => {
-    const item = makeItem({
-      extractedContent: {
-        contentType: 'embed',
-        embedType: 'youtube',
-        embedId: 'abc123',
-        transcript: 'Some transcript text',
-      } as any,
-    });
-
-    const prompt = buildDiscussionSystemPrompt(item, mockBrainlift);
-
-    expect(prompt).toContain('read_article_section');
-    expect(prompt).toContain('transcript');
-    expect(prompt).not.toContain('cannot access the media content directly');
-  });
-
-  it('includes "cannot access" message for YouTube video without transcript', () => {
+describe('buildDiscussionSystemPrompt - YouTube transcript awareness', () => {
+  it('tells agent transcript is available for any YouTube embed', () => {
     const item = makeItem({
       extractedContent: {
         contentType: 'embed',
@@ -66,7 +49,22 @@ describe('buildDiscussionSystemPrompt - transcript awareness', () => {
 
     const prompt = buildDiscussionSystemPrompt(item, mockBrainlift);
 
-    expect(prompt).toContain('cannot access the media content directly');
+    expect(prompt).toContain('transcript');
+    expect(prompt).toContain('read_article_section');
+  });
+
+  it('shows "cannot access" for non-YouTube video embeds', () => {
+    const item = makeItem({
+      extractedContent: {
+        contentType: 'embed',
+        embedType: 'spotify',
+        embedId: 'sp123',
+      },
+    });
+
+    const prompt = buildDiscussionSystemPrompt(item, mockBrainlift);
+
+    expect(prompt).not.toContain('transcript');
   });
 
   it('preserves article behavior unchanged', () => {
