@@ -13,7 +13,7 @@ const { mockFetch } = vi.hoisted(() => ({
   mockFetch: vi.fn(),
 }));
 
-vi.mock('@playzone/youtube-transcript/dist/api', () => ({
+vi.mock('@playzone/youtube-transcript', () => ({
   createYouTubeTranscriptApi: () => ({
     fetch: mockFetch,
   }),
