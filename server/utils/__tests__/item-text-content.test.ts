@@ -2,10 +2,15 @@
  * Tests for FR3: Text Content Accessor
  *
  * Tests getItemTextContent() utility that extracts text from learning stream items.
- * No mocks needed — pure function operating on item data.
+ * Mock needed for transitive youtube-transcript import.
  */
 
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
+
+vi.mock('../../services/youtube-transcript', () => ({
+  fetchYouTubeTranscript: vi.fn(),
+}));
+
 import { getItemTextContent } from '../item-text-content';
 import type { LearningStreamItem } from '@shared/schema';
 

@@ -1,12 +1,15 @@
 import type { JobHelpers } from 'graphile-worker';
 import { extractContent } from '../services/content-extractor';
 import { storage } from '../storage';
+import { isQuizzableContent } from '../utils/item-text-content';
+import { withJob } from '../utils/withJob';
 
 /**
  * Background job to extract viewable content from a learning stream item's URL.
  * Queued automatically when a new item is inserted.
  *
  * Non-throwing: errors are stored as fallback content so the item is still viewable.
+ * After successful extraction of quizzable content, reactively queues quiz generation.
  */
 export async function contentExtractJob(
   payload: { itemId: number; brainliftId: number; url: string },
@@ -25,6 +28,15 @@ export async function contentExtractJob(
       itemId,
       contentType: result.contentType,
     });
+
+    // Reactively trigger quiz generation for quizzable content types
+    if (isQuizzableContent(result)) {
+      withJob('learning-stream:generate-quiz')
+        .forPayload({ itemId, brainliftId })
+        .withOptions({ jobKey: `generate-quiz-${itemId}` })
+        .queue()
+        .catch(err => helpers.logger.error('Failed to queue quiz generation', { itemId, err }));
+    }
 
     return { success: true, contentType: result.contentType };
   } catch (error: any) {

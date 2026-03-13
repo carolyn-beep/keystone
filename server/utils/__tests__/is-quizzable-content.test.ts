@@ -1,10 +1,15 @@
 /**
  * Tests for FR2: isQuizzableContent utility
  *
- * Pure function -- no mocks needed.
+ * Pure function -- mock only needed for transitive youtube-transcript import.
  */
 
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
+
+vi.mock('../../services/youtube-transcript', () => ({
+  fetchYouTubeTranscript: vi.fn(),
+}));
+
 import { isQuizzableContent } from '../item-text-content';
 import type { ExtractedContent } from '@shared/schema';
 

@@ -13,6 +13,10 @@ vi.mock('../../services/content-extractor', () => ({
   extractContent: vi.fn(),
 }));
 
+vi.mock('../../services/youtube-transcript', () => ({
+  fetchYouTubeTranscript: vi.fn(),
+}));
+
 vi.mock('../../storage', () => ({
   storage: {
     cacheExtractedContent: vi.fn(),
