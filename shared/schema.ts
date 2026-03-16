@@ -225,18 +225,6 @@ export const brainliftShares = pgTable("brainlift_shares", {
   `),
 ]);
 
-// LLM Models for Fact Verification - Gemini primary, Qwen fallback
-export const LLM_MODELS = {
-  GEMINI_FLASH: 'google/gemini-2.0-flash-001',
-  QWEN_32B: 'qwen/qwen3-32b',
-} as const;
-
-export const LLM_MODEL_NAMES: Record<LLMModel, string> = {
-  'google/gemini-2.0-flash-001': 'Gemini 2.0 Flash',
-  'qwen/qwen3-32b': 'Qwen 3 32B',
-};
-
-export type LLMModel = typeof LLM_MODELS[keyof typeof LLM_MODELS];
 
 export const VERIFICATION_STATUS = {
   PENDING: 'pending',
@@ -278,7 +266,7 @@ export const factVerifications = pgTable("fact_verifications", {
 export const factModelScores = pgTable("fact_model_scores", {
   id: serial("id").primaryKey(),
   verificationId: integer("verification_id").notNull().references(() => factVerifications.id),
-  model: text("model").$type<LLMModel>().notNull(), // Which LLM model
+  model: text("model").notNull(), // Which LLM model
   score: integer("score"), // 1-5 grade from this model
   rationale: text("rationale"), // Model's explanation
   status: text("status").$type<VerificationStatus>().notNull().default('pending'),
@@ -380,7 +368,7 @@ export const llmFeedback = pgTable("llm_feedback", {
   id: serial("id").primaryKey(),
   verificationId: integer("verification_id").notNull().references(() => factVerifications.id),
   factId: integer("fact_id").notNull().references(() => facts.id),
-  llmModel: text("llm_model").$type<LLMModel>().notNull(),
+  llmModel: text("llm_model").notNull(),
   llmScore: integer("llm_score").notNull(), // Original AI score (1-5)
   humanScore: integer("human_score").notNull(), // Human override score (1-5)
   scoreDifference: integer("score_difference").notNull(), // Absolute difference
@@ -390,7 +378,7 @@ export const llmFeedback = pgTable("llm_feedback", {
 // Aggregated model accuracy stats - updated on each human override
 export const modelAccuracyStats = pgTable("model_accuracy_stats", {
   id: serial("id").primaryKey(),
-  model: text("model").$type<LLMModel>().notNull().unique(),
+  model: text("model").notNull().unique(),
   totalSamples: integer("total_samples").notNull().default(0),
   totalAbsoluteError: integer("total_absolute_error").notNull().default(0), // Sum of all score differences
   meanAbsoluteError: text("mean_absolute_error").notNull().default('0'), // Stored as string for precision
@@ -492,6 +480,46 @@ export const learningStreamItems = pgTable("learning_stream_items", {
 
 export type LearningStreamItem = typeof learningStreamItems.$inferSelect;
 export type NewLearningStreamItem = typeof learningStreamItems.$inferInsert;
+
+// Knowledge Check - Quiz question and answer types
+export interface QuizQuestion {
+  question: string;          // The question text
+  options: string[];         // 4 options (shuffled, correct position varies)
+  correctIndex: number;      // Index of correct answer in options array
+  explanation: string;       // Why the correct answer is correct (shown as feedback)
+  conceptTested: string;     // The concept this question tests (from phase 1)
+  misconceptions: string[];  // What each distractor targets (parallel to non-correct options)
+}
+
+export interface QuizAnswer {
+  questionIndex: number;     // Index into questions array
+  selectedIndex: number;     // Which option the student selected
+  correct: boolean;          // Whether selectedIndex === correctIndex
+}
+
+// Knowledge Check - Quiz storage
+export const knowledgeCheckQuizzes = pgTable("knowledge_check_quizzes", {
+  id: serial("id").primaryKey(),
+  itemId: integer("item_id").notNull()
+    .references(() => learningStreamItems.id, { onDelete: "cascade" }),
+  brainliftId: integer("brainlift_id").notNull()
+    .references(() => brainlifts.id, { onDelete: "cascade" }),
+
+  // Generated quiz content
+  questions: jsonb("questions").$type<QuizQuestion[]>().notNull(),
+
+  // Student responses (null until submitted)
+  answers: jsonb("answers").$type<QuizAnswer[] | null>(),
+  score: integer("score"),                    // number correct, null until submitted
+  completedAt: timestamp("completed_at"),     // null until submitted
+
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+}, (table) => [
+  // One quiz per item per brainlift
+  unique("unique_quiz_per_item").on(table.itemId, table.brainliftId),
+]);
+
+export type KnowledgeCheckQuiz = typeof knowledgeCheckQuizzes.$inferSelect;
 
 // DOK2 Grading - Fail reasons for auto-fail conditions
 export const DOK2_FAIL_REASON = {
@@ -601,7 +629,7 @@ export const swarmUsageRelations = relations(swarmUsage, ({ one }) => ({
   }),
 }));
 
-// DOK3 Models — separate from LLM_MODELS (which is for fact verification)
+// DOK3 Models — used for DOK3 grading (quality-tier and fast-tier)
 export const DOK3_MODELS = {
   // Quality-tier (conceptual coherence evaluation)
   OPUS: 'anthropic/claude-opus-4.6',
@@ -613,17 +641,6 @@ export const DOK3_MODELS = {
 
 export type DOK3Model = typeof DOK3_MODELS[keyof typeof DOK3_MODELS];
 
-// DOK4 Models — same structure as DOK3_MODELS
-export const DOK4_MODELS = {
-  // Quality-tier (quality evaluation, antimemetic assessment)
-  OPUS: 'anthropic/claude-opus-4.6',
-  SONNET_FALLBACK: 'anthropic/claude-sonnet-4.5',
-  // Mid-tier (POV validation, traceability, divergence) — Gemini primary, Sonnet fallback on rate limit
-  GEMINI_FLASH: 'google/gemini-2.0-flash-001',
-  SONNET_MID_FALLBACK: 'anthropic/claude-sonnet-4.5',
-} as const;
-
-export type DOK4Model = typeof DOK4_MODELS[keyof typeof DOK4_MODELS];
 
 // DOK3 Insight Status
 export const DOK3_INSIGHT_STATUS = {

@@ -3,6 +3,7 @@ import { generateUniqueSlug } from "../utils/slug";
 import { summarizeFact } from "../ai/factSummarizer";
 import { verifyFactWithAllModels } from "../ai/factVerifier";
 import { fetchEvidenceForFact } from "../ai/evidenceFetcher";
+import { resolveYouTubeTranscript } from "../utils/resolve-youtube-transcript";
 import { extractAndRankExperts, diagnoseExpertFormat } from "../ai/experts";
 import { analyzeFactRedundancy } from "../ai/redundancyAnalyzer";
 import { gradeDOK2Summary, type DOK2GradeResult } from "../ai/dok2Grader";
@@ -206,6 +207,7 @@ export async function saveBrainliftFromAI(
 
   // Cache failed URLs to avoid retrying the same 403/404 errors
   const failedUrlCache = new Map<string, string>();
+  const transcriptCache = new Map<string, string | null>();
 
   // Run fact processing and contradiction detection in parallel
   const [factsWithSummaries, contradictionClusters] = await Promise.all([
@@ -246,7 +248,8 @@ export async function saveBrainliftFromAI(
             const sourceUrl = fact.aiNotes.split("Source: ")[1]?.trim();
             if (sourceUrl) {
               try {
-                const evidence = await fetchEvidenceForFact(fact.fact, sourceUrl, failedUrlCache);
+                const cachedTranscript = await resolveYouTubeTranscript(sourceUrl, transcriptCache);
+                const evidence = await fetchEvidenceForFact(fact.fact, sourceUrl, failedUrlCache, cachedTranscript);
                 evidenceContent = evidence.content || "";
                 if (!evidenceContent) linkFailed = true;
               } catch {
@@ -439,12 +442,16 @@ export async function saveBrainliftFromAI(
         }
 
         try {
+          const dok2Transcript = summary.sourceUrl
+            ? await resolveYouTubeTranscript(summary.sourceUrl, transcriptCache)
+            : null;
           gradeResult = await gradeDOK2Summary(
             summaryPoints,
             relatedDOK1s,
             brainliftPurpose,
             summary.sourceUrl,
-            dok2FailedUrlCache
+            dok2FailedUrlCache,
+            dok2Transcript,
           );
         } catch (err: any) {
           console.error(`[Auto-Grade] DOK2 grading failed for "${summary.sourceName}":`, err.message);

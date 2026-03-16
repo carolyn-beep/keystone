@@ -10,6 +10,7 @@
 
 import pLimit from 'p-limit';
 import { storage } from '../storage';
+import { callModel } from './client';
 
 const MODEL = 'anthropic/claude-haiku-4.5';
 const LINK_CONCURRENCY = 60;
@@ -139,7 +140,17 @@ async function resolveSemanticLinks(
   dok3Insights: DOK3Insight[],
 ): Promise<Array<{ dok3InsightId: number; isPrimary: boolean }>> {
   try {
-    const rankings = await callSemanticModel(spovText, dok3Insights);
+    const rawRankings = await callSemanticModel(spovText, dok3Insights);
+
+    // Filter out any hallucinated IDs not in the actual insights list
+    const validIds = new Set(dok3Insights.map(i => i.id));
+    const rankings = rawRankings.filter(r => {
+      if (!validIds.has(r.dok3Id)) {
+        console.warn(`[DOK4 AutoLinker] Filtered hallucinated dok3Id=${r.dok3Id} (not in insights list)`);
+        return false;
+      }
+      return true;
+    });
 
     // Sort by score descending, deduplicate by dok3Id
     const seen = new Set<number>();
@@ -178,11 +189,6 @@ async function callSemanticModel(
   spovText: string,
   dok3Insights: DOK3Insight[],
 ): Promise<SemanticRanking[]> {
-  const apiKey = process.env.OPENROUTER_API_KEY;
-  if (!apiKey) {
-    throw new Error('OpenRouter API key not configured');
-  }
-
   const insightList = dok3Insights
     .map((ins, i) => `${i + 1}. [ID: ${ins.id}] ${ins.text}`)
     .join('\n');
@@ -194,6 +200,8 @@ A DOK4 SPOV is a student's defensible, evidence-backed position. DOK3 insights a
 Score each DOK3 insight from 0.01 (no relevance) to 0.99 (directly supports the SPOV's core argument).
 Most insights should be below 0.5 -- be discriminating.
 
+IMPORTANT: Each dok3Id in your response must be one of the exact IDs listed in the DOK3 INSIGHTS below. Only use IDs that appear in the [ID: X] markers.
+
 Respond ONLY with a JSON object: {"rankings": [{"dok3Id": <id>, "score": <number>}, ...]}`;
 
   const userPrompt = `DOK4 SPOV:
@@ -202,16 +210,14 @@ Respond ONLY with a JSON object: {"rankings": [{"dok3Id": <id>, "score": <number
 DOK3 INSIGHTS:
 ${insightList}`;
 
-  const body = {
+  const result = await callModel({
     model: MODEL,
-    messages: [
-      { role: 'system', content: systemPrompt },
-      { role: 'user', content: userPrompt },
-    ],
+    system: systemPrompt,
+    messages: [{ role: 'user', content: userPrompt }],
     temperature: 0,
-    response_format: {
+    responseFormat: {
       type: 'json_schema',
-      json_schema: {
+      jsonSchema: {
         name: 'dok4_rankings',
         strict: true,
         schema: {
@@ -222,7 +228,7 @@ ${insightList}`;
               items: {
                 type: 'object',
                 properties: {
-                  dok3Id: { type: 'number' },
+                  dok3Id: { type: 'number', enum: dok3Insights.map(i => i.id) },
                   score: { type: 'number' },
                 },
                 required: ['dok3Id', 'score'],
@@ -235,29 +241,9 @@ ${insightList}`;
         },
       },
     },
-  };
-
-  const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
-    method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${apiKey}`,
-      'Content-Type': 'application/json',
-      'HTTP-Referer': 'https://replit.com',
-    },
-    body: JSON.stringify(body),
+    caller: 'dok4AutoLinker',
   });
 
-  if (!response.ok) {
-    const errBody = await response.text().catch(() => '');
-    throw new Error(`API error: ${response.status} - ${errBody.substring(0, 200)}`);
-  }
-
-  const data = await response.json() as {
-    choices?: Array<{ message?: { content?: string } }>;
-  };
-  const content = data.choices?.[0]?.message?.content;
-  if (!content) throw new Error('No response content');
-
-  const parsed = JSON.parse(content) as { rankings: SemanticRanking[] };
+  const parsed = JSON.parse(result.content) as { rankings: SemanticRanking[] };
   return parsed.rankings || [];
 }

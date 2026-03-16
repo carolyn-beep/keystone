@@ -1,11 +1,11 @@
 /**
- * Tests for 01-dok3-auto-linker
+ * Tests for DOK3 Auto-Linker (unified client migration)
  *
- * Tests DOK3→DOK2 semantic auto-linking with multi-source constraint.
- * Storage calls and LLM (OpenRouter) are mocked.
+ * Tests DOK3->DOK2 semantic auto-linking with multi-source constraint.
+ * Storage and unified client (callModelWithFallback) are mocked.
  */
 
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
 // Mock storage module before importing the module under test
 vi.mock('../../storage', () => ({
@@ -15,17 +15,25 @@ vi.mock('../../storage', () => ({
   },
 }));
 
+// Mock the unified AI client
+vi.mock('../client', () => ({
+  callModelWithFallback: vi.fn(),
+}));
+
 import { storage } from '../../storage';
+import { callModelWithFallback } from '../client';
 import { autoLinkDOK3Insights } from '../dok3AutoLinker';
 import type { DOK2Summary, DOK3Insight } from '../dok3AutoLinker';
 
-// Helper to create mock LLM response
-function createMockFetch(responseBody: string) {
-  return vi.fn().mockResolvedValue({
-    ok: true,
-    json: async () => ({
-      choices: [{ message: { content: responseBody } }],
-    }),
+const mockCallModelWithFallback = vi.mocked(callModelWithFallback);
+
+// Helper to configure mock callModelWithFallback response
+function mockCallModelWithFallbackResponse(responseBody: object) {
+  mockCallModelWithFallback.mockResolvedValue({
+    content: JSON.stringify(responseBody),
+    model: 'anthropic/claude-haiku-4.5',
+    durationMs: 100,
+    attempts: 1,
   });
 }
 
@@ -67,85 +75,89 @@ const INSIGHT_FIXTURES: DOK3Insight[] = [
 ];
 
 describe('DOK3 Auto-Linker', () => {
-  let originalFetch: typeof globalThis.fetch;
-
   beforeEach(() => {
     vi.clearAllMocks();
-    originalFetch = globalThis.fetch;
-    process.env.OPENROUTER_API_KEY = 'test-key';
   });
 
-  afterEach(() => {
-    globalThis.fetch = originalFetch;
-  });
-
-  // ── FR1: LLM Semantic Scoring ──────────────────────────────────────
+  // -- FR1: LLM Semantic Scoring (via unified client) ---------------------
 
   describe('FR1: LLM Semantic Scoring', () => {
-    it('calls LLM with system + user messages in correct format', async () => {
-      globalThis.fetch = createMockFetch(JSON.stringify({
+    it('calls callModelWithFallback with correct caller and responseFormat', async () => {
+      mockCallModelWithFallbackResponse({
         rankings: [
           { dok2Id: 1, score: 0.8 },
           { dok2Id: 2, score: 0.7 },
         ],
-      }));
+      });
 
       await autoLinkDOK3Insights(1, [INSIGHT_FIXTURES[0]], DOK2_FIXTURES);
 
-      expect(globalThis.fetch).toHaveBeenCalledWith(
-        'https://openrouter.ai/api/v1/chat/completions',
+      expect(mockCallModelWithFallback).toHaveBeenCalledWith(
         expect.objectContaining({
-          method: 'POST',
-          headers: expect.objectContaining({
-            'Content-Type': 'application/json',
+          models: ['anthropic/claude-haiku-4.5', 'google/gemini-2.0-flash-001'],
+          caller: 'dok3AutoLinker',
+          temperature: 0,
+          responseFormat: expect.objectContaining({
+            type: 'json_schema',
+            jsonSchema: expect.objectContaining({
+              name: 'dok3_rankings',
+            }),
           }),
         }),
       );
-
-      // Parse the request body to verify prompt structure
-      const callArgs = (globalThis.fetch as ReturnType<typeof vi.fn>).mock.calls[0];
-      const body = JSON.parse(callArgs[1].body);
-      expect(body.messages).toHaveLength(2);
-      expect(body.messages[0].role).toBe('system');
-      expect(body.messages[1].role).toBe('user');
-      expect(body.model).toBe('anthropic/claude-haiku-4.5');
-      expect(body.temperature).toBe(0);
     });
 
-    it('includes all DOK2 summaries with displayTitle + points in prompt', async () => {
-      globalThis.fetch = createMockFetch(JSON.stringify({
+    it('passes system prompt and user content via callModelWithFallback options', async () => {
+      mockCallModelWithFallbackResponse({
         rankings: [
           { dok2Id: 1, score: 0.8 },
           { dok2Id: 2, score: 0.7 },
         ],
-      }));
+      });
 
       await autoLinkDOK3Insights(1, [INSIGHT_FIXTURES[0]], DOK2_FIXTURES);
 
-      const callArgs = (globalThis.fetch as ReturnType<typeof vi.fn>).mock.calls[0];
-      const body = JSON.parse(callArgs[1].body);
-      const userPrompt: string = body.messages[1].content;
+      const callArgs = mockCallModelWithFallback.mock.calls[0][0];
+      expect(callArgs.system).toContain('DOK3');
+      expect(callArgs.messages).toHaveLength(1);
+      expect(callArgs.messages[0].role).toBe('user');
+      expect(callArgs.messages[0].content).toContain('ID: 1');
+      expect(callArgs.messages[0].content).toContain('ID: 2');
+    });
+
+    it('includes all DOK2 summaries with displayTitle + points in prompt', async () => {
+      mockCallModelWithFallbackResponse({
+        rankings: [
+          { dok2Id: 1, score: 0.8 },
+          { dok2Id: 2, score: 0.7 },
+        ],
+      });
+
+      await autoLinkDOK3Insights(1, [INSIGHT_FIXTURES[0]], DOK2_FIXTURES);
+
+      const callArgs = mockCallModelWithFallback.mock.calls[0][0];
+      const userContent = callArgs.messages[0].content;
 
       // All DOK2s should appear in the prompt
-      expect(userPrompt).toContain('ID: 1');
-      expect(userPrompt).toContain('ID: 2');
-      expect(userPrompt).toContain('ID: 3');
-      expect(userPrompt).toContain('ID: 4');
+      expect(userContent).toContain('ID: 1');
+      expect(userContent).toContain('ID: 2');
+      expect(userContent).toContain('ID: 3');
+      expect(userContent).toContain('ID: 4');
       // displayTitle included
-      expect(userPrompt).toContain('Summary about climate change');
+      expect(userContent).toContain('Summary about climate change');
       // Points included
-      expect(userPrompt).toContain('Rising temperatures affect ecosystems');
+      expect(userContent).toContain('Rising temperatures affect ecosystems');
     });
 
     it('parses JSON response with rankings structure', async () => {
-      globalThis.fetch = createMockFetch(JSON.stringify({
+      mockCallModelWithFallbackResponse({
         rankings: [
           { dok2Id: 1, score: 0.85 },
           { dok2Id: 2, score: 0.72 },
           { dok2Id: 3, score: 0.3 },
           { dok2Id: 4, score: 0.1 },
         ],
-      }));
+      });
 
       const results = await autoLinkDOK3Insights(1, [INSIGHT_FIXTURES[0]], DOK2_FIXTURES);
 
@@ -173,37 +185,36 @@ describe('DOK3 Auto-Linker', () => {
         },
       ];
 
-      globalThis.fetch = createMockFetch(JSON.stringify({
+      mockCallModelWithFallbackResponse({
         rankings: [
           { dok2Id: 10, score: 0.8 },
           { dok2Id: 11, score: 0.7 },
         ],
-      }));
+      });
 
       await autoLinkDOK3Insights(1, [INSIGHT_FIXTURES[0]], dok2sWithNullTitle);
 
-      const callArgs = (globalThis.fetch as ReturnType<typeof vi.fn>).mock.calls[0];
-      const body = JSON.parse(callArgs[1].body);
-      const userPrompt: string = body.messages[1].content;
+      const callArgs = mockCallModelWithFallback.mock.calls[0][0];
+      const userContent = callArgs.messages[0].content;
 
       // Should still include the DOK2 with null displayTitle using point text
-      expect(userPrompt).toContain('ID: 10');
-      expect(userPrompt).toContain('First point about energy policy');
+      expect(userContent).toContain('ID: 10');
+      expect(userContent).toContain('First point about energy policy');
     });
   });
 
-  // ── FR2: Multi-Source Link Selection ───────────────────────────────
+  // -- FR2: Multi-Source Link Selection -----------------------------------
 
   describe('FR2: Multi-Source Link Selection', () => {
-    it('links insight to ≥2 DOK2s from ≥2 sources (happy path)', async () => {
-      globalThis.fetch = createMockFetch(JSON.stringify({
+    it('links insight to >=2 DOK2s from >=2 sources (happy path)', async () => {
+      mockCallModelWithFallbackResponse({
         rankings: [
           { dok2Id: 1, score: 0.9 },  // Source A
           { dok2Id: 2, score: 0.8 },  // Source B
           { dok2Id: 3, score: 0.7 },  // Source A
           { dok2Id: 4, score: 0.6 },  // Source C
         ],
-      }));
+      });
 
       const results = await autoLinkDOK3Insights(1, [INSIGHT_FIXTURES[0]], DOK2_FIXTURES);
 
@@ -219,14 +230,14 @@ describe('DOK3 Auto-Linker', () => {
 
     it('selects additional DOK2s from other sources when top scorers are same source', async () => {
       // Top 2 scores are both from Source A
-      globalThis.fetch = createMockFetch(JSON.stringify({
+      mockCallModelWithFallbackResponse({
         rankings: [
           { dok2Id: 1, score: 0.95 },  // Source A
           { dok2Id: 3, score: 0.90 },  // Source A
           { dok2Id: 2, score: 0.6 },   // Source B
           { dok2Id: 4, score: 0.55 },  // Source C
         ],
-      }));
+      });
 
       const results = await autoLinkDOK3Insights(1, [INSIGHT_FIXTURES[0]], DOK2_FIXTURES);
 
@@ -244,12 +255,12 @@ describe('DOK3 Auto-Linker', () => {
         { id: 21, sourceName: 'Only Source', sourceUrl: 'https://only.com', displayTitle: 'Title B', points: [{ text: 'Point B' }] },
       ];
 
-      globalThis.fetch = createMockFetch(JSON.stringify({
+      mockCallModelWithFallbackResponse({
         rankings: [
           { dok2Id: 20, score: 0.9 },
           { dok2Id: 21, score: 0.8 },
         ],
-      }));
+      });
 
       const results = await autoLinkDOK3Insights(1, [INSIGHT_FIXTURES[0]], singleSourceDok2s);
 
@@ -259,14 +270,14 @@ describe('DOK3 Auto-Linker', () => {
     });
 
     it('links top 2 DOK2s with flagged=true when all scores below threshold', async () => {
-      globalThis.fetch = createMockFetch(JSON.stringify({
+      mockCallModelWithFallbackResponse({
         rankings: [
           { dok2Id: 1, score: 0.4 },  // Source A - below 0.5
           { dok2Id: 2, score: 0.3 },  // Source B - below 0.5
           { dok2Id: 3, score: 0.2 },  // Source A - below 0.5
           { dok2Id: 4, score: 0.1 },  // Source C - below 0.5
         ],
-      }));
+      });
 
       const results = await autoLinkDOK3Insights(1, [INSIGHT_FIXTURES[0]], DOK2_FIXTURES);
 
@@ -283,13 +294,13 @@ describe('DOK3 Auto-Linker', () => {
         { id: 32, sourceName: 'Source B', sourceUrl: 'https://source-b.com', displayTitle: 'Title 3', points: [{ text: 'Point' }] },
       ];
 
-      globalThis.fetch = createMockFetch(JSON.stringify({
+      mockCallModelWithFallbackResponse({
         rankings: [
           { dok2Id: 30, score: 0.9 },
           { dok2Id: 31, score: 0.8 },
           { dok2Id: 32, score: 0.7 },
         ],
-      }));
+      });
 
       const results = await autoLinkDOK3Insights(1, [INSIGHT_FIXTURES[0]], dok2sWithVariedSources);
 
@@ -300,16 +311,16 @@ describe('DOK3 Auto-Linker', () => {
     });
   });
 
-  // ── FR3: Flagging ──────────────────────────────────────────────────
+  // -- FR3: Flagging ------------------------------------------------------
 
   describe('FR3: Flagging', () => {
     it('returns LinkResult with flagged=false when constraint met', async () => {
-      globalThis.fetch = createMockFetch(JSON.stringify({
+      mockCallModelWithFallbackResponse({
         rankings: [
           { dok2Id: 1, score: 0.9 },  // Source A
           { dok2Id: 2, score: 0.8 },  // Source B
         ],
-      }));
+      });
 
       const results = await autoLinkDOK3Insights(1, [INSIGHT_FIXTURES[0]], DOK2_FIXTURES);
 
@@ -323,12 +334,12 @@ describe('DOK3 Auto-Linker', () => {
         { id: 41, sourceName: 'Same Source', sourceUrl: 'https://same.com', displayTitle: 'Title 2', points: [{ text: 'Point 2' }] },
       ];
 
-      globalThis.fetch = createMockFetch(JSON.stringify({
+      mockCallModelWithFallbackResponse({
         rankings: [
           { dok2Id: 40, score: 0.9 },
           { dok2Id: 41, score: 0.8 },
         ],
-      }));
+      });
 
       const results = await autoLinkDOK3Insights(1, [INSIGHT_FIXTURES[0]], singleSourceDok2s);
 
@@ -341,9 +352,9 @@ describe('DOK3 Auto-Linker', () => {
         { id: 50, sourceName: 'Sole Source', sourceUrl: 'https://sole.com', displayTitle: 'Only Summary', points: [{ text: 'Only point' }] },
       ];
 
-      globalThis.fetch = createMockFetch(JSON.stringify({
+      mockCallModelWithFallbackResponse({
         rankings: [{ dok2Id: 50, score: 0.9 }],
-      }));
+      });
 
       const results = await autoLinkDOK3Insights(1, [INSIGHT_FIXTURES[0]], singleDok2);
 
@@ -354,12 +365,12 @@ describe('DOK3 Auto-Linker', () => {
     });
   });
 
-  // ── FR4: Error Resilience ──────────────────────────────────────────
+  // -- FR4: Error Resilience ----------------------------------------------
 
   describe('FR4: Error Resilience', () => {
-    it('logs error and continues when LLM API fails', async () => {
+    it('logs error and continues when callModelWithFallback fails', async () => {
       const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
-      globalThis.fetch = vi.fn().mockRejectedValue(new Error('Network error'));
+      mockCallModelWithFallback.mockRejectedValue(new Error('Network error'));
 
       const results = await autoLinkDOK3Insights(1, [INSIGHT_FIXTURES[0]], DOK2_FIXTURES);
 
@@ -370,9 +381,14 @@ describe('DOK3 Auto-Linker', () => {
       consoleSpy.mockRestore();
     });
 
-    it('logs error and continues when LLM returns malformed JSON', async () => {
+    it('logs error and continues when callModelWithFallback returns unparseable content', async () => {
       const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
-      globalThis.fetch = createMockFetch('not valid json at all');
+      mockCallModelWithFallback.mockResolvedValue({
+        content: 'not valid json at all',
+        model: 'anthropic/claude-haiku-4.5',
+        durationMs: 100,
+        attempts: 1,
+      });
 
       const results = await autoLinkDOK3Insights(1, [INSIGHT_FIXTURES[0]], DOK2_FIXTURES);
 
@@ -386,12 +402,12 @@ describe('DOK3 Auto-Linker', () => {
       const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
       (storage.linkDOK3Insight as ReturnType<typeof vi.fn>).mockRejectedValueOnce(new Error('DB error'));
 
-      globalThis.fetch = createMockFetch(JSON.stringify({
+      mockCallModelWithFallbackResponse({
         rankings: [
           { dok2Id: 1, score: 0.9 },
           { dok2Id: 2, score: 0.8 },
         ],
-      }));
+      });
 
       const results = await autoLinkDOK3Insights(1, [INSIGHT_FIXTURES[0]], DOK2_FIXTURES);
 
@@ -403,25 +419,25 @@ describe('DOK3 Auto-Linker', () => {
     it('returns partial LinkResult array on mixed success/failure', async () => {
       const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
 
-      // First insight: LLM fails
-      // Second insight: LLM succeeds
+      // First insight: callModelWithFallback fails
+      // Second insight: callModelWithFallback succeeds
       let callCount = 0;
-      globalThis.fetch = vi.fn().mockImplementation(() => {
+      mockCallModelWithFallback.mockImplementation(async () => {
         callCount++;
         if (callCount === 1) {
-          return Promise.reject(new Error('LLM failed for first'));
+          throw new Error('LLM failed for first');
         }
-        return Promise.resolve({
-          ok: true,
-          json: async () => ({
-            choices: [{ message: { content: JSON.stringify({
-              rankings: [
-                { dok2Id: 1, score: 0.9 },
-                { dok2Id: 2, score: 0.8 },
-              ],
-            }) } }],
+        return {
+          content: JSON.stringify({
+            rankings: [
+              { dok2Id: 1, score: 0.9 },
+              { dok2Id: 2, score: 0.8 },
+            ],
           }),
-        });
+          model: 'anthropic/claude-haiku-4.5',
+          durationMs: 100,
+          attempts: 1,
+        };
       });
 
       const results = await autoLinkDOK3Insights(1, INSIGHT_FIXTURES, DOK2_FIXTURES);
@@ -433,23 +449,21 @@ describe('DOK3 Auto-Linker', () => {
     });
   });
 
-  // ── Edge Cases ─────────────────────────────────────────────────────
+  // -- Edge Cases ---------------------------------------------------------
 
   describe('Edge Cases', () => {
     it('returns empty array when insights is empty', async () => {
-      globalThis.fetch = vi.fn();
       const results = await autoLinkDOK3Insights(1, [], DOK2_FIXTURES);
 
       expect(results).toEqual([]);
-      expect(globalThis.fetch).not.toHaveBeenCalled();
+      expect(mockCallModelWithFallback).not.toHaveBeenCalled();
     });
 
     it('returns empty array when dok2Summaries is empty', async () => {
-      globalThis.fetch = vi.fn();
       const results = await autoLinkDOK3Insights(1, INSIGHT_FIXTURES, []);
 
       expect(results).toEqual([]);
-      expect(globalThis.fetch).not.toHaveBeenCalled();
+      expect(mockCallModelWithFallback).not.toHaveBeenCalled();
     });
   });
 });

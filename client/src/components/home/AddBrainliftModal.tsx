@@ -4,6 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { tokens } from '@/lib/colors';
 import { useImportWithProgress } from '@/hooks/useImportWithProgress';
 import { ImportProgress } from '@/components/ImportProgress';
+import { PreformatDecision } from '@/components/home/PreformatDecision';
 import { DOK3LinkingUI } from '@/components/DOK3LinkingUI';
 import { DOK4LinkingUI } from '@/components/DOK4LinkingUI';
 import { TactileButton } from '@/components/ui/tactile-button';
@@ -53,7 +54,10 @@ export function AddBrainliftModal({ show, onClose, onSuccess }: AddBrainliftModa
   const [autoLink, setAutoLink] = useState(true);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Legacy import flow — phase state machine
+  // Store formData across evaluate -> accept/reject flow
+  const pendingFormDataRef = useRef<FormData | null>(null);
+
+  // Legacy import flow -- phase state machine
   const importState = useImportWithProgress();
   const { importPhase } = importState;
 
@@ -67,13 +71,14 @@ export function AddBrainliftModal({ show, onClose, onSuccess }: AddBrainliftModa
   // Derived state from phase machine
   const isManualLinking = importPhase === 'dok3_manual_linking' || importPhase === 'dok4_manual_linking';
   const isExpanded = isManualLinking || !!agentSlug;
+  const isBusy = importState.isImporting || importPhase === 'evaluating' || importPhase === 'formatting';
 
   // Holds the completed slug when import finishes while user is still linking
   const pendingSlugRef = useRef<string | null>(null);
 
   // Auto-navigate when import is done and we're not in manual linking
   useEffect(() => {
-    // Phase 'complete' from SSE — navigate if not manually linking
+    // Phase 'complete' from SSE -- navigate if not manually linking
     if (importPhase === 'complete' && importState.slug) {
       const slug = importState.slug;
       importState.reset();
@@ -82,7 +87,7 @@ export function AddBrainliftModal({ show, onClose, onSuccess }: AddBrainliftModa
       onSuccess(slug);
       return;
     }
-    // Finishing phase with pending slug — SSE already completed before we got here
+    // Finishing phase with pending slug -- SSE already completed before we got here
     if (importPhase === 'finishing' && pendingSlugRef.current && !importState.isImporting) {
       const slug = pendingSlugRef.current;
       pendingSlugRef.current = null;
@@ -92,6 +97,32 @@ export function AddBrainliftModal({ show, onClose, onSuccess }: AddBrainliftModa
       onSuccess(slug);
     }
   }, [importPhase, importState.slug, importState.isImporting]);
+
+  // When evaluate returns no_formatting_needed, auto-start import
+  useEffect(() => {
+    if (
+      importPhase === 'importing' &&
+      importState.isImporting &&
+      importState.evaluationResult?.decision === 'no_formatting_needed' &&
+      pendingFormDataRef.current
+    ) {
+      const formData = pendingFormDataRef.current;
+      formData.set('preformat', 'false');
+      importState.rejectFormatting(formData).then((slug) => {
+        if (slug) {
+          const phase = importState.phaseRef.current;
+          if (phase === 'dok3_manual_linking' || phase === 'dok4_manual_linking' || phase === 'finishing') {
+            pendingSlugRef.current = slug;
+          } else {
+            importState.reset();
+            resetAll();
+            onClose();
+            onSuccess(slug);
+          }
+        }
+      });
+    }
+  }, [importPhase, importState.isImporting, importState.evaluationResult]);
 
   // When in manual linking/finishing and SSE completes, store slug for later
   const isManualFlow = isManualLinking || importPhase === 'finishing';
@@ -110,6 +141,7 @@ export function AddBrainliftModal({ show, onClose, onSuccess }: AddBrainliftModa
     setAgentSlug(null);
     setIsGradingMode(false);
     pendingSlugRef.current = null;
+    pendingFormDataRef.current = null;
     createForAgent.reset();
   }, [createForAgent]);
 
@@ -117,18 +149,27 @@ export function AddBrainliftModal({ show, onClose, onSuccess }: AddBrainliftModa
     if (isManualLinking) return;
     if (isGradingMode && grading.isGrading) return;
     if (importState.isImporting) return;
+    if (importPhase === 'evaluating') return;
+    if (importPhase === 'formatting') return;
 
     importState.reset();
     resetAll();
     onClose();
-  }, [isManualLinking, isGradingMode, grading.isGrading, importState, resetAll, onClose]);
+  }, [isManualLinking, isGradingMode, grading.isGrading, importState, importPhase, resetAll, onClose]);
 
-  // Manual mode: DOK3 linking complete → DOK4 or finishing
+  // Decision pending: user can close (resets to idle)
+  const closeDecision = useCallback(() => {
+    importState.reset();
+    resetAll();
+    onClose();
+  }, [importState, resetAll, onClose]);
+
+  // Manual mode: DOK3 linking complete -> DOK4 or finishing
   const handleDok3LinkingComplete = useCallback(() => {
     importState.completeDok3Linking();
   }, [importState]);
 
-  // Manual mode: DOK4 linking complete → finishing (progress bar resumes)
+  // Manual mode: DOK4 linking complete -> finishing (progress bar resumes)
   const handleDok4LinkingComplete = useCallback(() => {
     importState.completeDok4Linking();
 
@@ -151,10 +192,8 @@ export function AddBrainliftModal({ show, onClose, onSuccess }: AddBrainliftModa
     }
   };
 
-  // Legacy import
-  const handleSubmit = async () => {
-    setError('');
-
+  /** Build FormData from current form state */
+  const buildFormData = useCallback((): FormData | null => {
     const formData = new FormData();
     formData.append('sourceType', activeTab);
     formData.append('autoLink', String(autoLink));
@@ -162,21 +201,25 @@ export function AddBrainliftModal({ show, onClose, onSuccess }: AddBrainliftModa
     if (activeTab === 'html') {
       if (!selectedFile) {
         setError('Please select a file');
-        return;
+        return null;
       }
       formData.append('file', selectedFile);
     } else if (activeTab === 'workflowy' || activeTab === 'googledocs') {
       if (!url.trim()) {
         setError('Please enter a URL');
-        return;
+        return null;
       }
       formData.append('url', url);
     }
 
+    return formData;
+  }, [activeTab, autoLink, selectedFile, url]);
+
+  // Legacy import (for non-Workflowy sources)
+  const handleLegacySubmit = async (formData: FormData) => {
     const slug = await importState.importBrainlift(formData);
     if (slug) {
       const phase = importState.phaseRef.current;
-      // If we're in any manual linking or finishing phase, hold the slug for later navigation
       if (phase === 'dok3_manual_linking' || phase === 'dok4_manual_linking' || phase === 'finishing') {
         pendingSlugRef.current = slug;
       } else {
@@ -187,6 +230,71 @@ export function AddBrainliftModal({ show, onClose, onSuccess }: AddBrainliftModa
       }
     }
   };
+
+  // Main submit handler
+  const handleSubmit = async () => {
+    setError('');
+    const formData = buildFormData();
+    if (!formData) return;
+
+    // Store formData for use in accept/reject handlers
+    pendingFormDataRef.current = formData;
+
+    // Workflowy sources go through the evaluate -> decision flow
+    if (activeTab === 'workflowy') {
+      await importState.evaluateBrainlift(formData);
+      // After evaluation, the phase will be:
+      // - decision_pending (needs_formatting) -> user sees PreformatDecision
+      // - importing (no_formatting_needed) -> auto-import triggered by useEffect
+      // - idle (not_a_brainlift or error) -> error shown inline
+      return;
+    }
+
+    // Non-Workflowy sources: direct import (no evaluation)
+    await handleLegacySubmit(formData);
+  };
+
+  // Accept formatting decision -> import with preformat=true
+  const handleAcceptFormatting = useCallback(async () => {
+    if (!pendingFormDataRef.current) return;
+    const formData = pendingFormDataRef.current;
+    const slug = await importState.acceptFormatting(formData);
+    if (slug) {
+      const phase = importState.phaseRef.current;
+      if (phase === 'dok3_manual_linking' || phase === 'dok4_manual_linking' || phase === 'finishing') {
+        pendingSlugRef.current = slug;
+      } else {
+        importState.reset();
+        resetAll();
+        onClose();
+        onSuccess(slug);
+      }
+    }
+  }, [importState, resetAll, onClose, onSuccess]);
+
+  // Reject formatting decision -> import with preformat=false
+  const handleRejectFormatting = useCallback(async () => {
+    if (!pendingFormDataRef.current) return;
+    const formData = pendingFormDataRef.current;
+    const slug = await importState.rejectFormatting(formData);
+    if (slug) {
+      const phase = importState.phaseRef.current;
+      if (phase === 'dok3_manual_linking' || phase === 'dok4_manual_linking' || phase === 'finishing') {
+        pendingSlugRef.current = slug;
+      } else {
+        importState.reset();
+        resetAll();
+        onClose();
+        onSuccess(slug);
+      }
+    }
+  }, [importState, resetAll, onClose, onSuccess]);
+
+  // Cancel (very_large tier) -> reset to idle
+  const handleCancelFormatting = useCallback(() => {
+    importState.reset();
+    pendingFormDataRef.current = null;
+  }, [importState]);
 
   // Agent flow: create brainlift then expand
   const handleRunAgent = async () => {
@@ -227,7 +335,7 @@ export function AddBrainliftModal({ show, onClose, onSuccess }: AddBrainliftModa
     <div
       className="fixed inset-0 flex items-center justify-center z-[1000] p-5 overflow-hidden"
       style={{ backgroundColor: tokens.overlay }}
-      onClick={(isManualLinking || (isGradingMode && grading.isGrading) || importState.isImporting) ? undefined : closeModal}
+      onClick={(isManualLinking || (isGradingMode && grading.isGrading) || isBusy) ? undefined : closeModal}
     >
       <motion.div
         layout
@@ -330,6 +438,81 @@ export function AddBrainliftModal({ show, onClose, onSuccess }: AddBrainliftModa
                 )}
               </div>
             </motion.div>
+          ) : importPhase === 'evaluating' ? (
+            /* ── Evaluating phase: spinner ── */
+            <motion.div
+              key="evaluating"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.25 }}
+              className="p-4 sm:p-6"
+            >
+              {/* Texture overlay */}
+              <div
+                aria-hidden="true"
+                className="absolute inset-0 rounded-xl pointer-events-none z-0"
+                style={{
+                  backgroundImage: `url(${modalBgTexture})`,
+                  backgroundSize: 'cover',
+                  backgroundPosition: 'center',
+                  opacity: 0.10,
+                  mixBlendMode: 'multiply',
+                }}
+              />
+              <div className="relative z-10 flex flex-col items-center justify-center py-16">
+                <Loader2 size={32} className="animate-spin text-primary mb-4" />
+                <p className="font-serif italic text-[15px] text-muted-foreground m-0">
+                  Evaluating document structure...
+                </p>
+                <p className="text-[12px] text-muted-light mt-2 m-0">
+                  Checking if your BrainLift needs formatting before import
+                </p>
+              </div>
+            </motion.div>
+          ) : importPhase === 'decision_pending' && importState.evaluationResult ? (
+            /* ── Decision pending phase: PreformatDecision card ── */
+            <motion.div
+              key="decision"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.25 }}
+              className="p-4 sm:p-6"
+            >
+              {/* Texture overlay */}
+              <div
+                aria-hidden="true"
+                className="absolute inset-0 rounded-xl pointer-events-none z-0"
+                style={{
+                  backgroundImage: `url(${modalBgTexture})`,
+                  backgroundSize: 'cover',
+                  backgroundPosition: 'center',
+                  opacity: 0.10,
+                  mixBlendMode: 'multiply',
+                }}
+              />
+              <div className="relative z-10">
+                <div className="flex justify-between items-center mb-5">
+                  <h2 className="text-xl font-semibold text-foreground m-0">
+                    Formatting Recommended
+                  </h2>
+                  <button
+                    data-testid="button-close-decision"
+                    onClick={closeDecision}
+                    className="bg-transparent border-none cursor-pointer text-muted-foreground"
+                  >
+                    <X size={24} />
+                  </button>
+                </div>
+                <PreformatDecision
+                  evaluation={importState.evaluationResult}
+                  onAccept={handleAcceptFormatting}
+                  onReject={handleRejectFormatting}
+                  onCancel={handleCancelFormatting}
+                />
+              </div>
+            </motion.div>
           ) : (
             <motion.div
               key="import"
@@ -358,7 +541,7 @@ export function AddBrainliftModal({ show, onClose, onSuccess }: AddBrainliftModa
                 <button
                   data-testid="button-close-modal"
                   onClick={closeModal}
-                  disabled={importState.isImporting}
+                  disabled={isBusy}
                   className="bg-transparent border-none cursor-pointer text-muted-foreground disabled:opacity-30 disabled:cursor-not-allowed"
                 >
                   <X size={24} />
@@ -406,7 +589,7 @@ export function AddBrainliftModal({ show, onClose, onSuccess }: AddBrainliftModa
                 />
               </div>
 
-              <div className={`relative z-10 pb-4 ${importState.isImporting ? 'opacity-50 pointer-events-none' : ''}`}>
+              <div className={`relative z-10 pb-4 ${isBusy ? 'opacity-50 pointer-events-none' : ''}`}>
                 {activeTab === 'html' && (
                   <div>
                     <input
@@ -416,10 +599,10 @@ export function AddBrainliftModal({ show, onClose, onSuccess }: AddBrainliftModa
                       onChange={handleFileSelect}
                       className="hidden"
                       data-testid="input-file"
-                      disabled={importState.isImporting}
+                      disabled={isBusy}
                     />
                     <div
-                      onClick={() => !importState.isImporting && fileInputRef.current?.click()}
+                      onClick={() => !isBusy && fileInputRef.current?.click()}
                       className="border-2 border-dashed rounded-lg py-6 px-5 text-center cursor-pointer flex flex-col items-center justify-center"
                       style={{
                         borderColor: tokens.border,
@@ -459,7 +642,7 @@ export function AddBrainliftModal({ show, onClose, onSuccess }: AddBrainliftModa
                       data-testid="input-url"
                       value={url}
                       onChange={(e) => setUrl(e.target.value)}
-                      disabled={importState.isImporting}
+                      disabled={isBusy}
                       placeholder={activeTab === 'workflowy' ? 'https://workflowy.com/s/...' : 'https://docs.google.com/document/d/...'}
                       className="w-full p-3 rounded-lg text-sm box-border border-none outline-none disabled:cursor-not-allowed"
                       style={{
@@ -477,10 +660,10 @@ export function AddBrainliftModal({ show, onClose, onSuccess }: AddBrainliftModa
               </div>
 
               {/* Auto-link toggle */}
-              <div className={`relative z-10 flex items-center gap-3 py-3 ${importState.isImporting ? 'opacity-50 pointer-events-none' : ''}`}>
+              <div className={`relative z-10 flex items-center gap-3 py-3 ${isBusy ? 'opacity-50 pointer-events-none' : ''}`}>
                 <button
-                  onClick={() => !importState.isImporting && setAutoLink(!autoLink)}
-                  disabled={importState.isImporting}
+                  onClick={() => !isBusy && setAutoLink(!autoLink)}
+                  disabled={isBusy}
                   className={`relative w-10 h-5 rounded-full transition-colors duration-200 border-0 cursor-pointer disabled:cursor-not-allowed ${
                     autoLink ? 'bg-primary' : 'bg-muted-foreground/30'
                   }`}
@@ -494,14 +677,14 @@ export function AddBrainliftModal({ show, onClose, onSuccess }: AddBrainliftModa
                 </button>
                 <label
                   className="text-sm text-muted-foreground cursor-pointer select-none"
-                  onClick={() => !importState.isImporting && setAutoLink(!autoLink)}
+                  onClick={() => !isBusy && setAutoLink(!autoLink)}
                 >
                   Auto-link DOK3s and DOK4s
                 </label>
               </div>
 
               {/* Show local error, agent creation error, or import error */}
-              {(error || createForAgent.error?.message || importState.error) && !importState.isImporting && (
+              {(error || createForAgent.error?.message || importState.error) && !isBusy && (
                 <p className="text-destructive text-sm mt-3">
                   {error || createForAgent.error?.message || importState.error}
                 </p>
@@ -518,8 +701,9 @@ export function AddBrainliftModal({ show, onClose, onSuccess }: AddBrainliftModa
                 gradingDok4Progress={importState.gradingDok4Progress}
                 linkingDok3Progress={importState.linkingDok3Progress}
                 linkingDok4Progress={importState.linkingDok4Progress}
+                formattingProgress={importState.formattingProgress}
                 error={importState.error}
-                isVisible={importState.isImporting || importPhase === 'finishing'}
+                isVisible={importState.isImporting || importPhase === 'finishing' || importPhase === 'formatting'}
                 orderedStages={autoLink ? undefined : MANUAL_ORDERED_STAGES}
               />
 
@@ -528,12 +712,12 @@ export function AddBrainliftModal({ show, onClose, onSuccess }: AddBrainliftModa
                   variant="inset"
                   data-testid="button-cancel"
                   onClick={closeModal}
-                  disabled={importState.isImporting}
-                  style={{ opacity: importState.isImporting ? 0.3 : undefined }}
+                  disabled={isBusy}
+                  style={{ opacity: isBusy ? 0.3 : undefined }}
                 >
                   Cancel
                 </TactileButton>
-                {!importState.isImporting && activeTab === 'workflowy' && (
+                {!isBusy && activeTab === 'workflowy' && (
                   <TactileButton
                     variant="inset"
                     onClick={handleRunAgent}
@@ -554,12 +738,13 @@ export function AddBrainliftModal({ show, onClose, onSuccess }: AddBrainliftModa
                   variant="raised"
                   data-testid="button-submit-import"
                   onClick={handleSubmit}
-                  disabled={importState.isImporting}
+                  disabled={isBusy}
                 >
-                  {importState.isImporting ? (
+                  {isBusy ? (
                     <span className="flex items-center gap-2">
                       <Loader2 size={14} className="animate-spin" />
-                      Importing...
+                      {importPhase === 'evaluating' ? 'Evaluating...' :
+                       importPhase === 'formatting' ? 'Formatting...' : 'Importing...'}
                     </span>
                   ) : (
                     'Import & Analyze'

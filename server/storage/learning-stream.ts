@@ -243,6 +243,25 @@ export async function getLearningStreamItemById(
 }
 
 /**
+ * Get a single learning stream item by URL and brainliftId.
+ * Uses the existing unique_brainlift_url constraint columns.
+ */
+export async function getLearningStreamItemByUrl(
+  url: string,
+  brainliftId: number
+): Promise<LearningStreamItem | null> {
+  const [item] = await db.select()
+    .from(learningStreamItems)
+    .where(and(
+      eq(learningStreamItems.url, url),
+      eq(learningStreamItems.brainliftId, brainliftId)
+    ))
+    .limit(1);
+
+  return item || null;
+}
+
+/**
  * Cache extracted content for inline viewing.
  * IDOR-safe: includes brainliftId in the WHERE clause.
  */

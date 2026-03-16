@@ -1,17 +1,12 @@
 import { z } from 'zod';
 import pLimit from 'p-limit';
 import { CLASSIFICATION } from '@shared/schema';
-import OpenAI from 'openai';
 import type { HierarchyNode, DOK2SummaryGroup, DOK3ExtractedInsight, DOK4ExtractedSpov } from '@shared/hierarchy-types';
 import { extractAllFromHierarchy, convertToExtractorFormat, extractPurposeFromHierarchy } from './hierarchyExtractor';
+import { callModel, callModelWithFallback } from './client';
 
 // Feature flag for hierarchy-based extraction
 const USE_HIERARCHY_EXTRACTION = process.env.USE_HIERARCHY_EXTRACTION === 'true';
-
-const openai = new OpenAI({
-  apiKey: process.env.OPENROUTER_API_KEY,
-  baseURL: 'https://openrouter.ai/api/v1',
-});
 
 const brainliftOutputSchema = z.object({
   classification: z.enum(['brainlift', 'partial', 'not_brainlift']),
@@ -151,16 +146,16 @@ async function extractChunk(chunk: string, title: string, chunkIdx: number): Pro
   const start = Date.now();
   console.log(`[DOK1 Extractor] FALLBACK: Chunk ${chunkIdx + 1} started (${chunk.length} chars)`);
   try {
-    const response = await openai.chat.completions.create({
-      model: "google/gemini-2.0-flash-001",
+    const result = await callModel({
+      model: 'google/gemini-2.0-flash-001',
+      system: LLM_EXTRACT_SYSTEM,
       messages: [
-        { role: "system", content: LLM_EXTRACT_SYSTEM },
-        { role: "user", content: `Extract DOK1 facts from chunk ${chunkIdx + 1} of "${title}":\n\n${chunk}` }
+        { role: 'user', content: `Extract DOK1 facts from chunk ${chunkIdx + 1} of "${title}":\n\n${chunk}` }
       ],
       temperature: 0.1,
-      response_format: {
-        type: 'json_schema' as any,
-        json_schema: {
+      responseFormat: {
+        type: 'json_schema',
+        jsonSchema: {
           name: 'dok1_facts',
           strict: true,
           schema: {
@@ -184,9 +179,10 @@ async function extractChunk(chunk: string, title: string, chunkIdx: number): Pro
           },
         },
       },
+      caller: 'brainliftExtractor.chunkExtraction',
     });
 
-    const responseContent = response.choices[0].message.content?.trim() || '{"facts":[]}';
+    const responseContent = result.content.trim() || '{"facts":[]}';
 
     // Try direct parse first, then extract JSON from markdown/wrapper
     let parsed: any;
@@ -265,12 +261,9 @@ async function summarizePurposeForDisplay(fullPurpose: string, title: string): P
   console.log(`[Purpose Summarizer] Summarizing ${fullPurpose.length} char purpose...`);
 
   try {
-    const response = await openai.chat.completions.create({
-      model: "google/gemini-2.0-flash-001",
-      messages: [
-        {
-          role: "system",
-          content: `Compress a purpose statement into ONE punchy sentence (50-120 chars).
+    const result = await callModelWithFallback({
+      models: ['google/gemini-2.0-flash-001', 'anthropic/claude-sonnet-4.6'],
+      system: `Compress a purpose statement into ONE punchy sentence (50-120 chars).
 
 FORMAT: "[Topic]: [key question or goal]"
 
@@ -284,10 +277,10 @@ RULES:
 - Be specific - name the actual subject
 - Include the core question or tension being explored
 - No fluff, no preamble, no meta-commentary
-- Output ONLY the summary line`
-        },
+- Output ONLY the summary line`,
+      messages: [
         {
-          role: "user",
+          role: 'user',
           content: `Title: "${title}"
 
 Purpose text:
@@ -297,10 +290,13 @@ One-line summary:`
         }
       ],
       temperature: 0.2,
-      max_tokens: 80,
+      maxTokens: 80,
+      timeout: 15_000,
+      retries: 2,
+      caller: 'brainliftExtractor.purposeSummary',
     });
 
-    const summary = response.choices[0].message.content?.trim() || '';
+    const summary = result.content.trim() || '';
 
     console.log(`[Purpose Summarizer] Raw LLM response (${summary.length} chars): "${summary.substring(0, 200)}"`);
 
@@ -372,6 +368,7 @@ export async function extractBrainlift(
 
   if (USE_HIERARCHY_EXTRACTION && hierarchy && hierarchy.length > 0) {
     console.log('[DOK1 Extractor] Attempting hierarchy-based extraction...');
+
     const fullResult = extractAllFromHierarchy(hierarchy);
 
     // Always keep DOK2/DOK3/DOK4 from hierarchy, even if facts=0 (facts can fall back to regex/LLM)
@@ -762,12 +759,10 @@ export async function findContradictions(facts: any[]): Promise<any[]> {
   if (facts.length < 2) return [];
 
   try {
-    const response = await openai.chat.completions.create({
-      model: "anthropic/claude-sonnet-4", // Changed from Opus 4.5 - too slow for import pipeline
-      messages: [
-        {
-          role: "system",
-          content: `You detect FACTUAL / LOGICAL contradictions (aka "competing claims") between facts.
+    const contradictionStart = performance.now();
+    const callResult = await callModel({
+      model: 'anthropic/claude-sonnet-4',
+      system: `You detect FACTUAL / LOGICAL contradictions (aka "competing claims") between facts.
 
 IMPORTANT: A single fact entry may contain MULTIPLE claims. When referencing specific claims, use sub-IDs:
 - If Fact 1 contains two distinct claims, reference them as "Fact 1.1" and "Fact 1.2"
@@ -807,19 +802,22 @@ Rules:
 5) No other keys. No explanation. No bullets. No markdown.
 
 If NO tension exists, return EXACTLY:
-{ "result": "NONE" }`
-        },
+{ "result": "NONE" }`,
+      messages: [
         {
-          role: "user",
+          role: 'user',
           content: `List of Facts:\n${facts.map(f => `ID: ${f.id} - ${f.fact}`).join('\n')}\n\nAnalyze the facts and return JSON as specified.`
         }
-      ]
+      ],
+      caller: 'brainliftExtractor.contradictions',
     });
+    const contradictionDuration = performance.now() - contradictionStart;
+    console.log(`[Contradiction Detection] completed in ${(contradictionDuration / 1000).toFixed(1)}s`);
 
-    const content = response.choices[0].message.content?.trim() || "";
+    const content = callResult.content.trim() || "";
     const jsonMatch = content.match(/\{[\s\S]*\}/);
     if (!jsonMatch) return [];
-    
+
     const result = JSON.parse(jsonMatch[0]);
     
     if (result.result === "NONE") return [];

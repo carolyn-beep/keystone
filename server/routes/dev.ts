@@ -11,6 +11,7 @@ import { Router } from 'express';
 import { fetchWorkflowyContent } from '../utils/external-sources';
 import { extractBrainlift } from '../ai/brainliftExtractor';
 import { extractAllFromHierarchy } from '../ai/hierarchyExtractor';
+import { preformatHierarchy } from '../services/brainlift-preformat';
 import {
   findExpertsSection,
   extractExpertsFromDocumentWithMetadata,
@@ -750,5 +751,204 @@ if (!isDev) {
       const error = err instanceof Error ? err.message : 'Unknown error';
       res.status(500).json({ success: false, error });
     }
+  });
+
+  /**
+   * POST /dev/preformat-test
+   *
+   * Test the preformat pipeline on a Workflowy URL without importing.
+   * Returns original hierarchy, formatted hierarchy, and validation report.
+   */
+  devRouter.post('/dev/preformat-test', async (req, res) => {
+    const startTime = Date.now();
+    const { workflowyUrl } = req.body;
+
+    if (!workflowyUrl || typeof workflowyUrl !== 'string') {
+      return res.status(400).json({
+        success: false,
+        error: 'Missing or invalid "workflowyUrl" parameter',
+        diagnostics: { timing: { total: Date.now() - startTime }, metadata: { originalNodeCount: 0, formattedNodeCount: 0 } },
+      });
+    }
+
+    try {
+      // Fetch Workflowy content
+      const fetchResult = await fetchWorkflowyContent(workflowyUrl);
+      const hierarchy = fetchResult.hierarchy;
+
+      // Count nodes helper
+      const countNodes = (nodes: HierarchyNode[]): number => {
+        let count = 0;
+        const traverse = (node: HierarchyNode) => {
+          count++;
+          node.children.forEach(traverse);
+        };
+        nodes.forEach(traverse);
+        return count;
+      };
+
+      const originalNodeCount = countNodes(hierarchy);
+
+      // Run preformat pipeline — always returns full results (or null on crash)
+      const result = await preformatHierarchy(hierarchy);
+
+      if (result) {
+        const formattedNodeCount = countNodes(result.cleanHierarchy);
+        res.json({
+          success: result.report.passed,
+          original: hierarchy,
+          formatted: result.cleanHierarchy,
+          report: result.report,
+          timing: result.timing,
+          stats: result.stats,
+          diagnostics: {
+            timing: { total: Date.now() - startTime },
+            metadata: { originalNodeCount, formattedNodeCount },
+          },
+        });
+      } else {
+        // Catastrophic failure (no API key, crash, etc.)
+        res.json({
+          success: false,
+          original: hierarchy,
+          formatted: null,
+          report: null,
+          timing: null,
+          stats: null,
+          error: 'Preformat pipeline crashed (check server logs)',
+          diagnostics: {
+            timing: { total: Date.now() - startTime },
+            metadata: { originalNodeCount, formattedNodeCount: 0 },
+          },
+        });
+      }
+    } catch (err: unknown) {
+      const error = err instanceof Error ? err.message : 'Unknown error';
+      res.status(500).json({
+        success: false,
+        error,
+        diagnostics: { timing: { total: Date.now() - startTime }, metadata: { originalNodeCount: 0, formattedNodeCount: 0 } },
+      });
+    }
+  });
+
+  /**
+   * GET /dev/preformat-batch-results
+   *
+   * Serve the batch results JSON file (written by scripts/preformat-batch-run.ts).
+   * Auto-refreshable from the batch results page.
+   */
+  devRouter.get('/dev/preformat-batch-results', async (_req, res) => {
+    try {
+      const { readFile } = await import('fs/promises');
+      const { resolve } = await import('path');
+      const filePath = resolve('Samples/json-formatter/batch-results.json');
+      const raw = await readFile(filePath, 'utf8');
+      res.json(JSON.parse(raw));
+    } catch (err: unknown) {
+      if (err instanceof Error && 'code' in err && (err as NodeJS.ErrnoException).code === 'ENOENT') {
+        return res.status(404).json({ error: 'No batch results found. Run the batch script first.' });
+      }
+      res.status(500).json({ error: err instanceof Error ? err.message : 'Unknown error' });
+    }
+  });
+
+  /**
+   * POST /dev/preformat-batch
+   *
+   * Run preformat pipeline on multiple Workflowy URLs sequentially.
+   * Streams results via SSE so the frontend can show progress.
+   *
+   * Body: { entries: Array<{ author: string, url: string }> }
+   * SSE events: { type: 'progress' | 'result' | 'error' | 'done', ... }
+   */
+  devRouter.post('/dev/preformat-batch', async (req, res) => {
+    const { entries } = req.body as { entries?: Array<{ author: string; url: string }> };
+
+    if (!entries || !Array.isArray(entries) || entries.length === 0) {
+      return res.status(400).json({ error: 'Missing or empty "entries" array' });
+    }
+
+    // SSE setup
+    res.writeHead(200, {
+      'Content-Type': 'text/event-stream',
+      'Cache-Control': 'no-cache',
+      Connection: 'keep-alive',
+    });
+
+    const send = (data: unknown) => {
+      res.write(`data: ${JSON.stringify(data)}\n\n`);
+    };
+
+    const countNodes = (nodes: HierarchyNode[]): number => {
+      let count = 0;
+      const traverse = (node: HierarchyNode) => { count++; node.children.forEach(traverse); };
+      nodes.forEach(traverse);
+      return count;
+    };
+
+    send({ type: 'progress', message: `Starting batch: ${entries.length} BrainLifts`, total: entries.length });
+
+    for (let i = 0; i < entries.length; i++) {
+      const { author, url } = entries[i];
+      send({ type: 'progress', message: `[${i + 1}/${entries.length}] Fetching ${author}...`, index: i });
+
+      try {
+        const fetchResult = await fetchWorkflowyContent(url);
+        const hierarchy = fetchResult.hierarchy;
+        const originalNodeCount = countNodes(hierarchy);
+
+        send({ type: 'progress', message: `[${i + 1}/${entries.length}] Running preformat for ${author} (${originalNodeCount} nodes)...`, index: i });
+
+        const result = await preformatHierarchy(hierarchy);
+
+        if (result) {
+          const formattedNodeCount = countNodes(result.cleanHierarchy);
+          send({
+            type: 'result',
+            index: i,
+            author,
+            url,
+            success: result.report.passed,
+            originalNodeCount,
+            formattedNodeCount,
+            report: result.report,
+            timing: result.timing,
+            stats: result.stats,
+            // Include full trees for export but keep SSE manageable
+            original: hierarchy,
+            formatted: result.cleanHierarchy,
+          });
+        } else {
+          send({
+            type: 'result',
+            index: i,
+            author,
+            url,
+            success: false,
+            originalNodeCount,
+            formattedNodeCount: 0,
+            error: 'Pipeline crashed',
+            report: null,
+            timing: null,
+            stats: null,
+            original: hierarchy,
+            formatted: null,
+          });
+        }
+      } catch (err: unknown) {
+        const error = err instanceof Error ? err.message : 'Unknown error';
+        send({
+          type: 'error',
+          index: i,
+          author,
+          url,
+          error,
+        });
+      }
+    }
+
+    send({ type: 'done', message: `Batch complete: ${entries.length} BrainLifts processed` });
+    res.end();
   });
 }

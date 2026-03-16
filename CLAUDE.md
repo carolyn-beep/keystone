@@ -61,6 +61,7 @@ Express + TypeScript backend in `server/`. Uses Drizzle ORM, domain-based routin
 - `server/services/` - Business logic (e.g., `saveBrainliftFromAI`)
 - `server/utils/` - Pure utilities (file extraction, slug generation)
 - `server/ai/` - AI service integrations (verification, extraction, research)
+- `server/ai/client/` - **Unified AI client** (callModel, callModelWithFallback, model registry, provider)
 - `server/middleware/` - Auth, error handling, brainlift authorization
 - `server/storage/` - Modular storage layer (domain-based files)
 - `server/seed.ts` - Database seeding logic
@@ -97,13 +98,79 @@ app.use(verificationsRouter);
 1. **New route?** Add to existing domain router or create new `routes/{domain}.ts`
 2. **Complex logic?** Extract to `services/` - routes should be thin
 3. **Reusable utility?** Add to `utils/`
-4. **New AI capability?** Add to `ai/`
+4. **New AI capability?** Add to `ai/` — **must use the unified AI client** (see below)
 
 ### Rules
 
 - Routes handle HTTP only - no business logic
 - Services are framework-agnostic - no `req`/`res`
 - Validate with `npm run build` after changes
+
+### AI Calls — Unified Client (MANDATORY)
+
+**All LLM chat completion calls MUST go through the unified AI client.** Do NOT use raw `fetch()` to OpenRouter, do NOT use the OpenAI SDK, do NOT import `OPENROUTER_API_KEY` directly.
+
+```typescript
+import { callModel, callModelWithFallback } from '../ai/client';
+
+// Simple call
+const result = await callModel({
+  model: 'anthropic/claude-haiku-4.5',
+  messages: [{ role: 'user', content: prompt }],
+  system: 'You are helpful',
+  temperature: 0,
+  caller: 'myFeature.myStep',  // always set — used for observability
+});
+// result.content — the response text
+// result.model — actual model used
+
+// With fallback chain (tries models in order)
+const result = await callModelWithFallback({
+  models: ['anthropic/claude-opus-4.6', 'anthropic/claude-sonnet-4.6'],
+  messages: [...],
+  caller: 'myFeature.evaluation',
+});
+```
+
+**Timeout and retries are opt-in.** Only add them when you have a reason:
+
+```typescript
+const result = await callModel({
+  model: 'google/gemini-2.0-flash-001',
+  messages: [...],
+  caller: 'myFeature',
+  timeout: 45_000,  // optional — no timeout if omitted
+  retries: 2,       // optional — 0 retries if omitted
+});
+```
+
+**Available models** (defined in `server/ai/client/registry.ts`):
+
+| Model ID | Tier | Use For |
+|----------|------|---------|
+| `anthropic/claude-opus-4.6` | Premium | High-stakes evaluation, complex analysis |
+| `anthropic/claude-sonnet-4.6` | Standard | General-purpose, quality fallback |
+| `anthropic/claude-sonnet-4.5` | Standard | Legacy calls, mid-tier fallback |
+| `anthropic/claude-sonnet-4` | Standard | Legacy calls |
+| `anthropic/claude-haiku-4.5` | Fast | Parallel/batch operations, speed-critical |
+| `google/gemini-2.0-flash-001` | Fast | Parallel/batch operations, classification |
+| `qwen/qwen3-32b` | Budget | Low-priority fallbacks |
+| `meta-llama/llama-3.1-8b-instruct` | Budget | Low-priority fallbacks |
+
+**Adding a new model:** Add it to `MODEL_REGISTRY` in `server/ai/client/registry.ts`. Do NOT hardcode model IDs outside the registry.
+
+**Rules:**
+- Every call MUST have a `caller` string (e.g. `'dok4Grader.qualityEvaluation'`)
+- Use `callModelWithFallback` when the call is important enough to warrant a fallback
+- Do NOT set timeout on long-running calls (contradiction detection, large document analysis)
+- Do NOT use `fetch()` to call OpenRouter — the client handles headers, auth, parsing, and error classification
+- Do NOT import `OPENROUTER_API_KEY` anywhere outside the client
+- See `features/ai-infra/unified-ai-client/call-site-audit.csv` for the full inventory of call sites
+
+**Exceptions (NOT using the unified client):**
+- Vercel AI SDK routes (`server/routes/discussion.ts`, `server/routes/import-agent.ts`) — different streaming paradigm
+- Claude Agent SDK (`server/ai/learning-stream-swarm/`) — different SDK
+- OpenAI image generation (`server/ai/imageGenerator.ts`) — not chat completions
 
 ### SSE Streaming
 

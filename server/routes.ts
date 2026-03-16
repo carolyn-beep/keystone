@@ -13,6 +13,7 @@ import { discussionRouter } from "./routes/discussion";
 import { dok3Router } from "./routes/dok3";
 import { dok4Router } from "./routes/dok4";
 import { importAgentRouter } from "./routes/import-agent";
+import { knowledgeCheckRouter } from "./routes/knowledge-check";
 import { errorHandler } from "./middleware/error-handler";
 import { seedDatabase, backfillOriginalContent } from "./seed";
 
@@ -34,6 +35,7 @@ export async function registerRoutes(
   app.use(dok3Router);
   app.use(dok4Router);
   app.use(importAgentRouter);
+  app.use(knowledgeCheckRouter);
 
   // Global error handler - must be after all routes
   app.use(errorHandler);

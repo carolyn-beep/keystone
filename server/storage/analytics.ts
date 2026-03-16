@@ -1,14 +1,21 @@
 import {
   db, desc,
-  modelAccuracyStats, llmFeedback, LLM_MODELS,
+  modelAccuracyStats, llmFeedback,
   type ModelAccuracyStats, type LlmFeedback
 } from './base';
+import { MODEL_REGISTRY } from '../ai/client/registry';
+
+// Fact-verification models used for accuracy tracking
+const FACT_VERIFICATION_MODELS = [
+  'google/gemini-2.0-flash-001',
+  'qwen/qwen3-32b',
+] as const;
 
 export async function getModelAccuracyStats(): Promise<ModelAccuracyStats[]> {
   const stats = await db.select().from(modelAccuracyStats);
   const existingModels = new Set(stats.map(s => s.model));
 
-  const allModels = Object.values(LLM_MODELS);
+  const allModels: readonly string[] = FACT_VERIFICATION_MODELS;
   const result: ModelAccuracyStats[] = [...stats];
 
   for (const model of allModels) {

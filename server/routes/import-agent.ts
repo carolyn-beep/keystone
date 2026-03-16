@@ -14,6 +14,7 @@ import { importLog, importError } from '../ai/import-agent/logger';
 import { createSSEResponse } from '../utils/sse';
 import { summarizeFact } from '../ai/factSummarizer';
 import { fetchEvidenceForFact } from '../ai/evidenceFetcher';
+import { resolveYouTubeTranscript } from '../utils/resolve-youtube-transcript';
 import { verifyFactWithAllModels } from '../ai/factVerifier';
 import { gradeDOK2Summary } from '../ai/dok2Grader';
 import { gradeDOK3Insight } from '../ai/dok3Grader';
@@ -276,6 +277,7 @@ importAgentRouter.post(
       });
 
       const failedUrlCache = new Map<string, string>();
+      const transcriptCache = new Map<string, string | null>();
       const dok1Limit = pLimit(60);
       let dok1Completed = 0;
       const dok1Total = ungradedFacts.length;
@@ -309,7 +311,8 @@ importAgentRouter.post(
 
             if (sourceUrl) {
               try {
-                const evidence = await fetchEvidenceForFact(fact.fact, sourceUrl, failedUrlCache);
+                const cachedTranscript = await resolveYouTubeTranscript(sourceUrl, transcriptCache);
+                const evidence = await fetchEvidenceForFact(fact.fact, sourceUrl, failedUrlCache, cachedTranscript);
                 evidenceContent = evidence.content || '';
                 if (!evidenceContent) linkFailed = true;
               } catch {
@@ -405,12 +408,16 @@ importAgentRouter.post(
         const summaryPoints = dok2.points.map(p => p.text);
 
         try {
+          const dok2Transcript = dok2.sourceUrl
+            ? await resolveYouTubeTranscript(dok2.sourceUrl, transcriptCache)
+            : null;
           const gradeResult = await gradeDOK2Summary(
             summaryPoints,
             relatedDOK1s,
             brainliftPurpose,
             dok2.sourceUrl,
-            dok2FailedUrlCache
+            dok2FailedUrlCache,
+            dok2Transcript,
           );
 
           await storage.updateDOK2Grading(dok2.id, brainlift.id, {

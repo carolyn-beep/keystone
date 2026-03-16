@@ -1,8 +1,8 @@
 import {
   db, eq, and, sql,
-  facts, factVerifications, factModelScores, llmFeedback, modelAccuracyStats, LLM_MODELS,
+  facts, factVerifications, factModelScores, llmFeedback, modelAccuracyStats,
   type Fact, type FactVerification, type InsertFactVerification, type FactModelScore,
-  type FactWithVerification, type LLMModel, type LlmFeedback, type ModelAccuracyStats
+  type FactWithVerification, type LlmFeedback, type ModelAccuracyStats
 } from './base';
 import { NotFoundError } from '../middleware/error-handler';
 
@@ -80,7 +80,7 @@ export async function createFactVerification(factId: number): Promise<FactVerifi
   return verification;
 }
 
-async function updateModelAccuracyStatsInternal(model: LLMModel, scoreDifference: number): Promise<void> {
+async function updateModelAccuracyStatsInternal(model: string, scoreDifference: number): Promise<void> {
   const [existing] = await db.select().from(modelAccuracyStats)
     .where(eq(modelAccuracyStats.model, model));
 

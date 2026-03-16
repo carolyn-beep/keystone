@@ -32,6 +32,7 @@ server/
   services/       Business logic, orchestration, grading pipeline
   storage/        Drizzle ORM, domain-split with facade pattern
   ai/             LLM integrations (fact verification, DOK2-4 grading, auto-linking, expert extraction, research swarm)
+    client/       Unified AI client — model registry, providers, retry/timeout middleware
   jobs/           Graphile Worker background jobs
   events/         SSE event emitters (DOK4 grading progress)
   middleware/     Auth (Better Auth + Google OAuth), brainlift authorization, error handling
@@ -67,26 +68,77 @@ The `tasks.ts` registry uses `as const`, so TypeScript knows every valid job nam
 
 Child resources (experts, facts, learning stream items) are always accessed through `*ForBrainlift` storage functions that include the `brainliftId` in the WHERE clause. A single query both fetches and authorizes. Missing and unauthorized resources return the same 404, preventing enumeration attacks. No extra round-trips, no separate authorization checks.
 
+### Unified AI Client
+
+The codebase routes all LLM chat completion calls through a single client (`server/ai/client/`) instead of scattering raw `fetch()` and SDK calls across 20+ files. Two entry points cover every use case:
+
+- **`callModel(options)`** — single model call with optional timeout (AbortController-based) and retry (exponential backoff with error classification: retryable for 429/500/502/503, non-retryable for 400/401/403).
+- **`callModelWithFallback(options)`** — tries models in order, returns the first success. Used for high-stakes calls like DOK4 quality evaluation where a fallback is worth the cost.
+
+Every call requires a `caller` string (e.g. `'dok4Grader.qualityEvaluation'`) that tags the request for observability. Each call emits a structured `CallRecord` with model, provider, duration, token usage, estimated cost, retry count, and success/failure status — designed to power a future admin analytics panel.
+
+The **model registry** (`server/ai/client/registry.ts`) is the single source of truth for all model IDs, metadata, and tier classification:
+
+| Tier | Models | Use Case |
+|------|--------|----------|
+| Premium | Claude Opus 4.6 | High-stakes evaluation, structural decisions |
+| Standard | Claude Sonnet 4.5/4.6 | General-purpose grading, quality fallback |
+| Fast | Claude Haiku 4.5, Gemini 2.0 Flash | Parallel batch operations, classification |
+| Budget | Qwen 3 32B, Llama 3.1 8B | Low-priority fallbacks |
+
+A provider abstraction (`AIProvider` interface) ships with OpenRouter and supports adding direct Anthropic/OpenAI/Google providers later. 17 call sites across the grading pipeline, auto-linkers, preformat service, and expert extraction have been migrated. The exceptions are Vercel AI SDK routes (discussion, import agent — different streaming paradigm), Claude Agent SDK (research swarm), and OpenAI image generation (not chat completions).
+
 ---
 
 ## BrainLift Import & Extraction
 
-Users import BrainLifts from WorkFlowy, HTML exports, or Google Docs. The import pipeline parses the document structure, extracts facts organized by category, identifies DOK2 summaries with their related DOK1 facts, detects DOK3 insights and DOK4 Spiky Points of View from hierarchy markers (`DOK3`/`DOK4`/`SPOV`), detects contradiction clusters between facts, and extracts expert mentions — all streamed back to the client as SSE progress events so the UI updates in real time as each phase completes.
+Users import BrainLifts from WorkFlowy, HTML exports, or Google Docs. The import pipeline parses the document structure, evaluates whether it needs structural reformatting, and then extracts facts organized by category, identifies DOK2 summaries with their related DOK1 facts, detects DOK3 insights and DOK4 Spiky Points of View, detects contradiction clusters between facts, and extracts expert mentions — all streamed back to the client as SSE progress events so the UI updates in real time as each phase completes.
 
-After extraction, the pipeline branches based on the **auto-link toggle** (default: on):
+### Structural Evaluation
+
+Before extraction begins, the system evaluates the BrainLift's structural quality via a single Opus 4.6 LLM call. The evaluator receives both the serialized hierarchy and extraction diagnostics (fact counts, marker presence, source attribution rates) and returns a ternary decision:
+
+- **`no_formatting_needed`** — the extractor can handle the structure as-is. Proceeds directly to extraction.
+- **`needs_formatting`** — the document has research content but poor structure (no DOK markers, flat layout, misplaced sections, insights buried in the Knowledge Tree). The user sees a decision modal with the evaluator's justification and can accept formatting, reject it (use raw), or cancel.
+- **`not_a_brainlift`** — the content is not a knowledge base at all. Import aborts with no database record.
+
+For documents that need formatting, the system also measures content size and shows appropriate warnings:
+- **< 100K chars** — no warning, formatting is fast
+- **100K–300K chars** — time disclaimer shown to user
+- **> 300K chars** — strong warning, no option to skip formatting (the raw structure would produce unusable extraction results)
+
+### Automated Pre-Formatting Pipeline
+
+When the user accepts formatting, the import pipeline runs the preformat service before extraction. The pipeline splits the hierarchy into semantic chunks (by section and Knowledge Tree category), sends each to Haiku for restructuring into canonical BrainLift format, then merges, validates, and reassembles the results.
+
+**Chunking** — Fuzzy section identification splits the document into Owner, Purpose, Experts, DOK4, DOK3, Knowledge Tree categories, and unknown sections. A recursive splitting algorithm breaks oversized chunks (>15K chars) by drilling into children, with single-child unwrapping to handle wrapper nodes. The scratchpad section bypasses LLM processing entirely and is copied verbatim to the output.
+
+**Parallel LLM calls** — Each chunk gets a section-specific prompt that instructs the LLM to reorganize content into canonical markdown format while copying all text verbatim. Owner stays as JSON (single field). All other sections output `sectionMarkdown` — a free-form indented bullet list following the canonical structure for that section type. The markdown parser reconstructs `HierarchyNode[]` from the output. Chunks run at 15 concurrency via OpenRouter, with retry logic for 429/500/502/503 errors.
+
+**Candidate promotion** — The Knowledge Tree category prompts also extract `candidateInsights` and `candidateSpovs` — DOK3/DOK4 content that the student buried inside categories instead of placing in its own section. The merger deduplicates these against existing top-level insights/SPOVs and promotes them to the DOK3/DOK4 sections so the extractor can find them.
+
+**Integrity validation** — For documents under 200K chars, a programmatic validation step checks for content loss (every meaningful original text must appear in the output), hallucinations (every output text must match an original), and duplicates. For larger documents, validation is skipped to avoid the O(n²) cost of pairwise Jaccard similarity. Unplaced content is appended to the Scratchpad section so nothing is silently lost.
+
+**Tree assembly** — The merged results are assembled into a canonical `HierarchyNode[]` tree: Owner → Purpose → Experts → DOK4 → DOK3 → DOK2 Knowledge Tree → Scratchpad. This preformatted hierarchy replaces the original in the database and is what the extractor processes.
+
+SSE progress events stream chunk completion counts to the frontend throughout, so the user sees real-time progress during formatting.
+
+### Extraction and Grading Pipeline
+
+After extraction (from either the preformatted or original hierarchy), the pipeline branches based on the **auto-link toggle** (default: on):
 
 **Auto mode** — a fully automated pipeline runs inline with SSE progress for every stage:
 1. **DOK1 grading** — multi-model fact verification (60 concurrent)
 2. **DOK2 grading** — synthesis evaluation (10 concurrent)
-3. **DOK3 auto-linking** — LLM semantic matching of insights to DOK2 summaries
+3. **DOK3 auto-linking** — LLM semantic matching of insights to DOK2 summaries. The auto-linker scores every DOK2 summary against each insight, selects top matches satisfying a multi-source constraint (≥2 DOK2s from ≥2 different sources), and creates links automatically. When the constraint can't be met, it links the best available matches and flags the insight for review.
 4. **DOK3 grading** — conceptual coherence evaluation (5 concurrent)
-5. **DOK4 auto-linking** — semantic + explicit link matching of SPOVs to DOK3 insights
+5. **DOK4 auto-linking** — semantic + explicit reference parsing of SPOVs to DOK3 insights. Each SPOV links to a primary DOK3 insight (the conceptual framework it depends on) plus supporting DOK2 summaries from multiple sources.
 6. **DOK4 grading** — 6-step evaluation pipeline (5 concurrent)
 7. **Expert extraction and ranking** — identifies subject-matter experts, computes impact scores
 8. **Redundancy analysis** — clusters semantically similar facts, flags duplicates
 9. **Learning Stream research** — queues a multi-agent research swarm
 
-**Manual mode** — the pipeline stops after DOK2 grading. The user manually links DOK3→DOK2 and DOK4→DOK3 through dedicated linking UIs in the import modal. Grading fires per-link via background jobs.
+**Manual mode** — the pipeline stops after DOK2 grading. The user manually links DOK3→DOK2 and DOK4→DOK3 through dedicated linking UIs in the import modal. The DOK3 linking UI presents insights alongside all available DOK2 summaries for the user to select connections. The DOK4 linking UI does the same for SPOVs and DOK3 insights. Grading fires per-link via background jobs as the user submits each connection.
 
 In both modes, by the time the user reviews their BrainLift, everything from fact verification to DOK4 evaluation is either complete or in progress.
 
@@ -412,7 +464,7 @@ Every learning stream item goes through a tiered content extraction pipeline tha
 
 | Source | Extracted Format |
 |--------|-----------------|
-| YouTube URLs | Embedded player with video ID |
+| YouTube URLs | Embedded player with video ID + transcript extraction |
 | Twitter/X URLs | Tweet card via react-tweet |
 | Spotify episodes | Embedded player |
 | Apple Podcasts | Embedded player |
@@ -420,6 +472,12 @@ Every learning stream item goes through a tiered content extraction pipeline tha
 | PDFs | In-browser PDF viewer with fallback |
 
 Extraction runs as a fire-and-forget background job queued at insert time. If a user opens an item before extraction completes, the discussion agent triggers on-demand extraction and works from metadata in the meantime. The entire pipeline is non-throwing — failures produce a fallback state rather than breaking anything.
+
+### YouTube Transcript Extraction
+
+YouTube items receive an additional extraction step: after the embed pattern match produces the video ID, the pipeline attempts to fetch the full video transcript (~2s). On success, the transcript is stored as an optional field on the YouTube embed variant in `ExtractedContent`. On failure, the item gracefully degrades to embed-only — the video is still playable, just without text content.
+
+A uniform accessor — `getItemTextContent(item)` — provides consistent text access across all content types: articles return their markdown, YouTube items return their transcript, and everything else returns null. This accessor is the foundation for the discussion agent (which can now discuss YouTube content from the actual transcript rather than just metadata), the knowledge check quiz generator, and the fact verification pipeline (which checks for cached transcripts before falling back to AI-powered evidence search).
 
 ---
 
@@ -472,7 +530,7 @@ The agent's first action is to call both `get_brainlift_context` and `read_artic
 - Never generates facts itself — the user must articulate them (the bright line)
 - Soft completion after ~20 exchanges — summarizes what was captured, suggests what to explore next
 - Gives honest, direct feedback — not sycophantic. If a DOK2 attempt is just reformatted DOK1, the agent says so.
-- Adapts to content type — for articles, it can read the full text; for videos and podcasts, it works from metadata and what the user shares
+- Adapts to content type — for articles, it reads the full markdown; for YouTube videos with transcripts, it reads the transcript; for podcasts and videos without transcripts, it works from metadata and what the user shares
 
 ### Discussion Starters
 
@@ -480,6 +538,50 @@ Each resource gets three AI-generated discussion suggestions (via Haiku for spee
 1. **DOK1 prompt** — extract a specific fact from the resource ("What specific metric does the author cite for...?")
 2. **DOK1→DOK2 bridge** — explore a connection or pattern ("How does this relate to the pattern you noticed in...?")
 3. **DOK2 prompt** — connect the resource back to the BrainLift's purpose ("Given your BrainLift's focus on X, what does this change about how you think about Y?")
+
+---
+
+## Knowledge Check — DOK1 Retrieval Practice
+
+The Knowledge Check is the retrieval practice companion to the Discussion Agent. Both live in the right panel of the expanded learning stream item view, toggled via a **Discuss / Knowledge Check** switch. Where the Discussion Agent guides open-ended DOK2 synthesis, the Knowledge Check tests whether the student can recall specific DOK1 facts from the content — the foundation that DOK2 synthesis depends on.
+
+The design is grounded in testing effect research (Roediger & Karpicke, 2006): active retrieval practice drives stronger retention than re-reading or conversational exploration. The Knowledge Check doesn't gate anything — it has no impact on grades. It's a low-stakes self-assessment that nudges the student toward DOK2 summarization after completion.
+
+### Quiz Generation (Two-Phase)
+
+Quizzes are generated by Haiku in two phases, optimized for speed over depth:
+
+1. **Concept extraction (~1s)** — identifies 3--5 key concepts from the item's text content (article markdown or YouTube transcript, via `getItemTextContent`)
+2. **MCQ generation (~1.5s)** — generates one multiple-choice question per concept, each with 4 options and a brief explanation for the correct answer
+
+Correct answer positions are randomized after generation to prevent pattern detection. The two-phase approach produces better questions than single-shot generation because the concept extraction step forces the model to identify what's actually important before writing questions about it.
+
+### Eager Background Generation
+
+Quizzes are generated proactively as a background job, not on demand. The pipeline:
+
+1. Content extraction job completes for a learning stream item
+2. If the content is quizzable (has text content via `getItemTextContent`), a `learning-stream:generate-quiz` job fires automatically
+3. Quiz is stored in the `knowledgeCheckQuizzes` table (questions as JSONB)
+
+By the time a student opens a resource, the quiz is almost always ready. For the rare case where it isn't:
+
+- **Quiz exists** → return instantly (99% of requests)
+- **Job still running** → server-side long poll with exponential backoff (500ms → 1s → 2s → 3s → 4s → 5s, 6 queries over ~15.5s)
+- **No job, content available** → generate inline as backward-compatible fallback
+- **Content not quizzable** (podcast, failed extraction) → return unavailable reason; frontend shows a styled banner explaining why
+
+### Quiz Flow
+
+The student experience is deliberately simple — no timer, no penalty, no retakes:
+
+1. Questions appear one at a time
+2. Select an answer → immediate feedback (correct/incorrect with explanation)
+3. After the last question → results summary with score
+4. An encouraging nudge suggests moving to the Discussion tab to start DOK2 summarization
+5. On revisit, the student sees their previous results (first retrieval attempt is most valuable per testing effect research — no retakes)
+
+Quiz results (answers, score) are persisted as JSONB in the database, tied to the brainlift and item.
 
 ---
 
@@ -621,6 +723,7 @@ The platform uses Graphile Worker (PostgreSQL-backed) for async processing:
 |-----|---------|---------|
 | `learning-stream:research` | After expert extraction | Run multi-agent research swarm |
 | `learning-stream:extract-content` | On item insert | Extract viewable content from URL |
+| `learning-stream:generate-quiz` | After quizzable content extraction | Generate knowledge check quiz (two-phase MCQ) |
 | `brainlift:generate-image` | Manual | Generate AI cover image |
 | `discussion:verify-fact` | Discussion tool call | Verify a fact the student articulated |
 | `discussion:grade-dok2` | Discussion tool call | Grade a DOK2 summary the student wrote |
@@ -644,7 +747,7 @@ React 18 with TypeScript. TanStack Query for server state. Tailwind with a custo
 - **Real-time streaming** — SSE connections for import progress, research swarm events, and adversary debate responses
 - **URL state sync** — tab navigation, expanded views, filters, and share tokens all reflected in the URL for deep linking and browser history
 - **Staggered animations** — learning stream cards, swarm agent units, and stat cards animate in with spring physics and staggered delays
-- **Split-panel views** — the expanded learning stream item uses a resizable split (content left, discussion right)
+- **Split-panel views** — the expanded learning stream item uses a resizable split (content left, discussion/knowledge check right with tab toggle)
 - **Inline editing** — author names, expert following status, and human grade overrides are editable in place
 - **Content-type detection** — the content viewer handles YouTube, Spotify, Apple Podcasts, Twitter embeds, article markdown, and PDFs through a discriminated union type
 - **Domain hooks** — each domain (`useBrainlift`, `useExperts`, `useLearningStream`, `useDiscussion`, `useDOK4`, etc.) encapsulates queries + mutations and returns a clean API surface
@@ -679,7 +782,7 @@ docker exec -i wizardly_kalam psql -U postgres -d dok1grader_local < migrations/
 |----------|---------|
 | `DATABASE_URL` | PostgreSQL connection string |
 | `ANTHROPIC_API_KEY` | Claude API (discussions, extraction, orchestration, adversary, evaluation) |
-| `OPENROUTER_API_KEY` | Gemini + Qwen fact verification |
+| `OPENROUTER_API_KEY` | Unified AI client (all grading, verification, auto-linking, preformat, expert extraction) |
 | `EXA_API_KEY` | Exa search API (research swarm) |
 | `YOUTUBE_API_KEY` | YouTube Data API (video researcher agent) |
 | `JINA_API_KEY` | Jina Reader API (article content extraction) |

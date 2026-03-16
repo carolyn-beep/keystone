@@ -10,7 +10,7 @@ export type {
   Fact, ContradictionCluster, ReadingListItem, ReadingListGrade, InsertReadingListGrade,
   BrainliftVersion, SourceFeedback, InsertSourceFeedback, Expert, InsertExpert,
   FactVerification, InsertFactVerification, FactModelScore, InsertFactModelScore,
-  FactWithVerification, LLMModel, LlmFeedback, ModelAccuracyStats,
+  FactWithVerification, LlmFeedback, ModelAccuracyStats,
   FactRedundancyGroup, InsertFactRedundancyGroup, RedundancyStatus,
   AuthContext
 } from "./storage/index";
