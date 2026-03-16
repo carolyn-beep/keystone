@@ -14,13 +14,21 @@ import {
 } from './types';
 
 /**
+ * Strip leading bullet-like characters (•, ◦, ▪, etc.) that students
+ * copy-paste from other tools. These are formatting artifacts, not content.
+ */
+export function stripLeadingBullets(name: string): string {
+  return name.replace(/^[•◦▪▸►‣⁃○●→➤–—]\s*/, '');
+}
+
+/**
  * Classify a top-level node name against canonical section patterns.
  * Returns the matching ChunkType, 'knowledgeTree' (intermediate), or 'unknown'.
  */
 export type SectionClassification = ChunkType | 'knowledgeTree' | 'scratchpad';
 
 export function identifySection(name: string): SectionClassification {
-  const trimmed = name.trim();
+  const trimmed = stripLeadingBullets(name.trim());
   for (const [key, pattern] of Object.entries(SECTION_PATTERNS)) {
     if (pattern.test(trimmed)) {
       return key as SectionClassification;
@@ -43,7 +51,7 @@ export function splitKnowledgeTree(
   const otherChildren: HierarchyNode[] = [];
 
   for (const child of node.children) {
-    if (CATEGORY_PATTERN.test(child.name.trim())) {
+    if (CATEGORY_PATTERN.test(stripLeadingBullets(child.name.trim()))) {
       categoryChildren.push(child);
     } else {
       otherChildren.push(child);
