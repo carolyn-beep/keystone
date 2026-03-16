@@ -238,11 +238,9 @@ brainliftsRouter.post(
             });
           }
 
-          if (preformatResult && preformatResult.report.passed) {
+          if (preformatResult) {
             effectiveHierarchy = preformatResult.cleanHierarchy;
-            console.log(`[SSE Import] Using preformatted hierarchy: loss=${preformatResult.report.contentLossPercent.toFixed(1)}%`);
-          } else if (preformatResult) {
-            console.log(`[SSE Import] Preformat validation failed (loss=${preformatResult.report.contentLossPercent.toFixed(1)}%), using original hierarchy`);
+            console.log(`[SSE Import] Using preformatted hierarchy (validation=${preformatResult.report.passed ? 'passed' : 'skipped'}, loss=${preformatResult.report.contentLossPercent.toFixed(1)}%)`);
           } else {
             console.log('[SSE Import] Preformat returned null, using original hierarchy');
           }
