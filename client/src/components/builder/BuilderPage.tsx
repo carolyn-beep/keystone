@@ -1,11 +1,14 @@
-import { useQuery } from '@tanstack/react-query';
+import { useCallback } from 'react';
 import { useSearch } from 'wouter';
 import { Loader2 } from 'lucide-react';
 import type { BrainliftData } from '@shared/schema';
 import type { NativeDetailsResponse } from '@shared/routes';
+import { useNativeDetails } from '@/hooks/useNativeDetails';
 import { useBuilderNav } from '@/hooks/useBuilderNav';
 import { BuilderSidebar } from './BuilderSidebar';
 import { PhaseOverview } from './PhaseOverview';
+import { Phase1Topic } from './Phase1Topic';
+import { BuilderDisplayView } from './BuilderDisplayView';
 
 interface BuilderPageProps {
   slug: string;
@@ -19,20 +22,8 @@ export function BuilderPage({ slug, brainlift, canModify }: BuilderPageProps) {
   const isAdminView = new URLSearchParams(searchString).get('admin') === 'true';
   const backLink = isAdminView ? '/?admin=true' : '/';
 
-  // Fetch native details
-  const {
-    data: nativeDetails,
-    isLoading,
-    error,
-  } = useQuery<NativeDetailsResponse>({
-    queryKey: ['native-details', slug],
-    queryFn: async () => {
-      const res = await fetch(`/api/brainlifts/${slug}/native-details`);
-      if (!res.ok) throw new Error('Failed to fetch native details');
-      return res.json();
-    },
-    enabled: !!slug,
-  });
+  // Fetch native details via dedicated hook
+  const { nativeDetails, isLoading, error, update, isUpdating } = useNativeDetails(slug);
 
   // Loading state
   if (isLoading || !nativeDetails) {
@@ -63,6 +54,8 @@ export function BuilderPage({ slug, brainlift, canModify }: BuilderPageProps) {
       canModify={canModify}
       nativeDetails={nativeDetails}
       backLink={backLink}
+      update={update}
+      isUpdating={isUpdating}
     />
   );
 }
@@ -74,10 +67,25 @@ function BuilderPageContent({
   canModify,
   nativeDetails,
   backLink,
-}: BuilderPageProps & { nativeDetails: NativeDetailsResponse; backLink: string }) {
+  update,
+  isUpdating,
+}: BuilderPageProps & {
+  nativeDetails: NativeDetailsResponse;
+  backLink: string;
+  update: (fields: Partial<{ topic: string; purpose: string; owner: string | null; lastActivePhase: 1 | 2 | 3 | 4 | 5 }>) => Promise<NativeDetailsResponse>;
+  isUpdating: boolean;
+}) {
   const { view, screen, setView, setScreen } = useBuilderNav(
     slug,
     nativeDetails.lastActivePhase
+  );
+
+  // Wrap update for Phase1Topic's onUpdate signature
+  const handlePhase1Update = useCallback(
+    async (fields: Partial<{ topic: string; purpose: string; owner: string | null }>) => {
+      await update(fields);
+    },
+    [update]
   );
 
   return (
@@ -110,7 +118,7 @@ function BuilderPageContent({
 
         {/* Content area */}
         <main className="flex-1 px-4 py-4 sm:px-6 md:px-8 overflow-y-auto">
-          {/* Build view */}
+          {/* Build view - Overview */}
           {view === 'build' && screen === 'overview' && (
             <PhaseOverview
               phaseProgress={nativeDetails.phaseProgress}
@@ -118,7 +126,18 @@ function BuilderPageContent({
             />
           )}
 
-          {view === 'build' && typeof screen === 'number' && (
+          {/* Build view - Phase 1: Topic & Purpose */}
+          {view === 'build' && screen === 1 && (
+            <Phase1Topic
+              nativeDetails={nativeDetails}
+              onUpdate={handlePhase1Update}
+              isUpdating={isUpdating}
+              canModify={canModify}
+            />
+          )}
+
+          {/* Build view - Phases 2-5 (future specs) */}
+          {view === 'build' && typeof screen === 'number' && screen > 1 && (
             <div className="py-10 px-2">
               <h2 className="text-[26px] font-bold text-foreground tracking-tight leading-[1.1] m-0 mb-2">
                 Phase {screen}
@@ -131,14 +150,10 @@ function BuilderPageContent({
 
           {/* Display view */}
           {view === 'display' && (
-            <div className="py-10 px-2">
-              <h2 className="text-[26px] font-bold text-foreground tracking-tight leading-[1.1] m-0 mb-2">
-                Display View
-              </h2>
-              <p className="font-serif text-[14px] italic text-muted-foreground leading-relaxed m-0">
-                The display view will be implemented in a future spec.
-              </p>
-            </div>
+            <BuilderDisplayView
+              nativeDetails={nativeDetails}
+              experts={[]}
+            />
           )}
 
           {/* Dashboard view - locked */}
