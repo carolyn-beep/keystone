@@ -74,6 +74,24 @@ export const purposeSuggestionInputSchema = z.object({
   topic: z.string().trim().min(10),
 });
 
+// Builder expert validation schemas
+export const createBuilderExpertInputSchema = z.object({
+  name: z.string().trim().min(1),
+  who: z.string().trim().min(1),
+  focus: z.string().trim().nullable().optional(),
+  why: z.string().trim().nullable().optional(),
+  where: z.string().trim().min(1),
+});
+
+export const patchBuilderExpertInputSchema = z.object({
+  name: z.string().trim().min(1).optional(),
+  who: z.string().trim().min(1).optional(),
+  focus: z.string().trim().nullable().optional(),
+  why: z.string().trim().nullable().optional(),
+  where: z.string().trim().min(1).optional(),
+  status: z.literal('saved').optional(),
+});
+
 // Response type for native details
 export interface NativeDetailsResponse {
   topic: string;

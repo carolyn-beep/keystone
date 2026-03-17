@@ -2,8 +2,8 @@
 
 ## Overview
 
-- **Total Endpoints:** 45
-- **Production Endpoints:** 39
+- **Total Endpoints:** 51
+- **Production Endpoints:** 45
 - **Development-Only Endpoints:** 6
 - **Domain Routers:** 10
 
@@ -113,6 +113,30 @@ AI-powered purpose suggestion endpoint for the Build from Scratch wizard.
 - Uses `google/gemini-2.0-flash-001` (fast tier) via unified AI client
 - Caller: `builder.purposeSuggestions`
 - Non-blocking: always returns 200, even on AI failure (empty array)
+
+---
+
+## Builder Experts (`server/routes/builder-experts.ts`)
+
+Endpoints for managing builder-authored experts in native brainlifts (suggested + manual).
+
+| # | Method | Path | Auth | Middleware | Description |
+|---|--------|------|------|------------|-------------|
+| 1 | `GET` | `/api/brainlifts/:slug/builder-experts` | `requireAuth` | `requireBrainliftAccess` | List all builder experts with suggestion status. Rejects non-native brainlifts (400). |
+| 2 | `POST` | `/api/brainlifts/:slug/builder-experts` | `requireAuth` | `requireBrainliftModify` | Create a manual saved expert. Triggers phase progress and research queue. Returns 201. |
+| 3 | `PATCH` | `/api/brainlifts/:slug/builder-experts/:id` | `requireAuth` | `requireBrainliftModify` | Update expert fields or accept a suggestion (status='saved'). Returns 404 if not found/IDOR. |
+| 4 | `PATCH` | `/api/brainlifts/:slug/builder-experts/:id/dismiss` | `requireAuth` | `requireBrainliftModify` | Dismiss a pending suggested expert. Returns 404 if not found. |
+| 5 | `DELETE` | `/api/brainlifts/:slug/builder-experts/:id` | `requireAuth` | `requireBrainliftModify` | Delete a builder expert. Triggers phase regression if last saved expert. Returns 204. |
+| 6 | `POST` | `/api/brainlifts/:slug/builder-experts/regenerate-suggestions` | `requireAuth` | `requireBrainliftModify` | Clear stale pending suggestions, reset status, re-queue suggestion job. Returns 202. |
+
+### Validation Schemas
+
+- **Create:** `name` (min 1), `who` (min 1), `where` (min 1), `focus` (optional, nullable), `why` (optional, nullable)
+- **Patch:** All create fields optional. `status` restricted to `'saved'` (for accepting suggestions).
+
+### Background Job
+
+- `brainlift:suggest-experts` -- AI-generated expert suggestions using `callModelWithFallback(['anthropic/claude-sonnet-4.6', 'anthropic/claude-haiku-4.5'])`
 
 ---
 
