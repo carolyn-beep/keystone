@@ -35,17 +35,17 @@ async function afterExpertSaved(brainliftId: number): Promise<void> {
       });
     }
 
-    // Queue research idempotently
-    try {
-      const { withJob } = await import('../utils/withJob');
-      await withJob('learning-stream:research')
-        .forPayload({ brainliftId })
-        .withOptions({ jobKey: `builder-research-${brainliftId}` })
-        .queue();
-    } catch (err) {
-      console.error('[BuilderExperts] Failed to queue research job:', err);
-      // Don't roll back the expert save
-    }
+    // TODO: Queue research idempotently — commented out until Phase 3 is ready
+    // try {
+    //   const { withJob } = await import('../utils/withJob');
+    //   await withJob('learning-stream:research')
+    //     .forPayload({ brainliftId })
+    //     .withOptions({ jobKey: `builder-research-${brainliftId}` })
+    //     .queue();
+    // } catch (err) {
+    //   console.error('[BuilderExperts] Failed to queue research job:', err);
+    //   // Don't roll back the expert save
+    // }
   }
 }
 

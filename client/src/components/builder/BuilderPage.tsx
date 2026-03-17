@@ -1,12 +1,14 @@
-import { useCallback } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { useSearch } from 'wouter';
+import { motion, LayoutGroup } from 'framer-motion';
 import { Loader2 } from 'lucide-react';
 import type { BrainliftData } from '@shared/schema';
 import type { NativeDetailsResponse } from '@shared/routes';
 import { useNativeDetails } from '@/hooks/useNativeDetails';
 import { useBuilderNav } from '@/hooks/useBuilderNav';
+import { DashboardHeader } from '@/components/DashboardHeader';
 import { BuilderSidebar } from './BuilderSidebar';
-import { PhaseOverview } from './PhaseOverview';
+import { BuilderProgressTracker } from './BuilderProgressTracker';
 import { Phase1Topic } from './Phase1Topic';
 import { BuilderDisplayView } from './BuilderDisplayView';
 import { Phase2Experts } from './Phase2Experts';
@@ -18,15 +20,12 @@ interface BuilderPageProps {
 }
 
 export function BuilderPage({ slug, brainlift, canModify }: BuilderPageProps) {
-  // Preserve admin param for back link
   const searchString = useSearch();
   const isAdminView = new URLSearchParams(searchString).get('admin') === 'true';
   const backLink = isAdminView ? '/?admin=true' : '/';
 
-  // Fetch native details via dedicated hook
   const { nativeDetails, isLoading, error, update, isUpdating } = useNativeDetails(slug);
 
-  // Loading state
   if (isLoading || !nativeDetails) {
     return (
       <div className="h-screen flex items-center justify-center bg-background">
@@ -35,15 +34,12 @@ export function BuilderPage({ slug, brainlift, canModify }: BuilderPageProps) {
     );
   }
 
-  // Error state
   if (error) {
     return (
       <div className="h-screen flex items-center justify-center bg-background">
-        <div className="text-center">
-          <p className="text-muted-foreground text-sm">
-            Failed to load builder details. Please try refreshing the page.
-          </p>
-        </div>
+        <p className="text-muted-foreground text-sm">
+          Failed to load builder details. Please try refreshing.
+        </p>
       </div>
     );
   }
@@ -61,7 +57,6 @@ export function BuilderPage({ slug, brainlift, canModify }: BuilderPageProps) {
   );
 }
 
-// Separate component so useBuilderNav only runs after nativeDetails is loaded
 function BuilderPageContent({
   slug,
   brainlift,
@@ -80,8 +75,10 @@ function BuilderPageContent({
     slug,
     nativeDetails.lastActivePhase
   );
+  const effectiveView = view === 'dashboard' ? 'build' : view;
+  const [editingAuthor, setEditingAuthor] = useState(false);
+  const [authorInput, setAuthorInput] = useState(nativeDetails.owner ?? '');
 
-  // Wrap update for Phase1Topic's onUpdate signature
   const handlePhase1Update = useCallback(
     async (fields: Partial<{ topic: string; purpose: string; owner: string | null }>) => {
       await update(fields);
@@ -89,98 +86,156 @@ function BuilderPageContent({
     [update]
   );
 
+  const handleUpdateAuthor = useCallback(async (author: string) => {
+    await update({ owner: author });
+    setEditingAuthor(false);
+  }, [update]);
+
+  const headerData = useMemo(() => ({
+    ...brainlift,
+    title: nativeDetails.topic,
+    description: nativeDetails.purpose,
+    displayPurpose: nativeDetails.purpose,
+    author: nativeDetails.owner,
+  }), [brainlift, nativeDetails]);
+
   return (
     <div className="h-screen flex flex-col bg-background text-foreground font-sans">
-      {/* Header */}
-      <header className="bg-card border-b border-border shrink-0 px-6 py-3">
-        <div className="flex items-center gap-3">
-          <h1 className="text-[16px] font-semibold text-foreground m-0 truncate">
-            {brainlift.title}
-          </h1>
-          <span className="px-[6px] py-[2px] rounded bg-primary/5 text-[9px] uppercase tracking-[0.25em] font-semibold text-muted-foreground">
-            Builder
-          </span>
-        </div>
+      <header className="bg-card border-b border-border shrink-0">
+        <DashboardHeader
+          data={headerData}
+          isSharedView={false}
+          isNotBrainlift={false}
+          versions={[]}
+          editingAuthor={editingAuthor}
+          setEditingAuthor={setEditingAuthor}
+          authorInput={authorInput}
+          setAuthorInput={setAuthorInput}
+          onUpdateAuthor={handleUpdateAuthor}
+          setShowUpdateModal={() => {}}
+          setShowHistoryModal={() => {}}
+          handleDownloadPDF={() => {}}
+          canModify={canModify}
+          hideDefaultActions={true}
+          rightSlot={
+            <LayoutGroup id="builder-mode-toggle">
+              <div className="flex items-center rounded-lg bg-card-elevated border border-border p-1 shadow-card">
+                {([
+                  { id: 'build', label: 'Build', disabled: false },
+                  { id: 'display', label: 'Display', disabled: false },
+                  { id: 'dashboard', label: 'Grading', disabled: true },
+                ] as const).map((item) => {
+                  const isActive = effectiveView === item.id;
+                  return (
+                    <div key={item.id} className="relative">
+                      {isActive && (
+                        <motion.div
+                          layoutId="builder-mode-pill"
+                          className="absolute inset-0 rounded-md bg-card"
+                          transition={{ type: 'spring', stiffness: 360, damping: 32 }}
+                        />
+                      )}
+                      <button
+                        onClick={() => { if (!item.disabled) setView(item.id); }}
+                        disabled={item.disabled}
+                        className={`relative px-3 py-1.5 rounded-md border-none text-[11px] uppercase tracking-[0.28em] font-semibold transition-colors ${
+                          item.disabled
+                            ? 'bg-transparent text-muted-light cursor-not-allowed opacity-60'
+                            : isActive
+                              ? 'bg-transparent text-foreground cursor-default'
+                              : 'bg-transparent text-muted-foreground hover:text-foreground cursor-pointer'
+                        }`}
+                        data-testid={`builder-mode-${item.id}`}
+                      >
+                        {item.label}
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
+            </LayoutGroup>
+          }
+        />
       </header>
 
-      {/* Below header: sidebar + content */}
       <div className="flex flex-1 min-h-0">
-        {/* Sidebar */}
-        <aside className="w-52 shrink-0 bg-sidebar border-r border-sidebar-border overflow-y-auto">
-          <BuilderSidebar
-            view={view}
-            screen={screen}
-            phaseProgress={nativeDetails.phaseProgress}
-            onViewChange={setView}
-            onScreenChange={setScreen}
-            backLink={backLink}
-          />
-        </aside>
 
-        {/* Content area */}
-        <main className="flex-1 px-4 py-4 sm:px-6 md:px-8 overflow-y-auto">
-          {/* Build view - Overview */}
-          {view === 'build' && screen === 'overview' && (
-            <PhaseOverview
-              phaseProgress={nativeDetails.phaseProgress}
-              onSelectPhase={setScreen}
-            />
-          )}
+        {/* Build view — vertical tracker on left, content on right */}
+        {effectiveView === 'build' && (
+          <>
+            {/* Vertical progress tracker as left rail */}
+            <aside className="w-72 shrink-0 overflow-y-auto bg-background">
+              <BuilderProgressTracker
+                phaseProgress={nativeDetails.phaseProgress}
+                activeScreen={screen}
+                onSelectPhase={setScreen}
+              />
+            </aside>
 
-          {/* Build view - Phase 1: Topic & Purpose */}
-          {view === 'build' && screen === 1 && (
-            <Phase1Topic
-              nativeDetails={nativeDetails}
-              onUpdate={handlePhase1Update}
-              isUpdating={isUpdating}
-              canModify={canModify}
-            />
-          )}
+            {/* Phase content */}
+            <main className="flex-1 px-4 pt-4 sm:px-8 sm:pt-8 md:px-4 md:pt-12 overflow-y-auto scrollbar-styled">
+              {/* Phase 1: You & Your Mission */}
+              {screen === 1 && (
+                <Phase1Topic
+                  nativeDetails={nativeDetails}
+                  onUpdate={handlePhase1Update}
+                  isUpdating={isUpdating}
+                  canModify={canModify}
+                />
+              )}
 
-          {/* Build view - Phase 2: Experts */}
-          {view === 'build' && screen === 2 && (
-            <Phase2Experts slug={slug} />
-          )}
+              {/* Phase 2: Your Experts */}
+              {screen === 2 && (
+                <Phase2Experts slug={slug} />
+              )}
 
-          {/* Build view - Phases 3-5 (future specs) */}
-          {view === 'build' && typeof screen === 'number' && screen > 2 && (
-            <div className="py-10 px-2">
-              <h2 className="text-[26px] font-bold text-foreground tracking-tight leading-[1.1] m-0 mb-2">
-                Phase {screen}
-              </h2>
-              <p className="font-serif text-[14px] italic text-muted-foreground leading-relaxed m-0">
-                Phase content will be implemented in a future spec.
-              </p>
-            </div>
-          )}
+              {/* Phases 3-5: locked placeholders */}
+              {screen > 2 && (
+                <div>
+                  <div className="flex items-center gap-4 mb-2">
+                    <span className="font-serif text-[42px] leading-none text-muted-light font-normal tracking-wide">
+                      {screen}
+                    </span>
+                    <h2 className="text-[26px] font-bold text-foreground tracking-tight leading-[1.1] m-0">
+                      {screen === 3 ? 'Knowledge Tree' : screen === 4 ? 'Connections' : 'Your Stance'}
+                    </h2>
+                  </div>
+                  <p className="font-serif text-[14px] italic text-muted-foreground leading-relaxed m-0 mb-4">
+                    {screen === 3 && 'This is where your reading goes. Each source you add feeds into a structured tree of facts (DOK1) and your own synthesis (DOK2). Coming in a future phase.'}
+                    {screen === 4 && 'Cross-source patterns. Once your Knowledge Tree has sources from multiple voices, you\'ll find tensions and surprises that no single source contains. Coming in a future phase.'}
+                    {screen === 5 && 'Your defensible position. What do you believe that others might push back on? Your Stance is built from your Connections, grounded in evidence. Coming in a future phase.'}
+                  </p>
+                  <span className="inline-block px-[6px] py-[2px] rounded bg-muted text-muted-foreground text-[9px] uppercase tracking-[0.25em] font-semibold">
+                    Coming Soon
+                  </span>
+                </div>
+              )}
+            </main>
+          </>
+        )}
 
-          {/* Display view */}
-          {view === 'display' && (
+        {/* Display view — no sidebar, full width */}
+        {effectiveView === 'display' && (
+          <main className="flex-1 px-4 py-6 sm:px-6 md:px-10 overflow-y-auto">
             <BuilderDisplayView
               nativeDetails={nativeDetails}
               experts={[]}
             />
-          )}
+          </main>
+        )}
 
-          {/* Dashboard view - locked */}
-          {view === 'dashboard' && (
-            <div className="py-10 px-2">
-              <div className="rounded-xl shadow-card bg-card-elevated p-10 max-w-lg">
-                <h2 className="text-[22px] font-bold text-foreground tracking-tight leading-[1.1] m-0 mb-3">
-                  Dashboard
-                </h2>
-                <p className="font-serif text-[14px] italic text-muted-foreground leading-relaxed m-0 mb-4">
-                  The grading dashboard is not yet available for native brainlifts. Complete
-                  building your brainlift first, then the dashboard will unlock with grading,
-                  insights, and learning stream features.
-                </p>
-                <span className="inline-block px-[6px] py-[2px] rounded bg-muted text-muted-foreground text-[9px] uppercase tracking-[0.25em] font-semibold">
-                  Coming Soon
-                </span>
-              </div>
-            </div>
-          )}
-        </main>
+        {/*
+          SIDEBAR — commented out, may be needed for future views
+          <aside className="w-52 shrink-0 bg-sidebar border-r border-sidebar-border overflow-y-auto">
+            <BuilderSidebar
+              screen={screen}
+              phaseProgress={nativeDetails.phaseProgress}
+              onScreenChange={setScreen}
+              backLink={backLink}
+            />
+          </aside>
+        */}
+
       </div>
     </div>
   );

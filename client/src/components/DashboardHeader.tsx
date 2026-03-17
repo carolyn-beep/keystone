@@ -92,6 +92,8 @@ interface DashboardHeaderProps {
   isOwner?: boolean;
   setShowShareModal?: (show: boolean) => void;
   canModify?: boolean;
+  rightSlot?: ReactNode;
+  hideDefaultActions?: boolean;
 }
 
 export function DashboardHeader({
@@ -110,6 +112,8 @@ export function DashboardHeader({
   isOwner,
   setShowShareModal,
   canModify = true,
+  rightSlot,
+  hideDefaultActions = false,
 }: DashboardHeaderProps) {
   const { title, description, displayPurpose } = data;
 
@@ -189,8 +193,10 @@ export function DashboardHeader({
 
         {/* Action Buttons - Right aligned, bottom of header */}
         <div className="flex gap-2 items-end flex-wrap shrink-0 self-end">
+          {rightSlot}
+
           {/* Primary Action: Update */}
-          {canModify && !isSharedView && !isNotBrainlift && (
+          {!hideDefaultActions && canModify && !isSharedView && !isNotBrainlift && (
             <TactileButton
               variant="raised"
               data-testid="button-update-brainlift"
@@ -203,7 +209,7 @@ export function DashboardHeader({
           )}
 
           {/* Secondary Actions: Ghost buttons */}
-          {!isNotBrainlift && (
+          {!hideDefaultActions && !isNotBrainlift && (
             <button
               data-testid="button-download-pdf"
               onClick={handleDownloadPDF}
@@ -214,7 +220,7 @@ export function DashboardHeader({
             </button>
           )}
 
-          {isOwner && (
+          {!hideDefaultActions && isOwner && (
             <button
               data-testid="button-share"
               onClick={() => setShowShareModal?.(true)}
@@ -226,7 +232,7 @@ export function DashboardHeader({
           )}
 
           {/* History button */}
-          {canModify && !isSharedView && !isNotBrainlift && versions.length > 0 && (
+          {!hideDefaultActions && canModify && !isSharedView && !isNotBrainlift && versions.length > 0 && (
             <button
               data-testid="button-view-history"
               onClick={() => setShowHistoryModal(true)}

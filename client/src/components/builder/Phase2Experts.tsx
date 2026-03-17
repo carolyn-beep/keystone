@@ -1,19 +1,16 @@
-import { useState, useCallback } from 'react';
-import { Plus, Loader2 } from 'lucide-react';
+import { useCallback, useState } from 'react';
+import { AnimatePresence, motion } from 'framer-motion';
+import { Plus } from 'lucide-react';
+import { TactileButton } from '@/components/ui/tactile-button';
+import { Loader2 } from 'lucide-react';
 import { useBuilderExperts } from '@/hooks/useBuilderExperts';
 import { ExpertSuggestionRail } from './ExpertSuggestionRail';
 import { ExpertCard } from './ExpertCard';
-import { TactileButton } from '@/components/ui/tactile-button';
 import type { BuilderExpert } from '@shared/schema';
 
 interface Phase2ExpertsProps {
   slug: string;
 }
-
-type ActiveForm =
-  | { type: 'none' }
-  | { type: 'new' }
-  | { type: 'accept'; expert: BuilderExpert };
 
 export function Phase2Experts({ slug }: Phase2ExpertsProps) {
   const {
@@ -29,126 +26,120 @@ export function Phase2Experts({ slug }: Phase2ExpertsProps) {
     regenerateSuggestions,
   } = useBuilderExperts(slug);
 
-  const [activeForm, setActiveForm] = useState<ActiveForm>({ type: 'none' });
+  const [addingManually, setAddingManually] = useState(false);
 
-  const handleAcceptSuggestion = useCallback((expert: BuilderExpert) => {
-    setActiveForm({ type: 'accept', expert });
-  }, []);
-
-  const handleAddNew = useCallback(() => {
-    setActiveForm({ type: 'new' });
-  }, []);
-
-  const handleCancelForm = useCallback(() => {
-    setActiveForm({ type: 'none' });
-  }, []);
+  const handleAccept = useCallback(async (expert: BuilderExpert) => {
+    await updateExpert(expert.id, {
+      name: expert.name,
+      who: expert.who,
+      where: expert.where,
+      focus: expert.focus ?? undefined,
+      why: expert.why ?? undefined,
+      status: 'saved',
+    });
+  }, [updateExpert]);
 
   const handleSaveNewExpert = useCallback(
     async (fields: { name: string; who: string; where: string; focus?: string; why?: string }) => {
       await createExpert(fields);
-      setActiveForm({ type: 'none' });
+      setAddingManually(false);
     },
     [createExpert]
   );
 
-  const handleSaveAcceptedSuggestion = useCallback(
-    async (
-      suggestionId: number,
-      fields: { name: string; who: string; where: string; focus?: string; why?: string }
-    ) => {
-      await updateExpert(suggestionId, { ...fields, status: 'saved' });
-      setActiveForm({ type: 'none' });
-    },
-    [updateExpert]
-  );
-
   const handleUpdateExpert = useCallback(
-    async (
-      id: number,
-      fields: { name: string; who: string; where: string; focus?: string; why?: string }
-    ) => {
+    async (id: number, fields: { name: string; who: string; where: string; focus?: string; why?: string }) => {
       await updateExpert(id, fields);
     },
     [updateExpert]
   );
 
-  const handleDeleteExpert = useCallback(
-    async (id: number) => {
-      await deleteExpert(id);
-    },
-    [deleteExpert]
-  );
-
-  const handleDismiss = useCallback(
-    async (id: number) => {
-      await dismissSuggestion(id);
-    },
-    [dismissSuggestion]
-  );
-
-  const handleRetry = useCallback(async () => {
-    await regenerateSuggestions();
-  }, [regenerateSuggestions]);
-
-  // Loading state
-  if (isLoading) {
+if (isLoading) {
     return (
-      <div className="py-10 px-2">
-        <div className="flex items-center justify-center py-20">
-          <Loader2 className="animate-spin text-muted-foreground" size={24} />
-        </div>
+      <div className="flex items-center justify-center py-20">
+        <Loader2 className="animate-spin text-muted-foreground" size={24} />
       </div>
     );
   }
 
-  const hasActiveForm = activeForm.type !== 'none';
-
   return (
-    <div className="py-10 px-2">
-      {/* Page heading */}
-      <h2 className="text-[26px] font-bold text-foreground tracking-tight leading-[1.1] m-0 mb-2">
-        Experts
-      </h2>
-      <p className="font-serif text-[14px] italic text-muted-foreground leading-relaxed m-0 mb-10">
-        Add the people and sources your brainlift should learn from. Accept AI suggestions or add your own experts.
-      </p>
+    <div>
+      <div className="flex items-center gap-4 mb-2">
+        <span className="font-serif text-[42px] leading-none text-muted-light font-normal tracking-wide">
+          2
+        </span>
+        <h2 className="text-[26px] font-bold text-foreground tracking-tight leading-[1.1] m-0">
+          Your Experts
+        </h2>
+      </div>
 
-      {/* Suggestion rail */}
+      <div className="pb-12">
+        <p className="font-serif text-[14px] italic text-muted-foreground leading-relaxed m-0 mb-3">
+          Your topic and mission are clear. Now comes the question of who you're learning from. A BrainLift is only as good as the voices that feed it, and this phase is where you make that choice deliberately.
+        </p>
+        <p className="font-serif text-[14px] italic text-muted-foreground leading-relaxed m-0 mb-3">
+          Prioritize people with <span className="not-italic font-semibold text-foreground">skin in the game</span>: practitioners building things, researchers staking claims, commentators with a track record. Mix insiders with independent critics — you want original thought, not summaries of summaries.
+        </p>
+        {suggestions.length > 0 && (
+          <p className="font-serif text-[14px] italic text-muted-foreground leading-relaxed m-0 mt-3">
+            We've suggested a few names based on your topic to get you started. Accept what fits, add who we missed.
+          </p>
+        )}
+      </div>
+
+      {/* ── AI suggestion cards ── */}
       <ExpertSuggestionRail
         suggestions={suggestions}
         suggestionStatus={suggestionStatus}
         suggestionError={suggestionError}
-        onAccept={handleAcceptSuggestion}
-        onDismiss={handleDismiss}
-        onRetry={handleRetry}
+        onAccept={handleAccept}
+        onDismiss={(id) => dismissSuggestion(id)}
+        onRetry={regenerateSuggestions}
       />
 
-      {/* Active form: accepting a suggestion */}
-      {activeForm.type === 'accept' && (
-        <div className="mb-6">
-          <ExpertCard
-            prefill={activeForm.expert}
-            onSave={(fields) => handleSaveAcceptedSuggestion(activeForm.expert.id, fields)}
-            onCancel={handleCancelForm}
-          />
-        </div>
-      )}
+      {/* ── Add manually ── */}
+      <div className="mb-12">
+        <AnimatePresence initial={false}>
+          {addingManually ? (
+            <motion.div
+              key="form"
+              initial={{ opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: 'auto' }}
+              exit={{ opacity: 0, height: 0 }}
+              transition={{ duration: 0.25, ease: 'easeInOut' }}
+              style={{ overflow: 'hidden' }}
+            >
+              <ExpertCard
+                onSave={handleSaveNewExpert}
+                onCancel={() => setAddingManually(false)}
+              />
+            </motion.div>
+          ) : (
+            <motion.div
+              key="button"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.15 }}
+            >
+              <TactileButton
+                variant="inset"
+                className="text-[12px] flex items-center gap-2"
+                onClick={() => setAddingManually(true)}
+              >
+                <Plus size={13} />
+                Add expert manually
+              </TactileButton>
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </div>
 
-      {/* Active form: new blank expert */}
-      {activeForm.type === 'new' && (
-        <div className="mb-6">
-          <ExpertCard
-            onSave={handleSaveNewExpert}
-            onCancel={handleCancelForm}
-          />
-        </div>
-      )}
-
-      {/* Saved experts list */}
+      {/* ── Saved experts ── */}
       {savedExperts.length > 0 && (
-        <div className="mb-8">
-          <span className="text-[10px] uppercase tracking-[0.35em] font-semibold text-muted-foreground block mb-4">
-            {savedExperts.length === 1 ? '1 expert' : `${savedExperts.length} experts`}
+        <div className="pb-8">
+          <span className="text-[10px] uppercase tracking-[0.35em] font-semibold text-muted-foreground block mb-5">
+            {savedExperts.length === 1 ? '1 expert saved' : `${savedExperts.length} experts saved`}
           </span>
           <div className="space-y-4">
             {savedExperts.map((expert) => (
@@ -156,23 +147,12 @@ export function Phase2Experts({ slug }: Phase2ExpertsProps) {
                 key={expert.id}
                 expert={expert}
                 onSave={(fields) => handleUpdateExpert(expert.id, fields)}
-                onDelete={() => handleDeleteExpert(expert.id)}
+                onDelete={() => deleteExpert(expert.id)}
               />
             ))}
           </div>
         </div>
       )}
-
-      {/* Add expert button */}
-      <TactileButton
-        variant="inset"
-        className="text-[12px] flex items-center gap-1.5"
-        onClick={handleAddNew}
-        disabled={hasActiveForm}
-      >
-        <Plus size={14} />
-        Add Expert
-      </TactileButton>
     </div>
   );
 }

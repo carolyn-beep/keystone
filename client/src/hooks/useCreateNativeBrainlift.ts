@@ -4,6 +4,7 @@ import { queryClient } from '@/lib/queryClient';
 interface CreateNativeBrainliftInput {
   topic: string;
   purpose: string;
+  owner?: string | null;
 }
 
 interface CreateNativeBrainliftResponse {

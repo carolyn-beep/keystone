@@ -6,9 +6,9 @@ import { tokens } from '@/lib/colors';
 const PHASE_LABELS: Record<BuilderPhase, string> = {
   1: 'Topic & Purpose',
   2: 'Experts',
-  3: 'Content',
-  4: 'Structure',
-  5: 'Review',
+  3: 'Knowledge Tree',
+  4: 'Connections',
+  5: 'Your Stance',
 };
 
 const STATUS_CONFIG: Record<BuilderPhaseStatus, {

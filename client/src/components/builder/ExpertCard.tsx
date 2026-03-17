@@ -1,5 +1,5 @@
 import { useState, useCallback } from 'react';
-import { Pencil, Trash2, User } from 'lucide-react';
+import { Pencil, Trash2, User, Crosshair, Globe, MessageSquare } from 'lucide-react';
 import { TactileButton } from '@/components/ui/tactile-button';
 import type { BuilderExpert } from '@shared/schema';
 
@@ -196,18 +196,23 @@ export function ExpertCard({ expert, prefill, onSave, onDelete, onCancel }: Expe
   // ── Read mode ──────────────────────────────────────────────────────
   return (
     <div className="rounded-xl shadow-card bg-card-elevated overflow-hidden">
-      <div className="px-8 py-6">
-        {/* Header row */}
-        <div className="flex items-start justify-between gap-4 mb-4">
+      {/* Header */}
+      <div className="px-8 py-6 border-b border-border">
+        <div className="flex items-start justify-between gap-4">
           <div className="flex-1 min-w-0">
-            <div className="text-[15px] font-semibold text-foreground mb-1">
+            <h3 className="text-[18px] font-semibold text-foreground leading-tight m-0 mb-2">
               {expert?.name}
-            </div>
-            <p className="font-serif text-[13px] italic text-muted-foreground leading-relaxed m-0">
+            </h3>
+            <p className="font-serif text-[14px] italic text-muted-foreground leading-relaxed m-0">
               {expert?.who}
             </p>
+            {expert?.where && (
+              <p className="font-serif text-[12px] italic text-muted-foreground/60 leading-relaxed m-0 mt-0.5">
+                Found at {expert.where}
+              </p>
+            )}
           </div>
-          <div className="flex items-center gap-1 shrink-0">
+          <div className="flex items-center gap-1 shrink-0 mt-1">
             <button
               className="p-1.5 rounded-md bg-transparent border-none cursor-pointer text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors"
               onClick={handleEdit}
@@ -226,39 +231,30 @@ export function ExpertCard({ expert, prefill, onSave, onDelete, onCancel }: Expe
             )}
           </div>
         </div>
-
-        {/* Detail fields */}
-        <div className="space-y-2">
-          <DetailRow label="Where" value={expert?.where} />
-          {expert?.focus && <DetailRow label="Focus" value={expert.focus} />}
-          {expert?.why && <DetailRow label="Why" value={expert.why} />}
-        </div>
-
-        {/* Inline delete confirmation */}
-        {confirmingDelete && (
-          <div className="mt-4 pt-4 border-t border-border">
-            <p className="font-serif text-[13px] italic text-muted-foreground m-0 mb-3">
-              Remove this expert? This cannot be undone.
-            </p>
-            <div className="flex items-center gap-2">
-              <TactileButton
-                variant="raised"
-                className="text-[11px]"
-                onClick={handleDeleteConfirm}
-              >
-                Remove
-              </TactileButton>
-              <TactileButton
-                variant="inset"
-                className="text-[11px]"
-                onClick={handleDeleteCancel}
-              >
-                Keep
-              </TactileButton>
-            </div>
-          </div>
-        )}
       </div>
+
+      {/* Detail fields */}
+      <div className="px-8 py-5 grid grid-cols-2 gap-x-8 gap-y-5">
+        <SavedDetailBlock label="Focus" value={expert?.focus} icon={Crosshair} />
+        <SavedDetailBlock label="Why" value={expert?.why} icon={MessageSquare} />
+      </div>
+
+      {/* Inline delete confirmation */}
+      {confirmingDelete && (
+        <div className="px-8 py-5 border-t border-border">
+          <p className="font-serif text-[13px] italic text-muted-foreground m-0 mb-3">
+            Remove this expert? This cannot be undone.
+          </p>
+          <div className="flex items-center gap-2">
+            <TactileButton variant="raised" className="text-[11px]" onClick={handleDeleteConfirm}>
+              Remove
+            </TactileButton>
+            <TactileButton variant="inset" className="text-[11px]" onClick={handleDeleteCancel}>
+              Keep
+            </TactileButton>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -310,16 +306,18 @@ function FormField({
   );
 }
 
-function DetailRow({ label, value }: { label: string; value?: string | null }) {
-  if (!value) return null;
+function SavedDetailBlock({ label, value, icon: Icon }: { label: string; value?: string | null; icon: typeof Crosshair }) {
   return (
-    <div className="flex items-baseline gap-3">
-      <span className="text-[10px] uppercase tracking-[0.35em] font-semibold text-muted-foreground shrink-0 w-12">
-        {label}
-      </span>
-      <span className="font-serif text-[13px] text-foreground leading-relaxed">
-        {value}
-      </span>
+    <div>
+      <div className="flex items-center gap-1.5 mb-2">
+        <Icon size={10} strokeWidth={1.8} className="text-muted-foreground shrink-0 translate-y-px" />
+        <span className="text-[9px] uppercase tracking-[0.35em] font-semibold text-muted-foreground leading-none">
+          {label}
+        </span>
+      </div>
+      <p className={`font-serif text-[13px] leading-relaxed m-0 ${value ? 'text-foreground' : 'italic text-muted-foreground/40'}`}>
+        {value || '—'}
+      </p>
     </div>
   );
 }

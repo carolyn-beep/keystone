@@ -4,7 +4,7 @@ import { useMutation } from '@tanstack/react-query';
 
 export type BuilderView = 'build' | 'display' | 'dashboard';
 export type BuilderPhase = 1 | 2 | 3 | 4 | 5;
-export type BuilderBuildScreen = 'overview' | BuilderPhase;
+export type BuilderBuildScreen = BuilderPhase;
 
 const VALID_VIEWS: BuilderView[] = ['build', 'display', 'dashboard'];
 const VALID_PHASES: BuilderPhase[] = [1, 2, 3, 4, 5];
@@ -16,11 +16,11 @@ function parseView(raw: string | null): BuilderView {
   return 'build';
 }
 
-function parseScreen(raw: string | null): BuilderBuildScreen {
-  if (raw === 'overview') return 'overview';
+function parseScreen(raw: string | null, fallback: BuilderPhase): BuilderPhase {
+  if (raw === null) return fallback;
   const num = Number(raw);
   if (VALID_PHASES.includes(num as BuilderPhase)) return num as BuilderPhase;
-  return 'overview';
+  return fallback;
 }
 
 function updateQueryParams(updates: Record<string, string | null>) {
@@ -48,8 +48,8 @@ export function useBuilderNav(slug: string, initialPhase: BuilderPhase) {
 
   const screen = useMemo(() => {
     const params = new URLSearchParams(searchString);
-    return parseScreen(params.get('screen'));
-  }, [searchString]);
+    return parseScreen(params.get('screen'), initialPhase);
+  }, [searchString, initialPhase]);
 
   // Persist lastActivePhase to the database (non-blocking)
   const persistPhase = useMutation({
@@ -66,22 +66,15 @@ export function useBuilderNav(slug: string, initialPhase: BuilderPhase) {
 
   const setView = useCallback((newView: BuilderView) => {
     if (newView === 'build') {
-      // Preserve current screen param when switching to build
       updateQueryParams({ builderView: 'build' });
     } else {
-      // Remove screen param for display/dashboard
       updateQueryParams({ builderView: newView, screen: null });
     }
   }, []);
 
-  const setScreen = useCallback((newScreen: BuilderBuildScreen) => {
-    if (typeof newScreen === 'number') {
-      updateQueryParams({ screen: String(newScreen) });
-      // Persist numbered phase to DB (fire-and-forget)
-      persistPhase.mutate(newScreen);
-    } else {
-      updateQueryParams({ screen: 'overview' });
-    }
+  const setScreen = useCallback((newScreen: BuilderPhase) => {
+    updateQueryParams({ screen: String(newScreen) });
+    persistPhase.mutate(newScreen);
   }, [persistPhase]);
 
   return { view, screen, setView, setScreen };

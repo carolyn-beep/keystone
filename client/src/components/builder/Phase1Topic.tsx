@@ -250,18 +250,21 @@ export function Phase1Topic({ nativeDetails, onUpdate, isUpdating, canModify }: 
   );
 
   return (
-    <div className="py-10 px-2 max-w-3xl">
+    <div>
       {/* Phase header */}
       <div className="flex items-center gap-4 mb-2">
         <span className="font-serif text-[42px] leading-none text-muted-light font-normal tracking-wide">
           1
         </span>
         <h2 className="text-[26px] font-bold text-foreground tracking-tight leading-[1.1] m-0">
-          Topic & Purpose
+          You & Your Mission
         </h2>
       </div>
-      <p className="font-serif text-[14px] italic text-muted-foreground leading-relaxed m-0 mb-12">
-        Define what this brainlift is about and why it matters.
+      <p className="font-serif text-[14px] italic text-muted-foreground leading-relaxed m-0 mb-2">
+        Every BrainLift starts with a sharp, honest answer to two questions: what territory are you entering, and what do you intend to do with what you find?
+      </p>
+      <p className="font-serif text-[14px] italic text-muted-foreground leading-relaxed m-0 pb-8">
+        These two fields are the compass for everything that follows — your experts, your sources, your insights, and ultimately your stance. The more precise and honest you are here, the more useful everything downstream becomes.
       </p>
 
       <div className="space-y-10">
@@ -270,7 +273,7 @@ export function Phase1Topic({ nativeDetails, onUpdate, isUpdating, canModify }: 
           field="topic"
           label="Topic"
           value={nativeDetails.topic}
-          placeholder="What is this brainlift about?"
+          placeholder="e.g., NIL deals in college sports, renewable energy in developing nations"
           canModify={canModify}
           onSave={handleSave}
           isSaving={isUpdating}
@@ -279,9 +282,9 @@ export function Phase1Topic({ nativeDetails, onUpdate, isUpdating, canModify }: 
         {/* Purpose */}
         <InlineField
           field="purpose"
-          label="Purpose"
+          label="What do you want to DO with what you learn?"
           value={nativeDetails.purpose}
-          placeholder="Why does this brainlift matter? What should the reader learn?"
+          placeholder="e.g., build an app, write a podcast, launch a business, design a policy proposal"
           multiline
           canModify={canModify}
           onSave={handleSave}
@@ -293,7 +296,7 @@ export function Phase1Topic({ nativeDetails, onUpdate, isUpdating, canModify }: 
           field="owner"
           label="Owner"
           value={nativeDetails.owner ?? ''}
-          placeholder="Who is the subject matter expert? (optional)"
+          placeholder="Your name or the team behind this BrainLift"
           canModify={canModify}
           onSave={handleSave}
           isSaving={isUpdating}

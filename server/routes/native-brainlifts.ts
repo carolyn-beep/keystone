@@ -4,6 +4,7 @@ import { createNativeBrainliftInputSchema, patchNativeDetailsInputSchema } from 
 import { requireAuth } from "../middleware/auth";
 import { asyncHandler, BadRequestError, NotFoundError } from "../middleware/error-handler";
 import { requireBrainliftAccess, requireBrainliftModify } from "../middleware/brainlift-auth";
+import { withJob } from "../utils/withJob";
 
 export const nativeBrainliftsRouter = Router();
 
@@ -23,6 +24,14 @@ nativeBrainliftsRouter.post(
       owner: input.owner ?? null,
       userId: req.authContext!.userId,
     });
+
+    // Queue cover image generation and expert suggestion generation
+    await withJob('brainlift:generate-image')
+      .forPayload({ brainliftId: result.brainlift.id })
+      .queue();
+    await withJob('brainlift:suggest-experts')
+      .forPayload({ brainliftId: result.brainlift.id })
+      .queue();
 
     res.status(201).json(result);
   })
