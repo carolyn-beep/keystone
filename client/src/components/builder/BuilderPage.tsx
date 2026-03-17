@@ -6,6 +6,7 @@ import type { NativeDetailsResponse } from '@shared/routes';
 import { useBuilderNav } from '@/hooks/useBuilderNav';
 import { BuilderSidebar } from './BuilderSidebar';
 import { PhaseOverview } from './PhaseOverview';
+import { Phase2Experts } from './Phase2Experts';
 
 interface BuilderPageProps {
   slug: string;
@@ -118,7 +119,11 @@ function BuilderPageContent({
             />
           )}
 
-          {view === 'build' && typeof screen === 'number' && (
+          {view === 'build' && screen === 2 && (
+            <Phase2Experts slug={slug} />
+          )}
+
+          {view === 'build' && typeof screen === 'number' && screen !== 2 && (
             <div className="py-10 px-2">
               <h2 className="text-[26px] font-bold text-foreground tracking-tight leading-[1.1] m-0 mb-2">
                 Phase {screen}
