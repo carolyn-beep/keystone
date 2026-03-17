@@ -2,10 +2,10 @@
 
 ## Overview
 
-- **Total Endpoints:** 44
-- **Production Endpoints:** 38
+- **Total Endpoints:** 45
+- **Production Endpoints:** 39
 - **Development-Only Endpoints:** 6
-- **Domain Routers:** 9
+- **Domain Routers:** 10
 
 ---
 
@@ -92,6 +92,27 @@ Endpoints for creating and managing native (Builder) brainlifts.
 
 - **Create:** `topic` (min 10), `purpose` (min 20), `owner` (optional, nullable)
 - **Patch:** All fields optional. `lastActivePhase` must be 1-5. Empty body rejected.
+
+---
+
+## Purpose Suggestions (`server/routes/purpose-suggestions.ts`)
+
+AI-powered purpose suggestion endpoint for the Build from Scratch wizard.
+
+| # | Method | Path | Auth | Middleware | Description |
+|---|--------|------|------|------------|-------------|
+| 1 | `POST` | `/api/brainlifts/native/purpose-suggestions` | `requireAuth` | - | Returns 3-4 AI-generated purpose phrases for a topic. Degrades to empty array on failure. |
+
+### Validation Schema
+
+- **Input:** `topic` (string, min 10, trimmed)
+- **Response:** `{ suggestions: string[] }` (0-4 items)
+
+### Notes
+
+- Uses `google/gemini-2.0-flash-001` (fast tier) via unified AI client
+- Caller: `builder.purposeSuggestions`
+- Non-blocking: always returns 200, even on AI failure (empty array)
 
 ---
 
