@@ -14,6 +14,9 @@ import { dok3Router } from "./routes/dok3";
 import { dok4Router } from "./routes/dok4";
 import { importAgentRouter } from "./routes/import-agent";
 import { knowledgeCheckRouter } from "./routes/knowledge-check";
+import { nativeBrainliftsRouter } from "./routes/native-brainlifts";
+import { purposeSuggestionsRouter } from "./routes/purpose-suggestions";
+import { builderExpertsRouter } from "./routes/builder-experts";
 import { errorHandler } from "./middleware/error-handler";
 import { seedDatabase, backfillOriginalContent } from "./seed";
 
@@ -36,6 +39,9 @@ export async function registerRoutes(
   app.use(dok4Router);
   app.use(importAgentRouter);
   app.use(knowledgeCheckRouter);
+  app.use(nativeBrainliftsRouter);
+  app.use(purposeSuggestionsRouter);
+  app.use(builderExpertsRouter);
 
   // Global error handler - must be after all routes
   app.use(errorHandler);

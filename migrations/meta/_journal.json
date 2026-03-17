@@ -127,6 +127,13 @@
       "when": 1773349614324,
       "tag": "0017_clever_ultron",
       "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1773768245966,
+      "tag": "0018_slim_mesmero",
+      "breakpoints": true
     }
   ]
 }

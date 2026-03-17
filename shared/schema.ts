@@ -309,6 +309,8 @@ export const brainliftsRelations = relations(brainlifts, ({ one, many }) => ({
   experts: many(experts),
   shares: many(brainliftShares),
   learningStreamItems: many(learningStreamItems),
+  nativeDetails: one(nativeBrainliftDetails),
+  builderExperts: many(builderExperts),
 }));
 
 export const brainliftSharesRelations = relations(brainliftShares, ({ one }) => ({
@@ -816,6 +818,83 @@ export const dok4Dok3LinksRelations = relations(dok4Dok3Links, ({ one }) => ({
   }),
 }));
 
+// === NATIVE BUILDER TABLES ===
+
+// Builder phase status types
+export type BuilderPhaseStatus = 'not_started' | 'in_progress' | 'complete' | 'locked';
+export type BuilderSuggestionStatus = 'queued' | 'ready' | 'failed';
+
+export type NativePhaseProgress = {
+  phase1: BuilderPhaseStatus;
+  phase2: BuilderPhaseStatus;
+  phase3: BuilderPhaseStatus;
+  phase4: BuilderPhaseStatus;
+  phase5: BuilderPhaseStatus;
+};
+
+// Native brainlift builder-specific details (1:1 with brainlifts where sourceType='native')
+export const nativeBrainliftDetails = pgTable("native_brainlift_details", {
+  id: serial("id").primaryKey(),
+  brainliftId: integer("brainlift_id")
+    .notNull()
+    .references(() => brainlifts.id, { onDelete: "cascade" })
+    .unique(),
+  phaseProgress: jsonb("phase_progress")
+    .$type<NativePhaseProgress>()
+    .notNull()
+    .default({
+      phase1: "complete",
+      phase2: "in_progress",
+      phase3: "locked",
+      phase4: "locked",
+      phase5: "locked",
+    }),
+  lastActivePhase: integer("last_active_phase").notNull().default(2),
+  suggestionStatus: text("suggestion_status")
+    .$type<BuilderSuggestionStatus>()
+    .notNull()
+    .default("queued"),
+  suggestionError: text("suggestion_error"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().$onUpdate(() => new Date()).notNull(),
+}, (table) => [
+  index("native_brainlift_details_brainlift_id_idx").on(table.brainliftId),
+]);
+
+// Builder experts - suggested and manually added experts for native brainlifts
+export const builderExperts = pgTable("builder_experts", {
+  id: serial("id").primaryKey(),
+  brainliftId: integer("brainlift_id")
+    .notNull()
+    .references(() => brainlifts.id, { onDelete: "cascade" }),
+  name: text("name").notNull(),
+  who: text("who").notNull(),
+  focus: text("focus"),
+  why: text("why"),
+  where: text("where").notNull(),
+  origin: text("origin").$type<'suggested' | 'manual'>().notNull(),
+  status: text("status").$type<'pending' | 'saved' | 'dismissed'>().notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().$onUpdate(() => new Date()).notNull(),
+}, (table) => [
+  index("builder_experts_brainlift_id_idx").on(table.brainliftId),
+]);
+
+// Native Builder Relations
+export const nativeBrainliftDetailsRelations = relations(nativeBrainliftDetails, ({ one }) => ({
+  brainlift: one(brainlifts, {
+    fields: [nativeBrainliftDetails.brainliftId],
+    references: [brainlifts.id],
+  }),
+}));
+
+export const builderExpertsRelations = relations(builderExperts, ({ one }) => ({
+  brainlift: one(brainlifts, {
+    fields: [builderExperts.brainliftId],
+    references: [brainlifts.id],
+  }),
+}));
+
 // === IMPORT AGENT TABLES ===
 
 // Import Agent Phase enum
@@ -912,6 +991,8 @@ export const insertImportAgentConversationSchema = createInsertSchema(importAgen
 export const insertBrainliftSourceSchema = createInsertSchema(brainliftSources).omit({ id: true, createdAt: true });
 export const insertDok4SpovSchema = createInsertSchema(dok4Spovs).omit({ id: true, createdAt: true });
 export const insertDok4Dok3LinkSchema = createInsertSchema(dok4Dok3Links).omit({ id: true });
+export const insertNativeBrainliftDetailsSchema = createInsertSchema(nativeBrainliftDetails).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertBuilderExpertSchema = createInsertSchema(builderExperts).omit({ id: true, createdAt: true, updatedAt: true });
 
 // === TYPES ===
 
@@ -961,6 +1042,10 @@ export type DOK4Spov = typeof dok4Spovs.$inferSelect;
 export type InsertDOK4Spov = z.infer<typeof insertDok4SpovSchema>;
 export type DOK4Dok3Link = typeof dok4Dok3Links.$inferSelect;
 export type InsertDOK4Dok3Link = z.infer<typeof insertDok4Dok3LinkSchema>;
+export type NativeBrainliftDetails = typeof nativeBrainliftDetails.$inferSelect;
+export type InsertNativeBrainliftDetails = z.infer<typeof insertNativeBrainliftDetailsSchema>;
+export type BuilderExpert = typeof builderExperts.$inferSelect;
+export type InsertBuilderExpert = z.infer<typeof insertBuilderExpertSchema>;
 
 // Full brainlift data with nested relations (for API response)
 export interface BrainliftData extends Brainlift {

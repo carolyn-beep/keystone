@@ -2,10 +2,10 @@
 
 ## Overview
 
-- **Total Endpoints:** 41
-- **Production Endpoints:** 35
+- **Total Endpoints:** 51
+- **Production Endpoints:** 45
 - **Development-Only Endpoints:** 6
-- **Domain Routers:** 8
+- **Domain Routers:** 10
 
 ---
 
@@ -75,6 +75,68 @@ All API endpoints (except `/api/auth/*`) require authentication via Better Auth 
   }
 }
 ```
+
+---
+
+## Native Brainlifts (`server/routes/native-brainlifts.ts`)
+
+Endpoints for creating and managing native (Builder) brainlifts.
+
+| # | Method | Path | Auth | Middleware | Description |
+|---|--------|------|------|------------|-------------|
+| 1 | `POST` | `/api/brainlifts/native` | `requireAuth` | - | Create a native brainlift with topic, purpose, owner. Returns 201. |
+| 2 | `GET` | `/api/brainlifts/:slug/native-details` | `requireAuth` | `requireBrainliftAccess` | Get native builder details (phase progress, suggestion state). Returns 404 if not native. |
+| 3 | `PATCH` | `/api/brainlifts/:slug/native-details` | `requireAuth` | `requireBrainliftModify` | Update topic, purpose, owner, or lastActivePhase. Rejects non-native brainlifts. |
+
+### Validation Schemas
+
+- **Create:** `topic` (min 10), `purpose` (min 20), `owner` (optional, nullable)
+- **Patch:** All fields optional. `lastActivePhase` must be 1-5. Empty body rejected.
+
+---
+
+## Purpose Suggestions (`server/routes/purpose-suggestions.ts`)
+
+AI-powered purpose suggestion endpoint for the Build from Scratch wizard.
+
+| # | Method | Path | Auth | Middleware | Description |
+|---|--------|------|------|------------|-------------|
+| 1 | `POST` | `/api/brainlifts/native/purpose-suggestions` | `requireAuth` | - | Returns 3-4 AI-generated purpose phrases for a topic. Degrades to empty array on failure. |
+
+### Validation Schema
+
+- **Input:** `topic` (string, min 10, trimmed)
+- **Response:** `{ suggestions: string[] }` (0-4 items)
+
+### Notes
+
+- Uses `google/gemini-2.0-flash-001` (fast tier) via unified AI client
+- Caller: `builder.purposeSuggestions`
+- Non-blocking: always returns 200, even on AI failure (empty array)
+
+---
+
+## Builder Experts (`server/routes/builder-experts.ts`)
+
+Endpoints for managing builder-authored experts in native brainlifts (suggested + manual).
+
+| # | Method | Path | Auth | Middleware | Description |
+|---|--------|------|------|------------|-------------|
+| 1 | `GET` | `/api/brainlifts/:slug/builder-experts` | `requireAuth` | `requireBrainliftAccess` | List all builder experts with suggestion status. Rejects non-native brainlifts (400). |
+| 2 | `POST` | `/api/brainlifts/:slug/builder-experts` | `requireAuth` | `requireBrainliftModify` | Create a manual saved expert. Triggers phase progress and research queue. Returns 201. |
+| 3 | `PATCH` | `/api/brainlifts/:slug/builder-experts/:id` | `requireAuth` | `requireBrainliftModify` | Update expert fields or accept a suggestion (status='saved'). Returns 404 if not found/IDOR. |
+| 4 | `PATCH` | `/api/brainlifts/:slug/builder-experts/:id/dismiss` | `requireAuth` | `requireBrainliftModify` | Dismiss a pending suggested expert. Returns 404 if not found. |
+| 5 | `DELETE` | `/api/brainlifts/:slug/builder-experts/:id` | `requireAuth` | `requireBrainliftModify` | Delete a builder expert. Triggers phase regression if last saved expert. Returns 204. |
+| 6 | `POST` | `/api/brainlifts/:slug/builder-experts/regenerate-suggestions` | `requireAuth` | `requireBrainliftModify` | Clear stale pending suggestions, reset status, re-queue suggestion job. Returns 202. |
+
+### Validation Schemas
+
+- **Create:** `name` (min 1), `who` (min 1), `where` (min 1), `focus` (optional, nullable), `why` (optional, nullable)
+- **Patch:** All create fields optional. `status` restricted to `'saved'` (for accepting suggestions).
+
+### Background Job
+
+- `brainlift:suggest-experts` -- AI-generated expert suggestions using `callModelWithFallback(['anthropic/claude-sonnet-4.6', 'anthropic/claude-haiku-4.5'])`
 
 ---
 

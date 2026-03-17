@@ -55,6 +55,54 @@ export const api = {
   },
 };
 
+// Native brainlift validation schemas
+export const createNativeBrainliftInputSchema = z.object({
+  topic: z.string().trim().min(10),
+  purpose: z.string().trim().min(20),
+  owner: z.string().trim().nullable().optional(),
+});
+
+export const patchNativeDetailsInputSchema = z.object({
+  topic: z.string().trim().min(10).optional(),
+  purpose: z.string().trim().min(20).optional(),
+  owner: z.string().trim().nullable().optional(),
+  lastActivePhase: z.union([z.literal(1), z.literal(2), z.literal(3), z.literal(4), z.literal(5)]).optional(),
+});
+
+// Purpose suggestion validation schema
+export const purposeSuggestionInputSchema = z.object({
+  topic: z.string().trim().min(10),
+});
+
+// Builder expert validation schemas
+export const createBuilderExpertInputSchema = z.object({
+  name: z.string().trim().min(1),
+  who: z.string().trim().min(1),
+  focus: z.string().trim().nullable().optional(),
+  why: z.string().trim().nullable().optional(),
+  where: z.string().trim().min(1),
+});
+
+export const patchBuilderExpertInputSchema = z.object({
+  name: z.string().trim().min(1).optional(),
+  who: z.string().trim().min(1).optional(),
+  focus: z.string().trim().nullable().optional(),
+  why: z.string().trim().nullable().optional(),
+  where: z.string().trim().min(1).optional(),
+  status: z.literal('saved').optional(),
+});
+
+// Response type for native details
+export interface NativeDetailsResponse {
+  topic: string;
+  purpose: string;
+  owner: string | null;
+  phaseProgress: import('./schema').NativePhaseProgress;
+  lastActivePhase: 1 | 2 | 3 | 4 | 5;
+  suggestionStatus: import('./schema').BuilderSuggestionStatus;
+  suggestionError: string | null;
+}
+
 export function buildUrl(path: string, params?: Record<string, string | number>): string {
   let url = path;
   if (params) {
