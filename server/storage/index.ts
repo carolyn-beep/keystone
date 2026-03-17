@@ -14,6 +14,7 @@ import * as dok4Storage from './dok4';
 import * as importAgentStorage from './import-agent';
 import * as brainliftSourcesStorage from './brainlift-sources';
 import * as knowledgeCheckStorage from './knowledge-check';
+import * as nativeBrainliftsStorage from './native-brainlifts';
 
 // Re-export types from base
 export type {
@@ -23,7 +24,10 @@ export type {
   FactVerification, InsertFactVerification, FactModelScore, InsertFactModelScore,
   FactWithVerification, LlmFeedback, ModelAccuracyStats,
   FactRedundancyGroup, InsertFactRedundancyGroup, RedundancyStatus,
-  AuthContext
+  AuthContext,
+  NativeBrainliftDetails, InsertNativeBrainliftDetails,
+  BuilderExpert, InsertBuilderExpert,
+  NativePhaseProgress, BuilderPhaseStatus, BuilderSuggestionStatus,
 } from './base';
 
 /**
@@ -160,7 +164,13 @@ export const storage = {
   createQuiz: knowledgeCheckStorage.createQuiz,
   submitQuizAnswers: knowledgeCheckStorage.submitQuizAnswers,
   hasQuizJobPending: knowledgeCheckStorage.hasQuizJobPending,
+
+  // Native Brainlifts
+  createNativeBrainlift: nativeBrainliftsStorage.createNativeBrainlift,
+  getNativeDetailsBySlug: nativeBrainliftsStorage.getNativeDetailsBySlug,
+  updateNativeDetailsForBrainlift: nativeBrainliftsStorage.updateNativeDetailsForBrainlift,
+  setBuilderSuggestionState: nativeBrainliftsStorage.setBuilderSuggestionState,
 };
 
 // Export individual modules for direct access if needed
-export { brainliftsStorage, expertsStorage, verificationsStorage, redundancyStorage, analyticsStorage, dok2Storage, sharesStorage, learningStreamStorage, dok3Storage, dok4Storage, importAgentStorage, brainliftSourcesStorage, knowledgeCheckStorage };
+export { brainliftsStorage, expertsStorage, verificationsStorage, redundancyStorage, analyticsStorage, dok2Storage, sharesStorage, learningStreamStorage, dok3Storage, dok4Storage, importAgentStorage, brainliftSourcesStorage, knowledgeCheckStorage, nativeBrainliftsStorage };

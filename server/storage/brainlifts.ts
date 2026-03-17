@@ -3,6 +3,7 @@ import {
   brainlifts, facts, contradictionClusters,
   brainliftVersions, experts, factVerifications, factModelScores,
   llmFeedback, factRedundancyGroups, dok2Summaries, dok2Points, dok2FactRelations,
+  nativeBrainliftDetails, builderExperts,
   type Brainlift, type BrainliftData, type InsertBrainlift,
   type BrainliftVersion, type AuthContext
 } from './base';
@@ -220,6 +221,11 @@ export async function deleteBrainlift(id: number): Promise<void> {
     await tx.delete(experts).where(eq(experts.brainliftId, id));
     await tx.delete(factRedundancyGroups).where(eq(factRedundancyGroups.brainliftId, id));
     await tx.delete(facts).where(eq(facts.brainliftId, id));
+
+    // Delete native builder tables (no-op for imported brainlifts)
+    await tx.delete(builderExperts).where(eq(builderExperts.brainliftId, id));
+    await tx.delete(nativeBrainliftDetails).where(eq(nativeBrainliftDetails.brainliftId, id));
+
     await tx.delete(brainlifts).where(eq(brainlifts.id, id));
   });
 }
@@ -462,8 +468,23 @@ export interface LearningStreamContext {
 }
 
 /**
+ * Derive a Twitter handle from a builder expert's `where` field.
+ * Supports: @handle, twitter.com/handle, x.com/handle
+ */
+export function deriveTwitterHandle(where: string): string | null {
+  // @handle
+  const atMatch = where.match(/^@(\w+)$/);
+  if (atMatch) return atMatch[1];
+  // twitter.com/handle or x.com/handle (with or without protocol/www)
+  const urlMatch = where.match(/(?:twitter\.com|x\.com)\/(\w+)/);
+  if (urlMatch) return urlMatch[1];
+  return null;
+}
+
+/**
  * Get context for learning stream research swarm.
  * Returns title, purpose, top 15 facts (score >= 3), followed experts, existing topics.
+ * For native brainlifts with no facts/ranked experts, falls back to builder experts.
  * All filtering/limiting done in SQL.
  */
 export async function getLearningStreamContext(brainliftId: number): Promise<LearningStreamContext | null> {
@@ -474,6 +495,7 @@ export async function getLearningStreamContext(brainliftId: number): Promise<Lea
       title: brainlifts.title,
       description: brainlifts.description,
       displayPurpose: brainlifts.displayPurpose,
+      sourceType: brainlifts.sourceType,
     })
     .from(brainlifts)
     .where(eq(brainlifts.id, brainliftId));
@@ -516,6 +538,33 @@ export async function getLearningStreamContext(brainliftId: number): Promise<Lea
     .orderBy(desc(experts.rankScore))
     .limit(10);
 
+  // Native fallback: use builder experts when no ranked experts exist
+  let expertsList: Array<{ id: number; name: string; twitterHandle: string | null; rankScore: number | null }> = followedExperts;
+
+  if (brainlift.sourceType === 'native' && followedExperts.length === 0) {
+    const savedBuilderExperts = await db
+      .select({
+        id: builderExperts.id,
+        name: builderExperts.name,
+        where: builderExperts.where,
+      })
+      .from(builderExperts)
+      .where(
+        and(
+          eq(builderExperts.brainliftId, brainliftId),
+          eq(builderExperts.status, 'saved')
+        )
+      )
+      .limit(10);
+
+    expertsList = savedBuilderExperts.map(e => ({
+      id: e.id,
+      name: e.name,
+      twitterHandle: deriveTwitterHandle(e.where),
+      rankScore: null,
+    }));
+  }
+
   // Get existing learning stream topics
   const { learningStreamItems } = await import('./base');
   const existingItems = await db
@@ -529,7 +578,7 @@ export async function getLearningStreamContext(brainliftId: number): Promise<Lea
     description: brainlift.description,
     displayPurpose: brainlift.displayPurpose,
     facts: topFacts,
-    experts: followedExperts,
+    experts: expertsList,
     existingTopics: existingItems.map(i => i.topic),
   };
 }
