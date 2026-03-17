@@ -1,5 +1,5 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
-import { X, Upload, FileText, Link as LinkIcon, File, Loader2 } from 'lucide-react';
+import { X, Upload, FileText, Link as LinkIcon, File, Loader2, PenLine } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { tokens } from '@/lib/colors';
 import { useImportWithProgress } from '@/hooks/useImportWithProgress';
@@ -8,6 +8,7 @@ import { PreformatDecision } from '@/components/home/PreformatDecision';
 import { DOK3LinkingUI } from '@/components/DOK3LinkingUI';
 import { DOK4LinkingUI } from '@/components/DOK4LinkingUI';
 import { TactileButton } from '@/components/ui/tactile-button';
+import { BuildFromScratchWizard } from '@/components/home/BuildFromScratchWizard';
 import { ImportAgentLayout } from '@/components/import-agent/ImportAgentLayout';
 import { ImportAgentProvider } from '@/components/import-agent/ImportAgentContext';
 import { useImportConversation } from '@/hooks/useImportConversation';
@@ -52,6 +53,7 @@ export function AddBrainliftModal({ show, onClose, onSuccess }: AddBrainliftModa
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [error, setError] = useState('');
   const [autoLink, setAutoLink] = useState(true);
+  const [wizardActive, setWizardActive] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Store formData across evaluate -> accept/reject flow
@@ -138,6 +140,7 @@ export function AddBrainliftModal({ show, onClose, onSuccess }: AddBrainliftModa
     setSelectedFile(null);
     setError('');
     setAutoLink(true);
+    setWizardActive(false);
     setAgentSlug(null);
     setIsGradingMode(false);
     pendingSlugRef.current = null;
@@ -438,6 +441,37 @@ export function AddBrainliftModal({ show, onClose, onSuccess }: AddBrainliftModa
                 )}
               </div>
             </motion.div>
+          ) : wizardActive ? (
+            /* ── Build from Scratch wizard ── */
+            <motion.div
+              key="wizard"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.2 }}
+              className="p-4 sm:p-6"
+            >
+              {/* Texture overlay */}
+              <div
+                aria-hidden="true"
+                className="absolute inset-0 rounded-xl pointer-events-none z-0"
+                style={{
+                  backgroundImage: `url(${modalBgTexture})`,
+                  backgroundSize: 'cover',
+                  backgroundPosition: 'center',
+                  opacity: 0.10,
+                  mixBlendMode: 'multiply',
+                }}
+              />
+              <BuildFromScratchWizard
+                onClose={() => {
+                  resetAll();
+                  onClose();
+                }}
+                onSuccess={onSuccess}
+                onBack={() => setWizardActive(false)}
+              />
+            </motion.div>
           ) : importPhase === 'evaluating' ? (
             /* ── Evaluating phase: spinner ── */
             <motion.div
@@ -551,6 +585,35 @@ export function AddBrainliftModal({ show, onClose, onSuccess }: AddBrainliftModa
               <p className="text-muted-foreground text-sm mb-5">
                 Add New Brainlift to Grade DOK1 facts and create a curated reading list.
               </p>
+
+              {/* Build from Scratch entry point */}
+              <button
+                onClick={() => setWizardActive(true)}
+                disabled={isBusy}
+                data-testid="button-build-from-scratch"
+                className="relative z-10 w-full mb-5 flex items-center gap-3 p-3.5 rounded-lg cursor-pointer transition-all duration-200 bg-card-elevated shadow-card border border-transparent hover:shadow-lg disabled:opacity-50 disabled:cursor-not-allowed text-left"
+              >
+                <div className="w-9 h-9 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
+                  <PenLine size={18} style={{ color: tokens.primary }} />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <span className="text-sm font-semibold text-foreground block">
+                    Build from Scratch
+                  </span>
+                  <span className="text-[11px] text-muted-foreground font-serif italic">
+                    Define a topic and purpose to create a new BrainLift
+                  </span>
+                </div>
+              </button>
+
+              {/* Divider with "or import" label */}
+              <div className="relative z-10 flex items-center gap-3 mb-5">
+                <div className="flex-1 h-px bg-border" />
+                <span className="text-[10px] uppercase tracking-[0.35em] font-semibold text-muted-foreground">
+                  Or Import
+                </span>
+                <div className="flex-1 h-px bg-border" />
+              </div>
 
               {/* Underline tabs */}
               <div className="relative z-10 mb-5">

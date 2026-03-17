@@ -69,6 +69,11 @@ export const patchNativeDetailsInputSchema = z.object({
   lastActivePhase: z.union([z.literal(1), z.literal(2), z.literal(3), z.literal(4), z.literal(5)]).optional(),
 });
 
+// Purpose suggestion validation schema
+export const purposeSuggestionInputSchema = z.object({
+  topic: z.string().trim().min(10),
+});
+
 // Response type for native details
 export interface NativeDetailsResponse {
   topic: string;
