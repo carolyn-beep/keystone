@@ -2,10 +2,10 @@
 
 ## Overview
 
-- **Total Endpoints:** 41
-- **Production Endpoints:** 35
+- **Total Endpoints:** 44
+- **Production Endpoints:** 38
 - **Development-Only Endpoints:** 6
-- **Domain Routers:** 8
+- **Domain Routers:** 9
 
 ---
 
@@ -75,6 +75,23 @@ All API endpoints (except `/api/auth/*`) require authentication via Better Auth 
   }
 }
 ```
+
+---
+
+## Native Brainlifts (`server/routes/native-brainlifts.ts`)
+
+Endpoints for creating and managing native (Builder) brainlifts.
+
+| # | Method | Path | Auth | Middleware | Description |
+|---|--------|------|------|------------|-------------|
+| 1 | `POST` | `/api/brainlifts/native` | `requireAuth` | - | Create a native brainlift with topic, purpose, owner. Returns 201. |
+| 2 | `GET` | `/api/brainlifts/:slug/native-details` | `requireAuth` | `requireBrainliftAccess` | Get native builder details (phase progress, suggestion state). Returns 404 if not native. |
+| 3 | `PATCH` | `/api/brainlifts/:slug/native-details` | `requireAuth` | `requireBrainliftModify` | Update topic, purpose, owner, or lastActivePhase. Rejects non-native brainlifts. |
+
+### Validation Schemas
+
+- **Create:** `topic` (min 10), `purpose` (min 20), `owner` (optional, nullable)
+- **Patch:** All fields optional. `lastActivePhase` must be 1-5. Empty body rejected.
 
 ---
 
