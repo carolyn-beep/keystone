@@ -47,18 +47,26 @@ const BUILD_FROM_SCRATCH_SUBTITLE_ID = 'build-from-scratch-subtitle';
 
 interface AddBrainliftModalProps {
   show: boolean;
+  mode: 'import' | 'create';
   onClose: () => void;
   onSuccess: (slug: string) => void;
 }
 
-export function AddBrainliftModal({ show, onClose, onSuccess }: AddBrainliftModalProps) {
+export function AddBrainliftModal({ show, mode, onClose, onSuccess }: AddBrainliftModalProps) {
   const [activeTab, setActiveTab] = useState<SourceType>('workflowy');
   const [url, setUrl] = useState('');
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [error, setError] = useState('');
   const [autoLink, setAutoLink] = useState(true);
-  const [wizardActive, setWizardActive] = useState(false);
+  const [wizardActive, setWizardActive] = useState(mode === 'create');
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Sync wizard state when mode/show changes
+  useEffect(() => {
+    if (show) {
+      setWizardActive(mode === 'create');
+    }
+  }, [show, mode]);
 
   // Store formData across evaluate -> accept/reject flow
   const pendingFormDataRef = useRef<FormData | null>(null);
@@ -545,33 +553,35 @@ export function AddBrainliftModal({ show, onClose, onSuccess }: AddBrainliftModa
                 <div className="flex justify-between items-start mb-5 gap-4">
                   {wizardActive ? (
                     <div className="flex items-start gap-3 min-w-0 flex-1">
-                      <button
-                        onClick={() => setWizardActive(false)}
-                        className="mt-1 p-1.5 rounded-md bg-transparent border-none cursor-pointer text-muted-foreground hover:text-foreground transition-colors"
-                        data-testid="button-wizard-back"
-                      >
-                        <ArrowLeft size={18} />
-                      </button>
+                      {mode === 'import' && (
+                        <button
+                          onClick={() => setWizardActive(false)}
+                          className="mt-1 p-1.5 rounded-md bg-transparent border-none cursor-pointer text-muted-foreground hover:text-foreground transition-colors"
+                          data-testid="button-wizard-back"
+                        >
+                          <ArrowLeft size={18} />
+                        </button>
+                      )}
                       <motion.div
-                        layoutId={BUILD_FROM_SCRATCH_SHELL_ID}
+                        layoutId={mode === 'import' ? BUILD_FROM_SCRATCH_SHELL_ID : undefined}
                         transition={{ type: 'spring', stiffness: 320, damping: 34 }}
                         className="flex items-center gap-3 min-w-0"
                       >
                         <motion.div
-                          layoutId={BUILD_FROM_SCRATCH_ICON_ID}
+                          layoutId={mode === 'import' ? BUILD_FROM_SCRATCH_ICON_ID : undefined}
                           className="w-9 h-9 rounded-xl bg-primary/10 flex items-center justify-center shrink-0"
                         >
                           <PenLine size={18} style={{ color: tokens.primary }} />
                         </motion.div>
                         <div className="min-w-0">
                           <motion.h2
-                            layoutId={BUILD_FROM_SCRATCH_TITLE_ID}
+                            layoutId={mode === 'import' ? BUILD_FROM_SCRATCH_TITLE_ID : undefined}
                             className="text-xl font-semibold text-foreground m-0"
                           >
-                            Build from Scratch
+                            Create Brainlift
                           </motion.h2>
                           <motion.p
-                            layoutId={BUILD_FROM_SCRATCH_SUBTITLE_ID}
+                            layoutId={mode === 'import' ? BUILD_FROM_SCRATCH_SUBTITLE_ID : undefined}
                             className="text-[12px] text-muted-foreground font-serif italic mt-1 mb-0"
                           >
                             Define a topic and purpose to create a new BrainLift
@@ -582,10 +592,10 @@ export function AddBrainliftModal({ show, onClose, onSuccess }: AddBrainliftModa
                   ) : (
                     <div className="flex-1 min-w-0">
                       <h2 className="text-xl font-semibold text-foreground m-0">
-                        Add New Brainlift
+                        Import Brainlift
                       </h2>
                       <p className="text-muted-foreground text-sm mt-2 mb-0">
-                        Add New Brainlift to Grade DOK1 facts and create a curated reading list.
+                        Import an existing document to grade DOK1 facts and create a curated reading list.
                       </p>
                     </div>
                   )}
@@ -613,7 +623,7 @@ export function AddBrainliftModal({ show, onClose, onSuccess }: AddBrainliftModa
                           onClose();
                         }}
                         onSuccess={onSuccess}
-                        onBack={() => setWizardActive(false)}
+                        onBack={mode === 'create' ? () => { resetAll(); onClose(); } : () => setWizardActive(false)}
                       />
                     </motion.div>
                   ) : (
@@ -622,49 +632,12 @@ export function AddBrainliftModal({ show, onClose, onSuccess }: AddBrainliftModa
                       layout
                       className="relative z-10"
                     >
-                      <motion.button
-                        layoutId={BUILD_FROM_SCRATCH_SHELL_ID}
-                        transition={{ type: 'spring', stiffness: 320, damping: 34 }}
-                        onClick={() => setWizardActive(true)}
-                        disabled={isBusy}
-                        data-testid="button-build-from-scratch"
-                        className="w-full mb-5 flex items-center gap-3 p-3.5 rounded-[22px] cursor-pointer transition-all duration-200 bg-card-elevated shadow-card border border-transparent hover:shadow-lg disabled:opacity-50 disabled:cursor-not-allowed text-left"
-                      >
-                        <motion.div
-                          layoutId={BUILD_FROM_SCRATCH_ICON_ID}
-                          className="w-9 h-9 rounded-xl bg-primary/10 flex items-center justify-center shrink-0"
-                        >
-                          <PenLine size={18} style={{ color: tokens.primary }} />
-                        </motion.div>
-                        <div className="flex-1 min-w-0">
-                          <motion.span
-                            layoutId={BUILD_FROM_SCRATCH_TITLE_ID}
-                            className="text-sm font-semibold text-foreground block"
-                          >
-                            Build from Scratch
-                          </motion.span>
-                          <motion.span
-                            layoutId={BUILD_FROM_SCRATCH_SUBTITLE_ID}
-                            className="text-[11px] text-muted-foreground font-serif italic block"
-                          >
-                            Define a topic and purpose to create a new BrainLift
-                          </motion.span>
-                        </div>
-                      </motion.button>
-
                       <motion.div
                         initial={{ opacity: 0, y: 8 }}
                         animate={{ opacity: 1, y: 0 }}
                         exit={{ opacity: 0, y: 8 }}
                         transition={{ duration: 0.18, ease: 'easeOut' }}
                       >
-                        <div className="relative z-10 flex items-center gap-3 mb-5">
-                          <div className="flex-1 h-px bg-border" />
-                          <span className="text-[10px] uppercase tracking-[0.35em] font-semibold text-muted-foreground">
-                            Or Import
-                          </span>
-                          <div className="flex-1 h-px bg-border" />
-                        </div>
 
                         <div className="relative z-10 mb-5">
                           <div className="flex">
