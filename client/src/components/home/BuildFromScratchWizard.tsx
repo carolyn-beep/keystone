@@ -86,7 +86,7 @@ export function BuildFromScratchWizard({ onClose, onSuccess, onBack }: BuildFrom
         </p>
       </div>
 
-      <div className="relative overflow-hidden">
+      <div className="relative">
         <AnimatePresence initial={false} mode="popLayout">
           {step === 1 ? (
             <motion.div

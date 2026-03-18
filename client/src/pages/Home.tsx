@@ -15,7 +15,7 @@ import { FilterTabs } from '@/components/home/FilterTabs';
 
 export default function Home() {
   const [, setLocation] = useLocation();
-  const [showModal, setShowModal] = useState(false);
+  const [modalMode, setModalMode] = useState<'import' | 'create' | null>(null);
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
   const [brainliftToDelete, setBrainliftToDelete] = useState<{ id: number; title: string } | null>(null);
   const prefetchRef = useRef<HTMLDivElement>(null);
@@ -148,7 +148,8 @@ export default function Home() {
     <div className="min-h-screen bg-background font-sans">
       <HomeHeader
         adminView={adminView}
-        onAddBrainlift={() => setShowModal(true)}
+        onImportBrainlift={() => setModalMode('import')}
+        onCreateBrainlift={() => setModalMode('create')}
       />
 
       {/* Thin primary indicator line */}
@@ -203,8 +204,9 @@ export default function Home() {
       </main>
 
       <AddBrainliftModal
-        show={showModal}
-        onClose={() => setShowModal(false)}
+        show={modalMode !== null}
+        mode={modalMode ?? 'import'}
+        onClose={() => setModalMode(null)}
         onSuccess={handleBrainliftImportSuccess}
       />
 

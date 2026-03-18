@@ -1,4 +1,4 @@
-import { Pencil, Users, TreePine, Link2, Shield, Check } from 'lucide-react';
+import { Pencil, Users, TreePine, Link2, Shield, Check, Lock } from 'lucide-react';
 import type { NativePhaseProgress, BuilderPhaseStatus } from '@shared/schema';
 import type { BuilderPhase } from '@/hooks/useBuilderNav';
 import { tokens } from '@/lib/colors';
@@ -110,6 +110,14 @@ export function BuilderProgressTracker({
                       style={{ backgroundColor: tokens.success }}
                     >
                       <Check size={10} strokeWidth={2.5} color="#fff" />
+                    </span>
+                  )}
+                  {isLocked && (
+                    <span
+                      className="absolute -bottom-0.5 -right-0.5 w-[18px] h-[18px] rounded-full flex items-center justify-center"
+                      style={{ backgroundColor: tokens.border }}
+                    >
+                      <Lock size={10} strokeWidth={2.5} color={tokens.textMuted} />
                     </span>
                   )}
                 </button>
