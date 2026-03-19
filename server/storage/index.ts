@@ -185,6 +185,13 @@ export const storage = {
   deleteCategory: knowledgeTreeStorage.deleteCategory,
   getCategoriesWithCounts: knowledgeTreeStorage.getCategoriesWithCounts,
   reassignItemCategory: knowledgeTreeStorage.reassignItemCategory,
+  getExtractionCounts: knowledgeTreeStorage.getExtractionCounts,
+  createManualFact: knowledgeTreeStorage.createManualFact,
+  updateManualFact: knowledgeTreeStorage.updateManualFact,
+  deleteManualFact: knowledgeTreeStorage.deleteManualFact,
+  createManualSummary: knowledgeTreeStorage.createManualSummary,
+  updateManualSummary: knowledgeTreeStorage.updateManualSummary,
+  deleteManualSummary: knowledgeTreeStorage.deleteManualSummary,
 
   // Builder Experts
   getBuilderExpertsByBrainliftId: builderExpertsStorage.getBuilderExpertsByBrainliftId,

@@ -3,42 +3,71 @@ import { motion } from 'framer-motion';
 import { X, ExternalLink, Bookmark, Star, Trash2, User, Clock, ChevronLeft, ChevronRight } from 'lucide-react';
 import { GoDiscussionClosed } from 'react-icons/go';
 import { MdOutlineQuiz } from 'react-icons/md';
+import { FiEdit3 } from 'react-icons/fi';
 import { Panel, PanelGroup, PanelResizeHandle } from 'react-resizable-panels';
 import { TactileButton } from '@/components/ui/tactile-button';
 import { ResourceTypeBadge } from './ResourceTypeBadge';
 import { ContentViewer } from './ContentViewer';
 import { DiscussionPanel } from './DiscussionPanel';
 import { KnowledgeCheckPanel } from './KnowledgeCheckPanel';
+import { ManualTab } from '@/components/builder/ManualTab';
 import { useItemContent } from '@/hooks/useItemContent';
 import { tokens } from '@/lib/colors';
+import {
+  getTabsForMode,
+  formatExtractionBadge,
+  shouldShowExtractionBadge,
+  shouldShowFooter,
+  type ViewMode,
+  type RightPanelTab,
+  type ExtractionCounts,
+} from '@/components/builder/source-detail-helpers';
 import type { LearningStreamItem } from '@/hooks/useLearningStream';
-
-type RightPanelTab = 'discuss' | 'quiz';
 
 interface ExpandedItemViewProps {
   item: LearningStreamItem;
   slug: string;
   onClose: () => void;
+  mode?: ViewMode;
+  // Stream mode callbacks
   onBookmark?: (item: LearningStreamItem) => void;
   onGrade?: (item: LearningStreamItem) => void;
   onDiscard?: (item: LearningStreamItem) => void;
   onBack?: () => void;
   onNext?: () => void;
+  // Builder mode data
+  extractionCounts?: ExtractionCounts;
+  builderFacts?: Array<{ id: number; originalId: string; fact: string; learningStreamItemId: number | null }>;
+  builderSummaries?: Array<{ id: number; text: string[]; learningStreamItemId: number | null; relatedFactIds: number[] }>;
+  onMutationSuccess?: () => void;
 }
+
+// Icon map for tab keys
+const TAB_ICONS: Record<string, React.ComponentType<{ size?: number }>> = {
+  discuss: GoDiscussionClosed,
+  quiz: MdOutlineQuiz,
+  manual: FiEdit3,
+};
 
 export function ExpandedItemView({
   item,
   slug,
   onClose,
+  mode,
   onBookmark,
   onGrade,
   onDiscard,
   onBack,
   onNext,
+  extractionCounts,
+  builderFacts,
+  builderSummaries,
+  onMutationSuccess,
 }: ExpandedItemViewProps) {
   const { data: content, retryExtraction } = useItemContent(slug, item);
   const containerRef = useRef<HTMLDivElement>(null);
-  const [activePanel, setActivePanel] = useState<RightPanelTab>('discuss');
+  const tabs = getTabsForMode(mode);
+  const [activePanel, setActivePanel] = useState<RightPanelTab>(tabs[0].key);
 
   // Close on Escape key
   useEffect(() => {
@@ -57,9 +86,11 @@ export function ExpandedItemView({
     return () => clearTimeout(timer);
   }, []);
 
-  const hasActions = onBookmark || onGrade || onDiscard;
-  const hasNavigation = onBack || onNext;
+  const hasActions = !!(onBookmark || onGrade || onDiscard);
+  const hasNavigation = !!(onBack || onNext);
   const resourceType = item.type || 'Unknown';
+  const showBadge = shouldShowExtractionBadge(mode);
+  const showFooter = shouldShowFooter(mode, hasActions, hasNavigation);
 
   return (
     <div ref={containerRef} className="bg-card-elevated rounded-xl shadow-card overflow-hidden flex flex-col max-h-[79vh]">
@@ -78,6 +109,12 @@ export function ExpandedItemView({
               <span className="flex items-center gap-1.5 text-xs text-muted-foreground shrink-0">
                 <Clock size={12} />
                 {item.time}
+              </span>
+            )}
+            {/* Extraction count badge (builder mode only) */}
+            {showBadge && extractionCounts && (
+              <span className="px-[6px] py-[2px] rounded bg-success-soft text-success text-[9px] uppercase tracking-[0.25em] font-semibold tabular-nums">
+                {formatExtractionBadge(extractionCounts)}
               </span>
             )}
           </div>
@@ -126,17 +163,15 @@ export function ExpandedItemView({
         {/* Resize handle */}
         <PanelResizeHandle className="w-[3px] bg-border hover:bg-primary/40 transition-colors cursor-col-resize hidden lg:block" />
 
-        {/* Right: Discussion / Knowledge Check panel (hidden on small screens) */}
+        {/* Right: Discussion / Quiz or Manual panel (hidden on small screens) */}
         <Panel defaultSize={40} minSize={20} className="hidden lg:block">
           <div className="flex flex-col h-full">
             {/* Floating pill toggle */}
             <div className="flex justify-center py-2.5 shrink-0">
               <div className="inline-flex rounded-full p-0.5" style={{ backgroundColor: tokens.surfaceAlt, boxShadow: 'inset 0 1px 3px rgba(0,0,0,0.08)' }}>
-                {([
-                  { key: 'discuss' as const, label: 'Discuss', Icon: GoDiscussionClosed },
-                  { key: 'quiz' as const, label: 'Quiz', Icon: MdOutlineQuiz },
-                ] as const).map((tab) => {
+                {tabs.map((tab) => {
                   const isActive = activePanel === tab.key;
+                  const Icon = TAB_ICONS[tab.key] ?? GoDiscussionClosed;
                   return (
                     <button
                       key={tab.key}
@@ -156,7 +191,7 @@ export function ExpandedItemView({
                         />
                       )}
                       <span className="relative z-10 flex items-center gap-1.5">
-                        <tab.Icon size={14} />
+                        <Icon size={14} />
                         {tab.label}
                       </span>
                     </button>
@@ -165,21 +200,39 @@ export function ExpandedItemView({
               </div>
             </div>
 
-            {/* Panel content — both mounted, visibility toggled */}
+            {/* Panel content — all mounted, visibility toggled */}
             <div className="flex-1 min-h-0 overflow-y-auto scrollbar-styled">
               <div style={{ display: activePanel === 'discuss' ? 'contents' : 'none' }}>
-                <DiscussionPanel slug={slug} itemId={item.id} item={item} />
+                <DiscussionPanel
+                  slug={slug}
+                  itemId={item.id}
+                  item={item}
+                  builderMode={mode === 'builder'}
+                />
               </div>
-              <div style={{ display: activePanel === 'quiz' ? 'contents' : 'none' }}>
-                <KnowledgeCheckPanel slug={slug} itemId={item.id} item={item} />
-              </div>
+              {mode !== 'builder' && (
+                <div style={{ display: activePanel === 'quiz' ? 'contents' : 'none' }}>
+                  <KnowledgeCheckPanel slug={slug} itemId={item.id} item={item} />
+                </div>
+              )}
+              {mode === 'builder' && (
+                <div style={{ display: activePanel === 'manual' ? 'contents' : 'none' }}>
+                  <ManualTab
+                    slug={slug}
+                    item={item}
+                    facts={builderFacts ?? []}
+                    summaries={builderSummaries ?? []}
+                    onMutationSuccess={onMutationSuccess ?? (() => {})}
+                  />
+                </div>
+              )}
             </div>
           </div>
         </Panel>
       </PanelGroup>
 
-      {/* Actions footer */}
-      {(hasActions || hasNavigation) && (
+      {/* Actions footer (hidden in builder mode) */}
+      {showFooter && (
         <div className="flex-shrink-0 px-8 py-4 border-t border-border flex items-center justify-between bg-sidebar/30">
           <div className="flex items-center gap-3">
             {onBookmark && (

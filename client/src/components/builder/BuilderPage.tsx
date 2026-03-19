@@ -13,6 +13,7 @@ import { Phase1Topic } from './Phase1Topic';
 import { BuilderDisplayView } from './BuilderDisplayView';
 import { Phase2Experts } from './Phase2Experts';
 import { Phase3KnowledgeTree } from './Phase3KnowledgeTree';
+import { SourceDetailWorkspace } from './SourceDetailWorkspace';
 
 interface BuilderPageProps {
   slug: string;
@@ -72,7 +73,7 @@ function BuilderPageContent({
   update: (fields: Partial<{ topic: string; purpose: string; owner: string | null; lastActivePhase: 1 | 2 | 3 | 4 | 5 }>) => Promise<NativeDetailsResponse>;
   isUpdating: boolean;
 }) {
-  const { view, screen, setView, setScreen } = useBuilderNav(
+  const { view, screen, selectedItemId, setView, setScreen, clearSelectedItem } = useBuilderNav(
     slug,
     nativeDetails.lastActivePhase
   );
@@ -190,9 +191,16 @@ function BuilderPageContent({
                 <Phase2Experts slug={slug} onNavigatePhase3={() => setScreen(3)} />
               )}
 
-              {/* Phase 3: Knowledge Tree */}
-              {screen === 3 && (
+              {/* Phase 3: Knowledge Tree — list or detail */}
+              {screen === 3 && !selectedItemId && (
                 <Phase3KnowledgeTree slug={slug} />
+              )}
+              {screen === 3 && selectedItemId && (
+                <SourceDetailWorkspace
+                  slug={slug}
+                  itemId={selectedItemId}
+                  onBackToList={clearSelectedItem}
+                />
               )}
 
               {/* Phases 4-5: locked placeholders */}

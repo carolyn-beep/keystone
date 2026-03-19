@@ -7,13 +7,23 @@ import { withJob } from '../../utils/withJob';
 import { ensureItemTextContent } from '../../utils/item-text-content';
 import type { LearningStreamItem, Brainlift } from '../../storage/base';
 
+interface BuilderContext {
+  mode: 'builder';
+}
+
 /**
  * Build the 4 discussion tools, closing over request context.
+ * When builderContext is provided, tools branch to builder-mode behavior:
+ * - save_dok1_fact: sets learningStreamItemId, category optional
+ * - save_dok2_summary: sets learningStreamItemId, category optional
+ * - get_brainlift_context: includes item extraction state
  */
 export function buildDiscussionTools(
   item: LearningStreamItem,
-  brainlift: Pick<Brainlift, 'id' | 'displayPurpose' | 'description'>
+  brainlift: Pick<Brainlift, 'id' | 'displayPurpose' | 'description'>,
+  builderContext?: BuilderContext
 ) {
+  const isBuilder = builderContext?.mode === 'builder';
   // Track DOK1 facts saved this session for originalId sequencing
   let sessionFactSeq = 0;
 
@@ -23,7 +33,7 @@ export function buildDiscussionTools(
         'Save a DOK1 fact that the user has articulated. Only call this after the user agrees to save it.',
       inputSchema: z.object({
         fact: z.string().describe('The objective, verifiable fact text'),
-        category: z.string().describe('Category/topic this fact belongs to'),
+        category: z.string().optional().describe('Category/topic this fact belongs to (optional in builder mode)'),
       }),
       execute: async ({ fact, category }) => {
         // Compute next originalId: MAX integer prefix + 1, with session sequence suffix
@@ -44,17 +54,18 @@ export function buildDiscussionTools(
         sessionFactSeq++;
         const originalId = `${maxPrefix + sessionFactSeq}`;
 
-        // Insert the fact
+        // Insert the fact — builder mode sets learningStreamItemId
         const [inserted] = await db
           .insert(facts)
           .values({
             brainliftId: brainlift.id,
             originalId,
-            category,
+            category: category ?? null,
             source: item.url,
             fact,
             score: 0,
             isGradeable: true,
+            ...(isBuilder ? { learningStreamItemId: item.id } : {}),
           })
           .returning();
 
@@ -71,6 +82,10 @@ export function buildDiscussionTools(
           fact: inserted.fact,
           category: inserted.category,
           originalId: inserted.originalId,
+          ...(isBuilder ? {
+            learningStreamItemId: item.id,
+            categoryLabel: inserted.category || 'Uncategorized',
+          } : {}),
         };
       },
     }),
@@ -87,16 +102,18 @@ export function buildDiscussionTools(
           .describe('Database IDs of DOK1 facts this summary synthesizes'),
         category: z
           .string()
-          .describe('Category/topic for this summary'),
+          .optional()
+          .describe('Category/topic for this summary (optional in builder mode)'),
       }),
       execute: async ({ summaryPoints, relatedFactIds, category }) => {
         const summaryId = await saveSingleDOK2Summary({
           brainliftId: brainlift.id,
-          category,
+          category: category ?? 'Uncategorized',
           sourceName: item.topic,
           sourceUrl: item.url,
           points: summaryPoints,
           relatedFactIds,
+          ...(isBuilder ? { learningStreamItemId: item.id } : {}),
         });
 
         // Queue DOK2 grading job (fire-and-forget)
@@ -111,7 +128,11 @@ export function buildDiscussionTools(
           summaryId,
           points: summaryPoints,
           relatedFactCount: relatedFactIds.length,
-          category,
+          category: category ?? null,
+          ...(isBuilder ? {
+            learningStreamItemId: item.id,
+            categoryLabel: category || 'Uncategorized',
+          } : {}),
         };
       },
     }),
@@ -126,12 +147,38 @@ export function buildDiscussionTools(
           return { error: 'Could not load BrainLift context' };
         }
 
-        return {
+        const baseResult = {
           purpose: brainlift.displayPurpose || brainlift.description,
           topFacts: context.facts,
           followedExperts: context.experts,
           existingTopics: context.existingTopics,
         };
+
+        // In builder mode, include item-specific extraction state
+        if (isBuilder) {
+          const itemDetail = await storage.getItemDetail(item.id, brainlift.id);
+          return {
+            ...baseResult,
+            itemExtraction: itemDetail ? {
+              itemId: item.id,
+              facts: itemDetail.facts.map(f => ({
+                id: f.id,
+                originalId: f.originalId,
+                fact: f.fact,
+              })),
+              summaries: itemDetail.summaries.map(s => ({
+                id: s.id,
+                preview: s.text[0] || '(empty)',
+              })),
+            } : {
+              itemId: item.id,
+              facts: [],
+              summaries: [],
+            },
+          };
+        }
+
+        return baseResult;
       },
     }),
 

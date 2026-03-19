@@ -459,3 +459,334 @@ export async function reassignItemCategory(
       eq(learningStreamItems.brainliftId, brainliftId),
     ));
 }
+
+// ─── Manual CRUD Functions ──────────────────────────────────────────────────
+
+/**
+ * Get extraction counts for an item (fact and summary counts).
+ */
+export async function getExtractionCounts(
+  itemId: number,
+  brainliftId: number
+): Promise<{ facts: number; summaries: number }> {
+  const [factResult] = await db.select({
+    count: sql<number>`COUNT(*)::int`,
+  })
+    .from(facts)
+    .where(and(
+      eq(facts.learningStreamItemId, itemId),
+      eq(facts.brainliftId, brainliftId),
+    ));
+
+  const [summaryResult] = await db.select({
+    count: sql<number>`COUNT(*)::int`,
+  })
+    .from(dok2Summaries)
+    .where(and(
+      eq(dok2Summaries.learningStreamItemId, itemId),
+      eq(dok2Summaries.brainliftId, brainliftId),
+    ));
+
+  return {
+    facts: factResult?.count ?? 0,
+    summaries: summaryResult?.count ?? 0,
+  };
+}
+
+/**
+ * Create a manual fact linked to a specific LS item.
+ * Computes sequential originalId within the brainlift.
+ * Sets source = item.url for DOK3/DOK4 compatibility.
+ */
+export async function createManualFact(
+  itemId: number,
+  brainliftId: number,
+  factText: string
+): Promise<{
+  id: number;
+  originalId: string;
+  fact: string;
+  learningStreamItemId: number;
+  extractionCounts: { facts: number; summaries: number };
+} | null> {
+  // Verify item belongs to brainlift
+  const [item] = await db.select()
+    .from(learningStreamItems)
+    .where(and(
+      eq(learningStreamItems.id, itemId),
+      eq(learningStreamItems.brainliftId, brainliftId),
+    ))
+    .limit(1);
+
+  if (!item) return null;
+
+  // Compute next originalId: max integer prefix + 1
+  const [maxResult] = await db
+    .select({
+      maxId: sql<string>`COALESCE(MAX(
+        CASE
+          WHEN ${facts.originalId} ~ '^[0-9]+'
+          THEN CAST(substring(${facts.originalId} from '^[0-9]+') AS integer)
+          ELSE 0
+        END
+      ), 0)`,
+    })
+    .from(facts)
+    .where(eq(facts.brainliftId, brainliftId));
+
+  const nextId = (parseInt(maxResult?.maxId ?? '0') || 0) + 1;
+
+  const [inserted] = await db.insert(facts).values({
+    brainliftId,
+    originalId: String(nextId),
+    category: null,
+    source: item.url,
+    fact: factText,
+    score: 0,
+    isGradeable: true,
+    learningStreamItemId: itemId,
+  }).returning();
+
+  const counts = await getExtractionCounts(itemId, brainliftId);
+
+  return {
+    id: inserted.id,
+    originalId: inserted.originalId,
+    fact: inserted.fact,
+    learningStreamItemId: itemId,
+    extractionCounts: counts,
+  };
+}
+
+/**
+ * Update a manual fact. IDOR-safe: verifies item + brainlift ownership.
+ */
+export async function updateManualFact(
+  factId: number,
+  itemId: number,
+  brainliftId: number,
+  factText: string
+): Promise<{
+  id: number;
+  originalId: string;
+  fact: string;
+  learningStreamItemId: number | null;
+  extractionCounts: { facts: number; summaries: number };
+} | null> {
+  const [updated] = await db.update(facts)
+    .set({ fact: factText })
+    .where(and(
+      eq(facts.id, factId),
+      eq(facts.learningStreamItemId, itemId),
+      eq(facts.brainliftId, brainliftId),
+    ))
+    .returning();
+
+  if (!updated) return null;
+
+  const counts = await getExtractionCounts(itemId, brainliftId);
+
+  return {
+    id: updated.id,
+    originalId: updated.originalId,
+    fact: updated.fact,
+    learningStreamItemId: updated.learningStreamItemId,
+    extractionCounts: counts,
+  };
+}
+
+/**
+ * Delete a manual fact. IDOR-safe: verifies item + brainlift ownership.
+ */
+export async function deleteManualFact(
+  factId: number,
+  itemId: number,
+  brainliftId: number
+): Promise<{
+  success: boolean;
+  extractionCounts: { facts: number; summaries: number };
+} | null> {
+  const [deleted] = await db.delete(facts)
+    .where(and(
+      eq(facts.id, factId),
+      eq(facts.learningStreamItemId, itemId),
+      eq(facts.brainliftId, brainliftId),
+    ))
+    .returning();
+
+  if (!deleted) return null;
+
+  const counts = await getExtractionCounts(itemId, brainliftId);
+
+  return { success: true, extractionCounts: counts };
+}
+
+/**
+ * Create a manual DOK2 summary linked to a specific LS item.
+ * Sets sourceName = item.topic and sourceUrl = item.url for DOK3/DOK4 compatibility.
+ */
+export async function createManualSummary(
+  itemId: number,
+  brainliftId: number,
+  points: string[],
+  relatedFactIds: number[]
+): Promise<{
+  id: number;
+  text: string[];
+  relatedFactIds: number[];
+  learningStreamItemId: number;
+  extractionCounts: { facts: number; summaries: number };
+} | null> {
+  // Verify item belongs to brainlift
+  const [item] = await db.select()
+    .from(learningStreamItems)
+    .where(and(
+      eq(learningStreamItems.id, itemId),
+      eq(learningStreamItems.brainliftId, brainliftId),
+    ))
+    .limit(1);
+
+  if (!item) return null;
+
+  // Insert summary
+  const [inserted] = await db.insert(dok2Summaries).values({
+    brainliftId,
+    category: null,
+    sourceName: item.topic,
+    sourceUrl: item.url,
+    displayTitle: null,
+    workflowyNodeId: null,
+    sourceWorkflowyNodeId: null,
+    learningStreamItemId: itemId,
+  }).returning();
+
+  // Insert points
+  if (points.length > 0) {
+    await db.insert(dok2Points).values(
+      points.map((text, index) => ({
+        summaryId: inserted.id,
+        text,
+        sortOrder: index,
+      }))
+    );
+  }
+
+  // Insert fact relations
+  if (relatedFactIds.length > 0) {
+    await db.insert(dok2FactRelations).values(
+      relatedFactIds.map(factId => ({
+        summaryId: inserted.id,
+        factId,
+      }))
+    );
+  }
+
+  const counts = await getExtractionCounts(itemId, brainliftId);
+
+  return {
+    id: inserted.id,
+    text: points,
+    relatedFactIds,
+    learningStreamItemId: itemId,
+    extractionCounts: counts,
+  };
+}
+
+/**
+ * Update a manual DOK2 summary. Replaces points and relations.
+ * IDOR-safe: verifies item + brainlift ownership.
+ */
+export async function updateManualSummary(
+  summaryId: number,
+  itemId: number,
+  brainliftId: number,
+  points: string[],
+  relatedFactIds: number[]
+): Promise<{
+  id: number;
+  text: string[];
+  relatedFactIds: number[];
+  learningStreamItemId: number | null;
+  extractionCounts: { facts: number; summaries: number };
+} | null> {
+  // Verify summary belongs to item and brainlift
+  const [summary] = await db.select()
+    .from(dok2Summaries)
+    .where(and(
+      eq(dok2Summaries.id, summaryId),
+      eq(dok2Summaries.learningStreamItemId, itemId),
+      eq(dok2Summaries.brainliftId, brainliftId),
+    ))
+    .limit(1);
+
+  if (!summary) return null;
+
+  // Delete existing points and relations
+  await db.delete(dok2Points).where(eq(dok2Points.summaryId, summaryId));
+  await db.delete(dok2FactRelations).where(eq(dok2FactRelations.summaryId, summaryId));
+
+  // Insert new points
+  if (points.length > 0) {
+    await db.insert(dok2Points).values(
+      points.map((text, index) => ({
+        summaryId,
+        text,
+        sortOrder: index,
+      }))
+    );
+  }
+
+  // Insert new relations
+  if (relatedFactIds.length > 0) {
+    await db.insert(dok2FactRelations).values(
+      relatedFactIds.map(factId => ({
+        summaryId,
+        factId,
+      }))
+    );
+  }
+
+  const counts = await getExtractionCounts(itemId, brainliftId);
+
+  return {
+    id: summaryId,
+    text: points,
+    relatedFactIds,
+    learningStreamItemId: summary.learningStreamItemId,
+    extractionCounts: counts,
+  };
+}
+
+/**
+ * Delete a manual DOK2 summary with cascade (points + relations).
+ * IDOR-safe: verifies item + brainlift ownership.
+ */
+export async function deleteManualSummary(
+  summaryId: number,
+  itemId: number,
+  brainliftId: number
+): Promise<{
+  success: boolean;
+  extractionCounts: { facts: number; summaries: number };
+} | null> {
+  // Verify summary belongs to item and brainlift
+  const [summary] = await db.select({ id: dok2Summaries.id })
+    .from(dok2Summaries)
+    .where(and(
+      eq(dok2Summaries.id, summaryId),
+      eq(dok2Summaries.learningStreamItemId, itemId),
+      eq(dok2Summaries.brainliftId, brainliftId),
+    ))
+    .limit(1);
+
+  if (!summary) return null;
+
+  // Cascade delete: relations -> points -> summary
+  await db.delete(dok2FactRelations).where(eq(dok2FactRelations.summaryId, summaryId));
+  await db.delete(dok2Points).where(eq(dok2Points.summaryId, summaryId));
+  await db.delete(dok2Summaries).where(eq(dok2Summaries.id, summaryId));
+
+  const counts = await getExtractionCounts(itemId, brainliftId);
+
+  return { success: true, extractionCounts: counts };
+}

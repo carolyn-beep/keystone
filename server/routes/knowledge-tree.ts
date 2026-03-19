@@ -2,10 +2,16 @@
  * Knowledge Tree Routes (Phase 3)
  *
  * Endpoints for the Builder Phase 3 knowledge tree:
- * - GET  /api/brainlifts/:slug/knowledge-tree          (three-section list)
- * - POST /api/brainlifts/:slug/knowledge-tree/manual-source  (create manual source)
- * - GET  /api/brainlifts/:slug/knowledge-tree/items/:itemId  (item detail)
+ * - GET    /api/brainlifts/:slug/knowledge-tree          (three-section list)
+ * - POST   /api/brainlifts/:slug/knowledge-tree/manual-source  (create manual source)
+ * - GET    /api/brainlifts/:slug/knowledge-tree/items/:itemId  (item detail)
  * - DELETE /api/brainlifts/:slug/knowledge-tree/items/:itemId/extractions  (delete extractions)
+ * - POST   /api/brainlifts/:slug/knowledge-tree/items/:itemId/facts  (create manual fact)
+ * - PATCH  /api/brainlifts/:slug/knowledge-tree/items/:itemId/facts/:factId  (update fact)
+ * - DELETE /api/brainlifts/:slug/knowledge-tree/items/:itemId/facts/:factId  (delete fact)
+ * - POST   /api/brainlifts/:slug/knowledge-tree/items/:itemId/summaries  (create manual summary)
+ * - PATCH  /api/brainlifts/:slug/knowledge-tree/items/:itemId/summaries/:summaryId  (update summary)
+ * - DELETE /api/brainlifts/:slug/knowledge-tree/items/:itemId/summaries/:summaryId  (delete summary)
  */
 
 import { Router } from 'express';
@@ -32,6 +38,24 @@ const updateCategorySchema = z.object({
 
 const reassignCategorySchema = z.object({
   categoryId: z.number().int().nullable(),
+});
+
+const createManualFactSchema = z.object({
+  fact: z.string().trim().min(1, 'Fact text is required'),
+});
+
+const updateManualFactSchema = z.object({
+  fact: z.string().trim().min(1, 'Fact text is required'),
+});
+
+const createManualSummarySchema = z.object({
+  summaryPoints: z.array(z.string().trim().min(1)).min(1, 'At least one summary point is required'),
+  relatedFactIds: z.array(z.number()).default([]),
+});
+
+const updateManualSummarySchema = z.object({
+  summaryPoints: z.array(z.string().trim().min(1)).min(1, 'At least one summary point is required'),
+  relatedFactIds: z.array(z.number()).default([]),
 });
 
 // Input validation for manual source creation
@@ -314,6 +338,178 @@ knowledgeTreeRouter.patch(
     await storage.reassignItemCategory(itemId, brainlift.id, input.categoryId);
 
     res.json({ success: true });
+  })
+);
+
+// ─── Manual Fact CRUD ───────────────────────────────────────────────────────
+
+/**
+ * POST /api/brainlifts/:slug/knowledge-tree/items/:itemId/facts
+ * Create a manual fact linked to the LS item.
+ */
+knowledgeTreeRouter.post(
+  '/api/brainlifts/:slug/knowledge-tree/items/:itemId/facts',
+  requireAuth,
+  requireBrainliftModify,
+  asyncHandler(async (req, res) => {
+    const brainlift = req.brainlift!;
+    const itemId = parseInt(req.params.itemId);
+
+    if (isNaN(itemId)) {
+      throw new BadRequestError('Invalid item ID');
+    }
+
+    const input = createManualFactSchema.parse(req.body);
+    const result = await storage.createManualFact(itemId, brainlift.id, input.fact);
+
+    if (!result) {
+      throw new NotFoundError('Item not found');
+    }
+
+    res.status(201).json(result);
+  })
+);
+
+/**
+ * PATCH /api/brainlifts/:slug/knowledge-tree/items/:itemId/facts/:factId
+ * Update a manual fact. IDOR-safe.
+ */
+knowledgeTreeRouter.patch(
+  '/api/brainlifts/:slug/knowledge-tree/items/:itemId/facts/:factId',
+  requireAuth,
+  requireBrainliftModify,
+  asyncHandler(async (req, res) => {
+    const brainlift = req.brainlift!;
+    const itemId = parseInt(req.params.itemId);
+    const factId = parseInt(req.params.factId);
+
+    if (isNaN(itemId) || isNaN(factId)) {
+      throw new BadRequestError('Invalid ID');
+    }
+
+    const input = updateManualFactSchema.parse(req.body);
+    const result = await storage.updateManualFact(factId, itemId, brainlift.id, input.fact);
+
+    if (!result) {
+      throw new NotFoundError('Fact not found');
+    }
+
+    res.json(result);
+  })
+);
+
+/**
+ * DELETE /api/brainlifts/:slug/knowledge-tree/items/:itemId/facts/:factId
+ * Delete a manual fact. IDOR-safe.
+ */
+knowledgeTreeRouter.delete(
+  '/api/brainlifts/:slug/knowledge-tree/items/:itemId/facts/:factId',
+  requireAuth,
+  requireBrainliftModify,
+  asyncHandler(async (req, res) => {
+    const brainlift = req.brainlift!;
+    const itemId = parseInt(req.params.itemId);
+    const factId = parseInt(req.params.factId);
+
+    if (isNaN(itemId) || isNaN(factId)) {
+      throw new BadRequestError('Invalid ID');
+    }
+
+    const result = await storage.deleteManualFact(factId, itemId, brainlift.id);
+
+    if (!result) {
+      throw new NotFoundError('Fact not found');
+    }
+
+    res.json(result);
+  })
+);
+
+// ─── Manual Summary CRUD ────────────────────────────────────────────────────
+
+/**
+ * POST /api/brainlifts/:slug/knowledge-tree/items/:itemId/summaries
+ * Create a manual DOK2 summary linked to the LS item.
+ */
+knowledgeTreeRouter.post(
+  '/api/brainlifts/:slug/knowledge-tree/items/:itemId/summaries',
+  requireAuth,
+  requireBrainliftModify,
+  asyncHandler(async (req, res) => {
+    const brainlift = req.brainlift!;
+    const itemId = parseInt(req.params.itemId);
+
+    if (isNaN(itemId)) {
+      throw new BadRequestError('Invalid item ID');
+    }
+
+    const input = createManualSummarySchema.parse(req.body);
+    const result = await storage.createManualSummary(
+      itemId, brainlift.id, input.summaryPoints, input.relatedFactIds
+    );
+
+    if (!result) {
+      throw new NotFoundError('Item not found');
+    }
+
+    res.status(201).json(result);
+  })
+);
+
+/**
+ * PATCH /api/brainlifts/:slug/knowledge-tree/items/:itemId/summaries/:summaryId
+ * Update a manual DOK2 summary. IDOR-safe.
+ */
+knowledgeTreeRouter.patch(
+  '/api/brainlifts/:slug/knowledge-tree/items/:itemId/summaries/:summaryId',
+  requireAuth,
+  requireBrainliftModify,
+  asyncHandler(async (req, res) => {
+    const brainlift = req.brainlift!;
+    const itemId = parseInt(req.params.itemId);
+    const summaryId = parseInt(req.params.summaryId);
+
+    if (isNaN(itemId) || isNaN(summaryId)) {
+      throw new BadRequestError('Invalid ID');
+    }
+
+    const input = updateManualSummarySchema.parse(req.body);
+    const result = await storage.updateManualSummary(
+      summaryId, itemId, brainlift.id, input.summaryPoints, input.relatedFactIds
+    );
+
+    if (!result) {
+      throw new NotFoundError('Summary not found');
+    }
+
+    res.json(result);
+  })
+);
+
+/**
+ * DELETE /api/brainlifts/:slug/knowledge-tree/items/:itemId/summaries/:summaryId
+ * Delete a manual DOK2 summary with cascade. IDOR-safe.
+ */
+knowledgeTreeRouter.delete(
+  '/api/brainlifts/:slug/knowledge-tree/items/:itemId/summaries/:summaryId',
+  requireAuth,
+  requireBrainliftModify,
+  asyncHandler(async (req, res) => {
+    const brainlift = req.brainlift!;
+    const itemId = parseInt(req.params.itemId);
+    const summaryId = parseInt(req.params.summaryId);
+
+    if (isNaN(itemId) || isNaN(summaryId)) {
+      throw new BadRequestError('Invalid ID');
+    }
+
+    const result = await storage.deleteManualSummary(summaryId, itemId, brainlift.id);
+
+    if (!result) {
+      throw new NotFoundError('Summary not found');
+    }
+
+    res.json(result);
   })
 );
 

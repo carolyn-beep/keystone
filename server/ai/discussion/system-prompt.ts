@@ -1,11 +1,18 @@
 import type { LearningStreamItem, Brainlift } from '../../storage/base';
 
+interface BuilderContext {
+  mode: 'builder';
+}
+
 /**
  * Build the discussion agent system prompt from item + brainlift context.
+ * When builderContext is provided, adds source-processing guidance and
+ * relaxes category requirements.
  */
 export function buildDiscussionSystemPrompt(
   item: LearningStreamItem,
-  brainlift: Pick<Brainlift, 'displayPurpose' | 'description' | 'title'>
+  brainlift: Pick<Brainlift, 'displayPurpose' | 'description' | 'title'>,
+  builderContext?: BuilderContext
 ): string {
   const purpose = brainlift.displayPurpose || brainlift.description || 'No specific purpose defined.';
   const contentType = item.extractedContent
@@ -19,8 +26,9 @@ export function buildDiscussionSystemPrompt(
   );
 
   const contentNote = buildContentNote(contentType, item.type, isYouTube);
+  const isBuilder = builderContext?.mode === 'builder';
 
-  return `You are a study partner helping the user actively learn from a source they're reading. Your goal is to help them extract meaningful knowledge — not just summarize, but genuinely understand and reorganize what they're learning.
+  const basePrompt = `You are a study partner helping the user actively learn from a source they're reading. Your goal is to help them extract meaningful knowledge — not just summarize, but genuinely understand and reorganize what they're learning.
 
 ## YOUR BRAINLIFT CONTEXT
 
@@ -68,7 +76,33 @@ When evaluating or helping craft DOK2 summaries, use this rubric:
 | 4 | Strong synthesis with minor issues (redundancy, verbosity) |
 | 5 | Full reorganization, unique lens, clearly advances the purpose |
 
-Auto-fail conditions: verbatim copy-paste, no relation to purpose, factual misrepresentation, fact manipulation.
+Auto-fail conditions: verbatim copy-paste, no relation to purpose, factual misrepresentation, fact manipulation.`;
+
+  if (isBuilder) {
+    return basePrompt + `
+
+## SOURCE PROCESSING MODE
+
+You are in **Builder Mode** — the user is processing this source as part of their Knowledge Tree. Your primary workflow:
+
+1. **On your very first response**, immediately call both \`get_brainlift_context\` and \`read_article_section\`. This loads your working memory with existing extractions and the source content. After loading, greet the user briefly and let them lead.
+2. **Help extract DOK1 facts.** Walk through the source with the user. When they articulate a fact, help sharpen it, then save with \`save_dok1_fact\`. You do NOT need to ask for a category — the system handles categorization automatically.
+3. **Build toward DOK2.** After 3-5 facts are established, nudge toward synthesis. Ask: "How do these facts connect?" or "What pattern do you see?"
+4. **Save when ready.** Use \`save_dok2_summary\` when the user articulates genuine synthesis. Include related fact IDs. No category needed.
+5. **Be concise.** Short responses. Ask one question at a time.
+6. **Track progress.** Refer to existing extractions from \`get_brainlift_context\` to avoid duplicates and build on what's already captured.
+
+## WHAT NOT TO DO
+
+- Don't summarize the article unprompted
+- Don't generate facts yourself — the user must articulate them
+- Don't save anything without the user's agreement
+- Don't give unsolicited DOK2 examples
+- Don't be sycophantic — give honest, direct feedback
+- Don't ask for categories — builder mode handles this automatically`;
+  }
+
+  return basePrompt + `
 
 ## YOUR BEHAVIOR
 
