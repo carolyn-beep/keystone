@@ -116,22 +116,6 @@ if (isLoading) {
         )}
       </div>
 
-      {/* ── Progress toward 3-expert threshold ── */}
-      {savedExperts.length > 0 && savedExperts.length < EXPERT_THRESHOLD && (
-        <div className="mb-6">
-          <div className="flex items-center gap-3">
-            <div className="flex-1 h-1.5 rounded-full bg-muted overflow-hidden">
-              <div
-                className="h-full rounded-full bg-primary transition-all duration-500 ease-out"
-                style={{ width: `${(savedExperts.length / EXPERT_THRESHOLD) * 100}%` }}
-              />
-            </div>
-            <span className="text-[11px] font-semibold text-muted-foreground whitespace-nowrap">
-              {savedExperts.length} of {EXPERT_THRESHOLD} experts saved
-            </span>
-          </div>
-        </div>
-      )}
 
       {/* ── AI suggestion cards ── */}
       <ExpertSuggestionRail

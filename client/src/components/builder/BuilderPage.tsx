@@ -174,8 +174,20 @@ function BuilderPageContent({
               />
             </aside>
 
-            {/* Phase content */}
-            <main className="flex-1 px-4 pt-4 sm:px-8 sm:pt-8 md:px-4 md:pt-12 overflow-y-auto scrollbar-styled">
+            {/* Phase 3 detail view — fills container without scroll wrapper */}
+            {screen === 3 && selectedItemId && (
+              <div className="flex-1 min-w-0 min-h-0 overflow-hidden p-4">
+                <SourceDetailWorkspace
+                  slug={slug}
+                  itemId={selectedItemId}
+                  onBackToList={clearSelectedItem}
+                />
+              </div>
+            )}
+
+            {/* Phase content — scrollable list/form views */}
+            {!(screen === 3 && selectedItemId) && (
+            <main className="flex-1 px-4 py-4 sm:px-8 sm:py-8 md:px-4 md:py-12 overflow-y-auto scrollbar-styled">
               {/* Phase 1: You & Your Mission */}
               {screen === 1 && (
                 <Phase1Topic
@@ -191,16 +203,9 @@ function BuilderPageContent({
                 <Phase2Experts slug={slug} onNavigatePhase3={() => setScreen(3)} />
               )}
 
-              {/* Phase 3: Knowledge Tree — list or detail */}
+              {/* Phase 3: Knowledge Tree — list view */}
               {screen === 3 && !selectedItemId && (
                 <Phase3KnowledgeTree slug={slug} />
-              )}
-              {screen === 3 && selectedItemId && (
-                <SourceDetailWorkspace
-                  slug={slug}
-                  itemId={selectedItemId}
-                  onBackToList={clearSelectedItem}
-                />
               )}
 
               {/* Phases 4-5: locked placeholders */}
@@ -224,6 +229,7 @@ function BuilderPageContent({
                 </div>
               )}
             </main>
+            )}
           </>
         )}
 

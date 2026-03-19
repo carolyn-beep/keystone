@@ -3,7 +3,7 @@
  *
  * FR1: useKnowledgeTree hook logic (query config, mutation behavior, defaults)
  * FR2: Phase3KnowledgeTree shell (section ordering, header, loading)
- * FR3: UnprocessedCard (Open=bookmark+navigate, Skip=discard)
+ * FR3: UnprocessedCard (Keep=bookmark, Discard=remove, card click=navigate)
  * FR4: TriagedCard and SavedItemCard (display, navigation)
  * FR5: SwarmStatusBar (visibility based on research.isRunning)
  * FR6: ManualSourceForm (validation, submit, duplicate error)
@@ -21,7 +21,7 @@ import {
   buildMissionDashboardUrl,
   computeSectionCounts,
   computeSwarmVisibility,
-  computeRelaunchVisibility,
+  computeRelaunchState,
   formatExtractionCounts,
 } from '../knowledge-tree-helpers';
 
@@ -101,14 +101,14 @@ describe('FR2: Section counts and header', () => {
 
 // ─── FR3: UnprocessedCard Open/Skip ─────────────────────────────────────────
 
-describe('FR3: Open and Skip navigation', () => {
-  it('Open navigates to item detail URL with screen=3 and item param', () => {
+describe('FR3: Keep/Discard actions and card navigation', () => {
+  it('card click navigates to item detail URL with screen=3 and item param', () => {
     const url = buildItemDetailUrl(42);
     expect(url).toContain('screen=3');
     expect(url).toContain('item=42');
   });
 
-  it('Open URL preserves screen param', () => {
+  it('detail URL preserves screen param', () => {
     const url = buildItemDetailUrl(7);
     expect(url).toBe('?screen=3&item=7');
   });
@@ -232,15 +232,14 @@ describe('FR7: Empty state computation', () => {
     expect(state!.message).toContain('didn');
   });
 
-  it('returns all-triaged state when everything is triaged but nothing saved', () => {
+  it('returns null when triaged items exist (normal working state)', () => {
     const state = computeEmptyState({
       unprocessed: [],
       triaged: [sampleBookmarkedItem],
       saved: [],
       research: { isRunning: false, canRelaunch: true },
     });
-    expect(state).not.toBeNull();
-    expect(state!.type).toBe('all-triaged');
+    expect(state).toBeNull();
   });
 
   it('returns null when items exist across sections', () => {
@@ -274,36 +273,70 @@ describe('FR7: Empty state computation', () => {
   });
 });
 
-describe('FR7: Relaunch visibility', () => {
-  it('relaunch visible when no unprocessed and canRelaunch', () => {
-    expect(computeRelaunchVisibility({
-      unprocessedCount: 0,
-      canRelaunch: true,
-      isRunning: false,
-    })).toBe(true);
+describe('FR7: Relaunch state', () => {
+  it('ready when no unprocessed, has saved, triaged <= 10', () => {
+    const state = computeRelaunchState({
+      unprocessedCount: 0, triagedCount: 3, savedCount: 2,
+      canRelaunch: true, isRunning: false,
+    });
+    expect(state.type).toBe('ready');
   });
 
-  it('relaunch hidden when unprocessed items exist', () => {
-    expect(computeRelaunchVisibility({
-      unprocessedCount: 3,
-      canRelaunch: true,
-      isRunning: false,
-    })).toBe(false);
+  it('hidden when unprocessed items exist', () => {
+    const state = computeRelaunchState({
+      unprocessedCount: 3, triagedCount: 0, savedCount: 0,
+      canRelaunch: true, isRunning: false,
+    });
+    expect(state.type).toBe('hidden');
   });
 
-  it('relaunch hidden when canRelaunch is false', () => {
-    expect(computeRelaunchVisibility({
-      unprocessedCount: 0,
-      canRelaunch: false,
-      isRunning: false,
-    })).toBe(false);
+  it('hidden when canRelaunch is false', () => {
+    const state = computeRelaunchState({
+      unprocessedCount: 0, triagedCount: 0, savedCount: 1,
+      canRelaunch: false, isRunning: false,
+    });
+    expect(state.type).toBe('hidden');
   });
 
-  it('relaunch hidden when research is currently running', () => {
-    expect(computeRelaunchVisibility({
-      unprocessedCount: 0,
-      canRelaunch: true,
-      isRunning: true,
-    })).toBe(false);
+  it('hidden when research is currently running', () => {
+    const state = computeRelaunchState({
+      unprocessedCount: 0, triagedCount: 0, savedCount: 1,
+      canRelaunch: true, isRunning: true,
+    });
+    expect(state.type).toBe('hidden');
+  });
+
+  it('needs-processing when triaged items exist but nothing saved yet', () => {
+    const state = computeRelaunchState({
+      unprocessedCount: 0, triagedCount: 5, savedCount: 0,
+      canRelaunch: true, isRunning: false,
+    });
+    expect(state.type).toBe('needs-processing');
+    expect(state.message).toContain('extract');
+  });
+
+  it('backlog-too-large when triaged count exceeds 10', () => {
+    const state = computeRelaunchState({
+      unprocessedCount: 0, triagedCount: 12, savedCount: 3,
+      canRelaunch: true, isRunning: false,
+    });
+    expect(state.type).toBe('backlog-too-large');
+    expect(state.message).toContain('12');
+  });
+
+  it('backlog-too-large when triaged is exactly 10 with saved items', () => {
+    const state = computeRelaunchState({
+      unprocessedCount: 0, triagedCount: 10, savedCount: 1,
+      canRelaunch: true, isRunning: false,
+    });
+    expect(state.type).toBe('backlog-too-large');
+  });
+
+  it('ready when triaged is 9 with saved items', () => {
+    const state = computeRelaunchState({
+      unprocessedCount: 0, triagedCount: 9, savedCount: 1,
+      canRelaunch: true, isRunning: false,
+    });
+    expect(state.type).toBe('ready');
   });
 });

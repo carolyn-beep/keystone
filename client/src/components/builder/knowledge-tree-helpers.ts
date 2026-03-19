@@ -59,17 +59,59 @@ export function computeSwarmVisibility(research: {
   return research.isRunning;
 }
 
-// ─── Relaunch Visibility ────────────────────────────────────────────────────
+// ─── Relaunch State ─────────────────────────────────────────────────────────
+
+const TRIAGED_BACKLOG_THRESHOLD = 10;
+
+export type RelaunchState =
+  | { type: 'hidden' }
+  | { type: 'ready'; message: string }
+  | { type: 'needs-processing'; message: string }
+  | { type: 'backlog-too-large'; message: string };
 
 /**
- * Determine whether the "Start New Research" button should be shown.
+ * Compute the relaunch state for the unprocessed section footer.
+ *
+ * Three possible visible states:
+ * - ready: can launch a new swarm
+ * - needs-processing: triaged items exist but none saved yet — must process first
+ * - backlog-too-large: too many triaged items (>10) waiting — must process some first
  */
-export function computeRelaunchVisibility(params: {
+export function computeRelaunchState(params: {
   unprocessedCount: number;
+  triagedCount: number;
+  savedCount: number;
   canRelaunch: boolean;
   isRunning: boolean;
-}): boolean {
-  return params.unprocessedCount === 0 && params.canRelaunch && !params.isRunning;
+}): RelaunchState {
+  const { unprocessedCount, triagedCount, savedCount, canRelaunch, isRunning } = params;
+
+  // Still have unprocessed items or swarm is running — no relaunch section
+  if (unprocessedCount > 0 || isRunning || !canRelaunch) {
+    return { type: 'hidden' };
+  }
+
+  // Triaged items exist but nothing saved yet — must process at least one first
+  if (triagedCount > 0 && savedCount === 0) {
+    return {
+      type: 'needs-processing',
+      message: 'All caught up! Now open your triaged sources and extract facts and summaries — use the Discussion Agent or add them manually. Once you\'ve fully processed at least one source, you can launch a new research swarm.',
+    };
+  }
+
+  // Too many triaged items — backlog must come down before new swarm
+  if (triagedCount >= TRIAGED_BACKLOG_THRESHOLD) {
+    return {
+      type: 'backlog-too-large',
+      message: `Nice work triaging, but you have ${triagedCount} sources waiting to be processed. Work through some of them first — once you\'re under ${TRIAGED_BACKLOG_THRESHOLD}, you can launch a new swarm.`,
+    };
+  }
+
+  // Ready to launch
+  return {
+    type: 'ready',
+    message: 'All caught up. Want to find more?',
+  };
 }
 
 // ─── Manual Source Validation ───────────────────────────────────────────────
@@ -124,7 +166,7 @@ interface EmptyStateInput {
 }
 
 interface EmptyState {
-  type: 'swarm-running' | 'no-results' | 'all-triaged';
+  type: 'swarm-running' | 'no-results';
   message: string;
 }
 
@@ -152,21 +194,19 @@ export function computeEmptyState(input: EmptyStateInput): EmptyState | null {
     if (research.isRunning) {
       return {
         type: 'swarm-running',
-        message: 'Your experts are being researched. Sources will appear here as they\'re found.',
+        message: 'Your experts are being researched. Sources will appear here as we find them.',
       };
     }
     return {
       type: 'no-results',
-      message: 'The research swarm didn\'t find sources. Add your own or refine your experts.',
+      message: 'The research swarm didn\'t find sources this time. You can start by adding your own, or refine your experts and try again.',
     };
   }
 
-  // Items exist but all in triaged, none saved
-  if (triaged.length > 0 && saved.length === 0) {
-    return {
-      type: 'all-triaged',
-      message: 'You\'ve reviewed all findings. Open a source to start extracting facts and summaries.',
-    };
+  // Triaged items exist — this is a normal working state, not an empty state.
+  // The unprocessed section handles its own "all caught up" + relaunch UI.
+  if (triaged.length > 0) {
+    return null;
   }
 
   return null;

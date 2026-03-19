@@ -12,6 +12,20 @@ import {
 } from './base';
 import { z } from 'zod';
 
+/**
+ * Auto-bookmark an LS item if it's still pending.
+ * Called when an extraction (fact or summary) is linked to the item,
+ * so it moves from "unprocessed" to "triaged" or "saved".
+ */
+export async function autoBookmarkIfPending(itemId: number): Promise<void> {
+  await db.update(learningStreamItems)
+    .set({ status: 'bookmarked' })
+    .where(and(
+      eq(learningStreamItems.id, itemId),
+      eq(learningStreamItems.status, 'pending'),
+    ));
+}
+
 // URL validation schema - only allow http/https protocols to prevent XSS
 const urlSchema = z.string().url().refine((url) => {
   try {
@@ -547,6 +561,7 @@ export async function createManualFact(
     learningStreamItemId: itemId,
   }).returning();
 
+  await autoBookmarkIfPending(itemId);
   const counts = await getExtractionCounts(itemId, brainliftId);
 
   return {
@@ -681,6 +696,7 @@ export async function createManualSummary(
     );
   }
 
+  await autoBookmarkIfPending(itemId);
   const counts = await getExtractionCounts(itemId, brainliftId);
 
   return {

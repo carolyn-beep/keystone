@@ -45,8 +45,9 @@ export function useCategories(slug: string) {
 
   // Create a new category
   const createMutation = useMutation({
-    mutationFn: async (name: string) => {
-      return apiRequest('POST', `/api/brainlifts/${slug}/categories`, { name });
+    mutationFn: async (name: string): Promise<CategoryResponse> => {
+      const res = await apiRequest('POST', `/api/brainlifts/${slug}/categories`, { name });
+      return res.json();
     },
     onSuccess: () => invalidateCategoryQueries(slug),
   });
@@ -82,7 +83,7 @@ export function useCategories(slug: string) {
     error: query.error,
 
     // Mutations
-    create: async (name: string) => { await createMutation.mutateAsync(name); },
+    createCategory: async (name: string) => createMutation.mutateAsync(name),
     update: async (id: number, fields: { name?: string; sortOrder?: number | null }) => {
       await updateMutation.mutateAsync({ id, fields });
     },

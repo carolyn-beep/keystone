@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { motion } from 'framer-motion';
-import { X, ExternalLink, Bookmark, Star, Trash2, User, Clock, ChevronLeft, ChevronRight } from 'lucide-react';
+import { X, ExternalLink, Bookmark, Check, Star, Trash2, User, Clock, ChevronLeft, ChevronRight } from 'lucide-react';
 import { GoDiscussionClosed } from 'react-icons/go';
 import { MdOutlineQuiz } from 'react-icons/md';
 import { FiEdit3 } from 'react-icons/fi';
@@ -111,12 +111,6 @@ export function ExpandedItemView({
                 {item.time}
               </span>
             )}
-            {/* Extraction count badge (builder mode only) */}
-            {showBadge && extractionCounts && (
-              <span className="px-[6px] py-[2px] rounded bg-success-soft text-success text-[9px] uppercase tracking-[0.25em] font-semibold tabular-nums">
-                {formatExtractionBadge(extractionCounts)}
-              </span>
-            )}
           </div>
 
           <div className="flex items-center gap-2 shrink-0">
@@ -141,10 +135,36 @@ export function ExpandedItemView({
           </div>
         </div>
 
-        {/* Title */}
-        <h3 className="font-serif text-[20px] italic leading-relaxed text-foreground mt-2 mb-0">
-          {item.topic || 'Untitled Resource'}
-        </h3>
+        {/* Title row with extraction counts aligned right */}
+        <div className="flex items-baseline justify-between gap-6 mt-2">
+          <h3 className="font-serif text-[20px] italic leading-relaxed text-foreground mb-0 min-w-0">
+            {item.topic || 'Untitled Resource'}
+          </h3>
+
+          {showBadge && extractionCounts && (
+            <div className="flex items-baseline gap-5 shrink-0">
+              <div className="flex items-baseline gap-1.5">
+                <span className="font-serif text-[20px] leading-none tabular-nums"
+                      style={{ color: extractionCounts.facts > 0 ? tokens.success : tokens.textMuted }}>
+                  {extractionCounts.facts}
+                </span>
+                <span className="text-[9px] uppercase tracking-[0.35em] font-semibold text-muted-foreground">
+                  {extractionCounts.facts === 1 ? 'Fact' : 'Facts'}
+                </span>
+              </div>
+              <span aria-hidden className="text-[14px] font-extrabold text-muted-light">&middot;</span>
+              <div className="flex items-baseline gap-1.5">
+                <span className="font-serif text-[20px] leading-none tabular-nums"
+                      style={{ color: extractionCounts.summaries > 0 ? tokens.info : tokens.textMuted }}>
+                  {extractionCounts.summaries}
+                </span>
+                <span className="text-[9px] uppercase tracking-[0.35em] font-semibold text-muted-foreground">
+                  {extractionCounts.summaries === 1 ? 'Summary' : 'Summaries'}
+                </span>
+              </div>
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Content + Discussion split */}
@@ -231,7 +251,7 @@ export function ExpandedItemView({
         </Panel>
       </PanelGroup>
 
-      {/* Actions footer (hidden in builder mode) */}
+      {/* Actions footer */}
       {showFooter && (
         <div className="flex-shrink-0 px-8 py-4 border-t border-border flex items-center justify-between bg-sidebar/30">
           <div className="flex items-center gap-3">
@@ -242,8 +262,8 @@ export function ExpandedItemView({
                   onClick={() => onBookmark(item)}
                   className="flex items-center gap-2 text-[13px]"
                 >
-                  <Bookmark size={15} />
-                  Save
+                  {mode === 'builder' ? <Check size={15} /> : <Bookmark size={15} />}
+                  {mode === 'builder' ? 'Keep' : 'Save'}
                 </TactileButton>
               </motion.div>
             )}

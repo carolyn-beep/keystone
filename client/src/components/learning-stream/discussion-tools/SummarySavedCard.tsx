@@ -1,8 +1,8 @@
 import { makeAssistantToolUI } from '@assistant-ui/react';
 import { queryClient } from '@/lib/queryClient';
 
-type SummaryArgs = { summaryPoints: string[]; relatedFactIds: number[]; category: string };
-type SummaryResult = { summaryId: number; points: string[]; relatedFactCount: number; category: string };
+type SummaryArgs = { summaryPoints: string[]; relatedFactIds?: number[]; category?: string };
+type SummaryResult = { summaryId: number; points: string[]; relatedFactCount: number; category: string | null };
 
 const invalidated = new Set<string>();
 
@@ -10,13 +10,15 @@ export const SummarySavedToolUI = makeAssistantToolUI<SummaryArgs, SummaryResult
   toolName: 'save_dok2_summary',
   render: ({ args, result, status, toolCallId }) => {
     const isRunning = status.type === 'running';
-    const points = result?.points ?? args.summaryPoints;
-    const category = result?.category ?? args.category;
-    const relatedCount = result?.relatedFactCount ?? args.relatedFactIds.length;
+    const points = result?.points ?? args.summaryPoints ?? [];
+    const category = result?.category ?? args.category ?? null;
+    const relatedCount = result?.relatedFactCount ?? args.relatedFactIds?.length ?? 0;
 
     if (result && !invalidated.has(toolCallId)) {
       invalidated.add(toolCallId);
       queryClient.invalidateQueries({ queryKey: ['brainlift'] });
+      queryClient.invalidateQueries({ queryKey: ['item-detail'] });
+      queryClient.invalidateQueries({ queryKey: ['knowledge-tree'] });
     }
 
     return (
@@ -27,9 +29,11 @@ export const SummarySavedToolUI = makeAssistantToolUI<SummaryArgs, SummaryResult
             <span className="text-[10px] uppercase tracking-[0.35em] font-semibold text-muted-foreground">
               DOK2 Summary
             </span>
-            <span className="px-[6px] py-[2px] rounded bg-warning-soft text-warning text-[9px] uppercase tracking-[0.25em] font-semibold">
-              {category}
-            </span>
+            {category && (
+              <span className="px-[6px] py-[2px] rounded bg-warning-soft text-warning text-[9px] uppercase tracking-[0.25em] font-semibold">
+                {category}
+              </span>
+            )}
           </div>
           <span className={`px-[6px] py-[2px] rounded text-[9px] uppercase tracking-[0.25em] font-semibold ${
             isRunning

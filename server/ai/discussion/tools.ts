@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { db, eq, sql, facts, learningStreamItems } from '../../storage/base';
 import { storage } from '../../storage';
 import { saveSingleDOK2Summary } from '../../storage/dok2';
+import { autoBookmarkIfPending } from '../../storage/knowledge-tree';
 import { withJob } from '../../utils/withJob';
 import { ensureItemTextContent } from '../../utils/item-text-content';
 import type { LearningStreamItem, Brainlift } from '../../storage/base';
@@ -69,6 +70,11 @@ export function buildDiscussionTools(
           })
           .returning();
 
+        // Auto-bookmark if item was still pending
+        if (isBuilder) {
+          await autoBookmarkIfPending(item.id);
+        }
+
         // Queue verification job (fire-and-forget)
         withJob('discussion:verify-fact')
           .forPayload({ factId: inserted.id, brainliftId: brainlift.id })
@@ -115,6 +121,11 @@ export function buildDiscussionTools(
           relatedFactIds,
           ...(isBuilder ? { learningStreamItemId: item.id } : {}),
         });
+
+        // Auto-bookmark if item was still pending
+        if (isBuilder) {
+          await autoBookmarkIfPending(item.id);
+        }
 
         // Queue DOK2 grading job (fire-and-forget)
         withJob('discussion:grade-dok2')

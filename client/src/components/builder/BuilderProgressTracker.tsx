@@ -2,6 +2,7 @@ import { Pencil, Users, TreePine, Link2, Shield, Check, Lock } from 'lucide-reac
 import type { NativePhaseProgress, BuilderPhaseStatus } from '@shared/schema';
 import type { BuilderPhase } from '@/hooks/useBuilderNav';
 import { tokens } from '@/lib/colors';
+import { Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip';
 
 const PHASE_CONFIG: Record<BuilderPhase, {
   label: string;
@@ -68,11 +69,15 @@ export function BuilderProgressTracker({
           // Connector below this circle is "filled" if this phase is complete
           const connectorFilled = isComplete;
 
-          return (
-            <div key={phase} className="flex items-stretch gap-4" style={{ flex: 1 }}>
-              {/* Left column: circle + connector line */}
-              <div className="flex flex-col items-center w-14 shrink-0">
-                {/* Circle */}
+          // Tooltip hint for locked phases
+          const lockedHint = isLocked ? (
+            phase === 3 ? 'Save 3 experts to unlock'
+            : phase === 4 ? 'Complete the Knowledge Tree to unlock'
+            : phase === 5 ? 'Complete Connections to unlock'
+            : null
+          ) : null;
+
+          const circleButton = (
                 <button
                   onClick={() => !isLocked && onSelectPhase(phase)}
                   disabled={isLocked && status === 'locked'}
@@ -121,6 +126,28 @@ export function BuilderProgressTracker({
                     </span>
                   )}
                 </button>
+          );
+
+          return (
+            <div key={phase} className="flex items-stretch gap-4" style={{ flex: 1 }}>
+              {/* Left column: circle + connector line */}
+              <div className="flex flex-col items-center w-14 shrink-0">
+                {/* Circle — wrapped in tooltip when locked */}
+                {lockedHint ? (
+                  <Tooltip delayDuration={0}>
+                    <TooltipTrigger asChild>
+                      {circleButton}
+                    </TooltipTrigger>
+                    <TooltipContent
+                      side="right"
+                      className="bg-card-elevated text-foreground border border-border shadow-card-hover px-3 py-2 max-w-[200px] text-center"
+                    >
+                      <span className="font-serif text-[11px] italic">
+                        {lockedHint}
+                      </span>
+                    </TooltipContent>
+                  </Tooltip>
+                ) : circleButton}
 
                 {/* Connector to next circle — fills remaining row height */}
                 {!isLast && (

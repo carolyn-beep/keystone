@@ -3,13 +3,13 @@
  *
  * Renders inside the ExpandedItemView right panel (builder mode).
  * Provides inline add/edit/delete for facts and summaries linked to a source item.
+ * Both sections are ALWAYS visible — this is the primary way to add extractions.
  */
 
 import { useState, useCallback } from 'react';
 import { useMutation } from '@tanstack/react-query';
-import { Loader2, Plus, Pencil, Trash2, Check, X } from 'lucide-react';
+import { Loader2, Plus, Pencil, Trash2, Check, X, BookOpen, FileText } from 'lucide-react';
 import { TactileButton } from '@/components/ui/tactile-button';
-import { computeManualTabEmpty } from './source-detail-helpers';
 import type { LearningStreamItem } from '@/hooks/useLearningStream';
 
 interface ManualTabProps {
@@ -126,10 +126,10 @@ function FactItem({ fact, slug, itemId, onSuccess }: {
     <div className="group rounded-lg bg-card px-4 py-3 hover:bg-card-elevated transition-colors">
       <div className="flex items-start justify-between gap-3">
         <div className="flex-1 min-w-0">
-          <span className="text-[10px] font-semibold text-muted-foreground tabular-nums">
+          <span className="text-[10px] font-semibold text-muted-light tabular-nums tracking-[0.15em]">
             F{fact.originalId}
           </span>
-          <p className="text-[13px] text-foreground leading-relaxed m-0 mt-0.5">
+          <p className="font-serif italic text-[13px] text-foreground leading-relaxed m-0 mt-0.5">
             {fact.fact}
           </p>
         </div>
@@ -210,13 +210,13 @@ function SummaryItem({ summary, slug, itemId, onSuccess }: {
         <div className="flex-1 min-w-0">
           <ul className="m-0 pl-4 space-y-1">
             {summary.text.map((point, idx) => (
-              <li key={idx} className="text-[13px] text-foreground leading-relaxed">
+              <li key={idx} className="font-serif italic text-[13px] text-foreground leading-relaxed">
                 {point}
               </li>
             ))}
           </ul>
           {summary.relatedFactIds.length > 0 && (
-            <p className="text-[10px] text-muted-foreground mt-1.5 m-0">
+            <p className="text-[10px] text-muted-light mt-1.5 m-0 tracking-[0.15em]">
               Based on {summary.relatedFactIds.length} fact{summary.relatedFactIds.length !== 1 ? 's' : ''}
             </p>
           )}
@@ -237,13 +237,14 @@ function SummaryItem({ summary, slug, itemId, onSuccess }: {
 
 // ─── Add Fact Form ──────────────────────────────────────────────────────────
 
-function AddFactForm({ slug, itemId, onSuccess }: {
+function AddFactForm({ slug, itemId, onSuccess, autoFocus }: {
   slug: string;
   itemId: number;
   onSuccess: () => void;
+  autoFocus?: boolean;
 }) {
   const [text, setText] = useState('');
-  const [showInput, setShowInput] = useState(false);
+  const [showInput, setShowInput] = useState(autoFocus ?? false);
 
   const mutation = useMutation({
     mutationFn: async (fact: string) => {
@@ -285,7 +286,7 @@ function AddFactForm({ slug, itemId, onSuccess }: {
         value={text}
         onChange={(e) => setText(e.target.value)}
         placeholder="Type a fact from this source..."
-        className="w-full rounded-lg px-3 py-2 bg-background border border-border text-foreground text-[13px] leading-relaxed
+        className="w-full rounded-lg px-3 py-2 bg-background border border-border text-foreground font-serif italic text-[13px] leading-relaxed
                    focus:outline-none focus:border-primary/30 focus:ring-1 focus:ring-primary/20 transition-colors resize-none"
         rows={2}
         autoFocus
@@ -324,14 +325,15 @@ function AddFactForm({ slug, itemId, onSuccess }: {
 
 // ─── Add Summary Form ───────────────────────────────────────────────────────
 
-function AddSummaryForm({ slug, itemId, facts, onSuccess }: {
+function AddSummaryForm({ slug, itemId, facts, onSuccess, autoFocus }: {
   slug: string;
   itemId: number;
   facts: Array<{ id: number }>;
   onSuccess: () => void;
+  autoFocus?: boolean;
 }) {
   const [text, setText] = useState('');
-  const [showInput, setShowInput] = useState(false);
+  const [showInput, setShowInput] = useState(autoFocus ?? false);
 
   const mutation = useMutation({
     mutationFn: async (summaryText: string) => {
@@ -375,8 +377,8 @@ function AddSummaryForm({ slug, itemId, facts, onSuccess }: {
       <textarea
         value={text}
         onChange={(e) => setText(e.target.value)}
-        placeholder="Write your synthesis of the facts above..."
-        className="w-full rounded-lg px-3 py-2 bg-background border border-border text-foreground text-[13px] leading-relaxed
+        placeholder="Write your synthesis of the source material..."
+        className="w-full rounded-lg px-3 py-2 bg-background border border-border text-foreground font-serif italic text-[13px] leading-relaxed
                    focus:outline-none focus:border-primary/30 focus:ring-1 focus:ring-primary/20 transition-colors resize-none"
         rows={3}
         autoFocus
@@ -409,28 +411,54 @@ function AddSummaryForm({ slug, itemId, facts, onSuccess }: {
   );
 }
 
+// ─── Section Empty Prompt ────────────────────────────────────────────────────
+
+function SectionEmptyPrompt({ icon: Icon, message }: {
+  icon: React.ComponentType<{ size?: number; className?: string }>;
+  message: string;
+}) {
+  return (
+    <div className="flex items-center gap-3 rounded-lg bg-primary/5 px-4 py-3">
+      <Icon size={16} className="text-muted-light shrink-0" />
+      <p className="font-serif italic text-[13px] text-muted-foreground leading-relaxed m-0">
+        {message}
+      </p>
+    </div>
+  );
+}
+
 // ─── Main Component ─────────────────────────────────────────────────────────
 
 export function ManualTab({ slug, item, facts, summaries, onMutationSuccess }: ManualTabProps) {
-  const emptyMessage = computeManualTabEmpty({ facts, summaries });
+  const hasFacts = facts.length > 0;
+  const hasSummaries = summaries.length > 0;
+  const isEmpty = !hasFacts && !hasSummaries;
 
   return (
-    <div className="flex flex-col h-full px-4 py-4">
-      {/* Empty state */}
-      {emptyMessage && (
-        <div className="py-8 text-center flex-1 flex items-center justify-center">
-          <p className="font-serif italic text-muted-foreground text-[14px] leading-relaxed max-w-xs">
-            {emptyMessage}
-          </p>
-        </div>
-      )}
-
-      {/* Facts section */}
-      {(facts.length > 0 || !emptyMessage) && (
-        <div className="mb-6">
-          <div className="text-[10px] uppercase tracking-[0.35em] font-semibold text-muted-foreground mb-3">
-            DOK1 Facts
+    <div className="flex flex-col h-full px-4 py-5 overflow-y-auto">
+      {/* DOK1 Facts — always visible */}
+      <div className="mb-8">
+        <div className="flex items-center justify-between mb-3">
+          <div className="flex items-center gap-2">
+            <span className="text-[10px] uppercase tracking-[0.35em] font-semibold text-muted-foreground">
+              DOK1 Facts
+            </span>
+            {hasFacts && (
+              <span className="px-[6px] py-[1px] rounded bg-muted text-muted-foreground text-[9px] uppercase tracking-[0.25em] font-semibold tabular-nums">
+                {facts.length}
+              </span>
+            )}
           </div>
+        </div>
+
+        {!hasFacts && (
+          <SectionEmptyPrompt
+            icon={BookOpen}
+            message="Read through the source, then add the key facts you find."
+          />
+        )}
+
+        {hasFacts && (
           <div className="space-y-2">
             {facts.map((fact) => (
               <FactItem
@@ -442,18 +470,47 @@ export function ManualTab({ slug, item, facts, summaries, onMutationSuccess }: M
               />
             ))}
           </div>
-          <div className="mt-2">
-            <AddFactForm slug={slug} itemId={item.id} onSuccess={onMutationSuccess} />
+        )}
+
+        <div className="mt-3">
+          <AddFactForm
+            slug={slug}
+            itemId={item.id}
+            onSuccess={onMutationSuccess}
+            autoFocus={isEmpty}
+          />
+        </div>
+      </div>
+
+      {/* Separator */}
+      <hr className="border-t border-border mb-8 mt-0" />
+
+      {/* DOK2 Summaries — always visible */}
+      <div>
+        <div className="flex items-center justify-between mb-3">
+          <div className="flex items-center gap-2">
+            <span className="text-[10px] uppercase tracking-[0.35em] font-semibold text-muted-foreground">
+              DOK2 Summaries
+            </span>
+            {hasSummaries && (
+              <span className="px-[6px] py-[1px] rounded bg-muted text-muted-foreground text-[9px] uppercase tracking-[0.25em] font-semibold tabular-nums">
+                {summaries.length}
+              </span>
+            )}
           </div>
         </div>
-      )}
 
-      {/* Summaries section */}
-      {(summaries.length > 0 || facts.length > 0) && (
-        <div>
-          <div className="text-[10px] uppercase tracking-[0.35em] font-semibold text-muted-foreground mb-3">
-            DOK2 Summaries
-          </div>
+        {!hasSummaries && (
+          <SectionEmptyPrompt
+            icon={FileText}
+            message={hasFacts
+              ? "Synthesize the facts above into a summary."
+              : "Summaries synthesize your facts into broader takeaways."
+            }
+          />
+        )}
+
+        {hasSummaries && (
           <div className="space-y-2">
             {summaries.map((summary) => (
               <SummaryItem
@@ -465,16 +522,17 @@ export function ManualTab({ slug, item, facts, summaries, onMutationSuccess }: M
               />
             ))}
           </div>
-          <div className="mt-2">
-            <AddSummaryForm
-              slug={slug}
-              itemId={item.id}
-              facts={facts}
-              onSuccess={onMutationSuccess}
-            />
-          </div>
+        )}
+
+        <div className="mt-3">
+          <AddSummaryForm
+            slug={slug}
+            itemId={item.id}
+            facts={facts}
+            onSuccess={onMutationSuccess}
+          />
         </div>
-      )}
+      </div>
     </div>
   );
 }

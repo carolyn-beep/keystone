@@ -122,13 +122,13 @@ export function computeManualTabEmpty(data: ManualTabData): string | null {
 
 /**
  * Determine if the ExpandedItemView footer should be visible.
- * In builder mode, footer is always hidden.
+ * In builder mode, footer shows when there are triage actions (Keep/Discard for pending items).
  */
 export function shouldShowFooter(
   mode: ViewMode | undefined,
   hasActions: boolean,
   hasNavigation: boolean
 ): boolean {
-  if (mode === 'builder') return false;
+  if (mode === 'builder') return hasActions;
   return hasActions || hasNavigation;
 }

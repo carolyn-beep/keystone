@@ -159,10 +159,13 @@ describe('FR2: shouldShowExtractionBadge', () => {
 });
 
 describe('FR2: shouldShowFooter', () => {
-  it('hides footer in builder mode regardless of actions', () => {
-    expect(shouldShowFooter('builder', true, true)).toBe(false);
+  it('shows footer in builder mode when actions exist (Keep/Discard for pending items)', () => {
+    expect(shouldShowFooter('builder', true, true)).toBe(true);
+    expect(shouldShowFooter('builder', true, false)).toBe(true);
+  });
+
+  it('hides footer in builder mode when no actions (already triaged/saved items)', () => {
     expect(shouldShowFooter('builder', false, false)).toBe(false);
-    expect(shouldShowFooter('builder', true, false)).toBe(false);
   });
 
   it('shows footer in stream mode when actions exist', () => {

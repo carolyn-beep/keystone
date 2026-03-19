@@ -2,14 +2,16 @@
  * SourceDetailWorkspace — Builder Phase 3 item detail wrapper.
  *
  * Fetches item detail data from the knowledge-tree API and renders
- * ExpandedItemView in builder mode with ManualTab instead of Quiz.
+ * ExpandedItemView in builder mode. No back button — ExpandedItemView's
+ * X close button handles navigation back to the list.
  */
 
-import { Loader2, ArrowLeft } from 'lucide-react';
+import { useCallback } from 'react';
+import { Loader2 } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import { queryClient } from '@/lib/queryClient';
-import { TactileButton } from '@/components/ui/tactile-button';
 import { ExpandedItemView } from '@/components/learning-stream/ExpandedItemView';
+import { useKnowledgeTree } from '@/hooks/useKnowledgeTree';
 import type { LearningStreamItem } from '@/hooks/useLearningStream';
 
 interface SourceDetailWorkspaceProps {
@@ -51,10 +53,34 @@ export function SourceDetailWorkspace({ slug, itemId, onBackToList }: SourceDeta
     enabled: !!slug && !!itemId,
   });
 
+  const { openItem, skipItem } = useKnowledgeTree(slug);
+
   const handleMutationSuccess = () => {
     queryClient.invalidateQueries({ queryKey: ['item-detail', slug, itemId] });
     queryClient.invalidateQueries({ queryKey: ['knowledge-tree', slug] });
   };
+
+  // Keep = bookmark the item (move from unprocessed to triaged)
+  const handleKeep = useCallback(async (item: LearningStreamItem) => {
+    try {
+      await openItem(item.id);
+      handleMutationSuccess();
+    } catch {
+      // handled by TanStack Query
+    }
+  }, [openItem]);
+
+  // Discard = permanently remove
+  const handleDiscard = useCallback(async (item: LearningStreamItem) => {
+    try {
+      await skipItem(item.id);
+      onBackToList();
+    } catch {
+      // handled by TanStack Query
+    }
+  }, [skipItem, onBackToList]);
+
+  const isPending = data?.learningStreamItem?.status === 'pending';
 
   if (isLoading || !data) {
     return (
@@ -67,16 +93,6 @@ export function SourceDetailWorkspace({ slug, itemId, onBackToList }: SourceDeta
   if (error) {
     return (
       <div className="py-12">
-        <div className="mb-4">
-          <TactileButton
-            variant="inset"
-            onClick={onBackToList}
-            className="flex items-center gap-2 text-[12px]"
-          >
-            <ArrowLeft size={13} />
-            Back to Knowledge Tree
-          </TactileButton>
-        </div>
         <p className="font-serif italic text-muted-foreground text-[15px]">
           Could not load item details. It may have been removed.
         </p>
@@ -85,29 +101,17 @@ export function SourceDetailWorkspace({ slug, itemId, onBackToList }: SourceDeta
   }
 
   return (
-    <div>
-      {/* Back button above the detail view */}
-      <div className="mb-4">
-        <TactileButton
-          variant="inset"
-          onClick={onBackToList}
-          className="flex items-center gap-2 text-[12px]"
-        >
-          <ArrowLeft size={13} />
-          Back to Knowledge Tree
-        </TactileButton>
-      </div>
-
-      <ExpandedItemView
-        item={data.learningStreamItem}
-        slug={slug}
-        onClose={onBackToList}
-        mode="builder"
-        extractionCounts={data.extractionCounts}
-        builderFacts={data.facts}
-        builderSummaries={data.summaries}
-        onMutationSuccess={handleMutationSuccess}
-      />
-    </div>
+    <ExpandedItemView
+      item={data.learningStreamItem}
+      slug={slug}
+      onClose={onBackToList}
+      mode="builder"
+      extractionCounts={data.extractionCounts}
+      builderFacts={data.facts}
+      builderSummaries={data.summaries}
+      onMutationSuccess={handleMutationSuccess}
+      onBookmark={isPending ? handleKeep : undefined}
+      onDiscard={isPending ? handleDiscard : undefined}
+    />
   );
 }
