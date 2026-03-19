@@ -105,7 +105,9 @@ ${taskAssignments}
 For each Task tool call, structure the prompt like this:
 
 \`\`\`
-Find a [RESOURCE_TYPE] resource.
+Find a [RESOURCE_TYPE] resource and save it using save_learning_item.
+
+BRAINLIFT ID: ${brainliftId}
 
 SEARCH FOCUS: [specific focus from task assignment]
 
@@ -120,7 +122,7 @@ BRAINLIFT CONTEXT:
 AVOID THESE EXISTING TOPICS:
 [list existing topics to avoid duplicates]
 
-Return ONLY the JSON result.
+After finding and verifying a resource, call save_learning_item with brainliftId: ${brainliftId} and all resource fields, then return the JSON result.
 \`\`\`
 
 ## Agent Selection
@@ -129,15 +131,9 @@ Return ONLY the JSON result.
 - For News tasks: use subagent_type: "news-researcher" (finds recent news articles and headlines)
 - For all other tasks: use subagent_type: "web-researcher" (uses general web search)
 
-## Step 3: Process Results
+## Step 3: Report Summary
 
-After all researchers return, for EACH successful result (where found=true):
-1. Parse the JSON response
-2. Call save_learning_item with brainliftId: ${brainliftId} and all resource fields
-
-## Step 4: Report Summary
-
-After saving all items, report:
+After all researchers return, report:
 - Total researchers spawned: ${SWARM_AGENT_COUNT}
 - Resources found: [count]
 - Resources saved: [count]
@@ -148,7 +144,7 @@ After saving all items, report:
 1. PARALLEL EXECUTION: Spawn all ${SWARM_AGENT_COUNT} agents in ONE message with multiple Task calls
 2. DIVERSITY: Each researcher has a unique focus - maintain this diversity
 3. EXPERT PRIORITY: Researchers looking for expert content should prioritize listed experts
-4. DUPLICATE HANDLING: The researchers will check for duplicates, but the save tool also handles them gracefully
+4. AGENTS SAVE DIRECTLY: Each researcher saves its own result via save_learning_item. You do NOT need to save anything yourself.
 5. ERROR TOLERANCE: If some researchers fail, continue with others and report failures
 
 Begin by getting the brainlift context.`;
