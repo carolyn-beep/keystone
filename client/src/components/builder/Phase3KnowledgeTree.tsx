@@ -671,12 +671,18 @@ function ManualSourceForm({ onSubmit, onCancel, isSubmitting, submitError }: {
 
 // ─── EmptyStateMessage ──────────────────────────────────────────────────────
 
-function EmptyStateMessage({ message }: { message: string }) {
+function EmptyStateMessage({ message, children }: { message: string; children?: React.ReactNode }) {
+  const paragraphs = message.split('\n\n');
   return (
-    <div className="py-12 text-center">
-      <p className="font-serif italic text-muted-foreground text-[15px] leading-relaxed max-w-md mx-auto">
-        {message}
-      </p>
+    <div className="py-12 flex flex-col items-center gap-4">
+      <div className="max-w-md text-center space-y-2">
+        {paragraphs.map((p, i) => (
+          <p key={i} className="font-serif italic text-muted-foreground text-[15px] leading-relaxed m-0">
+            {p}
+          </p>
+        ))}
+      </div>
+      {children}
     </div>
   );
 }
@@ -781,22 +787,30 @@ export function Phase3KnowledgeTree({ slug }: Phase3KnowledgeTreeProps) {
   const [showAddForm, setShowAddForm] = useState(false);
   const [showNewCategoryInput, setShowNewCategoryInput] = useState(false);
   const [newCategoryName, setNewCategoryName] = useState('');
+  const [keepingItemId, setKeepingItemId] = useState<number | null>(null);
+  const [discardingItemId, setDiscardingItemId] = useState<number | null>(null);
 
   // ── Handlers ──────────────────────────────────────────────────────────
 
   const handleKeep = useCallback(async (itemId: number) => {
+    setKeepingItemId(itemId);
     try {
       await openItem(itemId);
     } catch {
       // Mutation failure handled by TanStack Query
+    } finally {
+      setKeepingItemId(null);
     }
   }, [openItem]);
 
   const handleDiscard = useCallback(async (itemId: number) => {
+    setDiscardingItemId(itemId);
     try {
       await skipItem(itemId);
     } catch {
       // Mutation failure handled by TanStack Query
+    } finally {
+      setDiscardingItemId(null);
     }
   }, [skipItem]);
 
@@ -883,19 +897,15 @@ export function Phase3KnowledgeTree({ slug }: Phase3KnowledgeTreeProps) {
 
       {/* Global empty state */}
       {emptyState && (
-        <>
-          <EmptyStateMessage message={emptyState.message} />
-          {/* Add source always reachable in empty state */}
-          <div className="mb-8">
-            <AddSourceButtonOrForm
-              showAddForm={showAddForm}
-              setShowAddForm={setShowAddForm}
-              handleAddSource={handleAddSource}
-              isAddingSource={isAddingSource}
-              addSourceError={addSourceError}
-            />
-          </div>
-        </>
+        <EmptyStateMessage message={emptyState.message}>
+          <AddSourceButtonOrForm
+            showAddForm={showAddForm}
+            setShowAddForm={setShowAddForm}
+            handleAddSource={handleAddSource}
+            isAddingSource={isAddingSource}
+            addSourceError={addSourceError}
+          />
+        </EmptyStateMessage>
       )}
 
       {/* Sections */}
@@ -936,8 +946,8 @@ export function Phase3KnowledgeTree({ slug }: Phase3KnowledgeTreeProps) {
                     onKeep={handleKeep}
                     onDiscard={handleDiscard}
                     onOpen={handleOpenItem}
-                    isKeeping={isOpening}
-                    isDiscarding={isSkipping}
+                    isKeeping={keepingItemId === item.id}
+                    isDiscarding={discardingItemId === item.id}
                   />
                 </motion.div>
               ))}

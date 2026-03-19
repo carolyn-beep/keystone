@@ -194,7 +194,7 @@ export function computeEmptyState(input: EmptyStateInput): EmptyState | null {
     if (research.isRunning) {
       return {
         type: 'swarm-running',
-        message: 'Your experts are being researched. Sources will appear here as we find them.',
+        message: 'Your experts are being researched. Sources will appear here as we find them.\n\nIn the meantime, you can add any sources you already have clicking the button below.',
       };
     }
     return {
