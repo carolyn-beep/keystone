@@ -173,7 +173,7 @@ export const storage = {
   getNativeDetailsBySlug: nativeBrainliftsStorage.getNativeDetailsBySlug,
   updateNativeDetailsForBrainlift: nativeBrainliftsStorage.updateNativeDetailsForBrainlift,
   setBuilderSuggestionState: nativeBrainliftsStorage.setBuilderSuggestionState,
-  setCelebratePhase3: nativeBrainliftsStorage.setCelebratePhase3,
+  celebratePhase3: nativeBrainliftsStorage.celebratePhase3,
 
   // Knowledge Tree (Phase 3)
   getKnowledgeTree: knowledgeTreeStorage.getKnowledgeTree,

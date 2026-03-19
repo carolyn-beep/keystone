@@ -69,7 +69,7 @@ export async function getNativeDetailsBySlug(slug: string): Promise<NativeDetail
     lastActivePhase: row.lastActivePhase as 1 | 2 | 3 | 4 | 5,
     suggestionStatus: row.suggestionStatus,
     suggestionError: row.suggestionError,
-    phase3CelebratedAt: row.phase3CelebratedAt,
+    phase3CelebratedAt: row.phase3CelebratedAt?.toISOString() ?? null,
   };
 }
 
@@ -88,6 +88,7 @@ export async function updateNativeDetailsForBrainlift(
     phaseProgress?: NativePhaseProgress;
     suggestionStatus?: BuilderSuggestionStatus;
     suggestionError?: string | null;
+    phase3CelebratedAt?: Date;
   }
 ): Promise<NativeDetailsResponse> {
   // Update parent fields if any are provided
@@ -106,6 +107,7 @@ export async function updateNativeDetailsForBrainlift(
   if (fields.phaseProgress !== undefined) detailUpdates.phaseProgress = fields.phaseProgress;
   if (fields.suggestionStatus !== undefined) detailUpdates.suggestionStatus = fields.suggestionStatus;
   if (fields.suggestionError !== undefined) detailUpdates.suggestionError = fields.suggestionError;
+  if (fields.phase3CelebratedAt !== undefined) detailUpdates.phase3CelebratedAt = fields.phase3CelebratedAt;
 
   if (Object.keys(detailUpdates).length > 0) {
     await db.update(nativeBrainliftDetails).set(detailUpdates).where(eq(nativeBrainliftDetails.brainliftId, brainliftId));
@@ -136,7 +138,7 @@ export async function updateNativeDetailsForBrainlift(
     lastActivePhase: row.lastActivePhase as 1 | 2 | 3 | 4 | 5,
     suggestionStatus: row.suggestionStatus,
     suggestionError: row.suggestionError,
-    phase3CelebratedAt: row.phase3CelebratedAt,
+    phase3CelebratedAt: row.phase3CelebratedAt?.toISOString() ?? null,
   };
 }
 
@@ -159,7 +161,7 @@ export async function setBuilderSuggestionState(
  * Set phase3CelebratedAt to now. Idempotent.
  * Used after showing the Phase 3 unlock celebration modal.
  */
-export async function setCelebratePhase3(brainliftId: number): Promise<void> {
+export async function celebratePhase3(brainliftId: number): Promise<void> {
   await db.update(nativeBrainliftDetails)
     .set({ phase3CelebratedAt: new Date() })
     .where(eq(nativeBrainliftDetails.brainliftId, brainliftId));

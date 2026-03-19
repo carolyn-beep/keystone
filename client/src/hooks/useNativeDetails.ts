@@ -41,11 +41,30 @@ export function useNativeDetails(slug: string) {
     },
   });
 
+  const celebrateMutation = useMutation({
+    mutationFn: async () => {
+      const res = await fetch(
+        `/api/brainlifts/${slug}/native-details/celebrate-phase3`,
+        { method: 'PATCH' }
+      );
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({ message: 'Failed to celebrate' }));
+        throw new Error(err.message || 'Failed to celebrate');
+      }
+      return res.json() as Promise<NativeDetailsResponse>;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['native-details', slug] });
+    },
+  });
+
   return {
     nativeDetails: query.data,
     isLoading: query.isLoading,
     error: query.error,
     update: mutation.mutateAsync,
     isUpdating: mutation.isPending,
+    celebratePhase3: celebrateMutation.mutateAsync,
+    isCelebrating: celebrateMutation.isPending,
   };
 }

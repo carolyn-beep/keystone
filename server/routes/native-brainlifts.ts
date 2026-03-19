@@ -87,3 +87,30 @@ nativeBrainliftsRouter.patch(
     res.json(updated);
   })
 );
+
+/**
+ * PATCH /api/brainlifts/:slug/native-details/celebrate-phase3
+ * Mark the Phase 3 celebration modal as acknowledged.
+ * Sets phase3CelebratedAt timestamp. Idempotent.
+ */
+nativeBrainliftsRouter.patch(
+  '/api/brainlifts/:slug/native-details/celebrate-phase3',
+  requireAuth,
+  requireBrainliftModify,
+  asyncHandler(async (req, res) => {
+    const brainlift = req.brainlift!;
+
+    if (brainlift.sourceType !== 'native') {
+      throw new BadRequestError('Only native brainlifts have builder details');
+    }
+
+    await storage.celebratePhase3(brainlift.id);
+
+    const details = await storage.getNativeDetailsBySlug(req.params.slug);
+    if (!details) {
+      throw new NotFoundError('Native details not found');
+    }
+
+    res.json(details);
+  })
+);

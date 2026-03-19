@@ -186,7 +186,7 @@ function BuilderPageContent({
 
               {/* Phase 2: Your Experts */}
               {screen === 2 && (
-                <Phase2Experts slug={slug} />
+                <Phase2Experts slug={slug} onNavigatePhase3={() => setScreen(3)} />
               )}
 
               {/* Phases 3-5: locked placeholders */}

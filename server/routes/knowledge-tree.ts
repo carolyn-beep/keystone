@@ -6,7 +6,6 @@
  * - POST /api/brainlifts/:slug/knowledge-tree/manual-source  (create manual source)
  * - GET  /api/brainlifts/:slug/knowledge-tree/items/:itemId  (item detail)
  * - DELETE /api/brainlifts/:slug/knowledge-tree/items/:itemId/extractions  (delete extractions)
- * - PATCH /api/brainlifts/:slug/native-details/celebrate-phase3  (celebration ack)
  */
 
 import { Router } from 'express';
@@ -186,23 +185,3 @@ knowledgeTreeRouter.delete(
   })
 );
 
-/**
- * PATCH /api/brainlifts/:slug/native-details/celebrate-phase3
- * Sets phase3CelebratedAt to now. Idempotent.
- */
-knowledgeTreeRouter.patch(
-  '/api/brainlifts/:slug/native-details/celebrate-phase3',
-  requireAuth,
-  requireBrainliftModify,
-  asyncHandler(async (req, res) => {
-    const brainlift = req.brainlift!;
-
-    if (brainlift.sourceType !== 'native') {
-      throw new BadRequestError('Only native brainlifts support celebration');
-    }
-
-    await storage.setCelebratePhase3(brainlift.id);
-
-    res.json({ success: true });
-  })
-);

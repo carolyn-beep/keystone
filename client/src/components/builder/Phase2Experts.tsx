@@ -4,15 +4,20 @@ import { Plus } from 'lucide-react';
 import { TactileButton } from '@/components/ui/tactile-button';
 import { Loader2 } from 'lucide-react';
 import { useBuilderExperts } from '@/hooks/useBuilderExperts';
+import { useNativeDetails } from '@/hooks/useNativeDetails';
 import { ExpertSuggestionRail } from './ExpertSuggestionRail';
 import { ExpertCard } from './ExpertCard';
+import { CelebrationModal } from './CelebrationModal';
 import type { BuilderExpert } from '@shared/schema';
+
+const EXPERT_THRESHOLD = 3;
 
 interface Phase2ExpertsProps {
   slug: string;
+  onNavigatePhase3?: () => void;
 }
 
-export function Phase2Experts({ slug }: Phase2ExpertsProps) {
+export function Phase2Experts({ slug, onNavigatePhase3 }: Phase2ExpertsProps) {
   const {
     suggestions,
     savedExperts,
@@ -26,7 +31,31 @@ export function Phase2Experts({ slug }: Phase2ExpertsProps) {
     regenerateSuggestions,
   } = useBuilderExperts(slug);
 
+  const { nativeDetails, celebratePhase3 } = useNativeDetails(slug);
+
   const [addingManually, setAddingManually] = useState(false);
+
+  // Show celebration when phase2 is complete AND not yet celebrated
+  const showCelebration =
+    nativeDetails?.phaseProgress.phase2 === 'complete' &&
+    nativeDetails?.phase3CelebratedAt === null;
+
+  const handleDismissCelebration = useCallback(async () => {
+    try {
+      await celebratePhase3();
+    } catch {
+      // Non-blocking -- celebration is a nice-to-have
+    }
+  }, [celebratePhase3]);
+
+  const handleGoToPhase3 = useCallback(async () => {
+    await handleDismissCelebration();
+    onNavigatePhase3?.();
+  }, [handleDismissCelebration, onNavigatePhase3]);
+
+  const handleKeepAdding = useCallback(async () => {
+    await handleDismissCelebration();
+  }, [handleDismissCelebration]);
 
   const handleAccept = useCallback(async (expert: BuilderExpert) => {
     await updateExpert(expert.id, {
@@ -86,6 +115,23 @@ if (isLoading) {
           </p>
         )}
       </div>
+
+      {/* ── Progress toward 3-expert threshold ── */}
+      {savedExperts.length > 0 && savedExperts.length < EXPERT_THRESHOLD && (
+        <div className="mb-6">
+          <div className="flex items-center gap-3">
+            <div className="flex-1 h-1.5 rounded-full bg-muted overflow-hidden">
+              <div
+                className="h-full rounded-full bg-primary transition-all duration-500 ease-out"
+                style={{ width: `${(savedExperts.length / EXPERT_THRESHOLD) * 100}%` }}
+              />
+            </div>
+            <span className="text-[11px] font-semibold text-muted-foreground whitespace-nowrap">
+              {savedExperts.length} of {EXPERT_THRESHOLD} experts saved
+            </span>
+          </div>
+        </div>
+      )}
 
       {/* ── AI suggestion cards ── */}
       <ExpertSuggestionRail
@@ -153,6 +199,14 @@ if (isLoading) {
           </div>
         </div>
       )}
+
+      {/* ── Celebration Modal ── */}
+      <CelebrationModal
+        show={!!showCelebration}
+        onClose={handleDismissCelebration}
+        onGoToPhase3={handleGoToPhase3}
+        onKeepAdding={handleKeepAdding}
+      />
     </div>
   );
 }

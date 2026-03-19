@@ -101,7 +101,7 @@ export interface NativeDetailsResponse {
   lastActivePhase: 1 | 2 | 3 | 4 | 5;
   suggestionStatus: import('./schema').BuilderSuggestionStatus;
   suggestionError: string | null;
-  phase3CelebratedAt: Date | null;
+  phase3CelebratedAt: string | null;
 }
 
 export function buildUrl(path: string, params?: Record<string, string | number>): string {
