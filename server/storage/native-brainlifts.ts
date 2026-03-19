@@ -52,6 +52,7 @@ export async function getNativeDetailsBySlug(slug: string): Promise<NativeDetail
       lastActivePhase: nativeBrainliftDetails.lastActivePhase,
       suggestionStatus: nativeBrainliftDetails.suggestionStatus,
       suggestionError: nativeBrainliftDetails.suggestionError,
+      phase3CelebratedAt: nativeBrainliftDetails.phase3CelebratedAt,
     })
     .from(brainlifts)
     .innerJoin(nativeBrainliftDetails, eq(brainlifts.id, nativeBrainliftDetails.brainliftId))
@@ -68,6 +69,7 @@ export async function getNativeDetailsBySlug(slug: string): Promise<NativeDetail
     lastActivePhase: row.lastActivePhase as 1 | 2 | 3 | 4 | 5,
     suggestionStatus: row.suggestionStatus,
     suggestionError: row.suggestionError,
+    phase3CelebratedAt: row.phase3CelebratedAt,
   };
 }
 
@@ -119,6 +121,7 @@ export async function updateNativeDetailsForBrainlift(
       lastActivePhase: nativeBrainliftDetails.lastActivePhase,
       suggestionStatus: nativeBrainliftDetails.suggestionStatus,
       suggestionError: nativeBrainliftDetails.suggestionError,
+      phase3CelebratedAt: nativeBrainliftDetails.phase3CelebratedAt,
     })
     .from(brainlifts)
     .innerJoin(nativeBrainliftDetails, eq(brainlifts.id, nativeBrainliftDetails.brainliftId))
@@ -133,6 +136,7 @@ export async function updateNativeDetailsForBrainlift(
     lastActivePhase: row.lastActivePhase as 1 | 2 | 3 | 4 | 5,
     suggestionStatus: row.suggestionStatus,
     suggestionError: row.suggestionError,
+    phase3CelebratedAt: row.phase3CelebratedAt,
   };
 }
 
@@ -148,5 +152,15 @@ export async function setBuilderSuggestionState(
 
   await db.update(nativeBrainliftDetails)
     .set(updates)
+    .where(eq(nativeBrainliftDetails.brainliftId, brainliftId));
+}
+
+/**
+ * Set phase3CelebratedAt to now. Idempotent.
+ * Used after showing the Phase 3 unlock celebration modal.
+ */
+export async function setCelebratePhase3(brainliftId: number): Promise<void> {
+  await db.update(nativeBrainliftDetails)
+    .set({ phase3CelebratedAt: new Date() })
     .where(eq(nativeBrainliftDetails.brainliftId, brainliftId));
 }
