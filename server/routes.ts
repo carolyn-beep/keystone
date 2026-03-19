@@ -17,6 +17,7 @@ import { knowledgeCheckRouter } from "./routes/knowledge-check";
 import { nativeBrainliftsRouter } from "./routes/native-brainlifts";
 import { purposeSuggestionsRouter } from "./routes/purpose-suggestions";
 import { builderExpertsRouter } from "./routes/builder-experts";
+import { knowledgeTreeRouter } from "./routes/knowledge-tree";
 import { errorHandler } from "./middleware/error-handler";
 import { seedDatabase, backfillOriginalContent } from "./seed";
 
@@ -42,6 +43,7 @@ export async function registerRoutes(
   app.use(nativeBrainliftsRouter);
   app.use(purposeSuggestionsRouter);
   app.use(builderExpertsRouter);
+  app.use(knowledgeTreeRouter);
 
   // Global error handler - must be after all routes
   app.use(errorHandler);
