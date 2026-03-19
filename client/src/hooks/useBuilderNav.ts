@@ -51,6 +51,15 @@ export function useBuilderNav(slug: string, initialPhase: BuilderPhase) {
     return parseScreen(params.get('screen'), initialPhase);
   }, [searchString, initialPhase]);
 
+  // Parse item param for detail view (Phase 3 source detail)
+  const selectedItemId = useMemo(() => {
+    const params = new URLSearchParams(searchString);
+    const raw = params.get('item');
+    if (!raw) return null;
+    const id = parseInt(raw, 10);
+    return isNaN(id) ? null : id;
+  }, [searchString]);
+
   // Persist lastActivePhase to the database (non-blocking)
   const persistPhase = useMutation({
     mutationFn: async (phase: BuilderPhase) => {
@@ -77,5 +86,15 @@ export function useBuilderNav(slug: string, initialPhase: BuilderPhase) {
     persistPhase.mutate(newScreen);
   }, [persistPhase]);
 
-  return { view, screen, setView, setScreen };
+  // Navigate to item detail view (sets ?item=:id)
+  const setSelectedItem = useCallback((itemId: number) => {
+    updateQueryParams({ screen: '3', item: String(itemId) });
+  }, []);
+
+  // Return to list view (removes ?item param)
+  const clearSelectedItem = useCallback(() => {
+    updateQueryParams({ item: null });
+  }, []);
+
+  return { view, screen, selectedItemId, setView, setScreen, setSelectedItem, clearSelectedItem };
 }

@@ -1,8 +1,8 @@
 import { makeAssistantToolUI } from '@assistant-ui/react';
 import { queryClient } from '@/lib/queryClient';
 
-type FactArgs = { fact: string; category: string };
-type FactResult = { factId: number; fact: string; category: string; originalId: string };
+type FactArgs = { fact: string; category?: string };
+type FactResult = { factId: number; fact: string; category: string | null; originalId: string };
 
 const invalidated = new Set<string>();
 
@@ -16,6 +16,8 @@ export const FactSavedToolUI = makeAssistantToolUI<FactArgs, FactResult>({
     if (result && !invalidated.has(toolCallId)) {
       invalidated.add(toolCallId);
       queryClient.invalidateQueries({ queryKey: ['brainlift'] });
+      queryClient.invalidateQueries({ queryKey: ['item-detail'] });
+      queryClient.invalidateQueries({ queryKey: ['knowledge-tree'] });
     }
 
     return (
@@ -26,9 +28,11 @@ export const FactSavedToolUI = makeAssistantToolUI<FactArgs, FactResult>({
             <span className="text-[10px] uppercase tracking-[0.35em] font-semibold text-muted-foreground">
               DOK1 Fact
             </span>
-            <span className="px-[6px] py-[2px] rounded bg-info-soft text-info text-[9px] uppercase tracking-[0.25em] font-semibold">
-              {category}
-            </span>
+            {category && (
+              <span className="px-[6px] py-[2px] rounded bg-info-soft text-info text-[9px] uppercase tracking-[0.25em] font-semibold">
+                {category}
+              </span>
+            )}
           </div>
           <span className={`px-[6px] py-[2px] rounded text-[9px] uppercase tracking-[0.25em] font-semibold ${
             isRunning

@@ -12,12 +12,12 @@ export const builderExpertsRouter = Router();
 
 /**
  * Called after a builder expert is saved (manual create or suggestion acceptance).
- * Updates phase2 to 'complete' if at least 1 saved expert exists,
+ * Updates phase2 to 'complete' and phase3 to 'in_progress' when >= 3 saved experts,
  * and idempotently queues learning-stream:research.
  */
 async function afterExpertSaved(brainliftId: number): Promise<void> {
   const count = await storage.countSavedBuilderExperts(brainliftId);
-  if (count >= 1) {
+  if (count >= 3) {
     // Read current phase progress by brainliftId to preserve other phases
     const { db, nativeBrainliftDetails, eq } = await import('../storage/base');
     const [detailRow] = await db
@@ -29,33 +29,38 @@ async function afterExpertSaved(brainliftId: number): Promise<void> {
       const updatedProgress: NativePhaseProgress = {
         ...detailRow.phaseProgress,
         phase2: 'complete',
+        phase3: 'in_progress',
       };
       await storage.updateNativeDetailsForBrainlift(brainliftId, {
         phaseProgress: updatedProgress,
       });
     }
 
-    // TODO: Queue research idempotently — commented out until Phase 3 is ready
-    // try {
-    //   const { withJob } = await import('../utils/withJob');
-    //   await withJob('learning-stream:research')
-    //     .forPayload({ brainliftId })
-    //     .withOptions({ jobKey: `builder-research-${brainliftId}` })
-    //     .queue();
-    // } catch (err) {
-    //   console.error('[BuilderExperts] Failed to queue research job:', err);
-    //   // Don't roll back the expert save
-    // }
+    // Queue research idempotently — jobKey prevents duplicate queuing
+    try {
+      const { withJob } = await import('../utils/withJob');
+      await withJob('learning-stream:research')
+        .forPayload({ brainliftId })
+        .withOptions({ jobKey: `builder-research-${brainliftId}` })
+        .queue();
+    } catch (err) {
+      console.error('[BuilderExperts] Failed to queue research job:', err);
+      // Don't roll back the expert save
+    }
   }
 }
 
 /**
  * Called after a builder expert is removed.
- * If no saved experts remain, regresses phase2 to 'in_progress'.
+ * Regresses phase2 based on remaining count:
+ *   count === 0 -> 'not_started'
+ *   count < 3   -> 'in_progress'
+ *   count >= 3  -> no change (still complete)
+ * Phase 3 is NEVER re-locked after being unlocked.
  */
 async function afterExpertRemoved(brainliftId: number): Promise<void> {
   const count = await storage.countSavedBuilderExperts(brainliftId);
-  if (count === 0) {
+  if (count < 3) {
     const { db, nativeBrainliftDetails, eq } = await import('../storage/base');
     const [detailRow] = await db
       .select({ phaseProgress: nativeBrainliftDetails.phaseProgress })
@@ -65,7 +70,8 @@ async function afterExpertRemoved(brainliftId: number): Promise<void> {
     if (detailRow) {
       const updatedProgress: NativePhaseProgress = {
         ...detailRow.phaseProgress,
-        phase2: 'in_progress',
+        phase2: count === 0 ? 'not_started' : 'in_progress',
+        // phase3 is intentionally NOT changed here -- stays at whatever it was
       };
       await storage.updateNativeDetailsForBrainlift(brainliftId, {
         phaseProgress: updatedProgress,

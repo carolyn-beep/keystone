@@ -12,6 +12,8 @@ import { BuilderProgressTracker } from './BuilderProgressTracker';
 import { Phase1Topic } from './Phase1Topic';
 import { BuilderDisplayView } from './BuilderDisplayView';
 import { Phase2Experts } from './Phase2Experts';
+import { Phase3KnowledgeTree } from './Phase3KnowledgeTree';
+import { SourceDetailWorkspace } from './SourceDetailWorkspace';
 
 interface BuilderPageProps {
   slug: string;
@@ -71,7 +73,7 @@ function BuilderPageContent({
   update: (fields: Partial<{ topic: string; purpose: string; owner: string | null; lastActivePhase: 1 | 2 | 3 | 4 | 5 }>) => Promise<NativeDetailsResponse>;
   isUpdating: boolean;
 }) {
-  const { view, screen, setView, setScreen } = useBuilderNav(
+  const { view, screen, selectedItemId, setView, setScreen, clearSelectedItem } = useBuilderNav(
     slug,
     nativeDetails.lastActivePhase
   );
@@ -172,8 +174,20 @@ function BuilderPageContent({
               />
             </aside>
 
-            {/* Phase content */}
-            <main className="flex-1 px-4 pt-4 sm:px-8 sm:pt-8 md:px-4 md:pt-12 overflow-y-auto scrollbar-styled">
+            {/* Phase 3 detail view — fills container without scroll wrapper */}
+            {screen === 3 && selectedItemId && (
+              <div className="flex-1 min-w-0 min-h-0 overflow-hidden p-4">
+                <SourceDetailWorkspace
+                  slug={slug}
+                  itemId={selectedItemId}
+                  onBackToList={clearSelectedItem}
+                />
+              </div>
+            )}
+
+            {/* Phase content — scrollable list/form views */}
+            {!(screen === 3 && selectedItemId) && (
+            <main className="flex-1 px-4 py-4 sm:px-8 sm:py-8 md:px-4 md:py-12 overflow-y-auto scrollbar-styled">
               {/* Phase 1: You & Your Mission */}
               {screen === 1 && (
                 <Phase1Topic
@@ -186,22 +200,26 @@ function BuilderPageContent({
 
               {/* Phase 2: Your Experts */}
               {screen === 2 && (
-                <Phase2Experts slug={slug} />
+                <Phase2Experts slug={slug} onNavigatePhase3={() => setScreen(3)} />
               )}
 
-              {/* Phases 3-5: locked placeholders */}
-              {screen > 2 && (
+              {/* Phase 3: Knowledge Tree — list view */}
+              {screen === 3 && !selectedItemId && (
+                <Phase3KnowledgeTree slug={slug} />
+              )}
+
+              {/* Phases 4-5: locked placeholders */}
+              {screen > 3 && (
                 <div>
                   <div className="flex items-center gap-4 mb-2">
                     <span className="font-serif text-[42px] leading-none text-muted-light font-normal tracking-wide">
                       {screen}
                     </span>
                     <h2 className="text-[26px] font-bold text-foreground tracking-tight leading-[1.1] m-0">
-                      {screen === 3 ? 'Knowledge Tree' : screen === 4 ? 'Connections' : 'Your Stance'}
+                      {screen === 4 ? 'Connections' : 'Your Stance'}
                     </h2>
                   </div>
                   <p className="font-serif text-[14px] italic text-muted-foreground leading-relaxed m-0 mb-4">
-                    {screen === 3 && 'This is where your reading goes. Each source you add feeds into a structured tree of facts (DOK1) and your own synthesis (DOK2). Coming in a future phase.'}
                     {screen === 4 && 'Cross-source patterns. Once your Knowledge Tree has sources from multiple voices, you\'ll find tensions and surprises that no single source contains. Coming in a future phase.'}
                     {screen === 5 && 'Your defensible position. What do you believe that others might push back on? Your Stance is built from your Connections, grounded in evidence. Coming in a future phase.'}
                   </p>
@@ -211,6 +229,7 @@ function BuilderPageContent({
                 </div>
               )}
             </main>
+            )}
           </>
         )}
 

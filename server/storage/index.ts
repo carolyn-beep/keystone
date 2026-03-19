@@ -16,6 +16,7 @@ import * as brainliftSourcesStorage from './brainlift-sources';
 import * as knowledgeCheckStorage from './knowledge-check';
 import * as nativeBrainliftsStorage from './native-brainlifts';
 import * as builderExpertsStorage from './builder-experts';
+import * as knowledgeTreeStorage from './knowledge-tree';
 
 // Re-export types from base
 export type {
@@ -29,6 +30,7 @@ export type {
   NativeBrainliftDetails, InsertNativeBrainliftDetails,
   BuilderExpert, InsertBuilderExpert,
   NativePhaseProgress, BuilderPhaseStatus, BuilderSuggestionStatus,
+  Category, InsertCategory, CategorySuggestionState,
 } from './base';
 
 /**
@@ -171,6 +173,25 @@ export const storage = {
   getNativeDetailsBySlug: nativeBrainliftsStorage.getNativeDetailsBySlug,
   updateNativeDetailsForBrainlift: nativeBrainliftsStorage.updateNativeDetailsForBrainlift,
   setBuilderSuggestionState: nativeBrainliftsStorage.setBuilderSuggestionState,
+  celebratePhase3: nativeBrainliftsStorage.celebratePhase3,
+
+  // Knowledge Tree (Phase 3)
+  getKnowledgeTree: knowledgeTreeStorage.getKnowledgeTree,
+  getItemDetail: knowledgeTreeStorage.getItemDetail,
+  createManualSource: knowledgeTreeStorage.createManualSource,
+  deleteExtractions: knowledgeTreeStorage.deleteExtractions,
+  createCategory: knowledgeTreeStorage.createCategory,
+  updateCategory: knowledgeTreeStorage.updateCategory,
+  deleteCategory: knowledgeTreeStorage.deleteCategory,
+  getCategoriesWithCounts: knowledgeTreeStorage.getCategoriesWithCounts,
+  reassignItemCategory: knowledgeTreeStorage.reassignItemCategory,
+  getExtractionCounts: knowledgeTreeStorage.getExtractionCounts,
+  createManualFact: knowledgeTreeStorage.createManualFact,
+  updateManualFact: knowledgeTreeStorage.updateManualFact,
+  deleteManualFact: knowledgeTreeStorage.deleteManualFact,
+  createManualSummary: knowledgeTreeStorage.createManualSummary,
+  updateManualSummary: knowledgeTreeStorage.updateManualSummary,
+  deleteManualSummary: knowledgeTreeStorage.deleteManualSummary,
 
   // Builder Experts
   getBuilderExpertsByBrainliftId: builderExpertsStorage.getBuilderExpertsByBrainliftId,
@@ -184,4 +205,4 @@ export const storage = {
 };
 
 // Export individual modules for direct access if needed
-export { brainliftsStorage, expertsStorage, verificationsStorage, redundancyStorage, analyticsStorage, dok2Storage, sharesStorage, learningStreamStorage, dok3Storage, dok4Storage, importAgentStorage, brainliftSourcesStorage, knowledgeCheckStorage, nativeBrainliftsStorage, builderExpertsStorage };
+export { brainliftsStorage, expertsStorage, verificationsStorage, redundancyStorage, analyticsStorage, dok2Storage, sharesStorage, learningStreamStorage, dok3Storage, dok4Storage, importAgentStorage, brainliftSourcesStorage, knowledgeCheckStorage, nativeBrainliftsStorage, builderExpertsStorage, knowledgeTreeStorage };

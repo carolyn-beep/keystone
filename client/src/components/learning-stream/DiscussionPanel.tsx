@@ -16,6 +16,7 @@ interface DiscussionPanelProps {
   slug: string;
   itemId: number;
   item: LearningStreamItem;
+  builderMode?: boolean;
 }
 
 interface Suggestion {
@@ -23,8 +24,8 @@ interface Suggestion {
   prompt: string;
 }
 
-export function DiscussionPanel({ slug, itemId, item }: DiscussionPanelProps) {
-  const runtime = useDiscussion(slug, itemId);
+export function DiscussionPanel({ slug, itemId, item, builderMode }: DiscussionPanelProps) {
+  const runtime = useDiscussion(slug, itemId, builderMode);
 
   const { data: suggestionsData } = useQuery<{ suggestions: Suggestion[] }>({
     queryKey: ['discussion-suggestions', slug, itemId],

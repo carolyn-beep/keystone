@@ -6,7 +6,7 @@ export default defineConfig(({ mode }) => ({
   test: {
     globals: true,
     environment: 'node',
-    include: ['server/**/*.test.ts', 'shared/**/*.test.ts'],
+    include: ['server/**/*.test.ts', 'shared/**/*.test.ts', 'client/src/**/*.test.ts'],
     env: loadEnv(mode, process.cwd(), ''),
   },
   resolve: {

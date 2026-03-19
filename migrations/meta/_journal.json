@@ -134,6 +134,13 @@
       "when": 1773768245966,
       "tag": "0018_slim_mesmero",
       "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1773926115907,
+      "tag": "0019_minor_daimon_hellstrom",
+      "breakpoints": true
     }
   ]
 }

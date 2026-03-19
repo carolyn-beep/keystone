@@ -31,7 +31,7 @@ export async function addLearningStreamItem(
     time: string;
     facts: string;
     url: string;
-    source: 'quick-search' | 'deep-research' | 'twitter' | 'swarm-research';
+    source: 'quick-search' | 'deep-research' | 'twitter' | 'swarm-research' | 'manual';
     relevanceScore?: string | null;
     aiRationale?: string | null;
   }
