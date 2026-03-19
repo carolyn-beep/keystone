@@ -6,9 +6,9 @@
  */
 
 import {
-  db, eq, and, sql, inArray,
+  db, eq, and, sql, inArray, isNull,
   learningStreamItems, facts, dok2Summaries, dok2Points, dok2FactRelations, categories,
-  type LearningStreamItem,
+  type LearningStreamItem, type Category,
 } from './base';
 import { z } from 'zod';
 
@@ -318,4 +318,144 @@ export async function deleteExtractions(
   }
 
   return { facts: factCount, summaries: summaryCount };
+}
+
+// ─── Category CRUD ──────────────────────────────────────────────────────────
+
+/**
+ * Category with source count for API responses
+ */
+export interface CategoryWithCount {
+  id: number;
+  name: string;
+  sortOrder: number | null;
+  sourceCount: number;
+}
+
+/**
+ * Create a new category for a brainlift.
+ */
+export async function createCategory(
+  brainliftId: number,
+  name: string
+): Promise<Category> {
+  const [inserted] = await db.insert(categories).values({
+    brainliftId,
+    name,
+  }).returning();
+
+  return inserted;
+}
+
+/**
+ * Update a category (rename and/or reorder).
+ * IDOR-safe: includes brainliftId in the WHERE clause.
+ * Returns the updated row, or null if not found.
+ */
+export async function updateCategory(
+  categoryId: number,
+  brainliftId: number,
+  fields: { name?: string; sortOrder?: number | null }
+): Promise<Category | null> {
+  const updates: Record<string, unknown> = {};
+  if (fields.name !== undefined) updates.name = fields.name;
+  if (fields.sortOrder !== undefined) updates.sortOrder = fields.sortOrder;
+
+  if (Object.keys(updates).length === 0) return null;
+
+  const [updated] = await db.update(categories)
+    .set(updates)
+    .where(and(
+      eq(categories.id, categoryId),
+      eq(categories.brainliftId, brainliftId),
+    ))
+    .returning();
+
+  return updated ?? null;
+}
+
+/**
+ * Delete a category.
+ * IDOR-safe: includes brainliftId in the WHERE clause.
+ * LS items with this categoryId get SET NULL automatically via FK constraint.
+ * Returns { success: true } or null if not found.
+ */
+export async function deleteCategory(
+  categoryId: number,
+  brainliftId: number
+): Promise<{ success: true } | null> {
+  const deleted = await db.delete(categories)
+    .where(and(
+      eq(categories.id, categoryId),
+      eq(categories.brainliftId, brainliftId),
+    ))
+    .returning({ id: categories.id });
+
+  if (deleted.length === 0) return null;
+  return { success: true };
+}
+
+/**
+ * List categories for a brainlift with source counts.
+ * sourceCount = number of saved LS items (factCount >= 1 AND summaryCount >= 1)
+ * assigned to each category.
+ */
+export async function getCategoriesWithCounts(
+  brainliftId: number
+): Promise<CategoryWithCount[]> {
+  // Subquery: IDs of saved items (bookmarked with >= 1 fact and >= 1 summary)
+  const savedItemIds = db
+    .select({ id: learningStreamItems.id })
+    .from(learningStreamItems)
+    .leftJoin(facts, eq(facts.learningStreamItemId, learningStreamItems.id))
+    .leftJoin(dok2Summaries, eq(dok2Summaries.learningStreamItemId, learningStreamItems.id))
+    .where(and(
+      eq(learningStreamItems.brainliftId, brainliftId),
+      eq(learningStreamItems.status, 'bookmarked'),
+    ))
+    .groupBy(learningStreamItems.id)
+    .having(and(
+      sql`COUNT(DISTINCT ${facts.id}) >= 1`,
+      sql`COUNT(DISTINCT ${dok2Summaries.id}) >= 1`,
+    ))
+    .as('saved_items');
+
+  const rows = await db
+    .select({
+      id: categories.id,
+      name: categories.name,
+      sortOrder: categories.sortOrder,
+      sourceCount: sql<number>`COUNT(${savedItemIds.id})::int`,
+    })
+    .from(categories)
+    .leftJoin(
+      savedItemIds,
+      sql`${savedItemIds.id} IN (
+        SELECT ${learningStreamItems.id} FROM ${learningStreamItems}
+        WHERE ${learningStreamItems.categoryId} = ${categories.id}
+      )`,
+    )
+    .where(eq(categories.brainliftId, brainliftId))
+    .groupBy(categories.id)
+    .orderBy(categories.sortOrder, categories.createdAt);
+
+  return rows;
+}
+
+/**
+ * Reassign an LS item's category.
+ * IDOR-safe: includes brainliftId in the WHERE clause.
+ * categoryId = null means uncategorized.
+ */
+export async function reassignItemCategory(
+  itemId: number,
+  brainliftId: number,
+  categoryId: number | null
+): Promise<void> {
+  await db.update(learningStreamItems)
+    .set({ categoryId })
+    .where(and(
+      eq(learningStreamItems.id, itemId),
+      eq(learningStreamItems.brainliftId, brainliftId),
+    ));
 }

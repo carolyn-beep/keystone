@@ -34,29 +34,42 @@ export interface CategoryDropdownOption {
  * Returns true only when at least one category exists.
  */
 export function shouldShowCategoryGroups(categories: CategoryResponse[]): boolean {
-  // TODO: implement
-  return false;
+  return categories.length > 0;
 }
 
 /**
  * Group saved items by their category, ordered by category sortOrder.
- * Returns a group per category (including empty groups).
+ * Returns a group per category (including empty groups for categories with no saved items).
  * Uncategorized items are NOT included here -- use computeUncategorizedGroup.
  */
 export function groupSavedItemsByCategory(
   items: SavedItemView[],
   categories: CategoryResponse[]
 ): CategoryGroup[] {
-  // TODO: implement
-  return [];
+  // Build a map of categoryId -> items
+  const itemsByCategory = new Map<number, SavedItemView[]>();
+  for (const cat of categories) {
+    itemsByCategory.set(cat.id, []);
+  }
+
+  for (const item of items) {
+    if (item.categoryId !== null && itemsByCategory.has(item.categoryId)) {
+      itemsByCategory.get(item.categoryId)!.push(item);
+    }
+  }
+
+  return categories.map(cat => ({
+    categoryId: cat.id,
+    categoryName: cat.name,
+    items: itemsByCategory.get(cat.id) ?? [],
+  }));
 }
 
 /**
  * Extract items with no category assignment (categoryId === null).
  */
 export function computeUncategorizedGroup(items: SavedItemView[]): SavedItemView[] {
-  // TODO: implement
-  return [];
+  return items.filter(item => item.categoryId === null);
 }
 
 // ─── Dropdown Logic ─────────────────────────────────────────────────────────
@@ -69,6 +82,8 @@ export function computeUncategorizedGroup(items: SavedItemView[]): SavedItemView
 export function buildCategoryDropdownOptions(
   categories: CategoryResponse[]
 ): CategoryDropdownOption[] {
-  // TODO: implement
-  return [];
+  return [
+    { value: null, label: 'Uncategorized' },
+    ...categories.map(cat => ({ value: cat.id, label: cat.name })),
+  ];
 }

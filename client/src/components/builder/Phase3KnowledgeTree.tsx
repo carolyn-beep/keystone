@@ -2,16 +2,18 @@
  * Phase3KnowledgeTree — Knowledge Tree list workspace for Builder Phase 3.
  *
  * Three sections: Unprocessed (pending), Triaged (bookmarked), Saved (with extractions).
+ * When categories exist, saved section renders as collapsible category groups.
  * Plus swarm status bar, manual source form, and contextual empty states.
  */
 
 import { useState, useCallback } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
-import { Loader2, Plus, ExternalLink, RefreshCw, Search, X, BookOpen, ArrowRight } from 'lucide-react';
+import { Loader2, Plus, ExternalLink, RefreshCw, Search, X, BookOpen, ArrowRight, ChevronDown, ChevronRight, FolderPlus } from 'lucide-react';
 import { useLocation } from 'wouter';
 import { TactileButton } from '@/components/ui/tactile-button';
 import { ResourceTypeBadge } from '@/components/learning-stream/ResourceTypeBadge';
 import { useKnowledgeTree, type SavedItemView } from '@/hooks/useKnowledgeTree';
+import { useCategories } from '@/hooks/useCategories';
 import type { LearningStreamItem } from '@/hooks/useLearningStream';
 import {
   computeEmptyState,
@@ -22,6 +24,12 @@ import {
   computeRelaunchVisibility,
   formatExtractionCounts,
 } from './knowledge-tree-helpers';
+import {
+  shouldShowCategoryGroups,
+  groupSavedItemsByCategory,
+  computeUncategorizedGroup,
+  buildCategoryDropdownOptions,
+} from './category-helpers';
 
 // ─── Props ──────────────────────────────────────────────────────────────────
 
@@ -167,9 +175,71 @@ function TriagedCard({ item }: { item: LearningStreamItem }) {
   );
 }
 
+// ─── CategoryAssignDropdown ─────────────────────────────────────────────────
+
+function CategoryAssignDropdown({ item, slug }: { item: SavedItemView; slug: string }) {
+  const { categories, assignItem, isAssigning } = useCategories(slug);
+  const [open, setOpen] = useState(false);
+  const options = buildCategoryDropdownOptions(categories);
+
+  const handleSelect = useCallback(async (categoryId: number | null, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setOpen(false);
+    if (categoryId === item.categoryId) return;
+    try {
+      await assignItem(item.id, categoryId);
+    } catch {
+      // Error handled by TanStack Query
+    }
+  }, [assignItem, item.id, item.categoryId]);
+
+  const handleToggle = useCallback((e: React.MouseEvent) => {
+    e.stopPropagation();
+    setOpen(prev => !prev);
+  }, []);
+
+  // Close dropdown when clicking outside
+  const handleBlur = useCallback(() => {
+    // Small delay to allow click events on options to fire first
+    setTimeout(() => setOpen(false), 150);
+  }, []);
+
+  return (
+    <div className="relative" onBlur={handleBlur}>
+      <button
+        onClick={handleToggle}
+        disabled={isAssigning}
+        className="px-[6px] py-[2px] rounded bg-success-soft text-success text-[9px] uppercase tracking-[0.25em] font-semibold
+                   hover:bg-success-soft/80 transition-colors cursor-pointer border-none min-h-[24px] min-w-[24px]"
+      >
+        {isAssigning ? '...' : (item.categoryName || 'Uncategorized')}
+      </button>
+
+      {open && (
+        <div className="absolute top-full left-0 mt-1 z-50 min-w-[160px] rounded-lg bg-card-elevated shadow-card-hover py-1">
+          {options.map(opt => (
+            <button
+              key={opt.value ?? 'uncategorized'}
+              onClick={(e) => handleSelect(opt.value, e)}
+              className={`w-full text-left px-3 py-2 text-xs font-sans transition-colors cursor-pointer border-none bg-transparent
+                         hover:bg-background ${opt.value === item.categoryId ? 'text-foreground font-semibold' : 'text-muted-foreground'}`}
+            >
+              {opt.label}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─── SavedItemCard ──────────────────────────────────────────────────────────
 
-function SavedItemCard({ item }: { item: SavedItemView }) {
+function SavedItemCard({ item, slug, showCategoryDropdown = false }: {
+  item: SavedItemView;
+  slug: string;
+  showCategoryDropdown?: boolean;
+}) {
   return (
     <div
       className="bg-card-elevated rounded-xl shadow-card overflow-hidden hover:shadow-card-hover transition-shadow cursor-pointer"
@@ -178,11 +248,13 @@ function SavedItemCard({ item }: { item: SavedItemView }) {
       <div className="px-6 py-4">
         <div className="flex items-center gap-3 mb-2 flex-wrap">
           <ResourceTypeBadge type={item.type || 'Unknown'} size="compact" />
-          {item.categoryName && (
+          {showCategoryDropdown ? (
+            <CategoryAssignDropdown item={item} slug={slug} />
+          ) : item.categoryName ? (
             <span className="px-[6px] py-[2px] rounded bg-success-soft text-success text-[9px] uppercase tracking-[0.25em] font-semibold">
               {item.categoryName}
             </span>
-          )}
+          ) : null}
         </div>
 
         <h4 className="font-serif text-[15px] font-normal leading-snug text-foreground m-0 mb-2">
@@ -195,6 +267,55 @@ function SavedItemCard({ item }: { item: SavedItemView }) {
           </span>
         </div>
       </div>
+    </div>
+  );
+}
+
+// ─── CategoryGroupSection ───────────────────────────────────────────────────
+
+function CategoryGroupSection({ name, items, slug, defaultCollapsed = false }: {
+  name: string;
+  items: SavedItemView[];
+  slug: string;
+  defaultCollapsed?: boolean;
+}) {
+  const [collapsed, setCollapsed] = useState(defaultCollapsed);
+
+  if (items.length === 0) return null;
+
+  return (
+    <div className="mb-4">
+      <button
+        onClick={() => setCollapsed(prev => !prev)}
+        className="flex items-center gap-2 mb-2 cursor-pointer bg-transparent border-none p-0 w-full text-left"
+      >
+        {collapsed ? (
+          <ChevronRight size={12} className="text-muted-foreground" />
+        ) : (
+          <ChevronDown size={12} className="text-muted-foreground" />
+        )}
+        <span className="text-[10px] uppercase tracking-[0.35em] font-semibold text-muted-foreground">
+          {name} {' \u00b7 '} {items.length}
+        </span>
+      </button>
+
+      <AnimatePresence initial={false}>
+        {!collapsed && (
+          <motion.div
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: 'auto' }}
+            exit={{ opacity: 0, height: 0 }}
+            transition={{ duration: 0.2, ease: 'easeOut' }}
+            style={{ overflow: 'hidden' }}
+          >
+            <div className="space-y-2 pl-5">
+              {items.map(item => (
+                <SavedItemCard key={item.id} item={item} slug={slug} showCategoryDropdown />
+              ))}
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
@@ -354,7 +475,11 @@ export function Phase3KnowledgeTree({ slug }: Phase3KnowledgeTreeProps) {
     addSourceError,
   } = useKnowledgeTree(slug);
 
+  const { categories, create: createCategory, isCreating: isCreatingCategory } = useCategories(slug);
+
   const [showAddForm, setShowAddForm] = useState(false);
+  const [showNewCategoryInput, setShowNewCategoryInput] = useState(false);
+  const [newCategoryName, setNewCategoryName] = useState('');
 
   // ── Handlers ──────────────────────────────────────────────────────────
 
@@ -392,6 +517,18 @@ export function Phase3KnowledgeTree({ slug }: Phase3KnowledgeTreeProps) {
       // Mutation failure handled by TanStack Query
     }
   }, [relaunchResearch]);
+
+  const handleCreateCategory = useCallback(async () => {
+    const trimmed = newCategoryName.trim();
+    if (!trimmed) return;
+    try {
+      await createCategory(trimmed);
+      setNewCategoryName('');
+      setShowNewCategoryInput(false);
+    } catch {
+      // Error handled by TanStack Query
+    }
+  }, [createCategory, newCategoryName]);
 
   // ── Loading State ─────────────────────────────────────────────────────
 
@@ -470,10 +607,59 @@ export function Phase3KnowledgeTree({ slug }: Phase3KnowledgeTreeProps) {
       {saved.length > 0 && (
         <>
           <SectionHeader label="Saved" count={saved.length} />
-          <div className="space-y-2">
-            {saved.map((item) => (
-              <SavedItemCard key={item.id} item={item} />
-            ))}
+          {shouldShowCategoryGroups(categories) ? (
+            <SavedSectionGrouped saved={saved} categories={categories} slug={slug} />
+          ) : (
+            <div className="space-y-2">
+              {saved.map((item) => (
+                <SavedItemCard key={item.id} item={item} slug={slug} />
+              ))}
+            </div>
+          )}
+
+          {/* New Category button */}
+          <div className="mt-4">
+            {showNewCategoryInput ? (
+              <div className="flex items-center gap-2">
+                <input
+                  type="text"
+                  value={newCategoryName}
+                  onChange={(e) => setNewCategoryName(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') handleCreateCategory();
+                    if (e.key === 'Escape') { setShowNewCategoryInput(false); setNewCategoryName(''); }
+                  }}
+                  placeholder="Category name"
+                  autoFocus
+                  className="rounded-lg px-3 py-2 bg-background border border-border text-foreground text-xs
+                             focus:outline-none focus:border-primary/30 focus:ring-1 focus:ring-primary/20 transition-colors"
+                />
+                <TactileButton
+                  variant="raised"
+                  onClick={handleCreateCategory}
+                  disabled={isCreatingCategory || !newCategoryName.trim()}
+                  className="text-[11px] px-3 py-1.5"
+                >
+                  {isCreatingCategory ? <Loader2 size={11} className="animate-spin" /> : 'Add'}
+                </TactileButton>
+                <TactileButton
+                  variant="inset"
+                  onClick={() => { setShowNewCategoryInput(false); setNewCategoryName(''); }}
+                  className="text-[11px] px-3 py-1.5"
+                >
+                  Cancel
+                </TactileButton>
+              </div>
+            ) : (
+              <TactileButton
+                variant="inset"
+                onClick={() => setShowNewCategoryInput(true)}
+                className="text-[11px] flex items-center gap-1.5"
+              >
+                <FolderPlus size={12} />
+                New Category
+              </TactileButton>
+            )}
           </div>
         </>
       )}
@@ -555,6 +741,37 @@ export function Phase3KnowledgeTree({ slug }: Phase3KnowledgeTreeProps) {
           )}
         </AnimatePresence>
       </div>
+    </div>
+  );
+}
+
+// ─── SavedSectionGrouped ─────────────────────────────────────────────────────
+
+function SavedSectionGrouped({ saved, categories, slug }: {
+  saved: SavedItemView[];
+  categories: Array<{ id: number; name: string; sortOrder: number | null; sourceCount: number }>;
+  slug: string;
+}) {
+  const groups = groupSavedItemsByCategory(saved, categories);
+  const uncategorizedItems = computeUncategorizedGroup(saved);
+
+  return (
+    <div>
+      {groups.map(group => (
+        <CategoryGroupSection
+          key={group.categoryId}
+          name={group.categoryName}
+          items={group.items}
+          slug={slug}
+        />
+      ))}
+      {uncategorizedItems.length > 0 && (
+        <CategoryGroupSection
+          name="Uncategorized"
+          items={uncategorizedItems}
+          slug={slug}
+        />
+      )}
     </div>
   );
 }

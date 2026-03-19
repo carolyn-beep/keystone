@@ -18,6 +18,22 @@ import { z } from 'zod';
 
 export const knowledgeTreeRouter = Router();
 
+// Input validation schemas
+const createCategorySchema = z.object({
+  name: z.string().trim().min(1, 'Category name is required'),
+});
+
+const updateCategorySchema = z.object({
+  name: z.string().trim().min(1, 'Category name cannot be empty').optional(),
+  sortOrder: z.number().int().nullable().optional(),
+}).refine(data => data.name !== undefined || data.sortOrder !== undefined, {
+  message: 'At least one field required',
+});
+
+const reassignCategorySchema = z.object({
+  categoryId: z.number().int().nullable(),
+});
+
 // Input validation for manual source creation
 const createManualSourceSchema = z.object({
   url: z.string().url().refine((url) => {
@@ -182,6 +198,122 @@ knowledgeTreeRouter.delete(
       success: true,
       deletedCounts,
     });
+  })
+);
+
+// ─── Category CRUD ──────────────────────────────────────────────────────────
+
+/**
+ * GET /api/brainlifts/:slug/categories
+ * List all categories for the brainlift with source counts.
+ */
+knowledgeTreeRouter.get(
+  '/api/brainlifts/:slug/categories',
+  requireAuth,
+  requireBrainliftAccess,
+  asyncHandler(async (req, res) => {
+    const brainlift = req.brainlift!;
+    const categories = await storage.getCategoriesWithCounts(brainlift.id);
+    res.json(categories);
+  })
+);
+
+/**
+ * POST /api/brainlifts/:slug/categories
+ * Create a new category for the brainlift.
+ */
+knowledgeTreeRouter.post(
+  '/api/brainlifts/:slug/categories',
+  requireAuth,
+  requireBrainliftModify,
+  asyncHandler(async (req, res) => {
+    const brainlift = req.brainlift!;
+    const input = createCategorySchema.parse(req.body);
+
+    const category = await storage.createCategory(brainlift.id, input.name);
+    res.status(201).json(category);
+  })
+);
+
+/**
+ * PATCH /api/brainlifts/:slug/categories/:id
+ * Rename or reorder a category.
+ */
+knowledgeTreeRouter.patch(
+  '/api/brainlifts/:slug/categories/:id',
+  requireAuth,
+  requireBrainliftModify,
+  asyncHandler(async (req, res) => {
+    const brainlift = req.brainlift!;
+    const categoryId = parseInt(req.params.id);
+
+    if (isNaN(categoryId)) {
+      throw new BadRequestError('Invalid category ID');
+    }
+
+    const input = updateCategorySchema.parse(req.body);
+    const updated = await storage.updateCategory(categoryId, brainlift.id, input);
+
+    if (!updated) {
+      throw new NotFoundError('Category not found');
+    }
+
+    res.json(updated);
+  })
+);
+
+/**
+ * DELETE /api/brainlifts/:slug/categories/:id
+ * Delete a category. Items in the category become uncategorized (FK SET NULL).
+ */
+knowledgeTreeRouter.delete(
+  '/api/brainlifts/:slug/categories/:id',
+  requireAuth,
+  requireBrainliftModify,
+  asyncHandler(async (req, res) => {
+    const brainlift = req.brainlift!;
+    const categoryId = parseInt(req.params.id);
+
+    if (isNaN(categoryId)) {
+      throw new BadRequestError('Invalid category ID');
+    }
+
+    const result = await storage.deleteCategory(categoryId, brainlift.id);
+    if (!result) {
+      throw new NotFoundError('Category not found');
+    }
+
+    res.json({ success: true });
+  })
+);
+
+/**
+ * PATCH /api/brainlifts/:slug/learning-stream/:itemId/category
+ * Reassign an LS item's category. categoryId = null means uncategorized.
+ */
+knowledgeTreeRouter.patch(
+  '/api/brainlifts/:slug/learning-stream/:itemId/category',
+  requireAuth,
+  requireBrainliftModify,
+  asyncHandler(async (req, res) => {
+    const brainlift = req.brainlift!;
+    const itemId = parseInt(req.params.itemId);
+
+    if (isNaN(itemId)) {
+      throw new BadRequestError('Invalid item ID');
+    }
+
+    const input = reassignCategorySchema.parse(req.body);
+
+    // Verify item exists and belongs to brainlift
+    const item = await storage.getLearningStreamItemById(itemId, brainlift.id);
+    if (!item) {
+      throw new NotFoundError('Item not found');
+    }
+
+    await storage.reassignItemCategory(itemId, brainlift.id, input.categoryId);
+
+    res.json({ success: true });
   })
 );
 

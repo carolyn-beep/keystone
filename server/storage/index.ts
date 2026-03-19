@@ -180,6 +180,11 @@ export const storage = {
   getItemDetail: knowledgeTreeStorage.getItemDetail,
   createManualSource: knowledgeTreeStorage.createManualSource,
   deleteExtractions: knowledgeTreeStorage.deleteExtractions,
+  createCategory: knowledgeTreeStorage.createCategory,
+  updateCategory: knowledgeTreeStorage.updateCategory,
+  deleteCategory: knowledgeTreeStorage.deleteCategory,
+  getCategoriesWithCounts: knowledgeTreeStorage.getCategoriesWithCounts,
+  reassignItemCategory: knowledgeTreeStorage.reassignItemCategory,
 
   // Builder Experts
   getBuilderExpertsByBrainliftId: builderExpertsStorage.getBuilderExpertsByBrainliftId,
