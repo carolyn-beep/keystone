@@ -1108,11 +1108,13 @@ export interface BrainliftData extends Brainlift {
   facts: Fact[];
   contradictionClusters: ContradictionCluster[];
   experts: Expert[];
+  userPermission?: 'owner' | 'editor' | 'viewer' | null;
   dok2Summaries?: Array<{
     id: number;
     category: string;
     sourceName: string;
     sourceUrl: string | null;
+    displayTitle: string | null;
     points: Array<{ id: number; text: string; sortOrder: number }>;
     relatedFactIds: number[];
     // DOK2 Grading fields

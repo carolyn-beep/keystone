@@ -1,12 +1,32 @@
-import { useState, useMemo, useRef, useEffect } from 'react';
+import { useState, useMemo, useCallback, useRef, useEffect } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { Lightbulb, RefreshCw, Loader2, ChevronDown, ChevronUp, Info, Link2 } from 'lucide-react';
 import { PiFootprintsFill } from 'react-icons/pi';
 import { IoLinkSharp } from 'react-icons/io5';
+import { FaArrowUpRightDots } from 'react-icons/fa6';
 import type { DOK3InsightWithLinks } from '@/hooks/useDOK3Insights';
 import type { DOK3GradingSSEEvent } from '@/hooks/useDOK3GradingEvents';
 import { tokens, getScoreChipColors } from '@/lib/colors';
 import { TactileButton } from '@/components/ui/tactile-button';
+import { FilterBar, type ExtraFilter } from '@/components/FilterBar';
+
+const INSIGHT_SCORE_LABELS: Record<number, string> = {
+  5: 'Excellent', 4: 'Strong', 3: 'Adequate', 2: 'Weak', 1: 'Failed',
+};
+
+const insightSearchFn = (insight: DOK3InsightWithLinks, query: string): boolean => {
+  const q = query.toLowerCase();
+  return (
+    insight.text.toLowerCase().includes(q) ||
+    (insight.frameworkName?.toLowerCase().includes(q) ?? false)
+  );
+};
+
+const insightScoreFn = (insight: DOK3InsightWithLinks): number | null => insight.score;
+
+const INSIGHT_EXTRA_FILTERS: ExtraFilter<DOK3InsightWithLinks>[] = [
+  { key: 'traceability', label: 'Traceability Flagged', predicate: (i) => i.traceabilityFlagged === true },
+];
 
 // ─── Criteria Metadata ─────────────────────────────────────────────────────────
 
@@ -162,7 +182,14 @@ export function InsightsTab({
   onLinkNow,
 }: InsightsTabProps) {
   const [expandedIds, setExpandedIds] = useState<Record<number, boolean>>({});
+  const [expandedAnalysis, setExpandedAnalysis] = useState<Record<number, boolean>>({});
   const [sortMode, setSortMode] = useState<SortMode>('score');
+
+  // Filtered insights from FilterBar
+  const [filteredInsights, setFilteredInsights] = useState<DOK3InsightWithLinks[]>([]);
+  const handleFilteredChange = useCallback((items: DOK3InsightWithLinks[]) => {
+    setFilteredInsights(items);
+  }, []);
 
   // Build DOK2 lookup map
   const dok2Map = useMemo(() => {
@@ -174,6 +201,9 @@ export function InsightsTab({
   const toggleExpanded = (id: number) => {
     setExpandedIds(prev => ({ ...prev, [id]: !prev[id] }));
   };
+  const toggleAnalysis = (id: number) => {
+    setExpandedAnalysis(prev => ({ ...prev, [id]: !prev[id] }));
+  };
 
   // Separate pending_linking insights (shown as banner, not cards)
   const pendingLinkingCount = useMemo(
@@ -181,9 +211,15 @@ export function InsightsTab({
     [insights],
   );
 
-  // Sort non-pending insights: graded (score desc) → grading → linked → error
+  // Displayable insights (excluding pending_linking) — passed to FilterBar
+  const displayableInsights = useMemo(
+    () => insights.filter(i => i.status !== 'pending_linking'),
+    [insights],
+  );
+
+  // Sort filtered insights: graded (score desc) → grading → linked → error
   const sortedInsights = useMemo(() => {
-    const displayable = insights.filter(i => i.status !== 'pending_linking');
+    const displayable = filteredInsights;
     if (sortMode === 'status') {
       const statusOrder: Record<string, number> = {
         graded: 0, grading: 1, linked: 2, error: 3,
@@ -203,7 +239,7 @@ export function InsightsTab({
       };
       return (statusOrder[a.status] ?? 99) - (statusOrder[b.status] ?? 99);
     });
-  }, [insights, sortMode]);
+  }, [filteredInsights, sortMode]);
 
   const handleRetryOne = async () => {
     await gradeAll();
@@ -255,7 +291,7 @@ export function InsightsTab({
   };
 
   return (
-    <div className="max-w-[1200px] mx-auto">
+    <div className="max-w-[1200px] mx-auto min-h-[200vh]">
       {/* Page Header */}
       <div className="flex flex-col gap-4 mb-6 pb-4">
         <div className="flex items-start justify-between gap-6">
@@ -330,33 +366,37 @@ export function InsightsTab({
         </motion.div>
       )}
 
-      {/* Section Header + Actions + Cards (hidden when only pending_linking insights remain) */}
-      {sortedInsights.length > 0 && (
+      {/* Section Header (FilterBar) + Cards */}
+      {displayableInsights.length > 0 && (
         <>
-          <div className="flex items-baseline justify-between animate-fade-slide-in" style={{ animationDelay: '400ms', animationFillMode: 'backwards' }}>
-            <h3 className="text-[24px] font-semibold text-foreground m-0">
-              Active Insights
-            </h3>
-            <div className="flex items-center gap-6">
-              {errorInsights.length > 0 && (
-                <button
-                  onClick={() => gradeAll()}
-                  disabled={isGrading}
-                  className="flex items-center gap-2 text-[10px] uppercase tracking-[0.35em] text-warning font-semibold bg-transparent border-0 p-0 cursor-pointer hover:text-foreground transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  {isGrading ? <Loader2 size={14} className="animate-spin" /> : <RefreshCw size={14} />}
-                  Retry {errorInsights.length} Failed
-                </button>
-              )}
+          <FilterBar
+            title="Active Insights"
+            titleRight={errorInsights.length > 0 ? (
+              <button
+                onClick={() => gradeAll()}
+                disabled={isGrading}
+                className="flex items-center gap-2 text-[10px] uppercase tracking-[0.35em] text-warning font-semibold bg-transparent border-0 p-0 cursor-pointer hover:text-foreground transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {isGrading ? <Loader2 size={14} className="animate-spin" /> : <RefreshCw size={14} />}
+                Retry {errorInsights.length} Failed
+              </button>
+            ) : undefined}
+            items={displayableInsights}
+            searchFn={insightSearchFn}
+            scoreFn={insightScoreFn}
+            scoreLabels={INSIGHT_SCORE_LABELS}
+            extraFilters={INSIGHT_EXTRA_FILTERS}
+            onFilteredChange={handleFilteredChange}
+            sortControl={
               <button
                 onClick={() => setSortMode(prev => prev === 'score' ? 'status' : 'score')}
                 className="flex items-center gap-2 text-[10px] uppercase tracking-[0.35em] text-muted-light font-semibold bg-transparent border-0 p-0 cursor-pointer hover:text-muted-foreground transition-colors duration-200"
               >
                 {sortMode === 'score' ? 'By Score' : 'By Status'}
               </button>
-            </div>
-          </div>
-          <hr className="border-t border-border mt-4 mb-12" />
+            }
+            searchPlaceholder="Search insights..."
+          />
 
           {/* Real-time grading indicator */}
           {gradingInsights.length > 0 && latestEvent && (
@@ -374,6 +414,8 @@ export function InsightsTab({
                 insight={insight}
                 expanded={expandedIds[insight.id] ?? false}
                 onToggle={() => toggleExpanded(insight.id)}
+                analysisExpanded={expandedAnalysis[insight.id] ?? false}
+                onToggleAnalysis={() => toggleAnalysis(insight.id)}
                 onRetry={() => handleRetryOne()}
                 setActiveTab={setActiveTab}
                 animationDelay={(index + 6) * 80}
@@ -393,13 +435,15 @@ interface InsightCardProps {
   insight: DOK3InsightWithLinks;
   expanded: boolean;
   onToggle: () => void;
+  analysisExpanded: boolean;
+  onToggleAnalysis: () => void;
   onRetry: () => void;
   setActiveTab: (tab: string) => void;
   animationDelay: number;
   dok2Map: Map<number, DOK2SummaryRef>;
 }
 
-function InsightCard({ insight, expanded, onToggle, onRetry, setActiveTab, animationDelay, dok2Map }: InsightCardProps) {
+function InsightCard({ insight, expanded, onToggle, analysisExpanded, onToggleAnalysis, onRetry, setActiveTab, animationDelay, dok2Map }: InsightCardProps) {
   const gradeColors = insight.score !== null ? getScoreChipColors(insight.score) : null;
   const gradeLabel = getGradeLabel(insight.score);
   const hasCriteria = insight.criteriaBreakdown && Object.keys(insight.criteriaBreakdown).length > 0;
@@ -496,43 +540,103 @@ function InsightCard({ insight, expanded, onToggle, onRetry, setActiveTab, anima
           </div>
         </div>
 
-        {/* Rationale & Feedback - Always visible for graded insights */}
-        {insight.status === 'graded' && (insight.rationale || insight.feedback) && (
-          <div className="px-10 pb-12 flex flex-col gap-8">
-            {insight.rationale && (
-              <div className="rounded-xl p-10 bg-primary/5 border border-border">
-                <div className="flex items-center gap-2.5 mb-8">
-                  <Lightbulb size={20} style={{ color: tokens.warning }} />
-                  <span className="text-[14px] uppercase tracking-[0.15em] font-semibold" style={{ color: tokens.warning }}>
-                    Rationale
+        {/* Analysis (Tier 2) */}
+        {insight.status === 'graded' && insight.rationale && (
+          <div className="px-10 pb-10">
+            {/* Separator */}
+            <div className="border-t border-border mb-6" />
+
+            {/* Collapsed: clickable preview area */}
+            {!analysisExpanded && (
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onToggleAnalysis();
+                  const section = e.currentTarget.parentElement;
+                  if (section) {
+                    section.style.scrollMarginTop = '100px';
+                    setTimeout(() => section.scrollIntoView({ behavior: 'smooth', block: 'start' }), 50);
+                  }
+                }}
+                className="w-full text-left bg-transparent border-0 p-0 cursor-pointer group"
+              >
+                <div className="flex items-center justify-between mb-4">
+                  <span className="text-[10px] uppercase tracking-[0.35em] font-semibold text-muted-foreground">
+                    Analysis
+                  </span>
+                  <span className="flex items-center gap-1.5 text-[10px] uppercase tracking-[0.25em] font-semibold text-muted-light py-2 px-3 -mr-3 rounded-md group-hover:text-muted-foreground group-hover:bg-sidebar-accent/50 transition-all duration-300">
+                    Read
+                    <ChevronDown size={12} />
                   </span>
                 </div>
-                <p className="font-serif text-[15px] leading-[2] text-foreground m-0 whitespace-pre-wrap">
+                <p className="font-serif text-[14px] leading-[1.8] italic text-muted-foreground m-0 line-clamp-2">
                   {insight.rationale}
                 </p>
+              </button>
+            )}
+
+            {/* Expanded header */}
+            {analysisExpanded && (
+              <div className="flex items-center justify-between mb-6">
+                <span className="text-[10px] uppercase tracking-[0.35em] font-semibold text-muted-foreground">
+                  Analysis
+                </span>
+                <button
+                  onClick={(e) => { e.stopPropagation(); onToggleAnalysis(); }}
+                  className="flex items-center gap-1.5 text-[10px] uppercase tracking-[0.25em] font-semibold text-muted-light bg-transparent border-0 py-2 px-3 -mr-3 rounded-md cursor-pointer hover:text-muted-foreground hover:bg-sidebar-accent/50 transition-all duration-300"
+                >
+                  Hide
+                  <ChevronUp size={12} />
+                </button>
               </div>
             )}
-            {insight.feedback && (
-              <div className="rounded-xl p-10 bg-primary/5 border border-border">
-                <div className="flex items-center gap-2.5 mb-8">
-                  <RefreshCw size={20} style={{ color: tokens.success }} />
-                  <span className="text-[14px] uppercase tracking-[0.15em] font-semibold" style={{ color: tokens.success }}>
-                    How to Improve
-                  </span>
-                </div>
-                <p className="font-serif text-[15px] leading-[2] text-foreground m-0 whitespace-pre-wrap italic">
-                  {insight.feedback}
-                </p>
-              </div>
-            )}
+
+            {/* Expanded: rationale text + feedback box */}
+            <AnimatePresence initial={false}>
+              {analysisExpanded && (
+                <motion.div
+                  key="analysis"
+                  initial={{ height: 0, opacity: 0 }}
+                  animate={{ height: 'auto', opacity: 1 }}
+                  exit={{ height: 0, opacity: 0 }}
+                  transition={{ height: { duration: 0.4, ease: 'easeInOut' }, opacity: { duration: 0.2 } }}
+                  className="overflow-hidden"
+                >
+                  <p className="font-serif text-[15px] leading-[2] text-foreground m-0 whitespace-pre-wrap mb-10">
+                    {insight.rationale}
+                  </p>
+                  {insight.feedback && (
+                    <div className="rounded-lg py-6 px-8 bg-success-soft/50 border border-success/15">
+                      <div className="flex items-center gap-2 mb-4">
+                        <FaArrowUpRightDots size={14} style={{ color: tokens.success }} />
+                        <span className="text-[9px] uppercase tracking-[0.3em] font-semibold" style={{ color: tokens.success }}>
+                          How to Improve
+                        </span>
+                      </div>
+                      <p className="font-serif text-[14px] leading-[1.9] text-foreground m-0 whitespace-pre-wrap italic">
+                        {insight.feedback}
+                      </p>
+                    </div>
+                  )}
+                </motion.div>
+              )}
+            </AnimatePresence>
           </div>
         )}
 
-        {/* Expand toggle for graded insights with criteria */}
+        {/* Expand toggle for graded insights with criteria (Tier 3) */}
         {insight.status === 'graded' && hasCriteria && (
           <div className="px-10 pb-10">
             <button
-              onClick={(e) => { e.stopPropagation(); onToggle(); }}
+              onClick={(e) => {
+                e.stopPropagation();
+                onToggle();
+                if (!expanded) {
+                  const el = e.currentTarget;
+                  el.style.scrollMarginTop = '140px';
+                  setTimeout(() => el.scrollIntoView({ behavior: 'smooth', block: 'start' }), 50);
+                }
+              }}
               className="flex items-center gap-2 text-[12px] text-muted-light bg-transparent p-0 cursor-pointer text-left uppercase tracking-[0.35em] font-semibold border-0 border-b border-solid border-muted-light/50 hover:border-dashed hover:text-muted-foreground hover:border-muted-foreground transition-colors duration-300"
             >
               {expanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}

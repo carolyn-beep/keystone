@@ -1,6 +1,6 @@
 import { ComponentType, useState } from 'react';
 import { Link, useLocation } from 'wouter';
-import { LogOut, ChevronLeft } from 'lucide-react';
+import { LogOut, Home, PanelLeftClose, PanelLeftOpen } from 'lucide-react';
 import { authClient } from '@/lib/auth-client';
 import { SidebarNavItem } from './SidebarNavItem';
 
@@ -18,7 +18,15 @@ interface AppSidebarProps {
   onNavChange: (id: string) => void;
   backLink?: { href: string; label: string };
   isAdmin?: boolean;
+  collapsed?: boolean;
+  onToggleCollapse?: () => void;
 }
+
+/** Reusable classes for text that reveals L→R on expand, clips R→L on collapse */
+const textReveal = (collapsed: boolean) =>
+  `overflow-hidden whitespace-nowrap transition-[max-width,opacity,margin] duration-300 ease-in-out ${
+    collapsed ? 'max-w-0 opacity-0 ml-0' : 'max-w-[160px] opacity-100 ml-1.5'
+  }`;
 
 export function AppSidebar({
   navItems,
@@ -26,6 +34,8 @@ export function AppSidebar({
   onNavChange,
   backLink,
   isAdmin = false,
+  collapsed = false,
+  onToggleCollapse,
 }: AppSidebarProps) {
   const [, setLocation] = useLocation();
   const { data: session } = authClient.useSession();
@@ -40,28 +50,35 @@ export function AppSidebar({
     });
   };
 
-  // Filter nav items based on admin status
   const visibleNavItems = navItems.filter(item => !item.adminOnly || isAdmin);
-
   const [hoveredNavId, setHoveredNavId] = useState<string | null>(null);
-
-  // Get initials for avatar
   const initials = session?.user?.name?.charAt(0).toUpperCase() || 'U';
 
   return (
     <div className="flex flex-col h-full">
-      {/* Back Link */}
-      {backLink && (
-        <div className="px-3 pt-4 pb-2">
+      {/* Top bar: Back link + collapse toggle */}
+      <div className="flex items-center justify-between px-3 pt-4 pb-2">
+        {backLink && (
           <Link
             href={backLink.href}
-            className="flex items-center gap-1.5 text-muted-foreground hover:text-foreground text-sm transition-colors no-underline"
+            title={backLink.label}
+            className="flex items-center text-muted-foreground hover:text-foreground text-sm transition-colors no-underline"
           >
-            <ChevronLeft size={16} />
-            <span>{backLink.label}</span>
+            <Home size={14} className="shrink-0" />
+            <span className={textReveal(collapsed)}>{backLink.label}</span>
           </Link>
-        </div>
-      )}
+        )}
+        {!backLink && <div />}
+        {onToggleCollapse && (
+          <button
+            onClick={onToggleCollapse}
+            title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+            className="h-8 w-8 shrink-0 rounded-md flex items-center justify-center transition-colors hover:bg-sidebar-accent text-muted-foreground hover:text-sidebar-foreground"
+          >
+            {collapsed ? <PanelLeftOpen size={16} /> : <PanelLeftClose size={16} />}
+          </button>
+        )}
+      </div>
 
       {/* Navigation Items */}
       <nav className="flex-1 px-3 py-2 space-y-2">
@@ -78,13 +95,14 @@ export function AppSidebar({
               <SidebarNavItem
                 icon={item.icon}
                 label={item.label}
-                isActive={activeNavId === item.id}
+                isActive={activeNavId === item.id || childIds.includes(activeNavId)}
                 onClick={() => onNavChange(item.id)}
+                collapsed={collapsed}
               />
               {item.children && (() => {
                 const filtered = item.children.filter(child => !child.adminOnly || isAdmin);
                 return (
-                  <div className={`sidebar-children-wrap mt-0.5 ${sectionActive ? 'is-open' : ''}`}>
+                  <div className={`sidebar-children-wrap mt-0.5 ${sectionActive && !collapsed ? 'is-open' : ''}`}>
                     <div>
                     {filtered.map((child, i) => {
                       const isLast = i === filtered.length - 1;
@@ -93,13 +111,11 @@ export function AppSidebar({
                         <div
                           key={child.id}
                           className="relative sidebar-child-item"
-                          style={{ transitionDelay: sectionActive ? `${i * 60 + 80}ms` : '0ms' }}
+                          style={{ transitionDelay: sectionActive && !collapsed ? `${i * 60 + 80}ms` : '0ms' }}
                         >
-                          {/* Vertical line continuation for non-last items */}
                           {!isLast && (
                             <div className="absolute left-[21px] top-0 bottom-0 border-l-2 border-primary" />
                           )}
-                          {/* L-shaped curved connector */}
                           <div className="absolute left-[21px] top-0 h-1/2 w-3.5 border-l-2 border-b-2 border-primary rounded-bl-lg" />
 
                           <button
@@ -130,7 +146,7 @@ export function AppSidebar({
       {/* Footer: User Menu */}
       {session && (
         <div className="px-3 py-4 border-t border-sidebar-border">
-          <div className="flex items-center gap-3">
+          <div className="flex items-center">
             {/* Avatar */}
             <div className="h-9 w-9 rounded-full bg-primary flex-shrink-0 flex items-center justify-center text-primary-foreground text-sm font-medium overflow-hidden">
               {session.user.image ? (
@@ -145,15 +161,19 @@ export function AppSidebar({
               )}
             </div>
 
-            {/* Name */}
-            <span className="flex-1 text-sm font-medium text-sidebar-foreground truncate">
+            {/* Name — reveals/clips with same animation */}
+            <span className={`flex-1 text-sm font-medium text-sidebar-foreground truncate overflow-hidden whitespace-nowrap transition-[max-width,opacity,margin] duration-300 ease-in-out ${
+              collapsed ? 'max-w-0 opacity-0 ml-0' : 'max-w-[120px] opacity-100 ml-3'
+            }`}>
               {session.user.name}
             </span>
 
             {/* Sign Out */}
             <button
               onClick={handleSignOut}
-              className="h-8 w-8 rounded-md flex items-center justify-center transition-colors hover:bg-sidebar-accent"
+              className={`h-8 w-8 shrink-0 rounded-md flex items-center justify-center transition-[colors,margin] duration-300 hover:bg-sidebar-accent ${
+                collapsed ? 'ml-0' : 'ml-auto'
+              }`}
               title="Sign out"
             >
               <LogOut size={16} className="text-muted-foreground" />
