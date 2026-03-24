@@ -3,7 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import { Link, useSearch } from 'wouter';
 import { authClient } from '@/lib/auth-client';
 import { BrainliftVersion, type Fact } from '@shared/schema';
-import { AlertTriangle, FileText, Loader2 } from 'lucide-react';
+import { AlertTriangle, FileText, Loader2, Copy } from 'lucide-react';
 import { PiCompassToolFill } from 'react-icons/pi';
 import { RiQuillPenAiFill } from 'react-icons/ri';
 import { FaBalanceScale } from 'react-icons/fa';
@@ -30,6 +30,7 @@ import { DOK4LinkingUI } from '@/components/DOK4LinkingUI';
 import { LearningStreamTab } from '@/components/LearningStreamTab';
 import { SavedItemsPage, GradedItemsPage } from '@/components/learning-stream';
 import { ImportAgentModal } from '@/components/import-agent/ImportAgentModal';
+import { RedundancyPage } from '@/components/fact-grading/RedundancyPage';
 import { usePDFExport } from '@/hooks/usePDFExport';
 import { useShareToken } from '@/hooks/useShareToken';
 import { useDOK3Insights } from '@/hooks/useDOK3Insights';
@@ -45,17 +46,27 @@ interface DashboardProps {
   isSharedView?: boolean;
 }
 
-const VALID_TABS = ['brainlift', 'grading', 'summaries', 'insights', 'dok4', 'scratchpad', 'contradictions', 'learning', 'learning-saved', 'learning-graded'] as const;
+const VALID_TABS = ['brainlift', 'facts', 'facts-redundancy', 'contradictions', 'summaries', 'insights', 'dok4', 'scratchpad', 'learning', 'learning-saved', 'learning-graded'] as const;
 type TabKey = typeof VALID_TABS[number];
 
+// Backwards compat: map old ?tab=grading to facts
+const TAB_ALIASES: Record<string, string> = { grading: 'facts' };
+
 const NAV_ITEMS: NavItem[] = [
-  { id: 'brainlift', label: 'Brainlift', icon: FileText },
-  { id: 'grading', label: 'DOK1 Facts', icon: PiCompassToolFill },
+  { id: 'brainlift', label: 'Brainlift', icon: FileText as NavItem['icon'] },
+  {
+    id: 'facts',
+    label: 'DOK1 Facts',
+    icon: PiCompassToolFill,
+    children: [
+      { id: 'facts-redundancy', label: 'Redundancy', icon: Copy as NavItem['icon'] },
+      { id: 'contradictions', label: 'Contradictions', icon: FaBalanceScale },
+    ],
+  },
   { id: 'summaries', label: 'DOK2 Summaries', icon: RiQuillPenAiFill },
   { id: 'insights', label: 'DOK3 Insights', icon: DeskLampIcon },
   { id: 'dok4', label: 'DOK4 SPOVs', icon: TbTargetArrow as NavItem['icon'] },
   { id: 'scratchpad', label: 'Scratchpad', icon: ScratchpadIcon },
-  { id: 'contradictions', label: 'Contradictions', icon: FaBalanceScale },
   {
     id: 'learning',
     label: 'Learning Stream',
@@ -68,6 +79,18 @@ const NAV_ITEMS: NavItem[] = [
 ];
 
 export default function Dashboard({ slug, isSharedView = false }: DashboardProps) {
+  // Sidebar collapse state — persisted to localStorage
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
+    try { return localStorage.getItem('sidebar-collapsed') === 'true'; } catch { return false; }
+  });
+  const toggleSidebar = useCallback(() => {
+    setSidebarCollapsed(prev => {
+      const next = !prev;
+      try { localStorage.setItem('sidebar-collapsed', String(next)); } catch {}
+      return next;
+    });
+  }, []);
+
   // Handle share token redemption if ?share=TOKEN is present
   const { isRedeeming } = useShareToken();
 
@@ -75,7 +98,8 @@ export default function Dashboard({ slug, isSharedView = false }: DashboardProps
   const searchString = useSearch();
   const activeTab = useMemo(() => {
     const params = new URLSearchParams(searchString);
-    const tab = params.get('tab');
+    const raw = params.get('tab');
+    const tab = raw ? (TAB_ALIASES[raw] ?? raw) : null;
     return tab && VALID_TABS.includes(tab as TabKey) ? tab : 'brainlift';
   }, [searchString]);
 
@@ -289,6 +313,7 @@ const { downloadBrainliftPDF } = usePDFExport();
 
   return (
     <SidebarLayout
+      collapsed={sidebarCollapsed}
       sidebar={
         !isSharedView ? (
           <AppSidebar
@@ -297,6 +322,8 @@ const { downloadBrainliftPDF } = usePDFExport();
             onNavChange={setActiveTab}
             backLink={{ href: backLink, label: 'All Brainlifts' }}
             isAdmin={isAdmin}
+            collapsed={sidebarCollapsed}
+            onToggleCollapse={toggleSidebar}
           />
         ) : null
       }
@@ -349,8 +376,8 @@ const { downloadBrainliftPDF } = usePDFExport();
         />
       )}
 
-      {/* Grading Tab */}
-      {!isNotBrainlift && activeTab === 'grading' && (
+      {/* DOK1 Facts Tab */}
+      {!isNotBrainlift && activeTab === 'facts' && (
         <div>
           {/* Flags/Warnings - Compact inline callouts */}
           {data?.flags && data.flags.length > 0 && (
@@ -375,11 +402,25 @@ const { downloadBrainliftPDF } = usePDFExport();
             facts={facts}
             humanGrades={humanGrades}
             redundancyData={redundancyData}
-            onShowRedundancyModal={() => setShowRedundancyModal(true)}
             onViewFactFullText={(fact) => setSelectedFactForModal(fact)}
+            onNavigateToRedundancy={() => setActiveTab('facts-redundancy')}
             canModify={canModify}
           />
         </div>
+      )}
+
+      {/* Redundancy Sub-Page */}
+      {!isNotBrainlift && activeTab === 'facts-redundancy' && (
+        <RedundancyPage
+          slug={slug}
+          facts={facts}
+          humanGrades={humanGrades}
+          redundancyData={redundancyData}
+          onShowRedundancyModal={() => setShowRedundancyModal(true)}
+          onViewFactFullText={(fact) => setSelectedFactForModal(fact)}
+          canModify={canModify}
+          setActiveTab={setActiveTab}
+        />
       )}
 
       {/* Summaries Tab - DOK2 owner interpretations */}

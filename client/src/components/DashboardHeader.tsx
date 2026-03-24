@@ -114,33 +114,33 @@ export function DashboardHeader({
   const { title, description, displayPurpose } = data;
 
   return (
-    <div className="px-4 pt-4 pb-4 sm:px-8 md:px-12">
+    <div className="header-content pt-4 pb-4 px-4">
       {/* Identity Block with Profile Image */}
-      <div className="flex items-start gap-2.5">
+      <div className="header-row flex items-start gap-2.5">
         {/* Profile Image */}
         <div
-          className="w-28 h-28 shrink-0 rounded-lg flex items-center justify-center"
+          className="header-image w-28 h-28 shrink-0 rounded-lg flex items-center justify-center"
         >
           <img
             src={getProfileImage(data.id, data.coverImageUrl)}
             alt=""
-            className="w-28 h-28 object-contain sepia-[.6] saturate-[.8] brightness-[.92]"
+            className="header-image-img w-28 h-28 object-contain sepia-[.6] saturate-[.8] brightness-[.92]"
             loading="lazy"
           />
         </div>
 
         {/* Title, Subtitle, Author */}
-        <div className="flex-1 min-w-0 flex flex-col gap-1.5">
-          <h1 className="text-[30px] font-bold mt-2 text-foreground tracking-tight leading-[1.3]">{title}</h1>
+        <div className="header-text-col flex-1 min-w-0 flex flex-col gap-1.5">
+          <h1 className="header-title text-[30px] font-bold mt-2 text-foreground tracking-tight leading-[1.3]">{title}</h1>
 
           {/* Subtitle */}
-          <p className="text-muted-foreground text-base m-0">
+          <p className="header-description text-muted-foreground text-base m-0">
             {renderWithLinks(displayPurpose || description)}
           </p>
 
           {/* Author */}
           <div
-            className={`flex items-center gap-1 ${editingAuthor ? 'cursor-text' : 'cursor-pointer'}`}
+            className={`header-author flex items-center gap-1 ${editingAuthor ? 'cursor-text' : 'cursor-pointer'}`}
             onClick={() => {
               if (!editingAuthor) {
                 setAuthorInput(data.author || '');
@@ -188,7 +188,7 @@ export function DashboardHeader({
         </div>
 
         {/* Action Buttons - Right aligned, bottom of header */}
-        <div className="flex gap-2 items-end flex-wrap shrink-0 self-end">
+        <div className="header-actions flex gap-2 items-end flex-wrap shrink-0 self-end">
           {/* Primary Action: Update */}
           {canModify && !isSharedView && !isNotBrainlift && (
             <TactileButton

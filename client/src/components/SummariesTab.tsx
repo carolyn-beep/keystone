@@ -1,8 +1,10 @@
-import { useState, useMemo, ReactNode } from 'react';
+import { useState, useMemo, useCallback, ReactNode } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import {
   BookOpen,
   AlertTriangle,
+  ChevronDown,
+  ChevronUp,
 } from 'lucide-react';
 import { FaSortNumericDownAlt } from 'react-icons/fa';
 import { TbCategoryFilled } from 'react-icons/tb';
@@ -11,6 +13,7 @@ import { AiOutlineFileSearch } from 'react-icons/ai';
 import { FaArrowUpRightDots } from 'react-icons/fa6';
 import type { Fact, DOK2FailReason } from '@shared/schema';
 import { tokens, getScoreChipColors } from '@/lib/colors';
+import { FilterBar, type ExtraFilter } from '@/components/FilterBar';
 
 /**
  * Render text with markdown links [text](url) as clickable <a> tags
@@ -96,18 +99,45 @@ function getGradeLabel(grade: number | null): string {
   return 'Failed';
 }
 
+const SUMMARY_SCORE_LABELS: Record<number, string> = {
+  5: 'Excellent', 4: 'Strong', 3: 'Adequate', 2: 'Weak', 1: 'Failed',
+};
+
+const summarySearchFn = (summary: DOK2Summary, query: string): boolean => {
+  const q = query.toLowerCase();
+  return (
+    summary.sourceName.toLowerCase().includes(q) ||
+    (summary.displayTitle?.toLowerCase().includes(q) ?? false) ||
+    summary.category.toLowerCase().includes(q) ||
+    summary.points.some(p => p.text.toLowerCase().includes(q))
+  );
+};
+
+const summaryScoreFn = (summary: DOK2Summary): number | null => summary.grade;
+
+const SUMMARY_EXTRA_FILTERS: ExtraFilter<DOK2Summary>[] = [
+  { key: 'no_purpose', label: 'No Purpose Connection', predicate: (s) => s.failReason !== null },
+];
+
 export function SummariesTab({ summaries, facts, setActiveTab }: SummariesTabProps) {
   // Track which sections are expanded within each card
+  const [expandedAnalysis, setExpandedAnalysis] = useState<Record<number, boolean>>({});
   const [expandedPoints, setExpandedPoints] = useState<Record<number, boolean>>({});
   const [expandedFacts, setExpandedFacts] = useState<Record<number, boolean>>({});
 
   // Sort mode state
   const [sortMode, setSortMode] = useState<SortMode>('grade');
 
-  // Group summaries by category
+  // Filtered summaries from FilterBar
+  const [filteredSummaries, setFilteredSummaries] = useState<DOK2Summary[]>([]);
+  const handleFilteredChange = useCallback((items: DOK2Summary[]) => {
+    setFilteredSummaries(items);
+  }, []);
+
+  // Group filtered summaries by category
   const groupedByCategory = useMemo(() => {
     const groups = new Map<string, DOK2Summary[]>();
-    for (const summary of summaries) {
+    for (const summary of filteredSummaries) {
       const category = summary.category || 'General';
       if (!groups.has(category)) {
         groups.set(category, []);
@@ -115,23 +145,26 @@ export function SummariesTab({ summaries, facts, setActiveTab }: SummariesTabPro
       groups.get(category)!.push(summary);
     }
     return groups;
-  }, [summaries]);
+  }, [filteredSummaries]);
 
-  // Sort summaries by grade (highest first)
+  // Sort filtered summaries by grade (highest first)
   const sortedByGrade = useMemo(() => {
-    return [...summaries].sort((a, b) => {
+    return [...filteredSummaries].sort((a, b) => {
       // Put ungraded items last
       if (a.grade === null && b.grade === null) return 0;
       if (a.grade === null) return 1;
       if (b.grade === null) return -1;
       return b.grade - a.grade; // Highest grade first
     });
-  }, [summaries]);
+  }, [filteredSummaries]);
 
   // Get fact by ID helper
   const getFactById = (factId: number) => facts.find(f => f.id === factId);
 
   // Toggle functions
+  const toggleAnalysis = (summaryId: number) => {
+    setExpandedAnalysis(prev => ({ ...prev, [summaryId]: !prev[summaryId] }));
+  };
   const togglePoints = (summaryId: number) => {
     setExpandedPoints(prev => ({ ...prev, [summaryId]: !prev[summaryId] }));
   };
@@ -153,6 +186,26 @@ export function SummariesTab({ summaries, facts, setActiveTab }: SummariesTabPro
       }
     }, 150);
   };
+
+  // Sort control element for FilterBar
+  const sortControl = (
+    <button
+      onClick={() => setSortMode(prev => prev === 'grade' ? 'category' : 'grade')}
+      className="flex items-center gap-2 text-[10px] uppercase tracking-[0.35em] text-muted-light font-semibold bg-transparent border-0 p-0 cursor-pointer hover:text-muted-foreground transition-colors duration-200"
+    >
+      {sortMode === 'grade' ? (
+        <>
+          <FaSortNumericDownAlt size={14} />
+          Sort by Grade
+        </>
+      ) : (
+        <>
+          <TbCategoryFilled size={14} />
+          Sort by Category
+        </>
+      )}
+    </button>
+  );
 
   // Render a single summary card
   const renderSummaryCard = (summary: DOK2Summary) => {
@@ -204,7 +257,7 @@ export function SummariesTab({ summaries, facts, setActiveTab }: SummariesTabPro
               </span>
               <span className="text-muted-light">•</span>
               <span className="text-[11px] uppercase tracking-[0.2em]">
-                {summary.points.length} summary point{summary.points.length !== 1 ? 's' : ''} 
+                {summary.points.length} summary point{summary.points.length !== 1 ? 's' : ''}
               </span>
               {summary.sourceUrl && (
                 <>
@@ -233,46 +286,87 @@ export function SummariesTab({ summaries, facts, setActiveTab }: SummariesTabPro
           </div>
         </div>
 
-        {/* Diagnosis & Feedback - Always Visible */}
-        {(summary.diagnosis || summary.feedback) && (
-          <div className="px-10 pb-12 grid grid-cols-2 gap-12">
-            {/* Summary Analysis */}
-            {summary.diagnosis && (
-              <div className="rounded-xl p-10 bg-primary/5 border border-border">
-                <div className="flex items-center gap-2.5 mb-8">
-                  <AiOutlineFileSearch size={20} style={{ color: tokens.warning }} />
-                  <span
-                    className="text-[16px] uppercase tracking-[0.1em] font-semibold"
-                    style={{ color: tokens.warning }}
-                  >
-                    Summary Analysis
-                  </span>
-                </div>
-                <p className="font-serif text-[15px] leading-[2] text-foreground m-0 whitespace-pre-wrap">
-                  {summary.diagnosis}
-                </p>
-              </div>
-            )}
+        {/* Diagnosis & Feedback — clamped, click to expand both */}
+        {(summary.diagnosis || summary.feedback) && (() => {
+          const analysisOpen = expandedAnalysis[summary.id] ?? false;
+          return (
+            <div className="px-10 pb-8">
+              <div
+                onClick={(e) => {
+                  e.stopPropagation();
+                  toggleAnalysis(summary.id);
+                  if (!analysisOpen) {
+                    const card = e.currentTarget.closest('.bg-card-elevated');
+                    if (card) setTimeout(() => card.scrollIntoView({ behavior: 'smooth', block: 'start' }), 50);
+                  }
+                }}
+                className="grid grid-cols-2 gap-12 cursor-pointer"
+                role="button"
+                tabIndex={0}
+                onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggleAnalysis(summary.id); } }}
+              >
+                {/* Summary Analysis */}
+                {summary.diagnosis && (
+                  <div className={`rounded-xl p-10 bg-primary/5 border transition-all duration-300 ${analysisOpen ? 'border-border' : 'border-border hover:border-primary/30 hover:shadow-card-hover'}`}>
+                    <div className="flex items-center gap-2.5 mb-8">
+                      <AiOutlineFileSearch size={20} style={{ color: tokens.warning }} />
+                      <span className="text-[16px] uppercase tracking-[0.1em] font-semibold" style={{ color: tokens.warning }}>
+                        Summary Analysis
+                      </span>
+                    </div>
+                    <p className={`font-serif text-[15px] leading-[2] text-foreground m-0 whitespace-pre-wrap ${analysisOpen ? '' : 'line-clamp-4'}`}>
+                      {summary.diagnosis}
+                    </p>
+                  </div>
+                )}
 
-            {/* How to Improve */}
-            {summary.feedback && (
-              <div className="rounded-xl p-10 bg-primary/5 border border-border">
-                <div className="flex items-center gap-2.5 mb-8">
-                  <FaArrowUpRightDots size={20} style={{ color: tokens.success }} />
-                  <span
-                    className="text-[16px] uppercase tracking-[0.1em] font-semibold"
-                    style={{ color: tokens.success }}
-                  >
-                    How to Improve
-                  </span>
-                </div>
-                <p className="font-serif text-[15px] leading-[2] text-foreground m-0 whitespace-pre-wrap italic">
-                  {summary.feedback}
-                </p>
+                {/* How to Improve */}
+                {summary.feedback && (
+                  <div className={`rounded-xl p-10 bg-primary/5 border transition-all duration-300 ${analysisOpen ? 'border-border' : 'border-border hover:border-primary/30 hover:shadow-card-hover'}`}>
+                    <div className="flex items-center gap-2.5 mb-8">
+                      <FaArrowUpRightDots size={20} style={{ color: tokens.success }} />
+                      <span className="text-[16px] uppercase tracking-[0.1em] font-semibold" style={{ color: tokens.success }}>
+                        How to Improve
+                      </span>
+                    </div>
+                    <p className={`font-serif text-[15px] leading-[2] text-foreground m-0 whitespace-pre-wrap italic ${analysisOpen ? '' : 'line-clamp-4'}`}>
+                      {summary.feedback}
+                    </p>
+                  </div>
+                )}
               </div>
-            )}
-          </div>
-        )}
+
+              {/* Toggle */}
+              {!analysisOpen && (
+                <div className="flex justify-center mt-5">
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      toggleAnalysis(summary.id);
+                      const card = e.currentTarget.closest('.bg-card-elevated');
+                      if (card) setTimeout(() => card.scrollIntoView({ behavior: 'smooth', block: 'start' }), 50);
+                    }}
+                    className="flex items-center gap-2 text-[13px] uppercase tracking-[0.2em] font-semibold text-muted-foreground bg-transparent border-0 py-3 px-5 rounded-lg cursor-pointer hover:text-foreground hover:bg-sidebar-accent/50 transition-all duration-300"
+                  >
+                    Read Full Analysis
+                    <ChevronDown size={15} />
+                  </button>
+                </div>
+              )}
+              {analysisOpen && (
+                <div className="flex justify-center mt-5">
+                  <button
+                    onClick={(e) => { e.stopPropagation(); toggleAnalysis(summary.id); }}
+                    className="flex items-center gap-2 text-[11px] uppercase tracking-[0.25em] font-semibold text-muted-light bg-transparent border-0 py-2 px-4 rounded-md cursor-pointer hover:text-muted-foreground hover:bg-sidebar-accent/50 transition-all duration-300"
+                  >
+                    Collapse
+                    <ChevronUp size={13} />
+                  </button>
+                </div>
+              )}
+            </div>
+          );
+        })()}
 
         {/* Buttons when nothing is expanded */}
         {!pointsExpanded && !factsExpanded && (summary.points.length > 0 || relatedFacts.length > 0) && (
@@ -282,6 +376,9 @@ export function SummariesTab({ summaries, facts, setActiveTab }: SummariesTabPro
                 onClick={(e) => {
                   e.stopPropagation();
                   togglePoints(summary.id);
+                  const el = e.currentTarget;
+                  el.style.scrollMarginTop = '140px';
+                  setTimeout(() => el.scrollIntoView({ behavior: 'smooth', block: 'start' }), 50);
                 }}
                 className="text-[12px] text-muted-light bg-transparent p-0 cursor-pointer text-left uppercase tracking-[0.35em] font-semibold border-0 border-b border-solid border-muted-light/50 hover:border-dashed hover:text-muted-foreground hover:border-muted-foreground transition-colors duration-300"
               >
@@ -293,6 +390,9 @@ export function SummariesTab({ summaries, facts, setActiveTab }: SummariesTabPro
                 onClick={(e) => {
                   e.stopPropagation();
                   toggleRelatedFacts(summary.id);
+                  const el = e.currentTarget;
+                  el.style.scrollMarginTop = '140px';
+                  setTimeout(() => el.scrollIntoView({ behavior: 'smooth', block: 'start' }), 50);
                 }}
                 className="text-[12px] text-muted-light bg-transparent p-0 cursor-pointer text-left uppercase tracking-[0.35em] font-semibold border-0 border-b border-solid border-muted-light/50 hover:border-dashed hover:text-muted-foreground hover:border-muted-foreground transition-colors duration-300"
               >
@@ -356,6 +456,9 @@ export function SummariesTab({ summaries, facts, setActiveTab }: SummariesTabPro
                       onClick={(e) => {
                         e.stopPropagation();
                         toggleRelatedFacts(summary.id);
+                        const el = e.currentTarget;
+                        el.style.scrollMarginTop = '140px';
+                        setTimeout(() => el.scrollIntoView({ behavior: 'smooth', block: 'start' }), 50);
                       }}
                       className="text-[10px] text-muted-light bg-transparent p-0 cursor-pointer text-left uppercase tracking-[0.35em] font-semibold border-0 border-b border-solid border-muted-light/50 hover:border-dashed hover:text-muted-foreground hover:border-muted-foreground transition-colors duration-300"
                     >
@@ -410,6 +513,9 @@ export function SummariesTab({ summaries, facts, setActiveTab }: SummariesTabPro
                       onClick={(e) => {
                         e.stopPropagation();
                         togglePoints(summary.id);
+                        const el = e.currentTarget;
+                        el.style.scrollMarginTop = '140px';
+                        setTimeout(() => el.scrollIntoView({ behavior: 'smooth', block: 'start' }), 50);
                       }}
                       className="text-[10px] text-muted-light bg-transparent p-0 cursor-pointer text-left uppercase tracking-[0.35em] font-semibold border-0 border-b border-solid border-muted-light/50 hover:border-dashed hover:text-muted-foreground hover:border-muted-foreground transition-colors duration-300"
                     >
@@ -466,7 +572,7 @@ export function SummariesTab({ summaries, facts, setActiveTab }: SummariesTabPro
   }
 
   return (
-    <div className="max-w-[1200px] mx-auto">
+    <div className="max-w-[1200px] mx-auto min-h-[200vh]">
       {/* Page Header */}
       <div className="flex flex-col gap-4 mb-6 pb-4">
         <div className="flex items-start justify-between gap-6">
@@ -527,70 +633,66 @@ export function SummariesTab({ summaries, facts, setActiveTab }: SummariesTabPro
         ))}
       </div>
 
-      {/* Section Header */}
-      <div className="flex items-baseline justify-between animate-fade-slide-in" style={{ animationDelay: '400ms', animationFillMode: 'backwards' }}>
-        <h3 className="text-[24px] font-semibold text-foreground m-0">
-          Active Syntheses
-        </h3>
-        <button
-          onClick={() => setSortMode(prev => prev === 'grade' ? 'category' : 'grade')}
-          className="flex items-center gap-2 text-[10px] uppercase tracking-[0.35em] text-muted-light font-semibold bg-transparent border-0 p-0 cursor-pointer hover:text-muted-foreground transition-colors duration-200"
-        >
-          {sortMode === 'grade' ? (
-            <>
-              <FaSortNumericDownAlt size={14} />
-              Sort by Grade
-            </>
-          ) : (
-            <>
-              <TbCategoryFilled size={14} />
-              Sort by Category
-            </>
-          )}
-        </button>
-      </div>
-      <hr className="border-t border-border mt-4 mb-12" />
+      <FilterBar
+        title="Active Syntheses"
+        items={summaries}
+        searchFn={summarySearchFn}
+        scoreFn={summaryScoreFn}
+        scoreLabels={SUMMARY_SCORE_LABELS}
+        extraFilters={SUMMARY_EXTRA_FILTERS}
+        onFilteredChange={handleFilteredChange}
+        sortControl={sortControl}
+        searchPlaceholder="Search summaries..."
+      />
 
       {/* Content - depends on sort mode */}
-      {sortMode === 'grade' ? (
-        // Flat list sorted by grade
-        <div className="flex flex-col gap-16">
-          {sortedByGrade.map((summary, index) => (
-            <div
-              key={summary.id}
-              className="animate-fade-slide-in"
-              style={{ animationDelay: `${(index + 6) * 80}ms`, animationFillMode: 'backwards' }}
-            >
-              {renderSummaryCard(summary)}
-            </div>
-          ))}
-        </div>
-      ) : (
-        // Grouped by category
-        Array.from(groupedByCategory.entries()).map(([category, categorySummaries], groupIndex) => (
-          <div key={category} className="mb-20 animate-fade-slide-in" style={{ animationDelay: `${(groupIndex + 6) * 80}ms`, animationFillMode: 'backwards' }}>
-            {/* Category Header */}
-            <div className="flex items-center gap-3 mb-8">
-              <h3 className="text-lg font-semibold m-0 text-foreground">{category}</h3>
-              <span className="bg-sidebar text-muted-foreground text-xs py-1 px-2.5 rounded-xl">
-                {categorySummaries.length} source{categorySummaries.length !== 1 ? 's' : ''}
-              </span>
-            </div>
-
-            {/* Source Cards */}
-            <div className="flex flex-col gap-16">
-              {categorySummaries.map((summary, cardIndex) => (
-                <div
-                  key={summary.id}
-                  className="animate-fade-slide-in"
-                  style={{ animationDelay: `${(groupIndex * 3 + cardIndex + 7) * 80}ms`, animationFillMode: 'backwards' }}
-                >
-                  {renderSummaryCard(summary)}
-                </div>
-              ))}
-            </div>
+      {filteredSummaries.length > 0 && (
+        sortMode === 'grade' ? (
+          // Flat list sorted by grade
+          <div className="flex flex-col gap-16">
+            {sortedByGrade.map((summary, index) => (
+              <motion.div
+                key={summary.id}
+                layout
+                initial={{ opacity: 0, y: 12 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0 }}
+                transition={{ duration: 0.15 }}
+              >
+                {renderSummaryCard(summary)}
+              </motion.div>
+            ))}
           </div>
-        ))
+        ) : (
+          // Grouped by category
+          Array.from(groupedByCategory.entries()).map(([category, categorySummaries], groupIndex) => (
+            <div key={category} className="mb-20">
+              {/* Category Header */}
+              <div className="flex items-center gap-3 mb-8">
+                <h3 className="text-lg font-semibold m-0 text-foreground">{category}</h3>
+                <span className="bg-sidebar text-muted-foreground text-xs py-1 px-2.5 rounded-xl">
+                  {categorySummaries.length} source{categorySummaries.length !== 1 ? 's' : ''}
+                </span>
+              </div>
+
+              {/* Source Cards */}
+              <div className="flex flex-col gap-16">
+                {categorySummaries.map((summary) => (
+                  <motion.div
+                    key={summary.id}
+                    layout
+                    initial={{ opacity: 0, y: 12 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0 }}
+                    transition={{ duration: 0.15 }}
+                  >
+                    {renderSummaryCard(summary)}
+                  </motion.div>
+                ))}
+              </div>
+            </div>
+          ))
+        )
       )}
     </div>
   );

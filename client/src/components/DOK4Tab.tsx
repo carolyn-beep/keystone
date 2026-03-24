@@ -1,11 +1,27 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useCallback } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { RefreshCw, Loader2, ChevronDown, ChevronUp, Info, ShieldAlert, Radio, Weight, Link2, ArrowRight } from 'lucide-react';
 import { PiFootprintsFill } from 'react-icons/pi';
+import { FaArrowUpRightDots } from 'react-icons/fa6';
 import type { DOK4SpovWithLinks, DOK4CriteriaBreakdown, DOK4BarrierType } from '@shared/dok4-types';
 import type { DOK4GradingSSEEvent } from '@/hooks/useDOK4GradingEvents';
 import { tokens, getScoreChipColors } from '@/lib/colors';
 import { TactileButton } from '@/components/ui/tactile-button';
+import { FilterBar, type ExtraFilter } from '@/components/FilterBar';
+
+const SPOV_SCORE_LABELS: Record<number, string> = {
+  5: 'Field-Advancing', 4: 'Defensible', 3: 'Original, Weak Def.', 2: 'Borrowed', 1: 'Not Spiky',
+};
+
+const spovSearchFn = (spov: DOK4SpovWithLinks, query: string): boolean => {
+  return spov.text.toLowerCase().includes(query.toLowerCase());
+};
+
+const spovScoreFn = (spov: DOK4SpovWithLinks): number | null => spov.score;
+
+const SPOV_EXTRA_FILTERS: ExtraFilter<DOK4SpovWithLinks>[] = [
+  { key: 'traceability', label: 'Traceability Flagged', predicate: (s) => s.traceabilityFlagged === true },
+];
 
 // ─── DOK4 Criteria Metadata ──────────────────────────────────────────────────
 
@@ -149,10 +165,20 @@ export function DOK4Tab({
   onLinkDok4,
 }: DOK4TabProps) {
   const [expandedIds, setExpandedIds] = useState<Record<number, boolean>>({});
+  const [expandedAnalysis, setExpandedAnalysis] = useState<Record<number, boolean>>({});
   const [sortMode, setSortMode] = useState<SortMode>('score');
+
+  // Filtered SPOVs from FilterBar
+  const [filteredSpovs, setFilteredSpovs] = useState<DOK4SpovWithLinks[]>([]);
+  const handleFilteredChange = useCallback((items: DOK4SpovWithLinks[]) => {
+    setFilteredSpovs(items);
+  }, []);
 
   const toggleExpanded = (id: number) => {
     setExpandedIds(prev => ({ ...prev, [id]: !prev[id] }));
+  };
+  const toggleAnalysis = (id: number) => {
+    setExpandedAnalysis(prev => ({ ...prev, [id]: !prev[id] }));
   };
 
   // Separate rejected from active SPOVs
@@ -160,9 +186,14 @@ export function DOK4Tab({
     spovs.filter(s => s.status === 'rejected'),
   [spovs]);
 
-  // Sort active SPOVs (non-pending, non-rejected)
+  // Displayable SPOVs (excluding pending_linking + rejected) — passed to FilterBar
+  const displayableSpovs = useMemo(() =>
+    spovs.filter(s => s.status !== 'pending_linking' && s.status !== 'rejected'),
+  [spovs]);
+
+  // Sort filtered SPOVs
   const sortedSpovs = useMemo(() => {
-    const displayable = spovs.filter(s => s.status !== 'pending_linking' && s.status !== 'rejected');
+    const displayable = filteredSpovs;
     if (sortMode === 'status') {
       const statusOrder: Record<string, number> = {
         graded: 0, grading: 1, linked: 2, error: 3,
@@ -182,7 +213,7 @@ export function DOK4Tab({
       };
       return (statusOrder[a.status] ?? 99) - (statusOrder[b.status] ?? 99);
     });
-  }, [spovs, sortMode]);
+  }, [filteredSpovs, sortMode]);
 
   const getMeanScoreColor = (score: number) => {
     if (score >= 4.5) return tokens.success;
@@ -229,7 +260,7 @@ export function DOK4Tab({
   }
 
   return (
-    <div className="max-w-[1200px] mx-auto">
+    <div className="max-w-[1200px] mx-auto min-h-[200vh]">
       {/* Page Header */}
       <div className="flex flex-col gap-4 mb-6 pb-4">
         <div className="flex items-start justify-between gap-6">
@@ -333,47 +364,52 @@ export function DOK4Tab({
         </motion.div>
       )}
 
-      {/* Section Header + Actions + Cards */}
-      {sortedSpovs.length > 0 && (
+      {/* Section Header (FilterBar) + Cards */}
+      {displayableSpovs.length > 0 && (
         <>
-          <div className="flex items-baseline justify-between animate-fade-slide-in" style={{ animationDelay: '400ms', animationFillMode: 'backwards' }}>
-            <h3 className="text-[24px] font-semibold text-foreground m-0">
-              Active SPOVs
-            </h3>
-            <div className="flex items-center gap-6">
-              {/* Grade All button */}
-              {spovs.some(s => s.status === 'linked') && (
-                <TactileButton
-                  variant="raised"
-                  onClick={() => gradeAll()}
-                  disabled={isGrading}
-                  className="text-[12px]"
-                >
-                  {isGrading ? <Loader2 size={14} className="animate-spin mr-2" /> : null}
-                  Grade All
-                </TactileButton>
-              )}
-              {/* Retry failed */}
-              {errorSpovs.length > 0 && (
-                <button
-                  onClick={() => gradeAll()}
-                  disabled={isGrading}
-                  className="flex items-center gap-2 text-[10px] uppercase tracking-[0.35em] text-warning font-semibold bg-transparent border-0 p-0 cursor-pointer hover:text-foreground transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  {isGrading ? <Loader2 size={14} className="animate-spin" /> : <RefreshCw size={14} />}
-                  Retry {errorSpovs.length} Failed
-                </button>
-              )}
-              {/* Sort toggle */}
+          <FilterBar
+            title="Active SPOVs"
+            titleRight={
+              <div className="flex items-center gap-5">
+                {spovs.some(s => s.status === 'linked') && (
+                  <TactileButton
+                    variant="raised"
+                    onClick={() => gradeAll()}
+                    disabled={isGrading}
+                    className="text-[12px]"
+                  >
+                    {isGrading ? <Loader2 size={14} className="animate-spin mr-2" /> : null}
+                    Grade All
+                  </TactileButton>
+                )}
+                {errorSpovs.length > 0 && (
+                  <button
+                    onClick={() => gradeAll()}
+                    disabled={isGrading}
+                    className="flex items-center gap-2 text-[10px] uppercase tracking-[0.35em] text-warning font-semibold bg-transparent border-0 p-0 cursor-pointer hover:text-foreground transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {isGrading ? <Loader2 size={14} className="animate-spin" /> : <RefreshCw size={14} />}
+                    Retry {errorSpovs.length} Failed
+                  </button>
+                )}
+              </div>
+            }
+            items={displayableSpovs}
+            searchFn={spovSearchFn}
+            scoreFn={spovScoreFn}
+            scoreLabels={SPOV_SCORE_LABELS}
+            extraFilters={SPOV_EXTRA_FILTERS}
+            onFilteredChange={handleFilteredChange}
+            sortControl={
               <button
                 onClick={() => setSortMode(prev => prev === 'score' ? 'status' : 'score')}
                 className="flex items-center gap-2 text-[10px] uppercase tracking-[0.35em] text-muted-light font-semibold bg-transparent border-0 p-0 cursor-pointer hover:text-muted-foreground transition-colors duration-200"
               >
                 {sortMode === 'score' ? 'By Score' : 'By Status'}
               </button>
-            </div>
-          </div>
-          <hr className="border-t border-border mt-4 mb-12" />
+            }
+            searchPlaceholder="Search SPOVs..."
+          />
 
           {/* Real-time grading indicator */}
           {gradingSpovs.length > 0 && latestEvent && (
@@ -391,6 +427,8 @@ export function DOK4Tab({
                 spov={spov}
                 expanded={expandedIds[spov.id] ?? false}
                 onToggle={() => toggleExpanded(spov.id)}
+                analysisExpanded={expandedAnalysis[spov.id] ?? false}
+                onToggleAnalysis={() => toggleAnalysis(spov.id)}
                 onRetry={() => retryOne(spov.id)}
                 animationDelay={(index + 6) * 80}
                 latestEvent={spov.status === 'grading' ? latestEvent : null}
@@ -434,12 +472,14 @@ interface SpovCardProps {
   spov: DOK4SpovWithLinks;
   expanded: boolean;
   onToggle: () => void;
+  analysisExpanded: boolean;
+  onToggleAnalysis: () => void;
   onRetry: () => void;
   animationDelay: number;
   latestEvent: DOK4GradingSSEEvent | null;
 }
 
-function SpovCard({ spov, expanded, onToggle, onRetry, animationDelay, latestEvent }: SpovCardProps) {
+function SpovCard({ spov, expanded, onToggle, analysisExpanded, onToggleAnalysis, onRetry, animationDelay, latestEvent }: SpovCardProps) {
   const gradeColors = spov.score !== null ? getScoreChipColors(spov.score) : null;
   const gradeLabel = getDOK4QualityLabel(spov.score);
   const hasCriteria = spov.criteriaBreakdown && Object.keys(spov.criteriaBreakdown).length > 0;
@@ -541,41 +581,103 @@ function SpovCard({ spov, expanded, onToggle, onRetry, animationDelay, latestEve
           </div>
         </div>
 
-        {/* Rationale & Feedback - Always visible for graded SPOVs */}
-        {spov.status === 'graded' && (spov.rationale || spov.feedback) && (
-          <div className="px-10 pb-12 flex flex-col gap-8">
-            {spov.rationale && (
-              <div className="rounded-xl p-10 bg-primary/5 border border-border">
-                <div className="flex items-center gap-2.5 mb-8">
-                  <span className="text-[14px] uppercase tracking-[0.15em] font-semibold" style={{ color: tokens.warning }}>
-                    Rationale
+        {/* Analysis (Tier 2) */}
+        {spov.status === 'graded' && spov.rationale && (
+          <div className="px-10 pb-10">
+            {/* Separator */}
+            <div className="border-t border-border mb-6" />
+
+            {/* Collapsed: clickable preview area */}
+            {!analysisExpanded && (
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onToggleAnalysis();
+                  const section = e.currentTarget.parentElement;
+                  if (section) {
+                    section.style.scrollMarginTop = '100px';
+                    setTimeout(() => section.scrollIntoView({ behavior: 'smooth', block: 'start' }), 50);
+                  }
+                }}
+                className="w-full text-left bg-transparent border-0 p-0 cursor-pointer group"
+              >
+                <div className="flex items-center justify-between mb-4">
+                  <span className="text-[10px] uppercase tracking-[0.35em] font-semibold text-muted-foreground">
+                    Analysis
+                  </span>
+                  <span className="flex items-center gap-1.5 text-[10px] uppercase tracking-[0.25em] font-semibold text-muted-light py-2 px-3 -mr-3 rounded-md group-hover:text-muted-foreground group-hover:bg-sidebar-accent/50 transition-all duration-300">
+                    Read
+                    <ChevronDown size={12} />
                   </span>
                 </div>
-                <p className="font-serif text-[15px] leading-[2] text-foreground m-0 whitespace-pre-wrap">
+                <p className="font-serif text-[14px] leading-[1.8] italic text-muted-foreground m-0 line-clamp-2">
                   {spov.rationale}
                 </p>
+              </button>
+            )}
+
+            {/* Expanded header */}
+            {analysisExpanded && (
+              <div className="flex items-center justify-between mb-6">
+                <span className="text-[10px] uppercase tracking-[0.35em] font-semibold text-muted-foreground">
+                  Analysis
+                </span>
+                <button
+                  onClick={(e) => { e.stopPropagation(); onToggleAnalysis(); }}
+                  className="flex items-center gap-1.5 text-[10px] uppercase tracking-[0.25em] font-semibold text-muted-light bg-transparent border-0 py-2 px-3 -mr-3 rounded-md cursor-pointer hover:text-muted-foreground hover:bg-sidebar-accent/50 transition-all duration-300"
+                >
+                  Hide
+                  <ChevronUp size={12} />
+                </button>
               </div>
             )}
-            {spov.feedback && (
-              <div className="rounded-xl p-10 bg-primary/5 border border-border">
-                <div className="flex items-center gap-2.5 mb-8">
-                  <span className="text-[14px] uppercase tracking-[0.15em] font-semibold" style={{ color: tokens.success }}>
-                    How to Improve
-                  </span>
-                </div>
-                <p className="font-serif text-[15px] leading-[2] text-foreground m-0 whitespace-pre-wrap italic">
-                  {spov.feedback}
-                </p>
-              </div>
-            )}
+
+            {/* Expanded: rationale text + feedback box */}
+            <AnimatePresence initial={false}>
+              {analysisExpanded && (
+                <motion.div
+                  key="analysis"
+                  initial={{ height: 0, opacity: 0 }}
+                  animate={{ height: 'auto', opacity: 1 }}
+                  exit={{ height: 0, opacity: 0 }}
+                  transition={{ height: { duration: 0.4, ease: 'easeInOut' }, opacity: { duration: 0.2 } }}
+                  className="overflow-hidden"
+                >
+                  <p className="font-serif text-[15px] leading-[2] text-foreground m-0 whitespace-pre-wrap mb-10">
+                    {spov.rationale}
+                  </p>
+                  {spov.feedback && (
+                    <div className="rounded-lg py-6 px-8 bg-success-soft/50 border border-success/15">
+                      <div className="flex items-center gap-2 mb-4">
+                        <FaArrowUpRightDots size={14} style={{ color: tokens.success }} />
+                        <span className="text-[9px] uppercase tracking-[0.3em] font-semibold" style={{ color: tokens.success }}>
+                          How to Improve
+                        </span>
+                      </div>
+                      <p className="font-serif text-[14px] leading-[1.9] text-foreground m-0 whitespace-pre-wrap italic">
+                        {spov.feedback}
+                      </p>
+                    </div>
+                  )}
+                </motion.div>
+              )}
+            </AnimatePresence>
           </div>
         )}
 
-        {/* Expand toggle for graded SPOVs with details */}
+        {/* Expand toggle for graded SPOVs with details (Tier 3) */}
         {spov.status === 'graded' && (hasCriteria || hasAntimemetic) && (
           <div className="px-10 pb-10">
             <button
-              onClick={(e) => { e.stopPropagation(); onToggle(); }}
+              onClick={(e) => {
+                e.stopPropagation();
+                onToggle();
+                if (!expanded) {
+                  const el = e.currentTarget;
+                  el.style.scrollMarginTop = '140px';
+                  setTimeout(() => el.scrollIntoView({ behavior: 'smooth', block: 'start' }), 50);
+                }
+              }}
               className="flex items-center gap-2 text-[12px] text-muted-light bg-transparent p-0 cursor-pointer text-left uppercase tracking-[0.35em] font-semibold border-0 border-b border-solid border-muted-light/50 hover:border-dashed hover:text-muted-foreground hover:border-muted-foreground transition-colors duration-300"
             >
               {expanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
