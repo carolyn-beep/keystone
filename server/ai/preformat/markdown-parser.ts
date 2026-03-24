@@ -38,7 +38,10 @@ function nextId(): string {
  * Depth determined by leading spaces (2 spaces per level).
  */
 export function parseMarkdownToHierarchy(markdown: string): HierarchyNode[] {
-  idCounter = 0;
+  // NOTE: idCounter intentionally NOT reset here. Each call produces IDs
+  // that continue from the previous call, ensuring uniqueness when multiple
+  // chunks are parsed and later assembled into a single tree (buildCleanHierarchy).
+  // Resetting caused duplicate IDs across chunks, breaking buildParentMap().
   const lines = markdown.split('\n');
   const roots: HierarchyNode[] = [];
   const stack: { node: HierarchyNode; depth: number }[] = [];
