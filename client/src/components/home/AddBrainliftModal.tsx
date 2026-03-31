@@ -17,11 +17,12 @@ import { useGradingProgress } from '@/hooks/useGradingProgress';
 import type { ImportStage } from '@shared/import-progress';
 import modalBgTexture from '@/assets/textures/modal_bgv2.webp';
 
-type SourceType = 'html' | 'workflowy' | 'googledocs';
+type SourceType = 'html' | 'workflowy' | 'googledocs' | 'markdown';
 
 const tabs: { id: SourceType; label: string; icon: typeof FileText }[] = [
   { id: 'workflowy', label: 'Workflowy', icon: LinkIcon },
   { id: 'html', label: 'HTML', icon: FileText },
+  { id: 'markdown', label: 'Markdown', icon: FileText },
   { id: 'googledocs', label: 'Google Docs', icon: LinkIcon },
 ];
 
@@ -213,7 +214,7 @@ export function AddBrainliftModal({ show, mode, onClose, onSuccess }: AddBrainli
     formData.append('sourceType', activeTab);
     formData.append('autoLink', String(autoLink));
 
-    if (activeTab === 'html') {
+    if (activeTab === 'html' || activeTab === 'markdown') {
       if (!selectedFile) {
         setError('Please select a file');
         return null;
@@ -676,12 +677,12 @@ export function AddBrainliftModal({ show, mode, onClose, onSuccess }: AddBrainli
                         </div>
 
                         <div className={`relative z-10 pb-4 ${isBusy ? 'opacity-50 pointer-events-none' : ''}`}>
-                          {activeTab === 'html' && (
+                          {(activeTab === 'html' || activeTab === 'markdown') && (
                             <div>
                               <input
                                 ref={fileInputRef}
                                 type="file"
-                                accept=".html,.htm"
+                                accept={activeTab === 'html' ? '.html,.htm' : '.md'}
                                 onChange={handleFileSelect}
                                 className="hidden"
                                 data-testid="input-file"
@@ -707,7 +708,9 @@ export function AddBrainliftModal({ show, mode, onClose, onSuccess }: AddBrainli
                                   <>
                                     <Upload size={32} color={tokens.textMuted} className="mb-2 mx-auto" />
                                     <p className="m-0 text-muted-foreground">
-                                      Click to upload an HTML file (or saved Workflowy page)
+                                      {activeTab === 'html'
+                                        ? 'Click to upload an HTML file (or saved Workflowy page)'
+                                        : 'Click to upload a Markdown brainlift template (.md)'}
                                     </p>
                                     <p className="mt-1 mb-0 text-muted-foreground text-[13px]">
                                       Max file size: 10MB
