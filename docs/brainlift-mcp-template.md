@@ -20,29 +20,20 @@ You are about to create a Brainlift -- a structured knowledge artifact that will
 
 ### Recommended Scale
 
-| Component | Sweet spot | Too few | Too many |
-|-----------|-----------|---------|----------|
-| Sources | 3-6 | < 2 (can't cross-reference) | > 10 (likely padding) |
-| DOK1 facts per source | 2-5 | 1 (thin coverage) | > 8 (hoarding) |
-| DOK2 summary points per source | 2-4 | 1 (surface-level) | > 6 (not synthesizing) |
-| DOK3 insights | 2-4 | 1 (incomplete analysis) | > 6 (stretching) |
-| DOK4 SPOVs | 1-3 | 0 (no original thinking) | > 4 (diluting your best ideas) |
+These are guidelines for creating new Brainlifts, not hard limits. Following them will produce tighter, more effective Brainlifts that grade faster:
 
-These are guidelines, not hard limits. A brainlift with 3 sources and 2 devastating insights will score higher than one with 10 sources and 6 mediocre insights.
+- A Brainlift needs multiple sources -- you can't do cross-source synthesis with just one. Beyond that, let the research dictate the count.
+- Fewer sharp facts beat many vague ones. Every DOK1 fact gets verified -- padding drags your average down.
+- DOK2 summaries should synthesize, not exhaustively list. If it reads like a transcript, it's too long.
+- DOK3 insights and DOK4 SPOVs are your highest-value items. A few strong ones beat many weak ones.
 
-### Total Size Matters
+If working with an existing Brainlift, do not aggressively trim to fit these guidelines. The user values that content. Do light curation: remove redundancies, drop padding, flag weak insights, note stale sources -- but preserve substantive content. Losing important material will upset the user.
 
-A Brainlift isn't just graded -- it's *used*. After grading, a Brainlift is injected as context to steer an LLM away from generic, average-of-the-internet responses and toward *your* research, *your* belief system, *your* Spiky POVs. That's the whole point: the LLM stops outputting the consensus opinion and starts reasoning from your curated knowledge.
+When explaining curation to the user, never reference these guidelines, token counts, or ideal numbers. Instead explain in terms of quality: "this fact overlaps with #3", "this source seems outdated", "this insight restates the summary above." Also explain the tradeoff: a larger Brainlift takes longer to grade.
 
-This only works if the Brainlift is tight. A bloated Brainlift drowns your signal in noise -- the LLM can't tell what matters when everything is included.
+### Total Size
 
-| Zone | Token count | Effect |
-|------|------------|--------|
-| Peak Power | 500-1,000 tokens | Maximum steering influence. Every word shapes the LLM's reasoning. |
-| Functional | 2,000-2,500 tokens | Still effective, but your sharpest ideas compete with filler for attention. |
-| Danger Zone | 5,000+ tokens | Steering collapses. The LLM reverts to generic output because your signal is buried. |
-
-**Doubling your Brainlift size doesn't double its influence. It dilutes it.** A DOK2 summary with 12 bullet points is not a summary, it's a transcript. A DOK1 section with 40 facts is not thorough, it's unfiltered. Cut ruthlessly. Keep what's sharp enough to change how an LLM thinks.
+A Brainlift isn't just graded -- it's *used*. After grading, it steers an LLM away from generic responses and toward the author's perspective. Tighter Brainlifts steer more effectively, and grade faster. But there is no hard size ceiling -- a larger Brainlift is a tradeoff (slower grading, potentially weaker steering), not a failure.
 
 ### What the Grader Penalizes
 
