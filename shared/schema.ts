@@ -147,7 +147,7 @@ export const facts = pgTable("facts", {
   id: serial("id").primaryKey(),
   brainliftId: integer("brainlift_id").notNull().references(() => brainlifts.id),
   originalId: text("original_id").notNull(), // The string ID from JSON like "6.1"
-  category: text("category").notNull(),
+  category: text("category"), // Nullable for builder-linked facts (derive from LS item's categoryId)
   source: text("source"), // Citation or source reference
   fact: text("fact").notNull(),
   summary: text("summary"), // 3-line max AI summary
@@ -156,7 +156,12 @@ export const facts = pgTable("facts", {
   note: text("note"), // Explanation for the score
   flags: text("flags").array(), // New column for flags like "Incomplete/Unverifiable"
   isGradeable: boolean("is_gradeable").default(true).notNull(),
-});
+  // Builder Phase 3: link facts to their source LS item
+  learningStreamItemId: integer("learning_stream_item_id")
+    .references(() => learningStreamItems.id, { onDelete: "set null" }),
+}, (table) => [
+  index("idx_facts_learning_stream_item_id").on(table.learningStreamItemId),
+]);
 
 export const contradictionClusters = pgTable("contradiction_clusters", {
   id: serial("id").primaryKey(),
@@ -309,6 +314,9 @@ export const brainliftsRelations = relations(brainlifts, ({ one, many }) => ({
   experts: many(experts),
   shares: many(brainliftShares),
   learningStreamItems: many(learningStreamItems),
+  categories: many(categories),
+  nativeDetails: one(nativeBrainliftDetails),
+  builderExperts: many(builderExperts),
 }));
 
 export const brainliftSharesRelations = relations(brainliftShares, ({ one }) => ({
@@ -438,6 +446,30 @@ export type ExtractedContent =
   | { contentType: 'pdf'; url: string }
   | { contentType: 'fallback'; reason: string };
 
+// Builder Phase 3 - Category Suggestion State (JSONB on native_brainlift_details)
+export interface CategorySuggestionState {
+  threshold: number;
+  status: 'pending' | 'ready' | 'accepted' | 'dismissed' | 'failed';
+  payload: {
+    suggestions: Array<{ tempId: string; name: string; itemIds: number[] }>;
+    uncategorizedItemIds: number[];
+  } | null;
+  sourceCountSnapshot: number;
+  generatedAt: string | null;
+  error: string | null;
+}
+
+// Builder Phase 3 - Categories for organizing saved knowledge tree sources
+export const categories = pgTable("categories", {
+  id: serial("id").primaryKey(),
+  brainliftId: integer("brainlift_id").notNull().references(() => brainlifts.id, { onDelete: "cascade" }),
+  name: text("name").notNull(),
+  sortOrder: integer("sort_order"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+}, (table) => [
+  index("categories_brainlift_id_idx").on(table.brainliftId),
+]);
+
 // Learning Stream - Automated research feed items
 export const learningStreamItems = pgTable("learning_stream_items", {
   id: serial("id").primaryKey(),
@@ -455,7 +487,10 @@ export const learningStreamItems = pgTable("learning_stream_items", {
   status: text("status").$type<'pending' | 'bookmarked' | 'graded' | 'discarded'>()
     .default('pending')
     .notNull(),
-  source: text("source").$type<'quick-search' | 'deep-research' | 'twitter' | 'swarm-research'>().notNull(),
+  source: text("source").$type<'quick-search' | 'deep-research' | 'twitter' | 'swarm-research' | 'manual'>().notNull(),
+
+  // Builder Phase 3: category assignment (nullable for non-builder items)
+  categoryId: integer("category_id").references(() => categories.id, { onDelete: "set null" }),
 
   // Grading fields (populated when status='graded')
   quality: integer("quality"), // 1-5 scale, nullable
@@ -536,7 +571,7 @@ export type DOK2FailReason = typeof DOK2_FAIL_REASON[keyof typeof DOK2_FAIL_REAS
 export const dok2Summaries = pgTable("dok2_summaries", {
   id: serial("id").primaryKey(),
   brainliftId: integer("brainlift_id").notNull().references(() => brainlifts.id),
-  category: text("category").notNull(),
+  category: text("category"), // Nullable for builder-linked summaries (derive from LS item's categoryId)
   sourceName: text("source_name").notNull(),
   sourceUrl: text("source_url"),
   displayTitle: text("display_title"),  // AI-generated insight title (e.g., "Key findings on athlete compensation")
@@ -550,7 +585,12 @@ export const dok2Summaries = pgTable("dok2_summaries", {
   gradedAt: timestamp("graded_at"),
   failReason: text("fail_reason").$type<DOK2FailReason>(), // Auto-fail reason if grade=1
   sourceVerified: boolean("source_verified"), // Was the source URL successfully fetched?
-});
+  // Builder Phase 3: link DOK2 summaries to their source LS item
+  learningStreamItemId: integer("learning_stream_item_id")
+    .references(() => learningStreamItems.id, { onDelete: "set null" }),
+}, (table) => [
+  index("idx_dok2_summaries_learning_stream_item_id").on(table.learningStreamItemId),
+]);
 
 // Individual summary points within a DOK2 group
 export const dok2Points = pgTable("dok2_points", {
@@ -601,10 +641,21 @@ export const contradictionClustersRelations = relations(contradictionClusters, (
   }),
 }));
 
+export const categoriesRelations = relations(categories, ({ one }) => ({
+  brainlift: one(brainlifts, {
+    fields: [categories.brainliftId],
+    references: [brainlifts.id],
+  }),
+}));
+
 export const learningStreamItemsRelations = relations(learningStreamItems, ({ one }) => ({
   brainlift: one(brainlifts, {
     fields: [learningStreamItems.brainliftId],
     references: [brainlifts.id],
+  }),
+  category: one(categories, {
+    fields: [learningStreamItems.categoryId],
+    references: [categories.id],
   }),
 }));
 
@@ -816,6 +867,87 @@ export const dok4Dok3LinksRelations = relations(dok4Dok3Links, ({ one }) => ({
   }),
 }));
 
+// === NATIVE BUILDER TABLES ===
+
+// Builder phase status types
+export type BuilderPhaseStatus = 'not_started' | 'in_progress' | 'complete' | 'locked';
+export type BuilderSuggestionStatus = 'queued' | 'ready' | 'failed';
+
+export type NativePhaseProgress = {
+  phase1: BuilderPhaseStatus;
+  phase2: BuilderPhaseStatus;
+  phase3: BuilderPhaseStatus;
+  phase4: BuilderPhaseStatus;
+  phase5: BuilderPhaseStatus;
+};
+
+// Native brainlift builder-specific details (1:1 with brainlifts where sourceType='native')
+export const nativeBrainliftDetails = pgTable("native_brainlift_details", {
+  id: serial("id").primaryKey(),
+  brainliftId: integer("brainlift_id")
+    .notNull()
+    .references(() => brainlifts.id, { onDelete: "cascade" })
+    .unique(),
+  phaseProgress: jsonb("phase_progress")
+    .$type<NativePhaseProgress>()
+    .notNull()
+    .default({
+      phase1: "complete",
+      phase2: "in_progress",
+      phase3: "locked",
+      phase4: "locked",
+      phase5: "locked",
+    }),
+  lastActivePhase: integer("last_active_phase").notNull().default(2),
+  suggestionStatus: text("suggestion_status")
+    .$type<BuilderSuggestionStatus>()
+    .notNull()
+    .default("queued"),
+  suggestionError: text("suggestion_error"),
+  // Builder Phase 3: celebration acknowledgement (one-time modal)
+  phase3CelebratedAt: timestamp("phase3_celebrated_at"),
+  // Builder Phase 3: AI category suggestion state
+  categorySuggestion: jsonb("category_suggestion").$type<CategorySuggestionState | null>(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().$onUpdate(() => new Date()).notNull(),
+}, (table) => [
+  index("native_brainlift_details_brainlift_id_idx").on(table.brainliftId),
+]);
+
+// Builder experts - suggested and manually added experts for native brainlifts
+export const builderExperts = pgTable("builder_experts", {
+  id: serial("id").primaryKey(),
+  brainliftId: integer("brainlift_id")
+    .notNull()
+    .references(() => brainlifts.id, { onDelete: "cascade" }),
+  name: text("name").notNull(),
+  who: text("who").notNull(),
+  focus: text("focus"),
+  why: text("why"),
+  where: text("where").notNull(),
+  origin: text("origin").$type<'suggested' | 'manual'>().notNull(),
+  status: text("status").$type<'pending' | 'saved' | 'dismissed'>().notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().$onUpdate(() => new Date()).notNull(),
+}, (table) => [
+  index("builder_experts_brainlift_id_idx").on(table.brainliftId),
+]);
+
+// Native Builder Relations
+export const nativeBrainliftDetailsRelations = relations(nativeBrainliftDetails, ({ one }) => ({
+  brainlift: one(brainlifts, {
+    fields: [nativeBrainliftDetails.brainliftId],
+    references: [brainlifts.id],
+  }),
+}));
+
+export const builderExpertsRelations = relations(builderExperts, ({ one }) => ({
+  brainlift: one(brainlifts, {
+    fields: [builderExperts.brainliftId],
+    references: [brainlifts.id],
+  }),
+}));
+
 // === IMPORT AGENT TABLES ===
 
 // Import Agent Phase enum
@@ -908,10 +1040,13 @@ export const insertDok3InsightSchema = createInsertSchema(dok3Insights).omit({ i
 export const insertDok3InsightLinkSchema = createInsertSchema(dok3InsightLinks).omit({ id: true });
 export const insertBrainliftShareSchema = createInsertSchema(brainliftShares).omit({ id: true, createdAt: true });
 export const insertLearningStreamItemSchema = createInsertSchema(learningStreamItems).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertCategorySchema = createInsertSchema(categories).omit({ id: true, createdAt: true });
 export const insertImportAgentConversationSchema = createInsertSchema(importAgentConversations).omit({ id: true, updatedAt: true });
 export const insertBrainliftSourceSchema = createInsertSchema(brainliftSources).omit({ id: true, createdAt: true });
 export const insertDok4SpovSchema = createInsertSchema(dok4Spovs).omit({ id: true, createdAt: true });
 export const insertDok4Dok3LinkSchema = createInsertSchema(dok4Dok3Links).omit({ id: true });
+export const insertNativeBrainliftDetailsSchema = createInsertSchema(nativeBrainliftDetails).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertBuilderExpertSchema = createInsertSchema(builderExperts).omit({ id: true, createdAt: true, updatedAt: true });
 
 // === TYPES ===
 
@@ -953,6 +1088,8 @@ export type InsertDOK3InsightLink = z.infer<typeof insertDok3InsightLinkSchema>;
 export type BrainliftShare = typeof brainliftShares.$inferSelect;
 export type InsertBrainliftShare = z.infer<typeof insertBrainliftShareSchema>;
 export type InsertLearningStreamItem = z.infer<typeof insertLearningStreamItemSchema>;
+export type Category = typeof categories.$inferSelect;
+export type InsertCategory = z.infer<typeof insertCategorySchema>;
 export type ImportAgentConversation = typeof importAgentConversations.$inferSelect;
 export type InsertImportAgentConversation = z.infer<typeof insertImportAgentConversationSchema>;
 export type BrainliftSource = typeof brainliftSources.$inferSelect;
@@ -961,6 +1098,10 @@ export type DOK4Spov = typeof dok4Spovs.$inferSelect;
 export type InsertDOK4Spov = z.infer<typeof insertDok4SpovSchema>;
 export type DOK4Dok3Link = typeof dok4Dok3Links.$inferSelect;
 export type InsertDOK4Dok3Link = z.infer<typeof insertDok4Dok3LinkSchema>;
+export type NativeBrainliftDetails = typeof nativeBrainliftDetails.$inferSelect;
+export type InsertNativeBrainliftDetails = z.infer<typeof insertNativeBrainliftDetailsSchema>;
+export type BuilderExpert = typeof builderExperts.$inferSelect;
+export type InsertBuilderExpert = z.infer<typeof insertBuilderExpertSchema>;
 
 // Full brainlift data with nested relations (for API response)
 export interface BrainliftData extends Brainlift {
@@ -1007,3 +1148,21 @@ export interface AuthContext {
   role: UserRole;
   isAdmin: boolean;
 }
+
+// === SERVICE API KEYS ===
+
+export const apiKeys = pgTable(
+  "api_keys",
+  {
+    id: serial("id").primaryKey(),
+    key: text("key").notNull().unique(),
+    name: text("name").notNull(),
+    rateLimit: integer("rate_limit").default(60),
+    isActive: boolean("is_active").default(true),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    revokedAt: timestamp("revoked_at"),
+  },
+  (table) => [index("api_keys_key_idx").on(table.key)],
+);
+
+export type ApiKey = typeof apiKeys.$inferSelect;

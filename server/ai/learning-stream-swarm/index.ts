@@ -15,7 +15,7 @@
  */
 
 import { query } from '@anthropic-ai/claude-agent-sdk';
-import { createLearningStreamMcpServer } from './mcp-server';
+import { startMcpServer } from './mcp-server';
 import { webResearcherAgent } from './web-researcher-agent';
 import { videoResearcherAgent } from './video-researcher-agent';
 import { podcastResearcherAgent } from './podcast-researcher-agent';
@@ -302,29 +302,28 @@ export async function runLearningStreamSwarm(
   // Track pending tool calls to map results back to agents
   const pendingToolCalls = new Map<string, { agentToolUseId: string; toolName: string }>();
 
-  try {
-    // Create the MCP server for this swarm run
-    const mcpServer = createLearningStreamMcpServer();
-    logger.debug('ORCH', 'MCP server created');
+  // Start the HTTP MCP server so both orchestrator and subagents can reach it
+  const mcpHandle = await startMcpServer();
+  logger.log('ORCH', `MCP HTTP server started at ${mcpHandle.url}`);
 
+  try {
     // Build the orchestrator prompt
     const orchestratorPrompt = buildOrchestratorPrompt(brainliftId);
     logger.debug('ORCH', 'Orchestrator prompt built', { promptLength: orchestratorPrompt.length });
 
     // Run the orchestrator with a simple string prompt
-    // Model is 'opus' but can be overridden via ANTHROPIC_DEFAULT_OPUS_MODEL env var
     for await (const message of query({
       prompt: orchestratorPrompt,
       options: {
         model: 'sonnet',
         mcpServers: {
-          'learning-stream': mcpServer,
+          'learning-stream': {
+            type: 'http',
+            url: mcpHandle.url,
+          },
           'exa': {
             type: 'http',
-            url: 'https://mcp.exa.ai/mcp?tools=web_search_exa',
-            headers: {
-              'x-api-key': process.env.EXA_API_KEY || '',
-            },
+            url: `https://mcp.exa.ai/mcp?tools=web_search_exa&exaApiKey=${process.env.EXA_API_KEY || ''}`,
           },
           'yt-mcp': {
             type: 'stdio',
@@ -342,7 +341,7 @@ export async function runLearningStreamSwarm(
           'news-researcher': newsResearcherAgent,
         },
         allowedTools: [
-          'Task',
+          'Agent',
           'mcp__learning-stream__get_brainlift_context',
           'mcp__learning-stream__check_duplicate',
           'mcp__learning-stream__save_learning_item',
@@ -416,7 +415,7 @@ export async function runLearningStreamSwarm(
               }
 
               // Special handling for Task tool - register new agent
-              if (toolName === 'Task') {
+              if (toolName === 'Agent') {
                 const input = toolInput as {
                   subagent_type?: string;
                   prompt?: string;
@@ -592,6 +591,9 @@ export async function runLearningStreamSwarm(
 
     logger.close();
 
+    // Shut down the HTTP MCP server
+    await mcpHandle.stop();
+
     // End swarm tracking
     const result: SwarmResult = {
       success: errors.length === 0,
@@ -631,6 +633,9 @@ export async function runLearningStreamSwarm(
     logger.error('ORCH', 'Fatal error', errorInfo);
     logger.close();
 
+    // Shut down the HTTP MCP server
+    await mcpHandle.stop().catch(() => {});
+
     const result: SwarmResult = {
       success: false,
       totalSaved,
@@ -650,18 +655,50 @@ export async function runLearningStreamSwarm(
 
 /**
  * Extract text content from a tool result, handling various formats.
- * Tool results can be a string, or an array of content blocks.
+ * Reuses extractTextFromToolResult for consistency across SDK versions.
  */
 function extractResultText(result: unknown): string | null {
-  if (typeof result === 'string') {
-    return result;
+  return extractTextFromToolResult(result);
+}
+
+/**
+ * Extract text from a tool result, handling all SDK formats:
+ * - string: "the text"
+ * - array:  [{type:'text', text:'...'}]
+ * - SDK 0.2.79 Agent tool: {data: {status:'completed', content: [{type:'text', text:'...'}]}}
+ * - nested: {content: ...} or {data: {content: ...}}
+ */
+function extractTextFromToolResult(content: unknown): string | null {
+  if (typeof content === 'string') return content;
+
+  // Array of content blocks: [{type:'text', text:'...'}]
+  if (Array.isArray(content)) {
+    const texts: string[] = [];
+    for (const block of content) {
+      if (typeof block === 'string') {
+        texts.push(block);
+      } else if (typeof block === 'object' && block !== null && 'text' in block) {
+        texts.push(block.text as string);
+      }
+    }
+    return texts.length > 0 ? texts.join('\n') : null;
   }
 
-  if (Array.isArray(result)) {
-    for (const item of result) {
-      if (typeof item === 'object' && item !== null && 'text' in item) {
-        return item.text as string;
-      }
+  // Object — SDK 0.2.79 Agent tool returns {data: {status, content: [...]}}
+  if (typeof content === 'object' && content !== null) {
+    const obj = content as Record<string, unknown>;
+
+    // Direct text field
+    if ('text' in obj && typeof obj.text === 'string') return obj.text;
+
+    // {data: {content: [...]}} — Agent tool result wrapper
+    if ('data' in obj && typeof obj.data === 'object' && obj.data !== null) {
+      return extractTextFromToolResult((obj.data as Record<string, unknown>).content);
+    }
+
+    // {content: ...} — generic wrapper
+    if ('content' in obj) {
+      return extractTextFromToolResult(obj.content);
     }
   }
 
@@ -691,19 +728,9 @@ function parseAgentResult(content: unknown): {
   reason?: string;
 } {
   try {
-    let jsonStr: string | null = null;
-
-    if (typeof content === 'string') {
-      jsonStr = content;
-    } else if (Array.isArray(content)) {
-      // Handle content blocks
-      for (const block of content) {
-        if (typeof block === 'object' && block !== null && 'text' in block) {
-          jsonStr = block.text as string;
-          break;
-        }
-      }
-    }
+    // Extract text from whatever format the SDK gives us.
+    // SDK 0.2.79 Agent tool returns: { data: { status, content: [{type:'text', text:'...'}], ... } }
+    const jsonStr = extractTextFromToolResult(content);
 
     if (!jsonStr) {
       return { found: false, reason: 'No result content' };

@@ -125,6 +125,7 @@ export async function saveSingleDOK2Summary(input: {
   sourceUrl: string;
   points: string[];
   relatedFactIds: number[];
+  learningStreamItemId?: number;
 }): Promise<number> {
   const [inserted] = await db.insert(dok2Summaries).values({
     brainliftId: input.brainliftId,
@@ -134,6 +135,7 @@ export async function saveSingleDOK2Summary(input: {
     displayTitle: null,
     workflowyNodeId: null,
     sourceWorkflowyNodeId: null,
+    ...(input.learningStreamItemId ? { learningStreamItemId: input.learningStreamItemId } : {}),
   }).returning();
 
   if (input.points.length > 0) {

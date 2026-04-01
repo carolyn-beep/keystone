@@ -39,6 +39,7 @@ import { useDOK4 } from '@/hooks/useDOK4';
 import { useDOK4GradingEvents } from '@/hooks/useDOK4GradingEvents';
 import { DOK4Tab } from '@/components/DOK4Tab';
 import { SidebarLayout, AppSidebar, type NavItem } from '@/components/layout';
+import { BuilderPage } from '@/components/builder';
 import { TactileButton } from '@/components/ui/tactile-button';
 
 interface DashboardProps {
@@ -264,6 +265,11 @@ const { downloadBrainliftPDF } = usePDFExport();
       <Link href="/">← Back to home</Link>
     </div>
   );
+
+  // Native brainlifts render the Builder shell instead of the legacy dashboard
+  if (data.sourceType === 'native') {
+    return <BuilderPage slug={slug} brainlift={data} canModify={canModify} />;
+  }
 
   const { facts, contradictionClusters } = data;
 

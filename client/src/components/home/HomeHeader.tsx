@@ -1,16 +1,17 @@
 import { useCallback } from 'react';
 import { useLocation } from 'wouter';
-import { Plus, Shield, LogOut } from 'lucide-react';
+import { Upload, Plus, Shield, LogOut } from 'lucide-react';
 import { tokens } from '@/lib/colors';
 import { authClient } from '@/lib/auth-client';
 import { TactileButton } from '@/components/ui/tactile-button';
 
 interface HomeHeaderProps {
   adminView: boolean;
-  onAddBrainlift: () => void;
+  onImportBrainlift: () => void;
+  onCreateBrainlift: () => void;
 }
 
-export function HomeHeader({ adminView, onAddBrainlift }: HomeHeaderProps) {
+export function HomeHeader({ adminView, onImportBrainlift, onCreateBrainlift }: HomeHeaderProps) {
   const [, setLocation] = useLocation();
   const { data: session } = authClient.useSession();
   const isAdmin = session?.user?.role === 'admin';
@@ -91,14 +92,26 @@ export function HomeHeader({ adminView, onAddBrainlift }: HomeHeaderProps) {
         )}
 
         <TactileButton
-          variant="raised"
-          data-testid="button-add-brainlift"
-          onClick={onAddBrainlift}
+          variant={process.env.NODE_ENV === 'production' ? 'raised' : 'inset'}
+          data-testid="button-import-brainlift"
+          onClick={onImportBrainlift}
           className="flex items-center gap-2"
         >
-          <Plus size={18} />
-          Add Brainlift
+          <Upload size={16} />
+          Import Brainlift
         </TactileButton>
+
+        {process.env.NODE_ENV !== 'production' && (
+          <TactileButton
+            variant="raised"
+            data-testid="button-create-brainlift"
+            onClick={onCreateBrainlift}
+            className="flex items-center gap-2"
+          >
+            <Plus size={18} />
+            Create Brainlift
+          </TactileButton>
+        )}
 
         {/* User Menu */}
         {session && (

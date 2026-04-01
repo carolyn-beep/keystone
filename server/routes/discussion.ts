@@ -25,9 +25,10 @@ discussionRouter.post(
   requireBrainliftAccess,
   asyncHandler(async (req, res) => {
     const brainlift = req.brainlift!;
-    const { messages, itemId } = req.body as {
+    const { messages, itemId, builderContext } = req.body as {
       messages: UIMessage[];
       itemId: number;
+      builderContext?: { mode: 'builder' };
     };
 
     if (!messages || !Array.isArray(messages)) {
@@ -44,8 +45,8 @@ discussionRouter.post(
       throw new NotFoundError('Learning stream item not found');
     }
 
-    const systemPrompt = buildDiscussionSystemPrompt(item, brainlift);
-    const tools = buildDiscussionTools(item, brainlift);
+    const systemPrompt = buildDiscussionSystemPrompt(item, brainlift, builderContext);
+    const tools = buildDiscussionTools(item, brainlift, builderContext);
 
     const result = streamText({
       model: anthropic('claude-sonnet-4-5'),

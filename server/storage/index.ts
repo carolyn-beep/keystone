@@ -14,6 +14,11 @@ import * as dok4Storage from './dok4';
 import * as importAgentStorage from './import-agent';
 import * as brainliftSourcesStorage from './brainlift-sources';
 import * as knowledgeCheckStorage from './knowledge-check';
+import * as nativeBrainliftsStorage from './native-brainlifts';
+import * as builderExpertsStorage from './builder-experts';
+import * as knowledgeTreeStorage from './knowledge-tree';
+import * as apiKeysStorage from './api-keys';
+import * as internalStorage from './internal';
 
 // Re-export types from base
 export type {
@@ -23,7 +28,11 @@ export type {
   FactVerification, InsertFactVerification, FactModelScore, InsertFactModelScore,
   FactWithVerification, LlmFeedback, ModelAccuracyStats,
   FactRedundancyGroup, InsertFactRedundancyGroup, RedundancyStatus,
-  AuthContext
+  AuthContext,
+  NativeBrainliftDetails, InsertNativeBrainliftDetails,
+  BuilderExpert, InsertBuilderExpert,
+  NativePhaseProgress, BuilderPhaseStatus, BuilderSuggestionStatus,
+  Category, InsertCategory, CategorySuggestionState,
 } from './base';
 
 /**
@@ -160,7 +169,54 @@ export const storage = {
   createQuiz: knowledgeCheckStorage.createQuiz,
   submitQuizAnswers: knowledgeCheckStorage.submitQuizAnswers,
   hasQuizJobPending: knowledgeCheckStorage.hasQuizJobPending,
+
+  // Native Brainlifts
+  createNativeBrainlift: nativeBrainliftsStorage.createNativeBrainlift,
+  getNativeDetailsBySlug: nativeBrainliftsStorage.getNativeDetailsBySlug,
+  updateNativeDetailsForBrainlift: nativeBrainliftsStorage.updateNativeDetailsForBrainlift,
+  setBuilderSuggestionState: nativeBrainliftsStorage.setBuilderSuggestionState,
+  celebratePhase3: nativeBrainliftsStorage.celebratePhase3,
+
+  // Knowledge Tree (Phase 3)
+  getKnowledgeTree: knowledgeTreeStorage.getKnowledgeTree,
+  getItemDetail: knowledgeTreeStorage.getItemDetail,
+  createManualSource: knowledgeTreeStorage.createManualSource,
+  deleteExtractions: knowledgeTreeStorage.deleteExtractions,
+  createCategory: knowledgeTreeStorage.createCategory,
+  updateCategory: knowledgeTreeStorage.updateCategory,
+  deleteCategory: knowledgeTreeStorage.deleteCategory,
+  getCategoriesWithCounts: knowledgeTreeStorage.getCategoriesWithCounts,
+  reassignItemCategory: knowledgeTreeStorage.reassignItemCategory,
+  getExtractionCounts: knowledgeTreeStorage.getExtractionCounts,
+  createManualFact: knowledgeTreeStorage.createManualFact,
+  updateManualFact: knowledgeTreeStorage.updateManualFact,
+  deleteManualFact: knowledgeTreeStorage.deleteManualFact,
+  createManualSummary: knowledgeTreeStorage.createManualSummary,
+  updateManualSummary: knowledgeTreeStorage.updateManualSummary,
+  deleteManualSummary: knowledgeTreeStorage.deleteManualSummary,
+
+  // Builder Experts
+  getBuilderExpertsByBrainliftId: builderExpertsStorage.getBuilderExpertsByBrainliftId,
+  createBuilderExpert: builderExpertsStorage.createBuilderExpert,
+  insertSuggestedExperts: builderExpertsStorage.insertSuggestedExperts,
+  updateBuilderExpertForBrainlift: builderExpertsStorage.updateBuilderExpertForBrainlift,
+  dismissBuilderExpertForBrainlift: builderExpertsStorage.dismissBuilderExpertForBrainlift,
+  deleteBuilderExpertForBrainlift: builderExpertsStorage.deleteBuilderExpertForBrainlift,
+  countSavedBuilderExperts: builderExpertsStorage.countSavedBuilderExperts,
+  clearPendingSuggestions: builderExpertsStorage.clearPendingSuggestions,
+
+  // API Keys (service auth)
+  validateApiKey: apiKeysStorage.validateApiKey,
+  findOrCreateUserByEmail: apiKeysStorage.findOrCreateUserByEmail,
+
+  // Internal API (MCP)
+  getBrainliftProgress: internalStorage.getBrainliftProgress,
+  getBrainliftScores: internalStorage.getBrainliftScores,
+  getAssessmentDOK1: internalStorage.getAssessmentDOK1,
+  getAssessmentDOK2: internalStorage.getAssessmentDOK2,
+  getAssessmentDOK3: internalStorage.getAssessmentDOK3,
+  getAssessmentDOK4: internalStorage.getAssessmentDOK4,
 };
 
 // Export individual modules for direct access if needed
-export { brainliftsStorage, expertsStorage, verificationsStorage, redundancyStorage, analyticsStorage, dok2Storage, sharesStorage, learningStreamStorage, dok3Storage, dok4Storage, importAgentStorage, brainliftSourcesStorage, knowledgeCheckStorage };
+export { brainliftsStorage, expertsStorage, verificationsStorage, redundancyStorage, analyticsStorage, dok2Storage, sharesStorage, learningStreamStorage, dok3Storage, dok4Storage, importAgentStorage, brainliftSourcesStorage, knowledgeCheckStorage, nativeBrainliftsStorage, builderExpertsStorage, knowledgeTreeStorage, apiKeysStorage, internalStorage };

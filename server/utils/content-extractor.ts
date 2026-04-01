@@ -1,8 +1,9 @@
 import { extractTextFromHTML, isWorkflowyExportHTML, parseWorkflowyExportHTML } from "./file-extractors";
 import { fetchWorkflowyContent, fetchGoogleDocsContent } from "./external-sources";
+import { parseMarkdownBrainlift } from "./markdown-brainlift-parser";
 import type { HierarchyNode } from "@shared/hierarchy-types";
 
-export type SourceType = 'html' | 'workflowy' | 'googledocs';
+export type SourceType = 'html' | 'workflowy' | 'googledocs' | 'markdown';
 
 /**
  * Detect if HTML content is a saved WorkFlowy page and extract the share URL.
@@ -152,6 +153,18 @@ export async function extractContent(input: ContentExtractionInput): Promise<Con
         wrapExtractorError(error, sourceLabel);
       }
       break;
+
+    case 'markdown': {
+      if (!file) {
+        throw new ContentExtractionError('No file uploaded');
+      }
+      sourceLabel = 'Markdown';
+      const mdContent = file.buffer.toString('utf-8');
+      const result = parseMarkdownBrainlift(mdContent);
+      content = result.markdown;
+      hierarchy = result.hierarchy;
+      break;
+    }
 
     default:
       throw new ContentExtractionError('Invalid source type');

@@ -176,10 +176,11 @@ export async function saveBrainliftFromAI(
   retryCount = 0,
   onProgress?: ProgressCallback,
   autoLink?: boolean,
+  existingBrainlift?: { id: number; slug: string },
 ): Promise<BrainliftData> {
   const shouldAutoLink = autoLink !== false; // default: true
   const MAX_RETRIES = 3;
-  const slug = await generateUniqueSlug(data.title, retryCount);
+  const slug = existingBrainlift?.slug ?? await generateUniqueSlug(data.title, retryCount);
 
   const batchStart = Date.now();
   const memStart = process.memoryUsage();
@@ -361,29 +362,57 @@ export async function saveBrainliftFromAI(
   // Run expert format diagnostics on the original content
   const expertDiagnostics = originalContent ? await diagnoseExpertFormat(originalContent) : null;
 
-  let brainlift;
+  let brainlift: { id: number; slug: string };
   try {
-    brainlift = await storage.createBrainlift(
-      {
-        slug,
-        title: data.title,
-        description: data.description,
-        displayPurpose: data.displayPurpose || null,  // Short UI-friendly summary
-        author: data.owner || null,
+    if (existingBrainlift) {
+      // Update path: brainlift already exists (internal grade flow)
+      // Update each fact's grade from the verification results
+      const existingFacts = await storage.getFactsForBrainlift(existingBrainlift.id);
+      const factIdMap = new Map(existingFacts.map(f => [f.originalId, f.id]));
+
+      await Promise.all(factsWithSummaries.map(async (graded) => {
+        const dbId = factIdMap.get(graded.originalId);
+        if (dbId) {
+          await storage.updateFactGrading(dbId, existingBrainlift.id, {
+            score: graded.score,
+            note: graded.note,
+            isGradeable: graded.isGradeable,
+            summary: graded.summary,
+          });
+        }
+      }));
+
+      // Update brainlift summary and diagnostics
+      await storage.updateBrainliftFields(existingBrainlift.id, {
         summary: dynamicSummary,
-        classification: data.classification,
-        improperlyFormatted: data.improperlyFormatted ?? false,
-        rejectionReason: data.rejectionReason || null,
-        rejectionSubtype: data.rejectionSubtype || null,
-        rejectionRecommendation: data.rejectionRecommendation || null,
-        originalContent: originalContent || null,
-        sourceType: sourceType || null,
         expertDiagnostics: expertDiagnostics || null,
-      },
-      factsWithSummaries,
-      clusters,
-      userId
-    );
+      });
+
+      brainlift = existingBrainlift;
+    } else {
+      // Create path: new brainlift (web UI import flow)
+      brainlift = await storage.createBrainlift(
+        {
+          slug,
+          title: data.title,
+          description: data.description,
+          displayPurpose: data.displayPurpose || null,  // Short UI-friendly summary
+          author: data.owner || null,
+          summary: dynamicSummary,
+          classification: data.classification,
+          improperlyFormatted: data.improperlyFormatted ?? false,
+          rejectionReason: data.rejectionReason || null,
+          rejectionSubtype: data.rejectionSubtype || null,
+          rejectionRecommendation: data.rejectionRecommendation || null,
+          originalContent: originalContent || null,
+          sourceType: sourceType || null,
+          expertDiagnostics: expertDiagnostics || null,
+        },
+        factsWithSummaries,
+        clusters,
+        userId
+      );
+    }
 
     // Save DOK2 summaries if present (with grading)
     if (data.dok2Summaries && data.dok2Summaries.length > 0) {
@@ -593,13 +622,14 @@ export async function saveBrainliftFromAI(
       }
     }
   } catch (err: any) {
-    // Handle duplicate slug error with retry
-    // Drizzle wraps pg errors in DrizzleQueryError — actual pg error is on err.cause
-    const pgCode = err.code || err.cause?.code;
-    const pgConstraint = err.constraint || err.cause?.constraint;
-    if (pgCode === '23505' && pgConstraint === 'brainlifts_slug_unique' && retryCount < MAX_RETRIES) {
-      console.log(`[Auto-Grade] Duplicate slug detected, retrying with retry count: ${retryCount + 1}`);
-      return saveBrainliftFromAI(data, originalContent, sourceType, userId, retryCount + 1, onProgress, autoLink);
+    // Handle duplicate slug error with retry (only for create path, not update path)
+    if (!existingBrainlift) {
+      const pgCode = err.code || err.cause?.code;
+      const pgConstraint = err.constraint || err.cause?.constraint;
+      if (pgCode === '23505' && pgConstraint === 'brainlifts_slug_unique' && retryCount < MAX_RETRIES) {
+        console.log(`[Auto-Grade] Duplicate slug detected, retrying with retry count: ${retryCount + 1}`);
+        return saveBrainliftFromAI(data, originalContent, sourceType, userId, retryCount + 1, onProgress, autoLink);
+      }
     }
     throw err;
   }

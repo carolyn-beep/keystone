@@ -1,6 +1,6 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
-import { X, Upload, FileText, Link as LinkIcon, File, Loader2 } from 'lucide-react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { X, Upload, FileText, Link as LinkIcon, File, Loader2, PenLine, ArrowLeft } from 'lucide-react';
+import { motion, AnimatePresence, LayoutGroup } from 'framer-motion';
 import { tokens } from '@/lib/colors';
 import { useImportWithProgress } from '@/hooks/useImportWithProgress';
 import { ImportProgress } from '@/components/ImportProgress';
@@ -8,6 +8,7 @@ import { PreformatDecision } from '@/components/home/PreformatDecision';
 import { DOK3LinkingUI } from '@/components/DOK3LinkingUI';
 import { DOK4LinkingUI } from '@/components/DOK4LinkingUI';
 import { TactileButton } from '@/components/ui/tactile-button';
+import { BuildFromScratchWizard } from '@/components/home/BuildFromScratchWizard';
 import { ImportAgentLayout } from '@/components/import-agent/ImportAgentLayout';
 import { ImportAgentProvider } from '@/components/import-agent/ImportAgentContext';
 import { useImportConversation } from '@/hooks/useImportConversation';
@@ -16,11 +17,12 @@ import { useGradingProgress } from '@/hooks/useGradingProgress';
 import type { ImportStage } from '@shared/import-progress';
 import modalBgTexture from '@/assets/textures/modal_bgv2.webp';
 
-type SourceType = 'html' | 'workflowy' | 'googledocs';
+type SourceType = 'html' | 'workflowy' | 'googledocs' | 'markdown';
 
 const tabs: { id: SourceType; label: string; icon: typeof FileText }[] = [
   { id: 'workflowy', label: 'Workflowy', icon: LinkIcon },
   { id: 'html', label: 'HTML', icon: FileText },
+  { id: 'markdown', label: 'Markdown', icon: FileText },
   { id: 'googledocs', label: 'Google Docs', icon: LinkIcon },
 ];
 
@@ -39,20 +41,33 @@ const MANUAL_ORDERED_STAGES: Exclude<ImportStage, 'complete' | 'error'>[] = [
   'contradictions',
   'grading_dok2',
 ];
+const BUILD_FROM_SCRATCH_SHELL_ID = 'build-from-scratch-shell';
+const BUILD_FROM_SCRATCH_ICON_ID = 'build-from-scratch-icon';
+const BUILD_FROM_SCRATCH_TITLE_ID = 'build-from-scratch-title';
+const BUILD_FROM_SCRATCH_SUBTITLE_ID = 'build-from-scratch-subtitle';
 
 interface AddBrainliftModalProps {
   show: boolean;
+  mode: 'import' | 'create';
   onClose: () => void;
   onSuccess: (slug: string) => void;
 }
 
-export function AddBrainliftModal({ show, onClose, onSuccess }: AddBrainliftModalProps) {
+export function AddBrainliftModal({ show, mode, onClose, onSuccess }: AddBrainliftModalProps) {
   const [activeTab, setActiveTab] = useState<SourceType>('workflowy');
   const [url, setUrl] = useState('');
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [error, setError] = useState('');
   const [autoLink, setAutoLink] = useState(true);
+  const [wizardActive, setWizardActive] = useState(mode === 'create');
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Sync wizard state when mode/show changes
+  useEffect(() => {
+    if (show) {
+      setWizardActive(mode === 'create');
+    }
+  }, [show, mode]);
 
   // Store formData across evaluate -> accept/reject flow
   const pendingFormDataRef = useRef<FormData | null>(null);
@@ -138,6 +153,7 @@ export function AddBrainliftModal({ show, onClose, onSuccess }: AddBrainliftModa
     setSelectedFile(null);
     setError('');
     setAutoLink(true);
+    setWizardActive(false);
     setAgentSlug(null);
     setIsGradingMode(false);
     pendingSlugRef.current = null;
@@ -198,7 +214,7 @@ export function AddBrainliftModal({ show, onClose, onSuccess }: AddBrainliftModa
     formData.append('sourceType', activeTab);
     formData.append('autoLink', String(autoLink));
 
-    if (activeTab === 'html') {
+    if (activeTab === 'html' || activeTab === 'markdown') {
       if (!selectedFile) {
         setError('Please select a file');
         return null;
@@ -534,223 +550,297 @@ export function AddBrainliftModal({ show, onClose, onSuccess }: AddBrainliftModa
                   mixBlendMode: 'multiply',
                 }}
               />
-              <div className="flex justify-between items-center mb-5">
-                <h2 className="text-xl font-semibold text-foreground m-0">
-                  Add New Brainlift
-                </h2>
-                <button
-                  data-testid="button-close-modal"
-                  onClick={closeModal}
-                  disabled={isBusy}
-                  className="bg-transparent border-none cursor-pointer text-muted-foreground disabled:opacity-30 disabled:cursor-not-allowed"
-                >
-                  <X size={24} />
-                </button>
-              </div>
-
-              <p className="text-muted-foreground text-sm mb-5">
-                Add New Brainlift to Grade DOK1 facts and create a curated reading list.
-              </p>
-
-              {/* Underline tabs */}
-              <div className="relative z-10 mb-5">
-                <div className="flex">
-                  {tabs.map((tab) => (
-                    <button
-                      key={tab.id}
-                      data-testid={`tab-${tab.id}`}
-                      onClick={() => {
-                        setActiveTab(tab.id);
-                        setError('');
-                        setSelectedFile(null);
-                        setUrl('');
-                      }}
-                      className="flex-1 flex items-center justify-center gap-1.5 py-2.5 text-[13px] font-medium cursor-pointer transition-colors duration-200 bg-transparent border-none font-serif"
-                      style={{
-                        color: activeTab === tab.id ? tokens.primary : tokens.textSecondary,
-                      }}
-                    >
-                      <tab.icon size={14} />
-                      {tab.label}
-                    </button>
-                  ))}
-                </div>
-                <div
-                  className="absolute bottom-0 left-0 h-0.5 transition-all duration-300 ease-out rounded-full"
-                  style={{
-                    backgroundColor: tokens.primary,
-                    width: `${100 / tabs.length}%`,
-                    transform: `translateX(${tabs.findIndex(t => t.id === activeTab) * 100}%)`,
-                  }}
-                />
-                <div
-                  className="absolute bottom-0 left-0 right-0 h-px"
-                  style={{ backgroundColor: tokens.border }}
-                />
-              </div>
-
-              <div className={`relative z-10 pb-4 ${isBusy ? 'opacity-50 pointer-events-none' : ''}`}>
-                {activeTab === 'html' && (
-                  <div>
-                    <input
-                      ref={fileInputRef}
-                      type="file"
-                      accept=".html,.htm"
-                      onChange={handleFileSelect}
-                      className="hidden"
-                      data-testid="input-file"
-                      disabled={isBusy}
-                    />
-                    <div
-                      onClick={() => !isBusy && fileInputRef.current?.click()}
-                      className="border-2 border-dashed rounded-lg py-6 px-5 text-center cursor-pointer flex flex-col items-center justify-center"
-                      style={{
-                        borderColor: tokens.border,
-                        backgroundColor: selectedFile ? tokens.surfaceAlt : 'transparent',
-                      }}
-                    >
-                      {selectedFile ? (
-                        <>
-                          <File size={32} color={tokens.secondary} className="mb-2 mx-auto" />
-                          <p className="m-0 text-foreground font-medium">{selectedFile.name}</p>
-                          <p className="mt-1 mb-0 text-muted-foreground text-[13px]">
-                            {(selectedFile.size / 1024 / 1024).toFixed(2)} MB
-                          </p>
-                        </>
-                      ) : (
-                        <>
-                          <Upload size={32} color={tokens.textMuted} className="mb-2 mx-auto" />
-                          <p className="m-0 text-muted-foreground">
-                            Click to upload an HTML file (or saved Workflowy page)
-                          </p>
-                          <p className="mt-1 mb-0 text-muted-foreground text-[13px]">
-                            Max file size: 10MB
-                          </p>
-                        </>
+              <LayoutGroup id="build-from-scratch-flow">
+                <div className="flex justify-between items-start mb-5 gap-4">
+                  {wizardActive ? (
+                    <div className="flex items-start gap-3 min-w-0 flex-1">
+                      {mode === 'import' && (
+                        <button
+                          onClick={() => setWizardActive(false)}
+                          className="mt-1 p-1.5 rounded-md bg-transparent border-none cursor-pointer text-muted-foreground hover:text-foreground transition-colors"
+                          data-testid="button-wizard-back"
+                        >
+                          <ArrowLeft size={18} />
+                        </button>
                       )}
+                      <motion.div
+                        layoutId={mode === 'import' ? BUILD_FROM_SCRATCH_SHELL_ID : undefined}
+                        transition={{ type: 'spring', stiffness: 320, damping: 34 }}
+                        className="flex items-center gap-3 min-w-0"
+                      >
+                        <motion.div
+                          layoutId={mode === 'import' ? BUILD_FROM_SCRATCH_ICON_ID : undefined}
+                          className="w-9 h-9 rounded-xl bg-primary/10 flex items-center justify-center shrink-0"
+                        >
+                          <PenLine size={18} style={{ color: tokens.primary }} />
+                        </motion.div>
+                        <div className="min-w-0">
+                          <motion.h2
+                            layoutId={mode === 'import' ? BUILD_FROM_SCRATCH_TITLE_ID : undefined}
+                            className="text-xl font-semibold text-foreground m-0"
+                          >
+                            Create Brainlift
+                          </motion.h2>
+                          <motion.p
+                            layoutId={mode === 'import' ? BUILD_FROM_SCRATCH_SUBTITLE_ID : undefined}
+                            className="text-[12px] text-muted-foreground font-serif italic mt-1 mb-0"
+                          >
+                            Define a topic and purpose to create a new BrainLift
+                          </motion.p>
+                        </div>
+                      </motion.div>
                     </div>
-                  </div>
-                )}
-
-                {(activeTab === 'workflowy' || activeTab === 'googledocs') && (
-                  <div>
-                    <label className="block mb-2 text-foreground text-sm font-medium">
-                      {activeTab === 'workflowy' ? 'Workflowy Share Link' : 'Google Docs URL'}
-                    </label>
-                    <input
-                      type="url"
-                      data-testid="input-url"
-                      value={url}
-                      onChange={(e) => setUrl(e.target.value)}
-                      disabled={isBusy}
-                      placeholder={activeTab === 'workflowy' ? 'https://workflowy.com/s/...' : 'https://docs.google.com/document/d/...'}
-                      className="w-full p-3 rounded-lg text-sm box-border border-none outline-none disabled:cursor-not-allowed"
-                      style={{
-                        backgroundColor: tokens.surfaceAlt,
-                        boxShadow: 'inset 0 2px 4px rgba(0,0,0,0.06), inset 0 1px 2px rgba(0,0,0,0.08)',
-                      }}
-                    />
-                    <p className="mt-2 text-muted-foreground text-[13px]">
-                      {activeTab === 'workflowy'
-                        ? 'Must be a secret link (contains /s/ in URL). Link must point directly to your brainlift\'s root node -- no parent nodes, notes, or other content should be visible.'
-                        : 'Make sure your Google Doc has link sharing enabled (anyone with the link can view).'}
-                    </p>
-                  </div>
-                )}
-              </div>
-
-              {/* Auto-link toggle */}
-              <div className={`relative z-10 flex items-center gap-3 py-3 ${isBusy ? 'opacity-50 pointer-events-none' : ''}`}>
-                <button
-                  onClick={() => !isBusy && setAutoLink(!autoLink)}
-                  disabled={isBusy}
-                  className={`relative w-10 h-5 rounded-full transition-colors duration-200 border-0 cursor-pointer disabled:cursor-not-allowed ${
-                    autoLink ? 'bg-primary' : 'bg-muted-foreground/30'
-                  }`}
-                  data-testid="toggle-auto-link"
-                >
-                  <span
-                    className={`absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform duration-200 ${
-                      autoLink ? 'translate-x-5' : 'translate-x-0'
-                    }`}
-                  />
-                </button>
-                <label
-                  className="text-sm text-muted-foreground cursor-pointer select-none"
-                  onClick={() => !isBusy && setAutoLink(!autoLink)}
-                >
-                  Auto-link DOK3s and DOK4s
-                </label>
-              </div>
-
-              {/* Show local error, agent creation error, or import error */}
-              {(error || createForAgent.error?.message || importState.error) && !isBusy && (
-                <p className="text-destructive text-sm mt-3">
-                  {error || createForAgent.error?.message || importState.error}
-                </p>
-              )}
-
-              {/* Progress display */}
-              <ImportProgress
-                currentStage={importState.currentStage}
-                stageLabel={importState.stageLabel}
-                progress={importState.progress}
-                gradingProgress={importState.gradingProgress}
-                gradingDok2Progress={importState.gradingDok2Progress}
-                gradingDok3Progress={importState.gradingDok3Progress}
-                gradingDok4Progress={importState.gradingDok4Progress}
-                linkingDok3Progress={importState.linkingDok3Progress}
-                linkingDok4Progress={importState.linkingDok4Progress}
-                formattingProgress={importState.formattingProgress}
-                error={importState.error}
-                isVisible={importState.isImporting || importPhase === 'finishing' || importPhase === 'formatting'}
-                orderedStages={autoLink ? undefined : MANUAL_ORDERED_STAGES}
-              />
-
-              <div className="flex gap-3 mt-5 justify-end">
-                <TactileButton
-                  variant="inset"
-                  data-testid="button-cancel"
-                  onClick={closeModal}
-                  disabled={isBusy}
-                  style={{ opacity: isBusy ? 0.3 : undefined }}
-                >
-                  Cancel
-                </TactileButton>
-                {!isBusy && activeTab === 'workflowy' && (
-                  <TactileButton
-                    variant="inset"
-                    onClick={handleRunAgent}
-                    disabled={createForAgent.isPending}
-                    className="text-xs"
-                  >
-                    {createForAgent.isPending ? (
-                      <span className="flex items-center gap-2">
-                        <Loader2 size={14} className="animate-spin" />
-                        Creating...
-                      </span>
-                    ) : (
-                      'Run Import Agent (Beta)'
-                    )}
-                  </TactileButton>
-                )}
-                <TactileButton
-                  variant="raised"
-                  data-testid="button-submit-import"
-                  onClick={handleSubmit}
-                  disabled={isBusy}
-                >
-                  {isBusy ? (
-                    <span className="flex items-center gap-2">
-                      <Loader2 size={14} className="animate-spin" />
-                      {importPhase === 'evaluating' ? 'Evaluating...' :
-                       importPhase === 'formatting' ? 'Formatting...' : 'Importing...'}
-                    </span>
                   ) : (
-                    'Import & Analyze'
+                    <div className="flex-1 min-w-0">
+                      <h2 className="text-xl font-semibold text-foreground m-0">
+                        Import Brainlift
+                      </h2>
+                      <p className="text-muted-foreground text-sm mt-2 mb-0">
+                        Import an existing document to grade DOK1 facts and create a curated reading list.
+                      </p>
+                    </div>
                   )}
-                </TactileButton>
-              </div>
+
+                  <button
+                    data-testid="button-close-modal"
+                    onClick={closeModal}
+                    disabled={isBusy}
+                    className="bg-transparent border-none cursor-pointer text-muted-foreground disabled:opacity-30 disabled:cursor-not-allowed"
+                  >
+                    <X size={24} />
+                  </button>
+                </div>
+
+                <AnimatePresence initial={false} mode="popLayout">
+                  {wizardActive ? (
+                    <motion.div
+                      key="build-from-scratch-wizard"
+                      layout
+                      className="relative z-10 mb-4"
+                    >
+                      <BuildFromScratchWizard
+                        onClose={() => {
+                          resetAll();
+                          onClose();
+                        }}
+                        onSuccess={onSuccess}
+                        onBack={mode === 'create' ? () => { resetAll(); onClose(); } : () => setWizardActive(false)}
+                      />
+                    </motion.div>
+                  ) : (
+                    <motion.div
+                      key="build-from-scratch-import"
+                      layout
+                      className="relative z-10"
+                    >
+                      <motion.div
+                        initial={{ opacity: 0, y: 8 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: 8 }}
+                        transition={{ duration: 0.18, ease: 'easeOut' }}
+                      >
+
+                        <div className="relative z-10 mb-5">
+                          <div className="flex">
+                            {tabs.map((tab) => (
+                              <button
+                                key={tab.id}
+                                data-testid={`tab-${tab.id}`}
+                                onClick={() => {
+                                  setActiveTab(tab.id);
+                                  setError('');
+                                  setSelectedFile(null);
+                                  setUrl('');
+                                }}
+                                className="flex-1 flex items-center justify-center gap-1.5 py-2.5 text-[13px] font-medium cursor-pointer transition-colors duration-200 bg-transparent border-none font-serif"
+                                style={{
+                                  color: activeTab === tab.id ? tokens.primary : tokens.textSecondary,
+                                }}
+                              >
+                                <tab.icon size={14} />
+                                {tab.label}
+                              </button>
+                            ))}
+                          </div>
+                          <div
+                            className="absolute bottom-0 left-0 h-0.5 transition-all duration-300 ease-out rounded-full"
+                            style={{
+                              backgroundColor: tokens.primary,
+                              width: `${100 / tabs.length}%`,
+                              transform: `translateX(${tabs.findIndex(t => t.id === activeTab) * 100}%)`,
+                            }}
+                          />
+                          <div
+                            className="absolute bottom-0 left-0 right-0 h-px"
+                            style={{ backgroundColor: tokens.border }}
+                          />
+                        </div>
+
+                        <div className={`relative z-10 pb-4 ${isBusy ? 'opacity-50 pointer-events-none' : ''}`}>
+                          {(activeTab === 'html' || activeTab === 'markdown') && (
+                            <div>
+                              <input
+                                ref={fileInputRef}
+                                type="file"
+                                accept={activeTab === 'html' ? '.html,.htm' : '.md'}
+                                onChange={handleFileSelect}
+                                className="hidden"
+                                data-testid="input-file"
+                                disabled={isBusy}
+                              />
+                              <div
+                                onClick={() => !isBusy && fileInputRef.current?.click()}
+                                className="border-2 border-dashed rounded-lg py-6 px-5 text-center cursor-pointer flex flex-col items-center justify-center"
+                                style={{
+                                  borderColor: tokens.border,
+                                  backgroundColor: selectedFile ? tokens.surfaceAlt : 'transparent',
+                                }}
+                              >
+                                {selectedFile ? (
+                                  <>
+                                    <File size={32} color={tokens.secondary} className="mb-2 mx-auto" />
+                                    <p className="m-0 text-foreground font-medium">{selectedFile.name}</p>
+                                    <p className="mt-1 mb-0 text-muted-foreground text-[13px]">
+                                      {(selectedFile.size / 1024 / 1024).toFixed(2)} MB
+                                    </p>
+                                  </>
+                                ) : (
+                                  <>
+                                    <Upload size={32} color={tokens.textMuted} className="mb-2 mx-auto" />
+                                    <p className="m-0 text-muted-foreground">
+                                      {activeTab === 'html'
+                                        ? 'Click to upload an HTML file (or saved Workflowy page)'
+                                        : 'Click to upload a Markdown brainlift template (.md)'}
+                                    </p>
+                                    <p className="mt-1 mb-0 text-muted-foreground text-[13px]">
+                                      Max file size: 10MB
+                                    </p>
+                                  </>
+                                )}
+                              </div>
+                            </div>
+                          )}
+
+                          {(activeTab === 'workflowy' || activeTab === 'googledocs') && (
+                            <div>
+                              <label className="block mb-2 text-foreground text-sm font-medium">
+                                {activeTab === 'workflowy' ? 'Workflowy Share Link' : 'Google Docs URL'}
+                              </label>
+                              <input
+                                type="url"
+                                data-testid="input-url"
+                                value={url}
+                                onChange={(e) => setUrl(e.target.value)}
+                                disabled={isBusy}
+                                placeholder={activeTab === 'workflowy' ? 'https://workflowy.com/s/...' : 'https://docs.google.com/document/d/...'}
+                                className="w-full p-3 rounded-lg text-sm box-border border-none outline-none disabled:cursor-not-allowed"
+                                style={{
+                                  backgroundColor: tokens.surfaceAlt,
+                                  boxShadow: 'inset 0 2px 4px rgba(0,0,0,0.06), inset 0 1px 2px rgba(0,0,0,0.08)',
+                                }}
+                              />
+                              <p className="mt-2 text-muted-foreground text-[13px]">
+                                {activeTab === 'workflowy'
+                                  ? 'Must be a secret link (contains /s/ in URL). Link must point directly to your brainlift\'s root node -- no parent nodes, notes, or other content should be visible.'
+                                  : 'Make sure your Google Doc has link sharing enabled (anyone with the link can view).'}
+                              </p>
+                            </div>
+                          )}
+                        </div>
+
+                        <div className={`relative z-10 flex items-center gap-3 py-3 ${isBusy ? 'opacity-50 pointer-events-none' : ''}`}>
+                          <button
+                            onClick={() => !isBusy && setAutoLink(!autoLink)}
+                            disabled={isBusy}
+                            className={`relative w-10 h-5 rounded-full transition-colors duration-200 border-0 cursor-pointer disabled:cursor-not-allowed ${
+                              autoLink ? 'bg-primary' : 'bg-muted-foreground/30'
+                            }`}
+                            data-testid="toggle-auto-link"
+                          >
+                            <span
+                              className={`absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform duration-200 ${
+                                autoLink ? 'translate-x-5' : 'translate-x-0'
+                              }`}
+                            />
+                          </button>
+                          <label
+                            className="text-sm text-muted-foreground cursor-pointer select-none"
+                            onClick={() => !isBusy && setAutoLink(!autoLink)}
+                          >
+                            Auto-link DOK3s and DOK4s
+                          </label>
+                        </div>
+
+                        {(error || createForAgent.error?.message || importState.error) && !isBusy && (
+                          <p className="text-destructive text-sm mt-3">
+                            {error || createForAgent.error?.message || importState.error}
+                          </p>
+                        )}
+
+                        <ImportProgress
+                          currentStage={importState.currentStage}
+                          stageLabel={importState.stageLabel}
+                          progress={importState.progress}
+                          gradingProgress={importState.gradingProgress}
+                          gradingDok2Progress={importState.gradingDok2Progress}
+                          gradingDok3Progress={importState.gradingDok3Progress}
+                          gradingDok4Progress={importState.gradingDok4Progress}
+                          linkingDok3Progress={importState.linkingDok3Progress}
+                          linkingDok4Progress={importState.linkingDok4Progress}
+                          formattingProgress={importState.formattingProgress}
+                          error={importState.error}
+                          isVisible={importState.isImporting || importPhase === 'finishing' || importPhase === 'formatting'}
+                          orderedStages={autoLink ? undefined : MANUAL_ORDERED_STAGES}
+                        />
+
+                        <div className="flex gap-3 mt-5 justify-end">
+                          <TactileButton
+                            variant="inset"
+                            data-testid="button-cancel"
+                            onClick={closeModal}
+                            disabled={isBusy}
+                            style={{ opacity: isBusy ? 0.3 : undefined }}
+                          >
+                            Cancel
+                          </TactileButton>
+                          {process.env.NODE_ENV !== 'production' && !isBusy && activeTab === 'workflowy' && (
+                            <TactileButton
+                              variant="inset"
+                              onClick={handleRunAgent}
+                              disabled={createForAgent.isPending}
+                              className="text-xs"
+                            >
+                              {createForAgent.isPending ? (
+                                <span className="flex items-center gap-2">
+                                  <Loader2 size={14} className="animate-spin" />
+                                  Creating...
+                                </span>
+                              ) : (
+                                'Run Import Agent (Beta)'
+                              )}
+                            </TactileButton>
+                          )}
+                          <TactileButton
+                            variant="raised"
+                            data-testid="button-submit-import"
+                            onClick={handleSubmit}
+                            disabled={isBusy}
+                          >
+                            {isBusy ? (
+                              <span className="flex items-center gap-2">
+                                <Loader2 size={14} className="animate-spin" />
+                                {importPhase === 'formatting' ? 'Formatting...' : 'Importing...'}
+                              </span>
+                            ) : (
+                              'Import & Analyze'
+                            )}
+                          </TactileButton>
+                        </div>
+                      </motion.div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </LayoutGroup>
             </motion.div>
           )}
         </AnimatePresence>
