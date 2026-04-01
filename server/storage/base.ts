@@ -19,6 +19,7 @@ export type {
   BuilderExpert, InsertBuilderExpert,
   NativePhaseProgress, BuilderPhaseStatus, BuilderSuggestionStatus,
   Category, InsertCategory, CategorySuggestionState,
+  ApiKey,
 } from "@shared/schema";
 
 export {
@@ -31,6 +32,7 @@ export {
   importAgentConversations, brainliftSources,
   nativeBrainliftDetails, builderExperts,
   categories,
+  apiKeys,
 } from "@shared/schema";
 
 export { eq, inArray, desc, and, sql, isNull, or } from "drizzle-orm";

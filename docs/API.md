@@ -2,10 +2,10 @@
 
 ## Overview
 
-- **Total Endpoints:** 51
-- **Production Endpoints:** 45
+- **Total Endpoints:** 56
+- **Production Endpoints:** 50
 - **Development-Only Endpoints:** 6
-- **Domain Routers:** 10
+- **Domain Routers:** 11
 
 ---
 
@@ -229,6 +229,42 @@ All routes nested under `/api/brainlifts/:slug/learning-stream` for authorizatio
 | `save_dok2_summary` | Saves a DOK2 summary with related facts, queues grading |
 | `get_brainlift_context` | Retrieves existing facts, experts, and topics for cross-reference |
 | `read_article_section` | Reads extracted article content (triggers on-demand extraction if pending) |
+
+---
+
+## Internal API (`server/routes/internal.ts`)
+
+> **Note:** Service-to-service only — requires `X-Service-Key` header (validated via `requireServiceAuth` middleware). Used by the Brainlift MCP server.
+
+| Method | Endpoint | Auth | Description |
+|--------|----------|------|-------------|
+| `GET` | `/api/internal/template` | Service Key | Returns the Brainlift markdown template |
+| `POST` | `/api/internal/grade` | Service Key | Submit markdown for grading, returns slug |
+| `GET` | `/api/internal/brainlifts` | Service Key | Paginated list of user's brainlifts |
+| `GET` | `/api/internal/brainlifts/:slug/status` | Service Key | Grading progress with per-DOK counts |
+| `GET` | `/api/internal/brainlifts/:slug/assessment` | Service Key | Paginated assessment results by DOK level |
+
+### POST /api/internal/grade
+
+- **Body:** `{ markdown: string, title?: string }`
+- **Response (201):** `{ slug, brainliftId, status: 'grading', message, retryAfter: 30 }`
+- **Errors:** 400 (empty/unparseable markdown, 0 facts), 401 (invalid key), 429 (rate limited)
+
+### GET /api/internal/brainlifts
+
+- **Query:** `page` (default 1), `pageSize` (default 10, max 20)
+- **Response (200):** `{ brainlifts: [...], pagination: { page, pageSize, totalItems, totalPages } }`
+
+### GET /api/internal/brainlifts/:slug/status
+
+- **Response (200):** `{ slug, title, status, progress: { dok1..dok4: { total, graded, pending, error } }, score, retryAfter, createdAt }`
+- **Errors:** 404 (unknown slug or wrong user)
+
+### GET /api/internal/brainlifts/:slug/assessment
+
+- **Query:** `dok` (required, 1-4), `page` (default 1), `pageSize` (default 20, max 50), `detail` ('summary' | 'full')
+- **Response (200):** `{ slug, dok, status, items: [...], pagination }`
+- **Errors:** 400 (missing/invalid dok), 404 (unknown slug or wrong user)
 
 ---
 

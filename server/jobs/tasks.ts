@@ -8,6 +8,7 @@ import { discussionGradeDok2Job } from './discussionGradeDok2Job';
 import { dok3GradeJob } from './dok3GradeJob';
 import { dok4GradeJob } from './dok4GradeJob';
 import { brainliftSuggestExpertsJob } from './brainliftSuggestExpertsJob';
+import { internalGradeJob } from './internalGradeJob';
 
 /**
  * Central registry of all background jobs.
@@ -29,6 +30,7 @@ const tasks = {
   'dok3:grade': dok3GradeJob,
   'dok4:grade': dok4GradeJob,
   'brainlift:suggest-experts': brainliftSuggestExpertsJob,
+  'internal:grade': internalGradeJob,
 } as const;
 
 export default tasks;

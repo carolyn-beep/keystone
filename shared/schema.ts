@@ -1148,3 +1148,21 @@ export interface AuthContext {
   role: UserRole;
   isAdmin: boolean;
 }
+
+// === SERVICE API KEYS ===
+
+export const apiKeys = pgTable(
+  "api_keys",
+  {
+    id: serial("id").primaryKey(),
+    key: text("key").notNull().unique(),
+    name: text("name").notNull(),
+    rateLimit: integer("rate_limit").default(60),
+    isActive: boolean("is_active").default(true),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    revokedAt: timestamp("revoked_at"),
+  },
+  (table) => [index("api_keys_key_idx").on(table.key)],
+);
+
+export type ApiKey = typeof apiKeys.$inferSelect;
