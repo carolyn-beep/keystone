@@ -55,7 +55,8 @@ export async function internalGradeJob(
     const { saveBrainliftFromAI } = await import('../services/brainlift');
 
     // Run the full grading pipeline (DOK1 verification + DOK2 grading + DOK3/DOK4 auto-link + grade)
-    // autoLink=true for fire-and-forget mode
+    // Pass existingBrainlift so saveBrainliftFromAI updates the existing record
+    // instead of creating a duplicate
     await saveBrainliftFromAI(
       extractedData as any, // Serialized BrainliftOutput from job payload — structural match but not identical type
       originalContent,
@@ -64,6 +65,7 @@ export async function internalGradeJob(
       0,          // retryCount
       undefined,  // no progress callback (background job)
       true,       // autoLink
+      { id: brainliftId, slug },  // existing brainlift created by processGradeRequest
     );
 
     // Mark import as complete
