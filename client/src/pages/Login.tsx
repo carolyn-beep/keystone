@@ -40,9 +40,9 @@ export default function Login() {
         {/* Content */}
         <div className="relative z-10 flex flex-col justify-center px-12 text-white">
           <div className="mb-8">
-            <h1 className="text-5xl font-bold mb-4">DOK1 Grader</h1>
+            <h1 className="text-5xl font-bold mb-4">Brainlift Central</h1>
             <p className="text-xl text-white/80 leading-relaxed max-w-md">
-              Validate your knowledge. Grade your facts. Build better BrainLifts.
+              Validate your knowledge. Grade your DOKs. Build better BrainLifts.
             </p>
           </div>
 
@@ -74,7 +74,7 @@ export default function Login() {
         <Card className="w-full max-w-md p-8 space-y-8">
           {/* Mobile logo */}
           <div className="lg:hidden text-center mb-8">
-            <h1 className="text-3xl font-bold text-foreground">DOK1 Grader</h1>
+            <h1 className="text-3xl font-bold text-foreground">Brainlift Central</h1>
             <p className="text-muted-foreground mt-2">
               Validate your knowledge
             </p>

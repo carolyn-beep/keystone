@@ -29,6 +29,7 @@ export interface FactGradingPanelProps {
   onViewFactFullText: (fact: Fact) => void;
   onNavigateToRedundancy: () => void;
   canModify?: boolean;
+  isAdmin?: boolean;
 }
 
 const FACT_SCORE_LABELS: Record<number, string> = {
@@ -55,6 +56,7 @@ export function FactGradingPanel({
   onViewFactFullText,
   onNavigateToRedundancy,
   canModify = true,
+  isAdmin = false,
 }: FactGradingPanelProps) {
   const { toast } = useToast();
 
@@ -341,6 +343,7 @@ export function FactGradingPanel({
                         onViewFullText={() => onViewFactFullText(fact)}
                         isRedundant={factsInRedundancyGroups.has(fact.id)}
                         canModify={canModify}
+                        isAdmin={isAdmin}
                       />
                     </div>
                   );

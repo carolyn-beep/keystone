@@ -90,6 +90,7 @@ interface DashboardHeaderProps {
   setShowHistoryModal: (show: boolean) => void;
   handleDownloadPDF: () => void;
   isOwner?: boolean;
+  isAdmin?: boolean;
   setShowShareModal?: (show: boolean) => void;
   canModify?: boolean;
   rightSlot?: ReactNode;
@@ -110,6 +111,7 @@ export function DashboardHeader({
   setShowHistoryModal,
   handleDownloadPDF,
   isOwner,
+  isAdmin,
   setShowShareModal,
   canModify = true,
   rightSlot,
@@ -220,7 +222,7 @@ export function DashboardHeader({
             </button>
           )}
 
-          {!hideDefaultActions && isOwner && (
+          {!hideDefaultActions && (isOwner || isAdmin) && (
             <button
               data-testid="button-share"
               onClick={() => setShowShareModal?.(true)}

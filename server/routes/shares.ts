@@ -20,8 +20,8 @@ sharesRouter.get(
   asyncHandler(async (req, res) => {
     const brainlift = req.brainlift!;
 
-    // Only owner can view shares
-    if (!storage.isOwner(brainlift, req.authContext!)) {
+    // Only owner or admin can view shares
+    if (!storage.isOwner(brainlift, req.authContext!) && !req.authContext!.isAdmin) {
       throw new ForbiddenError('Only the owner can manage shares');
     }
 
@@ -46,8 +46,8 @@ sharesRouter.post(
   asyncHandler(async (req, res) => {
     const brainlift = req.brainlift!;
 
-    // Only owner can create shares
-    if (!storage.isOwner(brainlift, req.authContext!)) {
+    // Only owner or admin can create shares
+    if (!storage.isOwner(brainlift, req.authContext!) && !req.authContext!.isAdmin) {
       throw new ForbiddenError('Only the owner can manage shares');
     }
 
@@ -114,8 +114,8 @@ sharesRouter.patch(
       throw new BadRequestError('Invalid share ID');
     }
 
-    // Only owner can update shares
-    if (!storage.isOwner(brainlift, req.authContext!)) {
+    // Only owner or admin can update shares
+    if (!storage.isOwner(brainlift, req.authContext!) && !req.authContext!.isAdmin) {
       throw new ForbiddenError('Only the owner can manage shares');
     }
 
@@ -146,8 +146,8 @@ sharesRouter.delete(
       throw new BadRequestError('Invalid share ID');
     }
 
-    // Only owner can delete shares
-    if (!storage.isOwner(brainlift, req.authContext!)) {
+    // Only owner or admin can delete shares
+    if (!storage.isOwner(brainlift, req.authContext!) && !req.authContext!.isAdmin) {
       throw new ForbiddenError('Only the owner can manage shares');
     }
 
@@ -177,8 +177,8 @@ sharesRouter.post(
   asyncHandler(async (req, res) => {
     const brainlift = req.brainlift!;
 
-    // Only owner can create share tokens
-    if (!storage.isOwner(brainlift, req.authContext!)) {
+    // Only owner or admin can create share tokens
+    if (!storage.isOwner(brainlift, req.authContext!) && !req.authContext!.isAdmin) {
       throw new ForbiddenError('Only the owner can manage shares');
     }
 
@@ -209,8 +209,8 @@ sharesRouter.get(
   asyncHandler(async (req, res) => {
     const brainlift = req.brainlift!;
 
-    // Only owner can view share tokens
-    if (!storage.isOwner(brainlift, req.authContext!)) {
+    // Only owner or admin can view share tokens
+    if (!storage.isOwner(brainlift, req.authContext!) && !req.authContext!.isAdmin) {
       throw new ForbiddenError('Only the owner can manage shares');
     }
 

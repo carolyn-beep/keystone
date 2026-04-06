@@ -348,6 +348,7 @@ const { downloadBrainliftPDF } = usePDFExport();
           setShowHistoryModal={setShowHistoryModal}
           handleDownloadPDF={handleDownloadPDF}
           isOwner={isOwner}
+          isAdmin={isAdmin}
           setShowShareModal={setShowShareModal}
           canModify={canModify}
         />
@@ -411,6 +412,7 @@ const { downloadBrainliftPDF } = usePDFExport();
             onViewFactFullText={(fact) => setSelectedFactForModal(fact)}
             onNavigateToRedundancy={() => setActiveTab('facts-redundancy')}
             canModify={canModify}
+            isAdmin={isAdmin}
           />
         </div>
       )}
@@ -559,7 +561,7 @@ const { downloadBrainliftPDF } = usePDFExport();
         show={showShareModal}
         onClose={() => setShowShareModal(false)}
         slug={slug}
-        isOwner={isOwner}
+        canManageShares={isOwner || isAdmin}
       />
 
       {/* DOK3 Linking Modal (standalone, outside import flow) */}
