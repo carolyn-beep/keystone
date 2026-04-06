@@ -176,6 +176,8 @@ ${dok2List}`;
       },
     },
     caller: 'dok3AutoLinker',
+    timeout: 30_000,
+    retries: 2,
   });
   console.log(`[DOK3 AutoLinker] Semantic ranking: ${(performance.now() - t0).toFixed(0)}ms (model: ${result.model})`);
 

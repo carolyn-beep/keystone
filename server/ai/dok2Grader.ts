@@ -14,6 +14,7 @@ import { type DOK2FailReason } from '@shared/schema';
 import { fetchEvidenceForFact } from './evidenceFetcher';
 import { DOK2_GRADING_SYSTEM_PROMPT, DOK2_GRADING_USER_PROMPT } from '../prompts/dok2-grading';
 import { callModelWithFallback } from './client/index';
+import { type PreviousEvaluation, formatPreviousEvaluationSection, formatRegradingRules } from '@shared/types/regrading';
 
 // Zod schema for validating LLM response
 const dok2GradeSchema = z.object({
@@ -167,6 +168,7 @@ export async function gradeDOK2Summary(
   sourceUrl?: string | null,
   failedUrlCache?: Map<string, string>,
   cachedTranscript?: string | null,
+  previousEvaluation?: PreviousEvaluation,
 ): Promise<DOK2GradeResult> {
   console.log(`[DOK2-Grade] === Starting DOK2 grading ===`);
   console.log(`[DOK2-Grade] Summary points: ${summaryPoints.length}, Related DOK1s: ${relatedDOK1s.length}`);
@@ -198,7 +200,13 @@ export async function gradeDOK2Summary(
   }
 
   // Step 2: Build the prompt with all context
-  const userPrompt = buildUserPrompt(summaryPoints, relatedDOK1s, brainliftPurpose, sourceContent);
+  let userPrompt = buildUserPrompt(summaryPoints, relatedDOK1s, brainliftPurpose, sourceContent);
+  let systemPrompt = DOK2_GRADING_SYSTEM_PROMPT;
+
+  if (previousEvaluation) {
+    systemPrompt += formatRegradingRules();
+    userPrompt += '\n\n' + formatPreviousEvaluationSection(previousEvaluation);
+  }
 
   // Step 3: Call the grading model via unified client (Gemini primary, Qwen fallback)
   try {
@@ -206,7 +214,7 @@ export async function gradeDOK2Summary(
     const t0 = performance.now();
     const result = await callModelWithFallback({
       models: ['google/gemini-2.0-flash-001', 'anthropic/claude-sonnet-4.6'],
-      system: DOK2_GRADING_SYSTEM_PROMPT,
+      system: systemPrompt,
       messages: [{ role: 'user', content: userPrompt }],
       temperature: 0.1,
       maxTokens: 1500,

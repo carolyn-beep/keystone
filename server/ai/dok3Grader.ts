@@ -20,6 +20,7 @@ import {
   buildTraceabilityUserPrompt,
 } from '../prompts/dok3-grading';
 import { callModelWithFallback } from './client';
+import type { PreviousEvaluation } from '@shared/types/regrading';
 
 export type DOK3ProgressCallback = (event: DOK3GradingProgress) => void;
 
@@ -322,7 +323,8 @@ export async function checkSourceTraceability(
 async function evaluateConceptualCoherence(
   context: DOK3EvaluationContext,
   foundationMetrics: FoundationMetrics,
-  traceability: TraceabilityResult
+  traceability: TraceabilityResult,
+  previousEvaluation?: PreviousEvaluation | null
 ): Promise<{ result: DOK3EvaluationResult; model: string }> {
   // Build traceability status string
   const traceabilityStatus = traceability.flagged
@@ -361,7 +363,7 @@ async function evaluateConceptualCoherence(
         index: foundationMetrics.index,
       },
       traceabilityStatus,
-      previousEvaluation: null,
+      previousEvaluation: previousEvaluation ?? null,
     }
   );
 
@@ -413,7 +415,8 @@ export function computeFinalScore(rawScore: number, ceiling: number): number {
 export async function gradeDOK3Insight(
   insightId: number,
   brainliftId: number,
-  onProgress?: DOK3ProgressCallback
+  onProgress?: DOK3ProgressCallback,
+  previousEvaluation?: PreviousEvaluation,
 ): Promise<DOK3GradeResult> {
   console.log(`[DOK3-Grade] === Starting DOK3 grading for insight ${insightId} ===`);
 
@@ -452,7 +455,8 @@ export async function gradeDOK3Insight(
     const { result: evaluation, model: evaluatorModel } = await evaluateConceptualCoherence(
       context,
       foundation,
-      traceability
+      traceability,
+      previousEvaluation,
     );
 
     // Step 4: Final Score

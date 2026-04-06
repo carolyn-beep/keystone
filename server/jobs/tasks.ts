@@ -9,6 +9,12 @@ import { dok3GradeJob } from './dok3GradeJob';
 import { dok4GradeJob } from './dok4GradeJob';
 import { brainliftSuggestExpertsJob } from './brainliftSuggestExpertsJob';
 import { internalGradeJob } from './internalGradeJob';
+import { dok1RegradeJob } from './dok1RegradeJob';
+import { dok2RegradeJob } from './dok2RegradeJob';
+import { dok3RegradeJob } from './dok3RegradeJob';
+import { dok4RegradeJob } from './dok4RegradeJob';
+import { dok1GradeSingleJob } from './dok1GradeSingleJob';
+import { dok2GradeSingleJob } from './dok2GradeSingleJob';
 
 /**
  * Central registry of all background jobs.
@@ -31,6 +37,12 @@ const tasks = {
   'dok4:grade': dok4GradeJob,
   'brainlift:suggest-experts': brainliftSuggestExpertsJob,
   'internal:grade': internalGradeJob,
+  'dok1:regrade': dok1RegradeJob,
+  'dok2:regrade': dok2RegradeJob,
+  'dok3:regrade': dok3RegradeJob,
+  'dok4:regrade': dok4RegradeJob,
+  'dok1:grade-single': dok1GradeSingleJob,
+  'dok2:grade-single': dok2GradeSingleJob,
 } as const;
 
 export default tasks;

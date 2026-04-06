@@ -7,7 +7,7 @@
 
 import {
   db, eq, and, inArray, sql,
-  dok2Summaries, dok2Points, dok2FactRelations,
+  dok2Summaries, dok2Points, dok2FactRelations, facts,
 } from './base';
 import type { DOK2SummaryGroup } from '@shared/hierarchy-types';
 import type { DOK2FailReason } from '@shared/schema';
@@ -235,6 +235,44 @@ export async function updateDOK2Grading(
     sourceVerified: data.sourceVerified,
     gradedAt: new Date(),
   }).where(and(eq(dok2Summaries.id, summaryId), eq(dok2Summaries.brainliftId, brainliftId)));
+}
+
+/**
+ * Get a single DOK2 summary by ID with brainlift ownership check (IDOR-safe).
+ * Returns null if not found or wrong brainliftId.
+ */
+export async function getDok2SummaryByIdForBrainlift(
+  summaryId: number,
+  brainliftId: number,
+) {
+  const [summary] = await db.select().from(dok2Summaries)
+    .where(and(eq(dok2Summaries.id, summaryId), eq(dok2Summaries.brainliftId, brainliftId)));
+  return summary || null;
+}
+
+/**
+ * Get all points for a DOK2 summary, ordered by sort order.
+ */
+export async function getDok2PointsForSummary(summaryId: number) {
+  return db.select().from(dok2Points)
+    .where(eq(dok2Points.summaryId, summaryId))
+    .orderBy(dok2Points.sortOrder);
+}
+
+/**
+ * Get related DOK1 facts for a DOK2 summary (via dok2_fact_relations).
+ * Returns array of { fact, source } for grading context.
+ */
+export async function getRelatedDOK1sForSummary(summaryId: number) {
+  const relations = await db.select({
+    fact: facts.fact,
+    source: facts.source,
+  })
+    .from(dok2FactRelations)
+    .innerJoin(facts, eq(dok2FactRelations.factId, facts.id))
+    .where(eq(dok2FactRelations.summaryId, summaryId));
+
+  return relations;
 }
 
 /**

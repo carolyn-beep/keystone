@@ -159,6 +159,11 @@ export const facts = pgTable("facts", {
   // Builder Phase 3: link facts to their source LS item
   learningStreamItemId: integer("learning_stream_item_id")
     .references(() => learningStreamItems.id, { onDelete: "set null" }),
+  // Granular editing: grading status, stale tracking, version timestamps
+  gradingStatus: text("grading_status").$type<'graded' | 'regrading' | 'grading' | 'error'>().default('graded').notNull(),
+  isStale: boolean("is_stale").default(false).notNull(),
+  staleReason: text("stale_reason"),
+  updatedAt: timestamp("updated_at"),
 }, (table) => [
   index("idx_facts_learning_stream_item_id").on(table.learningStreamItemId),
 ]);
@@ -588,6 +593,11 @@ export const dok2Summaries = pgTable("dok2_summaries", {
   // Builder Phase 3: link DOK2 summaries to their source LS item
   learningStreamItemId: integer("learning_stream_item_id")
     .references(() => learningStreamItems.id, { onDelete: "set null" }),
+  // Granular editing: grading status, stale tracking, version timestamps
+  gradingStatus: text("grading_status").$type<'graded' | 'regrading' | 'grading' | 'error'>().default('graded').notNull(),
+  isStale: boolean("is_stale").default(false).notNull(),
+  staleReason: text("stale_reason"),
+  updatedAt: timestamp("updated_at"),
 }, (table) => [
   index("idx_dok2_summaries_learning_stream_item_id").on(table.learningStreamItemId),
 ]);
@@ -728,6 +738,10 @@ export const dok3Insights = pgTable("dok3_insights", {
   sourceRankings: jsonb("source_rankings").$type<Record<string, number>>(),
   gradedAt: timestamp("graded_at"),
   createdAt: timestamp("created_at").defaultNow(),
+  // Granular editing: stale tracking and version timestamps
+  isStale: boolean("is_stale").default(false).notNull(),
+  staleReason: text("stale_reason"),
+  updatedAt: timestamp("updated_at"),
 }, (table) => [
   index("idx_dok3_insights_brainlift").on(table.brainliftId),
 ]);
@@ -831,6 +845,10 @@ export const dok4Spovs = pgTable("dok4_spovs", {
   evaluatorModel: text("evaluator_model"),
   gradedAt: timestamp("graded_at"),
   createdAt: timestamp("created_at").defaultNow(),
+  // Granular editing: stale tracking and version timestamps
+  isStale: boolean("is_stale").default(false).notNull(),
+  staleReason: text("stale_reason"),
+  updatedAt: timestamp("updated_at"),
 }, (table) => [
   index("idx_dok4_spovs_brainlift").on(table.brainliftId),
 ]);
@@ -866,6 +884,24 @@ export const dok4Dok3LinksRelations = relations(dok4Dok3Links, ({ one }) => ({
     references: [dok3Insights.id],
   }),
 }));
+
+// === DOK ITEM VERSIONING ===
+
+export const dokItemVersions = pgTable("dok_item_versions", {
+  id: serial("id").primaryKey(),
+  dokLevel: integer("dok_level").notNull(),        // 1, 2, 3, or 4
+  itemId: integer("item_id").notNull(),             // ID in respective DOK table
+  brainliftId: integer("brainlift_id").notNull().references(() => brainlifts.id),
+  versionNumber: integer("version_number").notNull(), // 0 = original, 1+ = edits
+  textContent: text("text_content").notNull(),       // snapshot of text at this version
+  score: integer("score"),                           // score at time of version creation
+  feedback: text("feedback"),                        // LLM feedback at time of version
+  diagnosis: text("diagnosis"),                      // LLM diagnosis (DOK2 only)
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+}, (table) => [
+  unique("dok_item_versions_unique").on(table.dokLevel, table.itemId, table.versionNumber),
+  index("idx_dok_item_versions_brainlift").on(table.brainliftId),
+]);
 
 // === NATIVE BUILDER TABLES ===
 
@@ -1045,6 +1081,7 @@ export const insertImportAgentConversationSchema = createInsertSchema(importAgen
 export const insertBrainliftSourceSchema = createInsertSchema(brainliftSources).omit({ id: true, createdAt: true });
 export const insertDok4SpovSchema = createInsertSchema(dok4Spovs).omit({ id: true, createdAt: true });
 export const insertDok4Dok3LinkSchema = createInsertSchema(dok4Dok3Links).omit({ id: true });
+export const insertDokItemVersionSchema = createInsertSchema(dokItemVersions).omit({ id: true, createdAt: true });
 export const insertNativeBrainliftDetailsSchema = createInsertSchema(nativeBrainliftDetails).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertBuilderExpertSchema = createInsertSchema(builderExperts).omit({ id: true, createdAt: true, updatedAt: true });
 
@@ -1098,6 +1135,8 @@ export type DOK4Spov = typeof dok4Spovs.$inferSelect;
 export type InsertDOK4Spov = z.infer<typeof insertDok4SpovSchema>;
 export type DOK4Dok3Link = typeof dok4Dok3Links.$inferSelect;
 export type InsertDOK4Dok3Link = z.infer<typeof insertDok4Dok3LinkSchema>;
+export type DokItemVersion = typeof dokItemVersions.$inferSelect;
+export type InsertDokItemVersion = z.infer<typeof insertDokItemVersionSchema>;
 export type NativeBrainliftDetails = typeof nativeBrainliftDetails.$inferSelect;
 export type InsertNativeBrainliftDetails = z.infer<typeof insertNativeBrainliftDetailsSchema>;
 export type BuilderExpert = typeof builderExperts.$inferSelect;

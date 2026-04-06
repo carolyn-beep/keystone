@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { type VerificationStatus } from '@shared/schema';
 import { callModelWithFallback } from './client/index';
+import { type PreviousEvaluation, formatPreviousEvaluationSection, formatRegradingRules } from '@shared/types/regrading';
 
 const modelGradeSchema = z.object({
   score: z.number().min(1).max(5),
@@ -144,9 +145,10 @@ async function callVerificationModel(
   fact: string,
   source: string,
   evidence: string,
-  linkFailed: boolean = false
+  linkFailed: boolean = false,
+  previousEvaluation?: PreviousEvaluation
 ): Promise<ModelGradeResult & { isNonGradeable?: boolean }> {
-  const userPrompt = `CLAIM TO VERIFY:
+  let userPrompt = `CLAIM TO VERIFY:
 "${fact}"
 
 CITED SOURCE:
@@ -159,10 +161,17 @@ SOURCE_LINK_FAILED: ${linkFailed}
 
 Grade this claim based on available evidence OR your knowledge of educational research literature. Provide a substantive rationale explaining your assessment.`;
 
+  let systemPrompt = GRADING_SYSTEM_PROMPT;
+
+  if (previousEvaluation) {
+    systemPrompt += formatRegradingRules();
+    userPrompt += '\n\n' + formatPreviousEvaluationSection(previousEvaluation);
+  }
+
   try {
     const result = await callModelWithFallback({
       models: ['google/gemini-2.0-flash-001', 'anthropic/claude-haiku-4.5'],
-      system: GRADING_SYSTEM_PROMPT,
+      system: systemPrompt,
       messages: [{ role: 'user', content: userPrompt }],
       temperature: 0.1,
       maxTokens: 800,
@@ -254,9 +263,10 @@ export async function verifyFactWithAllModels(
   source: string,
   evidence: string,
   linkFailed: boolean = false,
+  previousEvaluation?: PreviousEvaluation,
   modelWeights?: ModelWeights
 ): Promise<VerificationResult & { consensus: ConsensusResult & { isNonGradeable?: boolean } }> {
-  const result = await callVerificationModel(fact, source, evidence, linkFailed);
+  const result = await callVerificationModel(fact, source, evidence, linkFailed, previousEvaluation);
 
   const modelResults = [result];
   const consensus = calculateConsensus(modelResults, modelWeights);

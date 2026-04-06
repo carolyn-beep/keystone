@@ -35,4 +35,4 @@ export {
   apiKeys,
 } from "@shared/schema";
 
-export { eq, inArray, desc, and, sql, isNull, or } from "drizzle-orm";
+export { eq, inArray, desc, asc, and, sql, isNull, or } from "drizzle-orm";

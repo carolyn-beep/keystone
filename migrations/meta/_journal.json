@@ -148,6 +148,20 @@
       "when": 1774993656894,
       "tag": "0020_low_plazm",
       "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "7",
+      "when": 1775158011861,
+      "tag": "0021_goofy_quasar",
+      "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "7",
+      "when": 1775167158949,
+      "tag": "0022_elite_naoko",
+      "breakpoints": true
     }
   ]
 }

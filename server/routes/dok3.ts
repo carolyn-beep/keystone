@@ -5,6 +5,10 @@ import { asyncHandler, BadRequestError, NotFoundError } from '../middleware/erro
 import { storage } from '../storage';
 import { withJob } from '../utils/withJob';
 import { dok3GradingEmitter } from '../events/dok3GradingEmitter';
+import { createVersion, pruneVersions } from '../storage/versions';
+import { propagateStaleFlags } from '../storage/stale';
+import { recomputeBrainliftScore } from '../services/brainlift';
+import type { PreviousEvaluation } from '@shared/types/regrading';
 
 export const dok3Router = Router();
 
@@ -37,6 +41,64 @@ dok3Router.get(
   asyncHandler(async (req, res) => {
     const items = await storage.getDOK3ScratchpadItems(req.brainlift!.id);
     res.json(items);
+  })
+);
+
+/**
+ * POST /api/brainlifts/:slug/dok3-insights
+ * Create a new DOK3 insight with DOK2 links.
+ * Validates multi-source requirement, inserts, and queues grading.
+ */
+dok3Router.post(
+  '/api/brainlifts/:slug/dok3-insights',
+  requireAuth,
+  requireBrainliftModify,
+  asyncHandler(async (req, res) => {
+    const { text, linkedDok2Ids } = req.body;
+
+    if (!text || typeof text !== 'string' || text.trim().length === 0) {
+      throw new BadRequestError('text is required and must be a non-empty string');
+    }
+    if (!Array.isArray(linkedDok2Ids) || linkedDok2Ids.length < 2) {
+      throw new BadRequestError('linkedDok2Ids must contain at least 2 DOK2 summary IDs');
+    }
+    if (!linkedDok2Ids.every((id: unknown) => typeof id === 'number' && Number.isInteger(id))) {
+      throw new BadRequestError('linkedDok2Ids must contain only integers');
+    }
+
+    const brainliftId = req.brainlift!.id;
+
+    // Validate multi-source requirement (also checks IDs exist)
+    const validation = await storage.validateMultiSourceLinks(linkedDok2Ids);
+    if (!validation.valid) {
+      throw new BadRequestError(validation.error!);
+    }
+
+    // Validate all DOK2 IDs belong to this brainlift
+    const allDok2s = await storage.getDOK2Summaries(brainliftId);
+    const brainliftDok2Ids = new Set(allDok2s.map((s: { id: number }) => s.id));
+    for (const dok2Id of linkedDok2Ids) {
+      if (!brainliftDok2Ids.has(dok2Id)) {
+        throw new BadRequestError(`DOK2 summary ID ${dok2Id} does not belong to this brainlift`);
+      }
+    }
+
+    const result = await storage.createDok3Insight({
+      brainliftId,
+      text: text.trim(),
+      linkedDok2Ids,
+    });
+
+    // Queue grading job (fire-and-forget)
+    try {
+      await withJob('dok3:grade')
+        .forPayload({ insightId: result.id, brainliftId })
+        .queue();
+    } catch (err) {
+      console.error(`[DOK3 Route] Failed to queue grade job for new insight ${result.id}:`, err);
+    }
+
+    res.status(201).json({ id: result.id, status: 'grading' });
   })
 );
 
@@ -198,6 +260,112 @@ dok3Router.post(
     }
 
     res.status(202).json({ queued });
+  })
+);
+
+/**
+ * PATCH /api/brainlifts/:slug/dok3-insights/:id
+ * Edit a DOK3 insight's text. Creates version, propagates stale, queues regrade.
+ */
+dok3Router.patch(
+  '/api/brainlifts/:slug/dok3-insights/:id',
+  requireAuth,
+  requireBrainliftModify,
+  asyncHandler(async (req, res) => {
+    const insightId = parseInt(req.params.id);
+    if (isNaN(insightId)) throw new BadRequestError('Invalid insight ID');
+
+    const { text } = req.body;
+    if (!text || typeof text !== 'string' || text.trim().length === 0) {
+      throw new BadRequestError('text is required and must be a non-empty string');
+    }
+
+    const brainliftId = req.brainlift!.id;
+
+    // Check current state
+    const insight = await storage.getDOK3InsightForBrainlift(insightId, brainliftId);
+    if (!insight) throw new NotFoundError('DOK3 insight not found');
+
+    if (insight.text === text.trim()) {
+      throw new BadRequestError('Text unchanged');
+    }
+
+    // Edit insight (returns previous state)
+    const editResult = await storage.editDok3Insight(insightId, brainliftId, text.trim());
+    if (!editResult) throw new NotFoundError('DOK3 insight not found');
+
+    // Create version snapshot
+    await createVersion({
+      dokLevel: 3,
+      itemId: insightId,
+      brainliftId,
+      textContent: editResult.previousText,
+      score: editResult.previousScore,
+      feedback: editResult.previousFeedback,
+    });
+
+    // Propagate stale flags to linked DOK4s
+    await propagateStaleFlags({
+      dokLevel: 3,
+      itemId: insightId,
+      brainliftId,
+      reason: `DOK3 insight ${insightId} edited`,
+    });
+
+    await pruneVersions(3, insightId);
+
+    // Build previous evaluation context
+    const previousEvaluation: PreviousEvaluation = {
+      previousScore: editResult.previousScore ?? 0,
+      previousFeedback: editResult.previousFeedback ?? '',
+      previousRationale: editResult.previousRationale ?? undefined,
+      previousCriteriaBreakdown: editResult.previousCriteriaBreakdown ?? undefined,
+      oldText: editResult.previousText,
+      newText: text.trim(),
+      editNumber: 1,
+    };
+
+    // Queue regrade job
+    await withJob('dok3:regrade')
+      .forPayload({ insightId, brainliftId, previousEvaluation })
+      .queue();
+
+    res.json({
+      id: insightId,
+      status: 'regrading',
+      previousScore: editResult.previousScore,
+    });
+  })
+);
+
+/**
+ * DELETE /api/brainlifts/:slug/dok3-insights/:id
+ * Delete a DOK3 insight. Supports ?preview=true for impact preview.
+ */
+dok3Router.delete(
+  '/api/brainlifts/:slug/dok3-insights/:id',
+  requireAuth,
+  requireBrainliftModify,
+  asyncHandler(async (req, res) => {
+    const insightId = parseInt(req.params.id);
+    if (isNaN(insightId)) throw new BadRequestError('Invalid insight ID');
+
+    const brainliftId = req.brainlift!.id;
+
+    // Preview mode
+    if (req.query.preview === 'true') {
+      const impact = await storage.getDok3DeleteImpact(insightId, brainliftId);
+      if (!impact) throw new NotFoundError('DOK3 insight not found');
+      return res.json(impact);
+    }
+
+    // Actual delete
+    const result = await storage.deleteDok3Insight(insightId, brainliftId);
+    if (!result) throw new NotFoundError('DOK3 insight not found');
+
+    await recomputeBrainliftScore(brainliftId);
+
+    res.json(result);
   })
 );
 

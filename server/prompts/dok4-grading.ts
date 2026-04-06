@@ -10,6 +10,7 @@
  */
 
 import type { DOK4EvaluationContext } from '@shared/dok4-types';
+import { formatPreviousEvaluationSection } from '@shared/types/regrading';
 
 
 // ─── Step 1: POV Validation ─────────────────────────────────────────────────
@@ -288,7 +289,7 @@ ${factsText}
 Vanilla LLM Response: ${context.divergenceResult.vanillaResponse}`;
   }
 
-  return `BRAINLIFT PURPOSE:
+  let prompt = `BRAINLIFT PURPOSE:
 ${context.brainliftPurpose || 'No specific purpose defined.'}
 
 DOK4 SPOV:
@@ -319,6 +320,12 @@ SOURCE TRACEABILITY: ${traceabilityStatus}
 
 LLM DIVERGENCE CHECK:
 ${divergenceSection}`;
+
+  if (context.previousEvaluation) {
+    prompt += '\n\n' + formatPreviousEvaluationSection(context.previousEvaluation);
+  }
+
+  return prompt;
 }
 
 

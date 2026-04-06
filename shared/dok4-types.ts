@@ -5,6 +5,8 @@
  * Status constants, criterion results, evaluation context, and grade result interfaces.
  */
 
+import type { PreviousEvaluation } from './types/regrading';
+
 // ─── Status Constants ────────────────────────────────────────────────────────
 
 export const DOK4_STATUS = {
@@ -180,4 +182,5 @@ export interface DOK4EvaluationContext {
   dok3FoundationScore: number;
   traceabilityResult: DOK4TraceabilityResult | null;
   divergenceResult: DivergenceCheckResult | null;
+  previousEvaluation?: PreviousEvaluation;
 }

@@ -5,6 +5,10 @@ import { asyncHandler, BadRequestError, NotFoundError } from '../middleware/erro
 import { storage } from '../storage';
 import { withJob } from '../utils/withJob';
 import { dok4GradingEmitter } from '../events/dok4GradingEmitter';
+import { createVersion, pruneVersions } from '../storage/versions';
+import { propagateStaleFlags } from '../storage/stale';
+import { recomputeBrainliftScore } from '../services/brainlift';
+import type { PreviousEvaluation } from '@shared/types/regrading';
 
 export const dok4Router = Router();
 
@@ -40,6 +44,70 @@ dok4Router.get(
     if (!spov) throw new NotFoundError('SPOV not found');
 
     res.json(spov);
+  })
+);
+
+/**
+ * POST /api/brainlifts/:slug/dok4-spovs
+ * Create a new DOK4 SPOV with DOK3 links and primary designation.
+ * Validates all linked DOK3s are graded, inserts, and queues grading.
+ */
+dok4Router.post(
+  '/api/brainlifts/:slug/dok4-spovs',
+  requireAuth,
+  requireBrainliftModify,
+  asyncHandler(async (req, res) => {
+    const { text, linkedDok3Ids, primaryDok3Id } = req.body;
+
+    if (!text || typeof text !== 'string' || text.trim().length === 0) {
+      throw new BadRequestError('text is required and must be a non-empty string');
+    }
+    if (!Array.isArray(linkedDok3Ids) || linkedDok3Ids.length === 0) {
+      throw new BadRequestError('linkedDok3Ids must contain at least 1 DOK3 insight ID');
+    }
+    if (!linkedDok3Ids.every((id: unknown) => typeof id === 'number' && Number.isInteger(id))) {
+      throw new BadRequestError('linkedDok3Ids must contain only integers');
+    }
+    if (typeof primaryDok3Id !== 'number' || !Number.isInteger(primaryDok3Id)) {
+      throw new BadRequestError('primaryDok3Id must be an integer');
+    }
+    if (!linkedDok3Ids.includes(primaryDok3Id)) {
+      throw new BadRequestError('primaryDok3Id must be included in linkedDok3Ids');
+    }
+
+    const brainliftId = req.brainlift!.id;
+
+    // Validate all DOK3 IDs belong to this brainlift and are graded
+    const allInsights = await storage.getDOK3Insights(brainliftId);
+    const insightMap = new Map(allInsights.map((i: { id: number; status: string }) => [i.id, i]));
+
+    for (const dok3Id of linkedDok3Ids) {
+      const insight = insightMap.get(dok3Id);
+      if (!insight) {
+        throw new BadRequestError(`DOK3 insight ID ${dok3Id} does not belong to this brainlift`);
+      }
+      if (insight.status !== 'graded') {
+        throw new BadRequestError(`DOK3 insight ID ${dok3Id} is not graded (status: ${insight.status})`);
+      }
+    }
+
+    const result = await storage.createDok4Spov({
+      brainliftId,
+      text: text.trim(),
+      linkedDok3Ids,
+      primaryDok3Id,
+    });
+
+    // Queue grading job (fire-and-forget)
+    try {
+      await withJob('dok4:grade')
+        .forPayload({ spovId: result.id, brainliftId })
+        .queue();
+    } catch (err) {
+      console.error(`[DOK4 Route] Failed to queue grade job for new SPOV ${result.id}:`, err);
+    }
+
+    res.status(201).json({ id: result.id, status: 'grading' });
   })
 );
 
@@ -186,6 +254,108 @@ dok4Router.post(
       .queue();
 
     res.json({ queued: true });
+  })
+);
+
+/**
+ * PATCH /api/brainlifts/:slug/dok4-spovs/:id
+ * Edit a DOK4 SPOV's text. Creates version, queues regrade.
+ * No downstream stale propagation (DOK4 is terminal).
+ */
+dok4Router.patch(
+  '/api/brainlifts/:slug/dok4-spovs/:id',
+  requireAuth,
+  requireBrainliftModify,
+  asyncHandler(async (req, res) => {
+    const spovId = parseInt(req.params.id);
+    if (isNaN(spovId)) throw new BadRequestError('Invalid SPOV ID');
+
+    const { text } = req.body;
+    if (!text || typeof text !== 'string' || text.trim().length === 0) {
+      throw new BadRequestError('text is required and must be a non-empty string');
+    }
+
+    const brainliftId = req.brainlift!.id;
+
+    // Check current state via existing storage
+    const spovs = await storage.getDOK4Spovs(brainliftId);
+    const spov = spovs.find(s => s.id === spovId);
+    if (!spov) throw new NotFoundError('SPOV not found');
+
+    if (spov.text === text.trim()) {
+      throw new BadRequestError('Text unchanged');
+    }
+
+    // Edit SPOV (returns previous state)
+    const editResult = await storage.editDok4Spov(spovId, brainliftId, text.trim());
+    if (!editResult) throw new NotFoundError('SPOV not found');
+
+    // Create version snapshot
+    await createVersion({
+      dokLevel: 4,
+      itemId: spovId,
+      brainliftId,
+      textContent: editResult.previousText,
+      score: editResult.previousScore,
+      feedback: editResult.previousFeedback,
+    });
+
+    // No stale propagation needed (DOK4 is terminal)
+
+    await pruneVersions(4, spovId);
+
+    // Build previous evaluation context
+    const previousEvaluation: PreviousEvaluation = {
+      previousScore: editResult.previousScore ?? 0,
+      previousFeedback: editResult.previousFeedback ?? '',
+      previousRationale: editResult.previousRationale ?? undefined,
+      previousCriteriaBreakdown: editResult.previousCriteriaBreakdown ?? undefined,
+      oldText: editResult.previousText,
+      newText: text.trim(),
+      editNumber: 1,
+    };
+
+    // Queue regrade job
+    await withJob('dok4:regrade')
+      .forPayload({ spovId, brainliftId, previousEvaluation })
+      .queue();
+
+    res.json({
+      id: spovId,
+      status: 'regrading',
+      previousScore: editResult.previousScore,
+    });
+  })
+);
+
+/**
+ * DELETE /api/brainlifts/:slug/dok4-spovs/:id
+ * Delete a DOK4 SPOV. Supports ?preview=true for impact preview.
+ */
+dok4Router.delete(
+  '/api/brainlifts/:slug/dok4-spovs/:id',
+  requireAuth,
+  requireBrainliftModify,
+  asyncHandler(async (req, res) => {
+    const spovId = parseInt(req.params.id);
+    if (isNaN(spovId)) throw new BadRequestError('Invalid SPOV ID');
+
+    const brainliftId = req.brainlift!.id;
+
+    // Preview mode
+    if (req.query.preview === 'true') {
+      const impact = await storage.getDok4DeleteImpact(spovId, brainliftId);
+      if (!impact) throw new NotFoundError('SPOV not found');
+      return res.json(impact);
+    }
+
+    // Actual delete
+    const result = await storage.deleteDok4Spov(spovId, brainliftId);
+    if (!result) throw new NotFoundError('SPOV not found');
+
+    await recomputeBrainliftScore(brainliftId);
+
+    res.json(result);
   })
 );
 
