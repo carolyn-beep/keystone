@@ -162,6 +162,13 @@
       "when": 1775167158949,
       "tag": "0022_elite_naoko",
       "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "7",
+      "when": 1775683075918,
+      "tag": "0023_add_cascade_delete_for_dok_item_versions",
+      "breakpoints": true
     }
   ]
 }

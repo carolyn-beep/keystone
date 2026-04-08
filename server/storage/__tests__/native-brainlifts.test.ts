@@ -7,7 +7,7 @@
 
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
 import { db } from '../../db';
-import { brainlifts, nativeBrainliftDetails, builderExperts, experts, facts, user } from '@shared/schema';
+import { brainlifts, nativeBrainliftDetails, builderExperts, experts, facts, user, dokItemVersions } from '@shared/schema';
 import { eq } from 'drizzle-orm';
 import {
   createNativeBrainlift,
@@ -290,7 +290,7 @@ describe('setBuilderSuggestionState (FR2)', () => {
 });
 
 describe('deleteBrainlift with native tables (FR4)', () => {
-  it('deletes native_brainlift_details and builder_experts alongside parent', async () => {
+  it('deletes native_brainlift_details, builder_experts, and dok_item_versions alongside parent', async () => {
     // Create native brainlift
     const result = await createNativeBrainlift({
       topic: 'Delete Test Topic Here',
@@ -329,6 +329,31 @@ describe('deleteBrainlift with native tables (FR4)', () => {
       .where(eq(builderExperts.brainliftId, blId));
     expect(expertsBefore).toHaveLength(2);
 
+    await db.insert(dokItemVersions).values([
+      {
+        dokLevel: 1,
+        itemId: 900001,
+        brainliftId: blId,
+        versionNumber: 0,
+        textContent: 'Original fact text',
+        score: 3,
+        feedback: 'Initial feedback',
+      },
+      {
+        dokLevel: 1,
+        itemId: 900001,
+        brainliftId: blId,
+        versionNumber: 1,
+        textContent: 'Edited fact text',
+        score: 4,
+        feedback: 'Improved feedback',
+      },
+    ]);
+
+    const versionsBefore = await db.select().from(dokItemVersions)
+      .where(eq(dokItemVersions.brainliftId, blId));
+    expect(versionsBefore).toHaveLength(2);
+
     // Delete
     await deleteBrainlift(blId);
 
@@ -340,6 +365,10 @@ describe('deleteBrainlift with native tables (FR4)', () => {
     const expertsAfter = await db.select().from(builderExperts)
       .where(eq(builderExperts.brainliftId, blId));
     expect(expertsAfter).toHaveLength(0);
+
+    const versionsAfter = await db.select().from(dokItemVersions)
+      .where(eq(dokItemVersions.brainliftId, blId));
+    expect(versionsAfter).toHaveLength(0);
 
     const brainliftAfter = await db.select().from(brainlifts)
       .where(eq(brainlifts.id, blId));

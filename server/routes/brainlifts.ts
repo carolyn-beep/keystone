@@ -9,7 +9,7 @@ import { saveBrainliftFromAI, runPostProcessingPipeline } from "../services/brai
 import { preformatHierarchy } from "../services/brainlift-preformat";
 import { evaluateNeedsPreformat } from "../ai/preformat/evaluator";
 import { requireAuth } from "../middleware/auth";
-import { asyncHandler, BadRequestError } from "../middleware/error-handler";
+import { asyncHandler, BadRequestError, ForbiddenError } from "../middleware/error-handler";
 import {
   requireBrainliftAccess,
   requireBrainliftModify,
@@ -120,7 +120,7 @@ brainliftsRouter.delete(
 
     // Only owner can delete (not editors)
     if (!storage.isOwner(brainlift, req.authContext!)) {
-      throw new BadRequestError('Only the owner can delete this brainlift');
+      throw new ForbiddenError('Only the owner can delete this brainlift');
     }
 
     await storage.deleteBrainlift(brainlift.id);

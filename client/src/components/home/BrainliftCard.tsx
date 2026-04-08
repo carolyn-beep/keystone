@@ -77,14 +77,50 @@ interface BrainliftCardProps {
     };
   };
   adminView: boolean;
-  onDelete: (e: React.MouseEvent, brainlift: { id: number; title: string }) => void;
+  canDelete: boolean;
+  onDelete: (e: React.MouseEvent, brainlift: { id: number; title: string; canDelete: boolean }) => void;
 }
 
-export function BrainliftCard({ brainlift, adminView, onDelete }: BrainliftCardProps) {
+export function BrainliftCard({ brainlift, adminView, canDelete, onDelete }: BrainliftCardProps) {
   const summary = brainlift.summary || { meanScore: '0', totalFacts: 0, score5Count: 0, contradictionCount: 0 };
   const meanScore = parseFloat(summary.meanScore || '0');
   const ownerName = brainlift.author || 'Unknown Owner';
   const profileImage = getProfileImage(brainlift.id, brainlift.coverImageUrl);
+  const deleteButton = (
+    <button
+      data-testid={`button-delete-${brainlift.id}`}
+      onClick={(e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        onDelete(e, { id: brainlift.id, title: brainlift.title, canDelete });
+      }}
+      className="absolute top-3 right-3 flex items-center justify-center w-7 h-7 rounded-md cursor-pointer transition-all duration-150 p-0 z-10 opacity-0 group-hover:opacity-100"
+      style={{
+        backgroundColor: tokens.surface,
+        border: `1px solid ${tokens.border}`,
+        color: tokens.textMuted,
+      }}
+      onMouseEnter={(e) => {
+        if (canDelete) {
+          e.currentTarget.style.backgroundColor = tokens.dangerSoft;
+          e.currentTarget.style.borderColor = tokens.danger;
+          e.currentTarget.style.color = tokens.danger;
+          return;
+        }
+        e.currentTarget.style.backgroundColor = tokens.surfaceAlt;
+        e.currentTarget.style.borderColor = tokens.borderStrong;
+        e.currentTarget.style.color = tokens.textSecondary;
+      }}
+      onMouseLeave={(e) => {
+        e.currentTarget.style.backgroundColor = tokens.surface;
+        e.currentTarget.style.borderColor = tokens.border;
+        e.currentTarget.style.color = tokens.textMuted;
+      }}
+      aria-label={canDelete ? 'Delete brainlift' : 'Delete unavailable: only the owner can delete this brainlift'}
+    >
+      <Trash2 size={14} />
+    </button>
+  );
 
   return (
     <Link
@@ -104,32 +140,7 @@ export function BrainliftCard({ brainlift, adminView, onDelete }: BrainliftCardP
       }}
     >
       {/* Delete Button - Top Right */}
-      <button
-        data-testid={`button-delete-${brainlift.id}`}
-        onClick={(e) => {
-          e.preventDefault();
-          e.stopPropagation();
-          onDelete(e, { id: brainlift.id, title: brainlift.title });
-        }}
-        className="absolute top-3 right-3 flex items-center justify-center w-7 h-7 rounded-md cursor-pointer transition-all duration-150 p-0 z-10 opacity-0 group-hover:opacity-100"
-        style={{
-          backgroundColor: tokens.surface,
-          border: `1px solid ${tokens.border}`,
-          color: tokens.textMuted,
-        }}
-        onMouseEnter={(e) => {
-          e.currentTarget.style.backgroundColor = tokens.dangerSoft;
-          e.currentTarget.style.borderColor = tokens.danger;
-          e.currentTarget.style.color = tokens.danger;
-        }}
-        onMouseLeave={(e) => {
-          e.currentTarget.style.backgroundColor = tokens.surface;
-          e.currentTarget.style.borderColor = tokens.border;
-          e.currentTarget.style.color = tokens.textMuted;
-        }}
-      >
-        <Trash2 size={14} />
-      </button>
+      {deleteButton}
 
       {/* Left Side - Profile Image */}
       <div

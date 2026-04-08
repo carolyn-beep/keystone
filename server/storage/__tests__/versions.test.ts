@@ -31,7 +31,7 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
-  // Clean up versions first (no cascade on brainlift FK)
+  // Clean up test rows explicitly in case this suite runs against an older local schema.
   await db.delete(dokItemVersions).where(eq(dokItemVersions.brainliftId, testBrainliftId));
   await db.delete(brainlifts).where(eq(brainlifts.id, testBrainliftId));
 });

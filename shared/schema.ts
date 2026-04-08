@@ -891,7 +891,7 @@ export const dokItemVersions = pgTable("dok_item_versions", {
   id: serial("id").primaryKey(),
   dokLevel: integer("dok_level").notNull(),        // 1, 2, 3, or 4
   itemId: integer("item_id").notNull(),             // ID in respective DOK table
-  brainliftId: integer("brainlift_id").notNull().references(() => brainlifts.id),
+  brainliftId: integer("brainlift_id").notNull().references(() => brainlifts.id, { onDelete: "cascade" }),
   versionNumber: integer("version_number").notNull(), // 0 = original, 1+ = edits
   textContent: text("text_content").notNull(),       // snapshot of text at this version
   score: integer("score"),                           // score at time of version creation
