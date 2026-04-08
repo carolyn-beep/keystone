@@ -372,13 +372,17 @@ const { downloadBrainliftPDF } = usePDFExport();
         </div>
       )}
 
-      {/* Brainlift Tab - Original Document */}
+      {/* Brainlift Tab - Live Document Tree */}
       {!isNotBrainlift && activeTab === 'brainlift' && (
         <BrainliftTab
-          originalContent={data.originalContent}
-          importHierarchy={data.importHierarchy}
-          sourceType={data.sourceType}
+          title={data.title}
+          author={data.author}
+          purpose={data.displayPurpose ?? data.description}
           slug={data.slug}
+          facts={facts}
+          dok2Summaries={data.dok2Summaries ?? []}
+          dok3Insights={dok3.insights}
+          dok4Spovs={dok4.spovs}
           summary={data.summary}
         />
       )}
