@@ -1,4 +1,4 @@
-import { run, Runner } from 'graphile-worker';
+import { run, Runner, type ParsedCronItem } from 'graphile-worker';
 import { parseCrontab } from 'graphile-worker';
 import { readFile } from 'fs/promises';
 import { pool } from '../db';
@@ -28,7 +28,7 @@ export async function startWorker(): Promise<Runner> {
     ? parseInt(process.env.WORKER_CONCURRENCY, 10)
     : 3;
 
-  let parsedCronItems = undefined;
+  let parsedCronItems: ParsedCronItem[] = [];
   try {
     const crontabPath = new URL('./crontab', import.meta.url);
     const crontab = await readFile(crontabPath, 'utf8');
