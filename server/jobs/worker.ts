@@ -1,4 +1,6 @@
 import { run, Runner } from 'graphile-worker';
+import { parseCrontab } from 'graphile-worker';
+import { readFile } from 'fs/promises';
 import { pool } from '../db';
 import tasks from './tasks';
 
@@ -26,12 +28,22 @@ export async function startWorker(): Promise<Runner> {
     ? parseInt(process.env.WORKER_CONCURRENCY, 10)
     : 3;
 
+  let parsedCronItems = undefined;
+  try {
+    const crontabPath = new URL('./crontab', import.meta.url);
+    const crontab = await readFile(crontabPath, 'utf8');
+    parsedCronItems = parseCrontab(crontab);
+  } catch (error) {
+    console.warn('[Worker] Cron configuration unavailable, continuing without cron items', {
+      error: error instanceof Error ? error.message : String(error),
+    });
+  }
+
   runner = await run({
     pgPool: pool,
-    taskList: tasks,
     concurrency,
     pollInterval: 1000, // Check for new jobs every 1s
-  });
+  }, tasks as any, parsedCronItems);
 
   // Track job start times for accurate duration calculation
   const jobStartTimes = new Map<string | number, number>();

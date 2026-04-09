@@ -219,5 +219,5 @@ export async function runDOK3DOK4Pipeline(
 
   // ── Phase 5: Recompute brainlift score ──
 
-  await recomputeBrainliftScore(brainliftId);
+  await recomputeBrainliftScore(brainliftId, { trigger: 'pipeline' });
 }

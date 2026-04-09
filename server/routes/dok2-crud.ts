@@ -164,7 +164,11 @@ dok2CrudRouter.delete(
     if (!result) throw new NotFoundError('DOK2 summary not found');
 
     // Recompute brainlift score
-    await recomputeBrainliftScore(brainliftId);
+    await recomputeBrainliftScore(brainliftId, {
+      trigger: 'delete',
+      dokLevel: 2,
+      itemId: summaryId,
+    });
 
     res.json(result);
   })

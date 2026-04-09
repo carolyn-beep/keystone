@@ -246,3 +246,47 @@ export async function gradeDOK2Summary(
     };
   }
 }
+
+export async function gradeDOK2SummaryFromFrozenSource(
+  summaryPoints: string[],
+  relatedDOK1s: RelatedDOK1[],
+  brainliftPurpose: string,
+  sourceUrl: string | null,
+  sourceContent: string,
+  previousEvaluation?: PreviousEvaluation,
+): Promise<DOK2GradeResult> {
+  let userPrompt = buildUserPrompt(summaryPoints, relatedDOK1s, brainliftPurpose, sourceContent);
+  let systemPrompt = DOK2_GRADING_SYSTEM_PROMPT;
+
+  if (previousEvaluation) {
+    systemPrompt += formatRegradingRules();
+    userPrompt += '\n\n' + formatPreviousEvaluationSection(previousEvaluation);
+  }
+
+  try {
+    const result = await callModelWithFallback({
+      models: ['google/gemini-2.0-flash-001', 'anthropic/claude-sonnet-4.6'],
+      system: systemPrompt,
+      messages: [{ role: 'user', content: userPrompt }],
+      temperature: 0.1,
+      maxTokens: 1500,
+      timeout: 60_000,
+      retries: 2,
+      caller: 'dok2Grader.frozenSummaryGrading',
+      validate: (content) => { parseGradingResponse(content); },
+    });
+
+    const gradeResult = parseGradingResponse(result.content);
+    return applySourceLinkPenalty(gradeResult, Boolean(sourceUrl), Boolean(sourceUrl && sourceContent));
+  } catch (error: any) {
+    console.error(`[DOK2-Grade] Frozen summary grading failed: ${error.message}`);
+    return {
+      displayTitle: null,
+      score: 3,
+      diagnosis: 'Unable to grade this summary due to a system error. Both grading models failed.',
+      feedback: 'Please review the frozen monitoring corpus inputs and retry the weekly run.',
+      failReason: null,
+      sourceVerified: Boolean(sourceUrl && sourceContent),
+    };
+  }
+}

@@ -154,6 +154,7 @@ export async function createBrainliftForAgent(
       originalContent: result.markdown,
       importHierarchy: result.hierarchy,
       sourceType: 'Workflowy',
+      origin: 'agent',
       importStatus: 'pending',
       expertDiagnostics: null,
     } as any,

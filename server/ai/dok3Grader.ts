@@ -123,6 +123,8 @@ export interface DOK3GradeResult {
   evaluatorModel: string;
 }
 
+export type FrozenDOK3GradeResult = Omit<DOK3GradeResult, 'insightId'>;
+
 /**
  * Extract JSON from an LLM response, stripping markdown fences.
  */
@@ -496,6 +498,41 @@ export async function gradeDOK3Insight(
     await storage.updateDOK3InsightStatus(insightId, brainliftId, 'error');
     throw error;
   }
+}
+
+export async function gradeFrozenDOK3Insight(
+  context: DOK3EvaluationContext,
+  previousEvaluation?: PreviousEvaluation,
+): Promise<FrozenDOK3GradeResult> {
+  if (context.linkedDok2s.length === 0) {
+    throw new Error('Frozen insight has no linked DOK2 summaries');
+  }
+
+  const foundation = computeFoundationIndex(context);
+  const traceability = await checkSourceTraceability(context.insight.text, context);
+  const { result: evaluation, model: evaluatorModel } = await evaluateConceptualCoherence(
+    context,
+    foundation,
+    traceability,
+    previousEvaluation,
+  );
+  const finalScore = computeFinalScore(evaluation.score, foundation.ceiling);
+
+  return {
+    score: finalScore,
+    frameworkName: evaluation.framework_name,
+    frameworkDescription: evaluation.framework_description,
+    criteriaBreakdown: evaluation.criteria,
+    rationale: evaluation.rationale,
+    feedback: evaluation.feedback,
+    dok1FoundationScore: foundation.dok1Score,
+    dok2SynthesisScore: foundation.dok2Score,
+    foundationIntegrityIndex: foundation.index,
+    ceiling: foundation.ceiling,
+    traceabilityFlagged: traceability.flagged,
+    traceabilityFlaggedSource: traceability.flaggedSource,
+    evaluatorModel,
+  };
 }
 
 // ─── Batch Helper ─────────────────────────────────────────────────────────────

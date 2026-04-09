@@ -353,7 +353,11 @@ dok4Router.delete(
     const result = await storage.deleteDok4Spov(spovId, brainliftId);
     if (!result) throw new NotFoundError('SPOV not found');
 
-    await recomputeBrainliftScore(brainliftId);
+    await recomputeBrainliftScore(brainliftId, {
+      trigger: 'delete',
+      dokLevel: 4,
+      itemId: spovId,
+    });
 
     res.json(result);
   })

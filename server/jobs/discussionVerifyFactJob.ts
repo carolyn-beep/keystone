@@ -4,6 +4,7 @@ import { verifyFactWithAllModels } from '../ai/factVerifier';
 import { fetchEvidenceForFact } from '../ai/evidenceFetcher';
 import { storage } from '../storage';
 import { resolveYouTubeTranscript } from '../utils/resolve-youtube-transcript';
+import { persistFactVerification } from '../services/persist-fact-verification';
 
 /**
  * Background job: verify a DOK1 fact saved during a discussion session.
@@ -23,17 +24,33 @@ export async function discussionVerifyFactJob(
   }
 
   // Fetch evidence
-  let evidenceContent = '';
+  let evidence = {
+    url: fact.source || null,
+    content: null as string | null,
+    error: null as string | null,
+    fetchedAt: new Date(),
+  };
   let linkFailed = false;
   if (fact.source) {
     try {
       const transcriptCache = new Map<string, string | null>();
       const cachedTranscript = await resolveYouTubeTranscript(fact.source, transcriptCache);
-      const evidence = await fetchEvidenceForFact(fact.fact, fact.source, undefined, cachedTranscript);
-      evidenceContent = evidence.content || '';
+      const evidenceResult = await fetchEvidenceForFact(fact.fact, fact.source, undefined, cachedTranscript);
+      evidence = {
+        url: evidenceResult.url ?? fact.source,
+        content: evidenceResult.content || null,
+        error: evidenceResult.error || null,
+        fetchedAt: evidenceResult.fetchedAt ? new Date(evidenceResult.fetchedAt) : new Date(),
+      };
       linkFailed = !!evidence.error;
     } catch (err) {
       helpers.logger.error(`[Discussion Verify] Evidence fetch failed for fact ${factId}:`, { err });
+      evidence = {
+        url: fact.source || null,
+        content: null,
+        error: err instanceof Error ? err.message : String(err),
+        fetchedAt: new Date(),
+      };
       linkFailed = true;
     }
   }
@@ -43,7 +60,7 @@ export async function discussionVerifyFactJob(
     const verification = await verifyFactWithAllModels(
       fact.fact,
       fact.source || '',
-      evidenceContent,
+      evidence.content || '',
       linkFailed
     );
 
@@ -73,8 +90,15 @@ export async function discussionVerifyFactJob(
       .set({ score: finalScore, note: finalNote, isGradeable })
       .where(eq(facts.id, factId));
 
-    // Create verification record
-    await storage.createFactVerification(factId);
+    try {
+      await persistFactVerification({
+        factId,
+        evidence,
+        verification,
+      });
+    } catch (err) {
+      helpers.logger.error(`[Discussion Verify] Verification persistence failed for fact ${factId}:`, { err });
+    }
 
     helpers.logger.info(
       `[Discussion Verify] Fact ${factId} verified: score=${finalScore}, gradeable=${isGradeable}`

@@ -8,6 +8,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { recomputeBrainliftScore } from '../brainlift';
 import { storage } from '../../storage';
+import { recordBrainliftScoreEvent } from '../analytics-score-events';
 
 // Mock the storage module
 vi.mock('../../storage', () => ({
@@ -21,7 +22,12 @@ vi.mock('../../storage', () => ({
   },
 }));
 
+vi.mock('../analytics-score-events', () => ({
+  recordBrainliftScoreEvent: vi.fn().mockResolvedValue(undefined),
+}));
+
 const mockStorage = vi.mocked(storage);
+const mockRecordBrainliftScoreEvent = vi.mocked(recordBrainliftScoreEvent);
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -35,6 +41,7 @@ beforeEach(() => {
     summary: { totalFacts: 10, meanScore: '0', score5Count: 0, contradictionCount: 0 },
   } as any);
   mockStorage.updateBrainliftFields.mockResolvedValue(undefined as any);
+  mockRecordBrainliftScoreEvent.mockResolvedValue(undefined);
 });
 
 
@@ -52,6 +59,10 @@ describe('recomputeBrainliftScore with DOK4', () => {
       summary: expect.objectContaining({
         meanScore: '4.00',
       }),
+    }));
+    expect(mockRecordBrainliftScoreEvent).toHaveBeenCalledWith(expect.objectContaining({
+      brainliftId: 1,
+      trigger: 'pipeline',
     }));
   });
 

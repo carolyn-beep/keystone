@@ -15,6 +15,8 @@ import { dok3RegradeJob } from './dok3RegradeJob';
 import { dok4RegradeJob } from './dok4RegradeJob';
 import { dok1GradeSingleJob } from './dok1GradeSingleJob';
 import { dok2GradeSingleJob } from './dok2GradeSingleJob';
+import { runVerificationBatchJob } from './run-verification-batch';
+import { runWeeklyGraderConsistencyJob } from './run-weekly-grader-consistency';
 
 /**
  * Central registry of all background jobs.
@@ -43,6 +45,8 @@ const tasks = {
   'dok4:regrade': dok4RegradeJob,
   'dok1:grade-single': dok1GradeSingleJob,
   'dok2:grade-single': dok2GradeSingleJob,
+  'analytics:run-verification-batch': runVerificationBatchJob,
+  'analytics:run-weekly-grader-consistency': runWeeklyGraderConsistencyJob,
 } as const;
 
 export default tasks;

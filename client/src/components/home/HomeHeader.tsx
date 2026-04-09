@@ -1,6 +1,6 @@
 import { useCallback } from 'react';
 import { useLocation } from 'wouter';
-import { Upload, Plus, Shield, LogOut } from 'lucide-react';
+import { Upload, Plus, Shield, LogOut, BarChart3 } from 'lucide-react';
 import { tokens } from '@/lib/colors';
 import { authClient } from '@/lib/auth-client';
 import { TactileButton } from '@/components/ui/tactile-button';
@@ -89,6 +89,17 @@ export function HomeHeader({ adminView, onImportBrainlift, onCreateBrainlift }: 
               />
             </span>
           </button>
+        )}
+
+        {isAdmin && (
+          <TactileButton
+            variant="inset"
+            className="flex items-center gap-2"
+            onClick={() => setLocation('/analytics')}
+          >
+            <BarChart3 size={16} />
+            Analytics
+          </TactileButton>
         )}
 
         <TactileButton

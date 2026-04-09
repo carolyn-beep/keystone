@@ -5,6 +5,7 @@ import { fetchEvidenceForFact } from '../ai/evidenceFetcher';
 import { storage } from '../storage';
 import { resolveYouTubeTranscript } from '../utils/resolve-youtube-transcript';
 import { recomputeBrainliftScore } from '../services/brainlift';
+import { persistFactVerification } from '../services/persist-fact-verification';
 
 /**
  * Background job: grade a single newly created DOK1 fact.
@@ -25,17 +26,33 @@ export async function dok1GradeSingleJob(
 
   try {
     // Fetch evidence
-    let evidenceContent = '';
+    let evidence = {
+      url: fact.source || null,
+      content: null as string | null,
+      error: null as string | null,
+      fetchedAt: new Date(),
+    };
     let linkFailed = false;
     if (fact.source) {
       try {
         const transcriptCache = new Map<string, string | null>();
         const cachedTranscript = await resolveYouTubeTranscript(fact.source, transcriptCache);
-        const evidence = await fetchEvidenceForFact(fact.fact, fact.source, undefined, cachedTranscript);
-        evidenceContent = evidence.content || '';
+        const evidenceResult = await fetchEvidenceForFact(fact.fact, fact.source, undefined, cachedTranscript);
+        evidence = {
+          url: evidenceResult.url ?? fact.source,
+          content: evidenceResult.content || null,
+          error: evidenceResult.error || null,
+          fetchedAt: evidenceResult.fetchedAt ? new Date(evidenceResult.fetchedAt) : new Date(),
+        };
         linkFailed = !!evidence.error;
       } catch (err) {
         helpers.logger.error(`[DOK1 Grade Single] Evidence fetch failed for fact ${factId}:`, { err });
+        evidence = {
+          url: fact.source || null,
+          content: null,
+          error: err instanceof Error ? err.message : String(err),
+          fetchedAt: new Date(),
+        };
         linkFailed = true;
       }
     }
@@ -44,7 +61,7 @@ export async function dok1GradeSingleJob(
     const verification = await verifyFactWithAllModels(
       fact.fact,
       fact.source || '',
-      evidenceContent,
+      evidence.content || '',
       linkFailed
     );
 
@@ -74,8 +91,15 @@ export async function dok1GradeSingleJob(
       .set({ score: finalScore, note: finalNote, isGradeable, gradingStatus: 'graded' })
       .where(eq(facts.id, factId));
 
-    // Create verification record
-    await storage.createFactVerification(factId);
+    try {
+      await persistFactVerification({
+        factId,
+        evidence,
+        verification,
+      });
+    } catch (err) {
+      helpers.logger.error(`[DOK1 Grade Single] Verification persistence failed for fact ${factId}:`, { err });
+    }
 
     helpers.logger.info(
       `[DOK1 Grade Single] Fact ${factId} verified: score=${finalScore}, gradeable=${isGradeable}`
@@ -86,5 +110,9 @@ export async function dok1GradeSingleJob(
   }
 
   // Recompute brainlift score regardless of grading success
-  await recomputeBrainliftScore(brainliftId);
+  await recomputeBrainliftScore(brainliftId, {
+    trigger: 'grade',
+    dokLevel: 1,
+    itemId: factId,
+  });
 }

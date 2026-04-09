@@ -2,6 +2,19 @@ import { pgTable, text, serial, integer, jsonb, boolean, timestamp, varchar, ind
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 import { relations, sql } from "drizzle-orm";
+import type {
+  AnalyticsOrigin,
+  DriftRepresentative,
+  FrozenBrainliftSnapshot,
+  GraderMonitoringTimezone,
+  QABatchStatus,
+  QABatchType,
+  WeeklyConsistencyMetrics,
+  WeeklyConsistencyRunStatus,
+  WeeklyConsistencyTriggerKind,
+  WeeklyModelDriftMetrics,
+  WeeklyResultLevel,
+} from "./analytics-types";
 
 
 // === AUTH TABLES (Better Auth) ===
@@ -112,6 +125,7 @@ export const brainlifts = pgTable("brainlifts", {
   improperlyFormatted: boolean("improperly_formatted").default(false).notNull(),
   originalContent: text("original_content"),
   sourceType: text("source_type"),
+  origin: text("origin").$type<AnalyticsOrigin | null>(),
   coverImageUrl: text("cover_image_url"),  // AI-generated cover image stored in S3
   expertDiagnostics: jsonb("expert_diagnostics").$type<{
     isValid: boolean;
@@ -164,8 +178,45 @@ export const facts = pgTable("facts", {
   isStale: boolean("is_stale").default(false).notNull(),
   staleReason: text("stale_reason"),
   updatedAt: timestamp("updated_at"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
 }, (table) => [
   index("idx_facts_learning_stream_item_id").on(table.learningStreamItemId),
+]);
+
+export const brainliftScoreLog = pgTable("brainlift_score_log", {
+  id: serial("id").primaryKey(),
+  brainliftId: integer("brainlift_id").notNull().references(() => brainlifts.id, { onDelete: "cascade" }),
+  ownerUserId: text("owner_user_id").references(() => user.id, { onDelete: "set null" }),
+  origin: text("origin").$type<AnalyticsOrigin | null>(),
+  windowStartedAt: timestamp("window_started_at").notNull(),
+  lastEventAt: timestamp("last_event_at").notNull(),
+  eventCount: integer("event_count").notNull().default(1),
+  triggerSet: text("trigger_set").array().notNull(),
+  startOverallScore: text("start_overall_score").notNull(),
+  endOverallScore: text("end_overall_score").notNull(),
+  peakOverallScore: text("peak_overall_score").notNull(),
+  troughOverallScore: text("trough_overall_score").notNull(),
+  startFactCount: integer("start_fact_count").notNull(),
+  endFactCount: integer("end_fact_count").notNull(),
+  peakRecordedAt: timestamp("peak_recorded_at").notNull(),
+  troughRecordedAt: timestamp("trough_recorded_at").notNull(),
+}, (table) => [
+  index("brainlift_score_log_brainlift_last_event_idx").on(table.brainliftId, table.lastEventAt),
+]);
+
+export const brainliftScoreSummary = pgTable("brainlift_score_summary", {
+  brainliftId: integer("brainlift_id").primaryKey().references(() => brainlifts.id, { onDelete: "cascade" }),
+  firstScore: text("first_score").notNull(),
+  firstRecordedAt: timestamp("first_recorded_at").notNull(),
+  latestScore: text("latest_score").notNull(),
+  latestRecordedAt: timestamp("latest_recorded_at").notNull(),
+  peakScore: text("peak_score").notNull(),
+  peakRecordedAt: timestamp("peak_recorded_at").notNull(),
+  totalEvents: integer("total_events").notNull().default(0),
+  totalWindows: integer("total_windows").notNull().default(0),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+}, (table) => [
+  index("brainlift_score_summary_latest_idx").on(table.latestRecordedAt),
 ]);
 
 export const contradictionClusters = pgTable("contradiction_clusters", {
@@ -284,6 +335,114 @@ export const factModelScores = pgTable("fact_model_scores", {
   completedAt: timestamp("completed_at"),
 });
 
+export const qaBatches = pgTable("qa_batches", {
+  id: serial("id").primaryKey(),
+  type: text("type").$type<QABatchType>().notNull(),
+  status: text("status").$type<QABatchStatus>().notNull().default('pending'),
+  isBaseline: boolean("is_baseline").notNull().default(false),
+  baselineBatchId: integer("baseline_batch_id"),
+  sampleCount: integer("sample_count").notNull().default(0),
+  metrics: jsonb("metrics").$type<Record<string, unknown> | null>(),
+  artifactLabel: text("artifact_label"),
+  error: text("error"),
+  startedAt: timestamp("started_at"),
+  completedAt: timestamp("completed_at"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+}, (table) => [
+  index("qa_batches_type_status_idx").on(table.type, table.status),
+]);
+
+export const verificationTruthSet = pgTable("verification_truth_set", {
+  id: serial("id").primaryKey(),
+  batchId: integer("batch_id").notNull().references(() => qaBatches.id, { onDelete: "cascade" }),
+  assetKey: text("asset_key").notNull(),
+  dokLevel: integer("dok_level").notNull(),
+  stableKey: text("stable_key").notNull(),
+  brainliftId: integer("brainlift_id").references(() => brainlifts.id, { onDelete: "set null" }),
+  itemId: integer("item_id"),
+  frozenContext: jsonb("frozen_context").$type<Record<string, unknown>>().notNull(),
+  aiScore: integer("ai_score"),
+  humanScore: integer("human_score"),
+  metadata: jsonb("metadata").$type<Record<string, unknown> | null>(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+}, (table) => [
+  unique("verification_truth_set_unique").on(table.batchId, table.assetKey, table.dokLevel, table.stableKey),
+  index("verification_truth_set_batch_key_idx").on(table.batchId, table.assetKey, table.dokLevel, table.stableKey),
+]);
+
+export const graderMonitoringSets = pgTable("grader_monitoring_sets", {
+  id: serial("id").primaryKey(),
+  monitoredSlugs: text("monitored_slugs").array().notNull(),
+  scheduleTimezone: text("schedule_timezone").$type<GraderMonitoringTimezone>().notNull().default('America/Sao_Paulo'),
+  driftRepresentative: text("drift_representative").$type<DriftRepresentative>().notNull().default('pass1'),
+  snapshotVersion: integer("snapshot_version").notNull().default(0),
+  active: boolean("active").notNull().default(true),
+  frozenAt: timestamp("frozen_at"),
+  createdByUserId: text("created_by_user_id").references(() => user.id, { onDelete: "set null" }),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().$onUpdate(() => new Date()).notNull(),
+}, (table) => [
+  index("grader_monitoring_sets_active_idx").on(table.active),
+]);
+
+export const graderMonitoringBrainlifts = pgTable("grader_monitoring_brainlifts", {
+  id: serial("id").primaryKey(),
+  monitoringSetId: integer("monitoring_set_id").notNull().references(() => graderMonitoringSets.id, { onDelete: "cascade" }),
+  snapshotVersion: integer("snapshot_version").notNull(),
+  sourceBrainliftId: integer("source_brainlift_id").references(() => brainlifts.id, { onDelete: "set null" }),
+  sourceSlug: text("source_slug").notNull(),
+  title: text("title").notNull(),
+  purpose: text("purpose").notNull(),
+  overallScore: text("overall_score").notNull(),
+  snapshot: jsonb("snapshot").$type<FrozenBrainliftSnapshot>().notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+}, (table) => [
+  unique("grader_monitoring_brainlifts_unique").on(table.monitoringSetId, table.snapshotVersion, table.sourceSlug),
+  index("grader_monitoring_brainlifts_set_idx").on(table.monitoringSetId, table.snapshotVersion),
+]);
+
+export const graderMonitoringRuns = pgTable("grader_monitoring_runs", {
+  id: serial("id").primaryKey(),
+  monitoringSetId: integer("monitoring_set_id").notNull().references(() => graderMonitoringSets.id, { onDelete: "cascade" }),
+  snapshotVersion: integer("snapshot_version").notNull(),
+  weekStart: timestamp("week_start").notNull(),
+  timezone: text("timezone").$type<GraderMonitoringTimezone>().notNull().default('America/Sao_Paulo'),
+  triggerKind: text("trigger_kind").$type<WeeklyConsistencyTriggerKind>().notNull(),
+  status: text("status").$type<WeeklyConsistencyRunStatus>().notNull().default('pending'),
+  representativePass: integer("representative_pass").notNull().default(1),
+  metrics: jsonb("metrics").$type<WeeklyConsistencyMetrics | null>(),
+  driftMetrics: jsonb("drift_metrics").$type<WeeklyModelDriftMetrics | null>(),
+  error: text("error"),
+  startedAt: timestamp("started_at"),
+  completedAt: timestamp("completed_at"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+}, (table) => [
+  unique("grader_monitoring_runs_unique").on(table.monitoringSetId, table.snapshotVersion, table.weekStart),
+  index("grader_monitoring_runs_completed_idx").on(table.completedAt),
+  index("grader_monitoring_runs_set_week_idx").on(table.monitoringSetId, table.snapshotVersion, table.weekStart),
+]);
+
+export const graderMonitoringPassResults = pgTable("grader_monitoring_pass_results", {
+  id: serial("id").primaryKey(),
+  runId: integer("run_id").notNull().references(() => graderMonitoringRuns.id, { onDelete: "cascade" }),
+  passNumber: integer("pass_number").notNull(),
+  brainliftStableKey: text("brainlift_stable_key").notNull(),
+  level: text("level").$type<WeeklyResultLevel>().notNull(),
+  stableKey: text("stable_key").notNull(),
+  score: text("score"),
+  metadata: jsonb("metadata").$type<Record<string, unknown> | null>(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+}, (table) => [
+  unique("grader_monitoring_pass_results_unique").on(
+    table.runId,
+    table.passNumber,
+    table.brainliftStableKey,
+    table.level,
+    table.stableKey,
+  ),
+  index("grader_monitoring_pass_results_run_pass_idx").on(table.runId, table.passNumber),
+]);
+
 // === RELATIONS ===
 
 // Auth relations
@@ -322,6 +481,7 @@ export const brainliftsRelations = relations(brainlifts, ({ one, many }) => ({
   categories: many(categories),
   nativeDetails: one(nativeBrainliftDetails),
   builderExperts: many(builderExperts),
+  graderMonitoringSnapshots: many(graderMonitoringBrainlifts),
 }));
 
 export const brainliftSharesRelations = relations(brainliftShares, ({ one }) => ({
@@ -1057,6 +1217,41 @@ export const brainliftSourcesRelations = relations(brainliftSources, ({ one }) =
   }),
 }));
 
+export const graderMonitoringSetsRelations = relations(graderMonitoringSets, ({ one, many }) => ({
+  createdBy: one(user, {
+    fields: [graderMonitoringSets.createdByUserId],
+    references: [user.id],
+  }),
+  frozenBrainlifts: many(graderMonitoringBrainlifts),
+  runs: many(graderMonitoringRuns),
+}));
+
+export const graderMonitoringBrainliftsRelations = relations(graderMonitoringBrainlifts, ({ one }) => ({
+  monitoringSet: one(graderMonitoringSets, {
+    fields: [graderMonitoringBrainlifts.monitoringSetId],
+    references: [graderMonitoringSets.id],
+  }),
+  sourceBrainlift: one(brainlifts, {
+    fields: [graderMonitoringBrainlifts.sourceBrainliftId],
+    references: [brainlifts.id],
+  }),
+}));
+
+export const graderMonitoringRunsRelations = relations(graderMonitoringRuns, ({ one, many }) => ({
+  monitoringSet: one(graderMonitoringSets, {
+    fields: [graderMonitoringRuns.monitoringSetId],
+    references: [graderMonitoringSets.id],
+  }),
+  passResults: many(graderMonitoringPassResults),
+}));
+
+export const graderMonitoringPassResultsRelations = relations(graderMonitoringPassResults, ({ one }) => ({
+  run: one(graderMonitoringRuns, {
+    fields: [graderMonitoringPassResults.runId],
+    references: [graderMonitoringRuns.id],
+  }),
+}));
+
 // === SCHEMAS ===
 
 export const insertBrainliftSchema = createInsertSchema(brainlifts);
@@ -1084,6 +1279,10 @@ export const insertDok4Dok3LinkSchema = createInsertSchema(dok4Dok3Links).omit({
 export const insertDokItemVersionSchema = createInsertSchema(dokItemVersions).omit({ id: true, createdAt: true });
 export const insertNativeBrainliftDetailsSchema = createInsertSchema(nativeBrainliftDetails).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertBuilderExpertSchema = createInsertSchema(builderExperts).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertGraderMonitoringSetSchema = createInsertSchema(graderMonitoringSets).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertGraderMonitoringBrainliftSchema = createInsertSchema(graderMonitoringBrainlifts).omit({ id: true, createdAt: true });
+export const insertGraderMonitoringRunSchema = createInsertSchema(graderMonitoringRuns).omit({ id: true, createdAt: true });
+export const insertGraderMonitoringPassResultSchema = createInsertSchema(graderMonitoringPassResults).omit({ id: true, createdAt: true });
 
 // === TYPES ===
 
@@ -1112,6 +1311,18 @@ export type ModelAccuracyStats = typeof modelAccuracyStats.$inferSelect;
 export type InsertModelAccuracyStats = z.infer<typeof insertModelAccuracyStatsSchema>;
 export type FactRedundancyGroup = typeof factRedundancyGroups.$inferSelect;
 export type InsertFactRedundancyGroup = z.infer<typeof insertFactRedundancyGroupSchema>;
+export type BrainliftScoreLog = typeof brainliftScoreLog.$inferSelect;
+export type BrainliftScoreSummary = typeof brainliftScoreSummary.$inferSelect;
+export type QABatch = typeof qaBatches.$inferSelect;
+export type VerificationTruthSet = typeof verificationTruthSet.$inferSelect;
+export type GraderMonitoringSet = typeof graderMonitoringSets.$inferSelect;
+export type InsertGraderMonitoringSet = z.infer<typeof insertGraderMonitoringSetSchema>;
+export type GraderMonitoringBrainlift = typeof graderMonitoringBrainlifts.$inferSelect;
+export type InsertGraderMonitoringBrainlift = z.infer<typeof insertGraderMonitoringBrainliftSchema>;
+export type GraderMonitoringRun = typeof graderMonitoringRuns.$inferSelect;
+export type InsertGraderMonitoringRun = z.infer<typeof insertGraderMonitoringRunSchema>;
+export type GraderMonitoringPassResult = typeof graderMonitoringPassResults.$inferSelect;
+export type InsertGraderMonitoringPassResult = z.infer<typeof insertGraderMonitoringPassResultSchema>;
 export type Dok2Summary = typeof dok2Summaries.$inferSelect;
 export type InsertDok2Summary = z.infer<typeof insertDok2SummarySchema>;
 export type Dok2Point = typeof dok2Points.$inferSelect;

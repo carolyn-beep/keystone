@@ -585,7 +585,11 @@ export async function internalDeleteHandler(
     return;
   }
 
-  await recomputeBrainliftScore(brainliftId);
+  await recomputeBrainliftScore(brainliftId, {
+    trigger: 'delete',
+    dokLevel,
+    itemId,
+  });
   res.json(result);
 }
 

@@ -38,5 +38,9 @@ export async function dok3RegradeJob(
   }
 
   // Recompute brainlift score
-  await recomputeBrainliftScore(brainliftId);
+  await recomputeBrainliftScore(brainliftId, {
+    trigger: 'regrade',
+    dokLevel: 3,
+    itemId: insightId,
+  });
 }

@@ -83,6 +83,7 @@ export async function processGradeRequest(
       classification: extracted.classification || 'brainlift',
       originalContent: markdown,
       sourceType: 'markdown',
+      origin: 'ui',
       summary: extracted.summary,
       importStatus: 'pending',
     } as any, // InsertBrainlift type is complex — inline construction doesn't satisfy strict typing

@@ -1,10 +1,15 @@
 import {
   db, eq, and, sql,
   facts, factVerifications, factModelScores, llmFeedback, modelAccuracyStats,
-  type Fact, type FactVerification, type InsertFactVerification, type FactModelScore,
+  type Fact, type FactVerification, type InsertFactVerification, type FactModelScore, type InsertFactModelScore,
   type FactWithVerification, type LlmFeedback, type ModelAccuracyStats
 } from './base';
 import { NotFoundError } from '../middleware/error-handler';
+import type {
+  FactVerificationModelResultInput,
+  PersistFactVerificationInput,
+} from '@shared/analytics-types';
+import type { VerificationStatus } from '@shared/schema';
 
 export async function getFactsForBrainlift(brainliftId: number): Promise<Fact[]> {
   return await db.select().from(facts).where(eq(facts.brainliftId, brainliftId));
@@ -16,6 +21,46 @@ async function getFactVerification(factId: number): Promise<(FactVerification & 
 
   const scores = await db.select().from(factModelScores).where(eq(factModelScores.verificationId, verification.id));
   return { ...verification, modelScores: scores };
+}
+
+function deriveVerificationStatus(modelResults: FactVerificationModelResultInput[]): VerificationStatus {
+  if (modelResults.some((result) => result.status === 'completed')) {
+    return 'completed';
+  }
+  if (modelResults.some((result) => result.status === 'in_progress')) {
+    return 'in_progress';
+  }
+  return 'failed';
+}
+
+function buildFactModelScoreRows(
+  verificationId: number,
+  modelResults: FactVerificationModelResultInput[],
+): InsertFactModelScore[] {
+  const completedAt = new Date();
+
+  return modelResults.map((result) => ({
+    verificationId,
+    model: result.model,
+    score: result.score === null ? null : Math.round(result.score),
+    rationale: result.rationale,
+    status: result.status,
+    error: result.error,
+    completedAt,
+  }));
+}
+
+export function deriveVerificationStatusForTest(
+  modelResults: FactVerificationModelResultInput[],
+): VerificationStatus {
+  return deriveVerificationStatus(modelResults);
+}
+
+export function buildFactModelScoreRowsForTest(
+  verificationId: number,
+  modelResults: FactVerificationModelResultInput[],
+): InsertFactModelScore[] {
+  return buildFactModelScoreRows(verificationId, modelResults);
 }
 
 export async function getFactsWithVerifications(brainliftId: number): Promise<FactWithVerification[]> {
@@ -78,6 +123,59 @@ export async function createFactVerification(factId: number): Promise<FactVerifi
     status: 'pending',
   }).returning();
   return verification;
+}
+
+export async function saveFactVerificationResult(
+  input: PersistFactVerificationInput,
+): Promise<FactVerification & { modelScores: FactModelScore[] }> {
+  return db.transaction(async (tx) => {
+    const [existingVerification] = await tx.select().from(factVerifications)
+      .where(eq(factVerifications.factId, input.factId));
+
+    const status = deriveVerificationStatus(input.verification.modelResults);
+    const verificationValues = {
+      factId: input.factId,
+      status,
+      evidenceUrl: input.evidence.url,
+      evidenceContent: input.evidence.content,
+      evidenceFetchedAt: input.evidence.fetchedAt,
+      evidenceError: input.evidence.error,
+      consensusScore: input.verification.consensus.consensusScore,
+      confidenceLevel: input.verification.consensus.confidenceLevel,
+      needsReview: input.verification.consensus.needsReview,
+      verificationNotes: input.verification.consensus.verificationNotes,
+      updatedAt: new Date(),
+    };
+
+    const verification = existingVerification
+      ? (await tx.update(factVerifications)
+          .set(verificationValues)
+          .where(eq(factVerifications.id, existingVerification.id))
+          .returning())[0]
+      : (await tx.insert(factVerifications).values({
+          ...verificationValues,
+          createdAt: new Date(),
+        }).returning())[0];
+
+    if (!verification) {
+      throw new Error('Failed to save fact verification');
+    }
+
+    await tx.delete(factModelScores).where(eq(factModelScores.verificationId, verification.id));
+
+    const modelScores = buildFactModelScoreRows(verification.id, input.verification.modelResults);
+    if (modelScores.length > 0) {
+      await tx.insert(factModelScores).values(modelScores as any);
+    }
+
+    const [savedVerification] = await tx.select().from(factVerifications).where(eq(factVerifications.id, verification.id));
+    const savedScores = await tx.select().from(factModelScores).where(eq(factModelScores.verificationId, verification.id));
+
+    return {
+      ...(savedVerification || verification),
+      modelScores: savedScores,
+    };
+  });
 }
 
 async function updateModelAccuracyStatsInternal(model: string, scoreDifference: number): Promise<void> {

@@ -11,8 +11,11 @@ import * as sharesStorage from './shares';
 import * as learningStreamStorage from './learning-stream';
 import * as dok3Storage from './dok3';
 import * as dok4Storage from './dok4';
+import * as analyticsDashboardStorage from './analytics-dashboard';
 import * as importAgentStorage from './import-agent';
+import * as qaBatchesStorage from './qa-batches';
 import * as brainliftSourcesStorage from './brainlift-sources';
+import * as graderMonitoringStorage from './grader-monitoring';
 import * as knowledgeCheckStorage from './knowledge-check';
 import * as nativeBrainliftsStorage from './native-brainlifts';
 import * as builderExpertsStorage from './builder-experts';
@@ -88,6 +91,7 @@ export const storage = {
   getFactsForBrainlift: verificationsStorage.getFactsForBrainlift,
   getFactsWithVerifications: verificationsStorage.getFactsWithVerifications,
   createFactVerification: verificationsStorage.createFactVerification,
+  saveFactVerificationResult: verificationsStorage.saveFactVerificationResult,
   setHumanOverride: verificationsStorage.setHumanOverride,
   getFactByIdForBrainlift: verificationsStorage.getFactByIdForBrainlift,
   getFactVerificationForBrainlift: verificationsStorage.getFactVerificationForBrainlift,
@@ -104,6 +108,41 @@ export const storage = {
   // Analytics
   getModelAccuracyStats: analyticsStorage.getModelAccuracyStats,
   getLlmFeedbackHistory: analyticsStorage.getLlmFeedbackHistory,
+  getVolumeAnalytics: analyticsDashboardStorage.getVolumeAnalytics,
+  getHumanVerificationAnalytics: analyticsDashboardStorage.getHumanVerificationAnalytics,
+  getVanillaComparisonAnalytics: analyticsDashboardStorage.getVanillaComparisonAnalytics,
+  getDokCliffAnalytics: analyticsDashboardStorage.getDokCliffAnalytics,
+  getScoreDistributionAnalytics: analyticsDashboardStorage.getScoreDistributionAnalytics,
+  getSpovDistributionAnalytics: analyticsDashboardStorage.getSpovDistributionAnalytics,
+  getScoreImprovementAnalytics: analyticsDashboardStorage.getScoreImprovementAnalytics,
+  getBrainliftScoreHistoryAnalytics: analyticsDashboardStorage.getBrainliftScoreHistoryAnalytics,
+  getLeaderboardAnalytics: analyticsDashboardStorage.getLeaderboardAnalytics,
+  getGraderConsistencyAnalytics: graderMonitoringStorage.getGraderConsistencyAnalytics,
+  getModelDriftAnalytics: graderMonitoringStorage.getModelDriftAnalytics,
+
+  // QA batches
+  createQABatch: qaBatchesStorage.createQABatch,
+  updateQABatch: qaBatchesStorage.updateQABatch,
+  getQABatchById: qaBatchesStorage.getQABatchById,
+  getLatestQABatchByType: qaBatchesStorage.getLatestQABatchByType,
+  getLatestBaselineQABatch: qaBatchesStorage.getLatestBaselineQABatch,
+  getLatestPendingQABatch: qaBatchesStorage.getLatestPendingQABatch,
+  setQABatchRunning: qaBatchesStorage.setQABatchRunning,
+  completeQABatch: qaBatchesStorage.completeQABatch,
+  failQABatch: qaBatchesStorage.failQABatch,
+  replaceVerificationTruthRows: qaBatchesStorage.replaceVerificationTruthRows,
+  getVerificationTruthRowsForBatch: qaBatchesStorage.getVerificationTruthRowsForBatch,
+
+  // Weekly grader monitoring
+  getActiveGraderMonitoringSet: graderMonitoringStorage.getActiveGraderMonitoringSet,
+  getFrozenSnapshotsForMonitoringSet: graderMonitoringStorage.getFrozenSnapshotsForMonitoringSet,
+  createOrReuseWeeklyConsistencyRun: graderMonitoringStorage.createOrReuseWeeklyConsistencyRun,
+  setWeeklyConsistencyRunRunning: graderMonitoringStorage.setWeeklyConsistencyRunRunning,
+  replaceWeeklyConsistencyPassResults: graderMonitoringStorage.replaceWeeklyConsistencyPassResults,
+  getWeeklyConsistencyPassResults: graderMonitoringStorage.getWeeklyConsistencyPassResults,
+  getPreviousCompletedWeeklyConsistencyRun: graderMonitoringStorage.getPreviousCompletedWeeklyConsistencyRun,
+  completeWeeklyConsistencyRun: graderMonitoringStorage.completeWeeklyConsistencyRun,
+  failWeeklyConsistencyRun: graderMonitoringStorage.failWeeklyConsistencyRun,
 
   // DOK2 Summaries
   saveDOK2Summaries: dok2Storage.saveDOK2Summaries,

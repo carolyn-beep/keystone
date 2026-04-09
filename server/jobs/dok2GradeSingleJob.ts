@@ -69,5 +69,9 @@ export async function dok2GradeSingleJob(
   }
 
   // Recompute brainlift score regardless of grading success
-  await recomputeBrainliftScore(brainliftId);
+  await recomputeBrainliftScore(brainliftId, {
+    trigger: 'grade',
+    dokLevel: 2,
+    itemId: summaryId,
+  });
 }

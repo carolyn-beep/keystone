@@ -148,7 +148,11 @@ dok1CrudRouter.delete(
     if (!result) throw new NotFoundError('Fact not found');
 
     // Recompute brainlift score
-    await recomputeBrainliftScore(brainliftId);
+    await recomputeBrainliftScore(brainliftId, {
+      trigger: 'delete',
+      dokLevel: 1,
+      itemId: factId,
+    });
 
     res.json(result);
   })

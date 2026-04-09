@@ -100,7 +100,8 @@ brainliftsRouter.post(
         title: input.title,
         description: input.description,
         author: input.author || null,
-        summary: input.summary
+        summary: input.summary,
+        origin: 'ui',
       },
       input.facts,
       input.contradictionClusters,

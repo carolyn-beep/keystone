@@ -363,7 +363,11 @@ dok3Router.delete(
     const result = await storage.deleteDok3Insight(insightId, brainliftId);
     if (!result) throw new NotFoundError('DOK3 insight not found');
 
-    await recomputeBrainliftScore(brainliftId);
+    await recomputeBrainliftScore(brainliftId, {
+      trigger: 'delete',
+      dokLevel: 3,
+      itemId: insightId,
+    });
 
     res.json(result);
   })
