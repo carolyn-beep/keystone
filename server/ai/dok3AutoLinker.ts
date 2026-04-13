@@ -40,10 +40,34 @@ export interface LinkResult {
 }
 
 /**
+ * Resolve explicit "Source N" references to DOK2 summary IDs.
+ * References are 1-indexed positions in the DOK2 summaries array (by insertion order).
+ *
+ * Returns the DOK2 summary IDs that the explicit refs point to, or empty if refs are invalid.
+ */
+function resolveExplicitDOK2Links(
+  refs: number[],
+  dok2Summaries: DOK2Summary[],
+): number[] {
+  const validIds: number[] = [];
+
+  for (const ref of refs) {
+    // 1-indexed: Source 1 = dok2Summaries[0]
+    const index = ref - 1;
+    if (index >= 0 && index < dok2Summaries.length) {
+      validIds.push(dok2Summaries[index].id);
+    }
+  }
+
+  return validIds;
+}
+
+/**
  * Auto-link DOK3 insights to DOK2 summaries.
  *
  * For each insight:
- * - Calls LLM to score relevance of each DOK2 summary
+ * - If explicit source refs exist and are valid: use them (skip LLM)
+ * - Otherwise: calls LLM to score relevance of each DOK2 summary
  * - Selects top DOK2s satisfying multi-source constraint
  * - If constraint can't be met: links best matches, flags the insight
  *
@@ -53,6 +77,7 @@ export async function autoLinkDOK3Insights(
   brainliftId: number,
   insights: DOK3Insight[],
   dok2Summaries: DOK2Summary[],
+  explicitLinkRefs?: (number[] | null)[],
 ): Promise<LinkResult[]> {
   if (insights.length === 0) return [];
   if (dok2Summaries.length === 0) return [];
@@ -62,9 +87,38 @@ export async function autoLinkDOK3Insights(
   const limit = pLimit(LINK_CONCURRENCY);
 
   const results = await Promise.all(
-    insights.map(insight =>
+    insights.map((insight, i) =>
       limit(async () => {
+        const refs = explicitLinkRefs?.[i];
         try {
+          // Strategy 1: Use explicit source references if available
+          if (refs && refs.length > 0) {
+            const dok2Ids = resolveExplicitDOK2Links(refs, dok2Summaries);
+
+            if (dok2Ids.length > 0) {
+              // Persist explicit links
+              await storage.linkDOK3Insight(insight.id, brainliftId, dok2Ids);
+
+              // Check multi-source constraint for flagging
+              const dok2Map = new Map(dok2Summaries.map(s => [s.id, s]));
+              const sources = new Set(dok2Ids.map(id => {
+                const s = dok2Map.get(id);
+                return s ? normalizeSource(s) : '';
+              }).filter(Boolean));
+              const flagged = dok2Ids.length < MIN_DOK2_COUNT || sources.size < MIN_SOURCE_COUNT;
+              if (flagged) {
+                await storage.setDOK3LinkingFlagged(insight.id, brainliftId);
+              }
+
+              console.log(`[DOK3 AutoLinker] Insight ${insight.id}: linked via explicit refs to ${dok2Ids.length} DOK2s, flagged=${flagged}`);
+              return { insightId: insight.id, dok2SummaryIds: dok2Ids, flagged };
+            }
+
+            // Explicit refs out of range, fall through to semantic
+            console.log(`[DOK3 AutoLinker] Insight ${insight.id}: explicit refs out of range, falling back to semantic`);
+          }
+
+          // Strategy 2: LLM semantic matching
           return await linkSingleInsight(brainliftId, insight, dok2Summaries);
         } catch (err) {
           console.error(`[DOK3 AutoLinker] Failed to link insight ${insight.id}:`, err);

@@ -6,7 +6,7 @@
  */
 
 import {
-  db, eq, and, inArray, sql,
+  db, eq, and, inArray, sql, asc,
   dok2Summaries, dok2Points, dok2FactRelations, facts,
 } from './base';
 import type { DOK2SummaryGroup } from '@shared/hierarchy-types';
@@ -167,7 +167,8 @@ export async function saveSingleDOK2Summary(input: {
 export async function getDOK2Summaries(brainliftId: number): Promise<DOK2SummaryWithPoints[]> {
   // Get all summaries for the brainlift
   const summaries = await db.select().from(dok2Summaries)
-    .where(eq(dok2Summaries.brainliftId, brainliftId));
+    .where(eq(dok2Summaries.brainliftId, brainliftId))
+    .orderBy(asc(dok2Summaries.id));
 
   if (summaries.length === 0) return [];
 

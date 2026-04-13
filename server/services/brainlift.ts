@@ -609,7 +609,14 @@ export async function saveBrainliftFromAI(
         // Auto mode: run full DOK3+DOK4 auto-link and grading pipeline inline
         console.log(`[Auto-Grade] Auto-link mode: running DOK3/DOK4 pipeline...`);
         const { runDOK3DOK4Pipeline } = await import('./grading-pipeline');
-        await runDOK3DOK4Pipeline(brainlift.id, slug, onProgress);
+
+        // Thread explicit back-references from extraction data to skip LLM-based auto-linking
+        const extractionData = (data.dok3Insights || data.dok4Spovs) ? {
+          dok3ExplicitRefs: (data.dok3Insights || []).map((i: { explicitDok2Refs?: number[] | null }) => i.explicitDok2Refs ?? null),
+          dok4ExplicitRefs: (data.dok4Spovs || []).map((s: { explicitDok3Refs?: number[] | null }) => s.explicitDok3Refs ?? null),
+        } : undefined;
+
+        await runDOK3DOK4Pipeline(brainlift.id, slug, onProgress, extractionData);
         // Pipeline calls recomputeBrainliftScore internally
       } else {
         // Manual mode: DOK3 insights stay pending_linking, emit info event for linking UI

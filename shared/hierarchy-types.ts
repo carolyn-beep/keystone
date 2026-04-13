@@ -103,6 +103,7 @@ export interface DOK3ExtractedInsight {
   id: string;
   text: string;
   workflowyNodeId: string;
+  explicitDok2Refs: number[] | null;       // Parsed "Source N" references (1-indexed)
 }
 
 /**
