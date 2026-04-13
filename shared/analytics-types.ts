@@ -115,7 +115,7 @@ export interface VanillaComparisonRow {
   brainliftSlug: string;
   brainliftTitle: string;
   score: number | null;
-  scoreTier: 1 | 2 | 3 | 4 | 'rejected';
+  scoreTier: 1 | 2 | 3 | 4 | 5 | 'rejected';
   text: string;
   divergenceQuestion: string | null;
   divergenceVanillaResponse: string | null;

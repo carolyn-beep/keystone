@@ -6,6 +6,7 @@ import {
   buildBrainliftScoreHistoryResponseForTest,
   buildDokCliffResponseForTest,
   buildScoreDistributionResponseForTest,
+  buildSpovDistributionResponseForTest,
   buildScoreImprovementRowsForTest,
   buildQualityLeaderboardRowsForTest,
   bucketAnalyticsDateForTest,
@@ -49,6 +50,7 @@ describe('analytics-dashboard helpers', () => {
   it('fills missing vanilla-comparison tiers from fallback rows', () => {
     const rows = selectVanillaComparisonRowsForTest(
       [
+        { id: 5, brainliftId: 1, brainliftSlug: 'a', brainliftTitle: 'A', score: 5, scoreTier: 5, text: 'tier 5', divergenceQuestion: null, divergenceVanillaResponse: null, gradedAt: '2026-04-08T11:00:00.000Z' },
         { id: 1, brainliftId: 1, brainliftSlug: 'a', brainliftTitle: 'A', score: 4, scoreTier: 4, text: 'tier 4', divergenceQuestion: null, divergenceVanillaResponse: null, gradedAt: '2026-04-08T10:00:00.000Z' },
         { id: 2, brainliftId: 1, brainliftSlug: 'a', brainliftTitle: 'A', score: 2, scoreTier: 2, text: 'tier 2', divergenceQuestion: null, divergenceVanillaResponse: null, gradedAt: '2026-04-08T09:00:00.000Z' },
       ],
@@ -58,7 +60,7 @@ describe('analytics-dashboard helpers', () => {
       ],
     );
 
-    expect(rows.map((row) => row.scoreTier)).toEqual([1, 2, 3, 4]);
+    expect(rows.map((row) => row.scoreTier)).toEqual([1, 2, 3, 4, 5]);
   });
 
   it('groups leaderboard rows by owner and sums row counts without SQL aggregation', () => {
@@ -186,6 +188,34 @@ describe('analytics-dashboard helpers', () => {
         modalScore: 3,
         distinctScores: 4,
       },
+    });
+  });
+
+  it('keeps graded SPOV score 5 items in a dedicated 5 bucket', () => {
+    expect(buildSpovDistributionResponseForTest([
+      { status: 'graded', score: 4.8 },
+      { status: 'graded', score: 5 },
+      { status: 'graded', score: 4.2 },
+      { status: 'rejected', score: null },
+    ])).toEqual({
+      hasData: true,
+      totals: {
+        total: 4,
+        graded: 3,
+        rejected: 1,
+        pending: 0,
+        error: 0,
+        linked: 0,
+        averageScore: 4.67,
+      },
+      buckets: [
+        { label: 'Rejected', count: 1, averageScore: null },
+        { label: '1', count: 0, averageScore: null },
+        { label: '2', count: 0, averageScore: null },
+        { label: '3', count: 0, averageScore: null },
+        { label: '4', count: 1, averageScore: 4.2 },
+        { label: '5', count: 2, averageScore: 4.9 },
+      ],
     });
   });
 

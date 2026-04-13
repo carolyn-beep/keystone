@@ -205,14 +205,20 @@ function sortBuckets(series: Map<string, VolumeBucketRow>): VolumeBucketRow[] {
   return Array.from(series.values()).sort((a, b) => a.bucket.localeCompare(b.bucket));
 }
 
-function isRelevantScoreTier(scoreTier: VanillaComparisonRow['scoreTier']): scoreTier is 1 | 2 | 3 | 4 {
-  return scoreTier === 1 || scoreTier === 2 || scoreTier === 3 || scoreTier === 4;
+function isRelevantScoreTier(scoreTier: VanillaComparisonRow['scoreTier']): scoreTier is 1 | 2 | 3 | 4 | 5 {
+  return scoreTier === 1 || scoreTier === 2 || scoreTier === 3 || scoreTier === 4 || scoreTier === 5;
 }
 
 function scoreTierFromScore(score: number | null): VanillaComparisonRow['scoreTier'] {
   if (score === null) return 'rejected';
-  const rounded = Math.max(1, Math.min(4, Math.round(score)));
-  return rounded as 1 | 2 | 3 | 4;
+  const rounded = Math.max(1, Math.min(5, Math.round(score)));
+  return rounded as 1 | 2 | 3 | 4 | 5;
+}
+
+function spovBucketLabelFromScore(score: number | null): '1' | '2' | '3' | '4' | '5' | 'rejected' {
+  if (score === null) return 'rejected';
+  const rounded = Math.max(1, Math.min(5, Math.round(score)));
+  return String(rounded) as '1' | '2' | '3' | '4' | '5';
 }
 
 function toHumanVerificationMetrics(metrics: unknown): HumanVerificationMetricSummary {
@@ -249,7 +255,7 @@ function pickRepresentativeVanillaComparisonRows(
   primaryRows: VanillaComparisonCandidate[],
   fallbackRows: VanillaComparisonCandidate[] = [],
 ): VanillaComparisonCandidate[] {
-  const picked = new Map<1 | 2 | 3 | 4, VanillaComparisonCandidate>();
+  const picked = new Map<1 | 2 | 3 | 4 | 5, VanillaComparisonCandidate>();
   const seenIds = new Set<number>();
 
   const tryPick = (rows: VanillaComparisonCandidate[]) => {
@@ -674,6 +680,94 @@ function buildBrainliftScoreHistoryResponse(rows: ScoreHistoryRow[]): BrainliftS
   };
 }
 
+function buildSpovDistributionResponse(
+  rows: Array<{ status: string; score: number | null }>,
+): SpovDistributionResponse {
+  if (rows.length === 0) {
+    return {
+      hasData: false,
+      totals: {
+        total: 0,
+        graded: 0,
+        rejected: 0,
+        pending: 0,
+        error: 0,
+        linked: 0,
+        averageScore: null,
+      },
+      buckets: [],
+    };
+  }
+
+  const bucketCounts = new Map<string, { count: number; totalScore: number; scoreCount: number }>();
+  let graded = 0;
+  let rejected = 0;
+  let pending = 0;
+  let error = 0;
+  let linked = 0;
+  let scoreTotal = 0;
+  let scoreCount = 0;
+
+  const bump = (label: string, score: number | null) => {
+    const current = bucketCounts.get(label) ?? { count: 0, totalScore: 0, scoreCount: 0 };
+    current.count += 1;
+    if (score !== null) {
+      current.totalScore += score;
+      current.scoreCount += 1;
+    }
+    bucketCounts.set(label, current);
+  };
+
+  for (const row of rows) {
+    if (row.status === 'graded') {
+      graded += 1;
+      const label = spovBucketLabelFromScore(row.score);
+      bump(label, row.score);
+      if (row.score !== null) {
+        scoreTotal += row.score;
+        scoreCount += 1;
+      }
+      continue;
+    }
+
+    if (row.status === 'rejected') rejected += 1;
+    else if (row.status === 'pending_linking') pending += 1;
+    else if (row.status === 'linked') linked += 1;
+    else if (row.status === 'error') error += 1;
+    bump(row.status, null);
+  }
+
+  return {
+    hasData: true,
+    totals: {
+      total: rows.length,
+      graded,
+      rejected,
+      pending,
+      error,
+      linked,
+      averageScore: scoreCount > 0 ? Number((scoreTotal / scoreCount).toFixed(2)) : null,
+    },
+    buckets: [
+      'rejected',
+      '1',
+      '2',
+      '3',
+      '4',
+      '5',
+    ].map((label) => {
+      const bucket = bucketCounts.get(label);
+      return {
+        label: label === 'rejected' ? 'Rejected' : label,
+        count: bucket?.count ?? 0,
+        averageScore: bucket && bucket.scoreCount > 0
+          ? Number((bucket.totalScore / bucket.scoreCount).toFixed(2))
+          : null,
+      };
+    }),
+  };
+}
+
 export function resolveAnalyticsDateWindowForTest(filters: AnalyticsDateFilter = {}): AnalyticsDateWindow {
   return resolveWindow(filters);
 }
@@ -701,6 +795,12 @@ export function buildScoreDistributionResponseForTest(
   rows: Array<{ score: unknown; count: unknown }>,
 ): ScoreDistributionResponse {
   return buildScoreDistributionResponse(rows);
+}
+
+export function buildSpovDistributionResponseForTest(
+  rows: Array<{ status: string; score: number | null }>,
+): SpovDistributionResponse {
+  return buildSpovDistributionResponse(rows);
 }
 
 export async function getVolumeAnalytics(filters: VolumeFilters = {}): Promise<VolumeResponse> {
@@ -907,7 +1007,7 @@ export async function getVanillaComparisonAnalytics(filters: AnalyticsDateFilter
   const primaryRows = await loadVanillaComparisonCandidates(filters);
   let selected = pickRepresentativeVanillaComparisonRows(primaryRows);
 
-  if (selected.length < 4) {
+  if (selected.length < 5) {
     const fallbackRows = await loadVanillaComparisonCandidates({});
     selected = pickRepresentativeVanillaComparisonRows(primaryRows, fallbackRows);
   }
@@ -958,89 +1058,7 @@ export async function getSpovDistributionAnalytics(filters: AnalyticsDateFilter 
     .innerJoin(brainlifts, eq(dok4Spovs.brainliftId, brainlifts.id))
     .where(rangeCondition(dok4Spovs.createdAt!, from, to));
 
-  if (rows.length === 0) {
-    return {
-      hasData: false,
-      totals: {
-        total: 0,
-        graded: 0,
-        rejected: 0,
-        pending: 0,
-        error: 0,
-        linked: 0,
-        averageScore: null,
-      },
-      buckets: [],
-    };
-  }
-
-  const bucketCounts = new Map<string, { count: number; totalScore: number; scoreCount: number }>();
-  let graded = 0;
-  let rejected = 0;
-  let pending = 0;
-  let error = 0;
-  let linked = 0;
-  let scoreTotal = 0;
-  let scoreCount = 0;
-
-  const bump = (label: string, score: number | null) => {
-    const current = bucketCounts.get(label) ?? { count: 0, totalScore: 0, scoreCount: 0 };
-    current.count += 1;
-    if (score !== null) {
-      current.totalScore += score;
-      current.scoreCount += 1;
-    }
-    bucketCounts.set(label, current);
-  };
-
-  for (const row of rows) {
-    if (row.status === 'graded') {
-      graded += 1;
-      const tier = scoreTierFromScore(row.score);
-      const label = String(tier);
-      bump(label, row.score);
-      if (row.score !== null) {
-        scoreTotal += row.score;
-        scoreCount += 1;
-      }
-      continue;
-    }
-
-    if (row.status === 'rejected') rejected += 1;
-    else if (row.status === 'pending_linking') pending += 1;
-    else if (row.status === 'linked') linked += 1;
-    else if (row.status === 'error') error += 1;
-    bump(row.status, null);
-  }
-
-  return {
-    hasData: true,
-    totals: {
-      total: rows.length,
-      graded,
-      rejected,
-      pending,
-      error,
-      linked,
-      averageScore: scoreCount > 0 ? Number((scoreTotal / scoreCount).toFixed(2)) : null,
-    },
-    buckets: [
-      'rejected',
-      '1',
-      '2',
-      '3',
-      '4',
-    ].map((label) => {
-      const bucket = bucketCounts.get(label);
-      return {
-        label: label === 'rejected' ? 'Rejected' : label,
-        count: bucket?.count ?? 0,
-        averageScore: bucket && bucket.scoreCount > 0
-          ? Number((bucket.totalScore / bucket.scoreCount).toFixed(2))
-          : null,
-      };
-    }),
-  };
+  return buildSpovDistributionResponse(rows);
 }
 
 export async function getScoreImprovementAnalytics(filters: AnalyticsDateFilter = {}): Promise<ScoreImprovementResponse> {

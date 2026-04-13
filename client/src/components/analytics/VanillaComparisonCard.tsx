@@ -20,8 +20,9 @@ const VANILLA_COMPARISON_SUBTITLE =
 const tierStyles: Record<VanillaComparisonRow['scoreTier'], { label: string; color: string; bg: string }> = {
   1: { label: 'Tier 1', color: tokens.danger, bg: tokens.dangerSoft },
   2: { label: 'Tier 2', color: tokens.warning, bg: tokens.warningSoft },
-  3: { label: 'Tier 3', color: tokens.info, bg: tokens.infoSoft },
-  4: { label: 'Tier 4', color: tokens.success, bg: tokens.successSoft },
+  3: { label: 'Tier 3', color: tokens.secondary, bg: tokens.secondarySoft },
+  4: { label: 'Tier 4', color: tokens.info, bg: tokens.infoSoft },
+  5: { label: 'Tier 5', color: tokens.success, bg: tokens.successSoft },
   rejected: { label: 'Rejected', color: tokens.textSecondary, bg: tokens.surfaceAlt },
 };
 
