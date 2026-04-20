@@ -4,6 +4,7 @@ import { expertsRouter } from "./routes/experts";
 import { verificationsRouter } from "./routes/verifications";
 import { redundancyRouter } from "./routes/redundancy";
 import { analyticsRouter } from "./routes/analytics";
+import { adminRouter } from "./routes/admin";
 import { brainliftsRouter } from "./routes/brainlifts";
 import { sharesRouter } from "./routes/shares";
 import { devRouter } from "./routes/dev";
@@ -33,6 +34,7 @@ export async function registerRoutes(
   app.use(verificationsRouter);
   app.use(redundancyRouter);
   app.use(analyticsRouter);
+  app.use(adminRouter);
   app.use(brainliftsRouter);
   app.use(sharesRouter);
   app.use(devRouter);

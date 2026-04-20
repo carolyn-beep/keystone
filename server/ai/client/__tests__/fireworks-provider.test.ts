@@ -1,17 +1,17 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { OpenRouterProvider } from '../providers/openrouter';
+import { FireworksProvider } from '../providers/fireworks';
 import { NonRetryableError, RateLimitError, RetryableError } from '../errors';
 import type { ProviderRequest } from '../types';
 
-const TEST_API_KEY = 'test-openrouter-api-key';
+const TEST_API_KEY = 'test-fireworks-api-key';
 
-function makeProvider(): OpenRouterProvider {
-  return new OpenRouterProvider(TEST_API_KEY);
+function makeProvider(): FireworksProvider {
+  return new FireworksProvider(TEST_API_KEY);
 }
 
 function makeRequest(overrides: Partial<ProviderRequest> = {}): ProviderRequest {
   return {
-    model: 'anthropic/claude-haiku-4.5',
+    model: 'accounts/fireworks/models/gpt-oss-20b',
     messages: [{ role: 'user', content: 'Hello' }],
     ...overrides,
   };
@@ -28,7 +28,7 @@ function makeHeaders(headers: Record<string, string> = {}) {
   };
 }
 
-function mockFetchSuccess(content = 'ok') {
+function mockFetchSuccess(content = '{"ok":true}') {
   return vi.fn().mockResolvedValue({
     ok: true,
     status: 200,
@@ -36,12 +36,12 @@ function mockFetchSuccess(content = 'ok') {
     json: async () => ({
       choices: [{ message: { content } }],
       usage: {
-        prompt_tokens: 10,
-        completion_tokens: 20,
-        total_tokens: 30,
-        cost: 0.0042,
+        prompt_tokens: 15,
+        completion_tokens: 25,
+        total_tokens: 40,
       },
-      model: 'anthropic/claude-haiku-4.5',
+      model: 'accounts/fireworks/models/gpt-oss-20b',
+      reasoning: 'ignored',
     }),
   });
 }
@@ -65,9 +65,9 @@ afterEach(() => {
   globalThis.fetch = originalFetch;
 });
 
-describe('OpenRouterProvider', () => {
-  it('sends POST request with auth headers', async () => {
-    const fetchMock = mockFetchSuccess('response');
+describe('FireworksProvider', () => {
+  it('sends request to Fireworks endpoint with auth header', async () => {
+    const fetchMock = mockFetchSuccess('{}');
     globalThis.fetch = fetchMock;
 
     const provider = makeProvider();
@@ -75,68 +75,65 @@ describe('OpenRouterProvider', () => {
 
     expect(fetchMock).toHaveBeenCalledTimes(1);
     const [url, options] = fetchMock.mock.calls[0];
-    expect(url).toBe('https://openrouter.ai/api/v1/chat/completions');
-    expect(options.method).toBe('POST');
+    expect(url).toBe('https://api.fireworks.ai/inference/v1/chat/completions');
     expect(options.headers.Authorization).toBe(`Bearer ${TEST_API_KEY}`);
-    expect(options.headers['Content-Type']).toBe('application/json');
   });
 
-  it('maps system, response format, and max_tokens', async () => {
-    const fetchMock = mockFetchSuccess('{}');
+  it('reinforces json_schema response format with extra system message', async () => {
+    const fetchMock = mockFetchSuccess('{"answer":"ok"}');
     globalThis.fetch = fetchMock;
-
     const provider = makeProvider();
+
     await provider.call(makeRequest({
-      system: 'You are strict',
-      maxTokens: 111,
       responseFormat: {
         type: 'json_schema',
         jsonSchema: {
-          name: 'result',
+          name: 'answer_schema',
           strict: true,
           schema: {
             type: 'object',
-            properties: { ok: { type: 'boolean' } },
-            required: ['ok'],
+            properties: { answer: { type: 'string' } },
+            required: ['answer'],
           },
         },
       },
+      system: 'Return JSON',
     }));
 
     const body = JSON.parse(fetchMock.mock.calls[0][1].body);
-    expect(body.messages[0]).toEqual({ role: 'system', content: 'You are strict' });
-    expect(body.max_tokens).toBe(111);
-    expect(body.response_format).toEqual({
-      type: 'json_schema',
-      json_schema: {
-        name: 'result',
-        strict: true,
-        schema: {
-          type: 'object',
-          properties: { ok: { type: 'boolean' } },
-          required: ['ok'],
-        },
-      },
-    });
+    const systemMessages = body.messages.filter((msg: any) => msg.role === 'system');
+    expect(systemMessages).toHaveLength(2);
+    expect(systemMessages[0].content).toBe('Return JSON');
+    expect(systemMessages[1].content).toContain('strictly conforms to the schema');
+    expect(body.response_format).toBeTruthy();
   });
 
-  it('normalizes successful response', async () => {
-    globalThis.fetch = mockFetchSuccess('hello');
+  it('preserves caller max_tokens exactly and does not synthesize when omitted', async () => {
+    const fetchMock = mockFetchSuccess('ok');
+    globalThis.fetch = fetchMock;
+    const provider = makeProvider();
+
+    await provider.call(makeRequest({ maxTokens: 321 }));
+    let body = JSON.parse(fetchMock.mock.calls[0][1].body);
+    expect(body.max_tokens).toBe(321);
+
+    fetchMock.mockClear();
+    await provider.call(makeRequest());
+    body = JSON.parse(fetchMock.mock.calls[0][1].body);
+    expect(body).not.toHaveProperty('max_tokens');
+  });
+
+  it('uses parseable message.content as canonical success output', async () => {
+    globalThis.fetch = mockFetchSuccess('{"value":42}');
     const provider = makeProvider();
 
     const result = await provider.call(makeRequest());
-    expect(result.content).toBe('hello');
-    expect(result.model).toBe('anthropic/claude-haiku-4.5');
-    expect(result.usage).toEqual({
-      promptTokens: 10,
-      completionTokens: 20,
-      totalTokens: 30,
-    });
-    expect(result.costUsd).toBe(0.0042);
+    expect(result.content).toBe('{"value":42}');
+    expect(result.model).toBe('accounts/fireworks/models/gpt-oss-20b');
   });
 
   it('classifies 429 with provider + retryAfterMs', async () => {
-    globalThis.fetch = mockFetchError(429, 'Too many requests', { 'Retry-After': '2' });
+    globalThis.fetch = mockFetchError(429, 'rate limited', { 'retry-after': '1' });
     const provider = makeProvider();
 
     let thrown: unknown;
@@ -148,21 +145,19 @@ describe('OpenRouterProvider', () => {
 
     expect(thrown).toBeInstanceOf(RateLimitError);
     const typed = thrown as RateLimitError;
-    expect(typed.provider).toBe('openrouter');
-    expect(typed.retryAfterMs).toBe(2_000);
+    expect(typed.provider).toBe('fireworks');
+    expect(typed.retryAfterMs).toBe(1_000);
   });
 
   it.each([500, 502, 503])('classifies %i as retryable', async (status) => {
-    globalThis.fetch = mockFetchError(status, 'Server issue');
+    globalThis.fetch = mockFetchError(status);
     const provider = makeProvider();
-
     await expect(provider.call(makeRequest())).rejects.toBeInstanceOf(RetryableError);
   });
 
   it.each([400, 401, 403])('classifies %i as non-retryable', async (status) => {
-    globalThis.fetch = mockFetchError(status, 'Bad request');
+    globalThis.fetch = mockFetchError(status);
     const provider = makeProvider();
-
     await expect(provider.call(makeRequest())).rejects.toBeInstanceOf(NonRetryableError);
   });
 });

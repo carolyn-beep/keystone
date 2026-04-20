@@ -91,6 +91,7 @@ Find redundant groups and identify the core non-redundant facts.`;
       messages: [{ role: 'user', content: userPrompt }],
       temperature: 0.1,
       maxTokens: 4000,
+      timeout: 120_000,
       caller: 'redundancyAnalyzer',
     });
 

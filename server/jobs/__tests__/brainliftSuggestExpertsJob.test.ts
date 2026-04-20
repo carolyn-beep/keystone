@@ -89,6 +89,7 @@ describe('brainliftSuggestExpertsJob', () => {
       expect.objectContaining({
         models: ['anthropic/claude-sonnet-4.6', 'anthropic/claude-haiku-4.5'],
         caller: 'brainliftBuilder.suggestExperts',
+        timeout: 30_000,
       })
     );
     expect(mockInsertSuggestedExperts).toHaveBeenCalledWith(42, expect.arrayContaining([

@@ -42,6 +42,7 @@ export async function brainliftSuggestExpertsJob(
       messages,
       system,
       temperature: 0.7,
+      timeout: 30_000,
       caller: 'brainliftBuilder.suggestExperts',
       responseFormat: { type: 'json_object' },
     });

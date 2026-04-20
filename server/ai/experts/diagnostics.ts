@@ -150,6 +150,7 @@ async function callLLMForDiagnostics(
       messages: [{ role: 'user', content: prompt }],
       temperature: 0,
       maxTokens: 1500,
+      timeout: 30_000,
       caller: 'experts.diagnostics',
       validate: (content) => {
         const clean = content.replace(/```json\s*/g, '').replace(/```\s*/g, '').trim();

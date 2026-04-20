@@ -54,6 +54,7 @@ Return ONLY a JSON array of 4 strings.`,
         ],
         system: 'Return only valid JSON. No markdown, no explanation, no wrapping — just the raw JSON array.',
         temperature: 0.8,
+        timeout: 10_000,
         caller: 'builder.purposeSuggestions',
       });
 

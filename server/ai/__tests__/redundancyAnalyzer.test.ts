@@ -34,7 +34,7 @@ describe('redundancyAnalyzer', () => {
     { id: 3, originalId: '3', fact: 'Sleep affects memory consolidation', score: 5, source: 'Research C', category: 'Memory' },
   ] as any[];
 
-  it('calls callModelWithFallback with correct models, temperature, maxTokens, and caller', async () => {
+  it('calls callModelWithFallback with correct models, temperature, maxTokens, timeout, and caller', async () => {
     mockCallModelWithFallback.mockResolvedValue({
       content: JSON.stringify({
         redundancyGroups: [
@@ -60,6 +60,7 @@ describe('redundancyAnalyzer', () => {
         models: ['anthropic/claude-opus-4.6', 'anthropic/claude-sonnet-4.6'],
         temperature: 0.1,
         maxTokens: 4000,
+        timeout: 120_000,
         caller: 'redundancyAnalyzer',
       }),
     );

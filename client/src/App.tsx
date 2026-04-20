@@ -10,6 +10,7 @@ import { ProtectedRoute } from "@/components/ProtectedRoute";
 const Home = lazy(() => import("@/pages/Home"));
 const Dashboard = lazy(() => import("@/pages/Dashboard"));
 const Analytics = lazy(() => import("@/pages/Analytics"));
+const AdminProviders = lazy(() => import("@/pages/AdminProviders"));
 const Login = lazy(() => import("@/pages/Login"));
 const NotFound = lazy(() => import("@/pages/not-found"));
 const DevImportAgentTest = lazy(() => import("@/pages/DevImportAgentTest"));
@@ -52,6 +53,11 @@ function Router() {
       <Route path="/analytics">
         <ProtectedRoute>
           <Analytics />
+        </ProtectedRoute>
+      </Route>
+      <Route path="/admin/providers">
+        <ProtectedRoute>
+          <AdminProviders />
         </ProtectedRoute>
       </Route>
       <Route path="/brainlifts/:slug">

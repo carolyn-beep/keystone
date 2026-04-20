@@ -81,6 +81,7 @@ describe('POST /api/brainlifts/native/purpose-suggestions handler logic', () => 
     const result = await mockCallModel({
       model: 'google/gemini-2.0-flash-001',
       messages: [{ role: 'user', content: 'topic: Machine Learning' }],
+      timeout: 10_000,
       caller: 'builder.purposeSuggestions',
     });
 
@@ -88,6 +89,7 @@ describe('POST /api/brainlifts/native/purpose-suggestions handler logic', () => 
     expect(mockCallModel).toHaveBeenCalledWith(
       expect.objectContaining({
         caller: 'builder.purposeSuggestions',
+        timeout: 10_000,
       })
     );
   });
@@ -100,6 +102,7 @@ describe('POST /api/brainlifts/native/purpose-suggestions handler logic', () => 
       await mockCallModel({
         model: 'google/gemini-2.0-flash-001',
         messages: [{ role: 'user', content: 'topic: Machine Learning' }],
+        timeout: 10_000,
         caller: 'builder.purposeSuggestions',
       });
     } catch {
@@ -119,12 +122,14 @@ describe('POST /api/brainlifts/native/purpose-suggestions handler logic', () => 
     await mockCallModel({
       model: 'google/gemini-2.0-flash-001',
       messages: [{ role: 'user', content: 'topic: test' }],
+      timeout: 10_000,
       caller: 'builder.purposeSuggestions',
     });
 
     expect(mockCallModel).toHaveBeenCalledWith(
       expect.objectContaining({
         model: 'google/gemini-2.0-flash-001',
+        timeout: 10_000,
       })
     );
   });
@@ -138,6 +143,7 @@ describe('POST /api/brainlifts/native/purpose-suggestions handler logic', () => 
     const result = await mockCallModel({
       model: 'google/gemini-2.0-flash-001',
       messages: [{ role: 'user', content: 'topic: test' }],
+      timeout: 10_000,
       caller: 'builder.purposeSuggestions',
     });
 

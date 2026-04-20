@@ -294,6 +294,23 @@ describe('generateQuiz', () => {
       }));
     });
 
+    it('uses approved timeouts for both calls', async () => {
+      setupMockCallModel(4, 4);
+
+      await generateQuiz({
+        textContent: generateText(1000),
+        itemTopic: 'Test Topic',
+        itemType: 'Substack',
+      });
+
+      expect(mockCallModel).toHaveBeenNthCalledWith(1, expect.objectContaining({
+        timeout: 30_000,
+      }));
+      expect(mockCallModel).toHaveBeenNthCalledWith(2, expect.objectContaining({
+        timeout: 50_000,
+      }));
+    });
+
     it('uses response_format for structured JSON output', async () => {
       setupMockCallModel(4, 4);
 

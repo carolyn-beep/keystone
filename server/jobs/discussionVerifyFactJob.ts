@@ -15,6 +15,7 @@ export async function discussionVerifyFactJob(
   helpers: JobHelpers
 ) {
   const { factId, brainliftId } = payload;
+  const isFinalAttempt = helpers.job.attempts >= helpers.job.max_attempts;
   helpers.logger.info(`[Discussion Verify] Starting verification for fact ${factId}`);
 
   const fact = await storage.getFactByIdForBrainlift(factId, brainliftId);
@@ -104,7 +105,13 @@ export async function discussionVerifyFactJob(
       `[Discussion Verify] Fact ${factId} verified: score=${finalScore}, gradeable=${isGradeable}`
     );
   } catch (err) {
-    helpers.logger.error(`[Discussion Verify] Verification failed for fact ${factId}:`, { err });
+    helpers.logger.error(
+      `[Discussion Verify] Verification failed for fact ${factId} (attempt ${helpers.job.attempts}/${helpers.job.max_attempts}):`,
+      { err },
+    );
+    if (!isFinalAttempt) {
+      throw err;
+    }
     // Leave score at 0 — user can manually grade later
   }
 }

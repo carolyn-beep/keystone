@@ -16,6 +16,7 @@ export async function dok1GradeSingleJob(
   helpers: JobHelpers
 ) {
   const { factId, brainliftId } = payload;
+  const isFinalAttempt = helpers.job.attempts >= helpers.job.max_attempts;
   helpers.logger.info(`[DOK1 Grade Single] Starting verification for fact ${factId}`);
 
   const fact = await storage.getFactByIdForBrainlift(factId, brainliftId);
@@ -105,7 +106,13 @@ export async function dok1GradeSingleJob(
       `[DOK1 Grade Single] Fact ${factId} verified: score=${finalScore}, gradeable=${isGradeable}`
     );
   } catch (err) {
-    helpers.logger.error(`[DOK1 Grade Single] Verification failed for fact ${factId}:`, { err });
+    helpers.logger.error(
+      `[DOK1 Grade Single] Verification failed for fact ${factId} (attempt ${helpers.job.attempts}/${helpers.job.max_attempts}):`,
+      { err },
+    );
+    if (!isFinalAttempt) {
+      throw err;
+    }
     await db.update(facts).set({ gradingStatus: 'error' }).where(eq(facts.id, factId));
   }
 

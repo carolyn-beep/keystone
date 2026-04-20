@@ -32,15 +32,32 @@ function mockFetchSuccess(content = 'response', usage?: Partial<{ prompt_tokens:
   });
 }
 
-function mockFetchError(status: number, body = `Error ${status}`) {
+function makeHeaders(headers: Record<string, string> = {}) {
+  return {
+    get: (name: string) => {
+      const key = Object.keys(headers).find(
+        (candidate) => candidate.toLowerCase() === name.toLowerCase(),
+      );
+      return key ? headers[key] : null;
+    },
+  };
+}
+
+function mockFetchError(status: number, body = `Error ${status}`, headers: Record<string, string> = {}) {
   return vi.fn().mockResolvedValue({
     ok: false,
     status,
+    headers: makeHeaders(headers),
     text: async () => body,
   });
 }
 
-function mockFetchFailThenSucceed(failCount: number, failStatus: number, successContent = 'recovered') {
+function mockFetchFailThenSucceed(
+  failCount: number,
+  failStatus: number,
+  successContent = 'recovered',
+  headers: Record<string, string> = {},
+) {
   let callCount = 0;
   return vi.fn().mockImplementation(async () => {
     callCount++;
@@ -48,6 +65,7 @@ function mockFetchFailThenSucceed(failCount: number, failStatus: number, success
       return {
         ok: false,
         status: failStatus,
+        headers: makeHeaders(headers),
         text: async () => `Error ${failStatus} (attempt ${callCount})`,
       };
     }
@@ -60,6 +78,21 @@ function mockFetchFailThenSucceed(failCount: number, failStatus: number, success
         model: 'anthropic/claude-haiku-4.5',
       }),
     };
+  });
+}
+
+function mockFetchByUrl(handlers: {
+  openrouter: () => Promise<Response>;
+  fireworks: () => Promise<Response>;
+}) {
+  return vi.fn().mockImplementation(async (url: string) => {
+    if (url === 'https://openrouter.ai/api/v1/chat/completions') {
+      return handlers.openrouter();
+    }
+    if (url === 'https://api.fireworks.ai/inference/v1/chat/completions') {
+      return handlers.fireworks();
+    }
+    throw new Error(`Unexpected URL: ${url}`);
   });
 }
 
@@ -94,13 +127,31 @@ const DEFAULT_OPTIONS: CallModelOptions = {
 };
 
 let originalFetch: typeof globalThis.fetch;
+const originalOpenRouterApiKey = process.env.OPENROUTER_API_KEY;
+const originalFireworksApiKey = process.env.FIREWORKS_API_KEY;
 
-beforeEach(() => {
+beforeEach(async () => {
   originalFetch = globalThis.fetch;
+  process.env.OPENROUTER_API_KEY = 'test-openrouter-key';
+  process.env.FIREWORKS_API_KEY = 'test-fireworks-key';
+  const client = await import('../index');
+  client.resetProviderRegistryForTests();
+  const breakers = await import('../circuit-breaker');
+  breakers.resetCircuitBreakersForTests();
+  const events = await import('../provider-events');
+  events.resetFailoverEventsForTests();
 });
 
-afterEach(() => {
+afterEach(async () => {
   globalThis.fetch = originalFetch;
+  process.env.OPENROUTER_API_KEY = originalOpenRouterApiKey;
+  process.env.FIREWORKS_API_KEY = originalFireworksApiKey;
+  const client = await import('../index');
+  client.resetProviderRegistryForTests();
+  const breakers = await import('../circuit-breaker');
+  breakers.resetCircuitBreakersForTests();
+  const events = await import('../provider-events');
+  events.resetFailoverEventsForTests();
 });
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -236,27 +287,53 @@ describe('callModel — retry', () => {
 
   it.each([400, 401, 403])('does NOT retry on %i (non-retryable)', async (status) => {
     const { callModel } = await import('../index');
-    const { NonRetryableError } = await import('../errors');
-    globalThis.fetch = mockFetchError(status);
+    globalThis.fetch = mockFetchByUrl({
+      openrouter: () => Promise.resolve({
+        ok: false,
+        status,
+        headers: makeHeaders(),
+        text: async () => `Error ${status}`,
+      } as Response),
+      fireworks: () => Promise.resolve({
+        ok: true,
+        status: 200,
+        json: async () => ({
+          choices: [{ message: { content: 'failover ok' } }],
+          usage: { prompt_tokens: 10, completion_tokens: 20, total_tokens: 30 },
+          model: 'accounts/fireworks/models/llama-v3p3-70b-instruct',
+        }),
+      } as Response),
+    });
 
-    await expect(
-      callModel({ ...DEFAULT_OPTIONS, retries: 3, timeout: 30_000 }),
-    ).rejects.toThrow(NonRetryableError);
+    const result = await callModel({ ...DEFAULT_OPTIONS, retries: 3, timeout: 30_000 });
 
-    // fetch should have been called only once (no retries)
-    expect(globalThis.fetch).toHaveBeenCalledTimes(1);
+    expect(result.content).toBe('failover ok');
+    expect(globalThis.fetch).toHaveBeenCalledTimes(2);
   });
 
   it('respects maxRetries limit', async () => {
     const { callModel } = await import('../index');
-    globalThis.fetch = mockFetchError(500);
+    globalThis.fetch = mockFetchByUrl({
+      openrouter: () => Promise.resolve({
+        ok: false,
+        status: 500,
+        headers: makeHeaders(),
+        text: async () => 'Error 500',
+      } as Response),
+      fireworks: () => Promise.resolve({
+        ok: false,
+        status: 500,
+        headers: makeHeaders(),
+        text: async () => 'Error 500',
+      } as Response),
+    });
 
     await expect(
       callModel({ ...DEFAULT_OPTIONS, retries: 2, timeout: 30_000 }),
     ).rejects.toThrow();
 
     // 1 initial + 2 retries = 3 total calls
-    expect(globalThis.fetch).toHaveBeenCalledTimes(3);
+    expect(globalThis.fetch).toHaveBeenCalledTimes(6);
   });
 
   it('attempts count reflects actual number of tries', async () => {
@@ -270,6 +347,58 @@ describe('callModel — retry', () => {
     });
 
     expect(result.attempts).toBe(3);
+  });
+
+  it('honors provider Retry-After when <= 10 seconds', async () => {
+    vi.useFakeTimers();
+    try {
+      const { callModel } = await import('../index');
+      globalThis.fetch = mockFetchFailThenSucceed(
+        1,
+        429,
+        'recovered',
+        { 'Retry-After': '1' },
+      );
+
+      const promise = callModel({
+        ...DEFAULT_OPTIONS,
+        retries: 2,
+        timeout: 30_000,
+      });
+
+      await vi.advanceTimersByTimeAsync(1_000);
+      const result = await promise;
+      expect(result.content).toBe('recovered');
+      expect(result.attempts).toBe(2);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('does not sleep/retry when provider Retry-After exceeds 10 seconds', async () => {
+    const { callModel } = await import('../index');
+    globalThis.fetch = mockFetchByUrl({
+      openrouter: () => Promise.resolve({
+        ok: false,
+        status: 429,
+        headers: makeHeaders({ 'Retry-After': '11' }),
+        text: async () => 'rate limited',
+      } as Response),
+      fireworks: () => Promise.resolve({
+        ok: true,
+        status: 200,
+        json: async () => ({
+          choices: [{ message: { content: 'fallback ok' } }],
+          usage: { prompt_tokens: 10, completion_tokens: 20, total_tokens: 30 },
+          model: 'accounts/fireworks/models/llama-v3p3-70b-instruct',
+        }),
+      } as Response),
+    });
+
+    const result = await callModel({ ...DEFAULT_OPTIONS, retries: 3, timeout: 30_000 });
+
+    expect(result.content).toBe('fallback ok');
+    expect(globalThis.fetch).toHaveBeenCalledTimes(2);
   });
 });
 
@@ -313,6 +442,56 @@ describe('callModel — registry errors', () => {
       callModel({ ...DEFAULT_OPTIONS, model: 'nonexistent/model-v99' }),
     ).rejects.toThrow(/nonexistent\/model-v99/);
   });
+
+  it('throws provider-aware error when required provider API key is missing', async () => {
+    const { callModel, resetProviderRegistryForTests } = await import('../index');
+    delete process.env.OPENROUTER_API_KEY;
+    resetProviderRegistryForTests();
+
+    globalThis.fetch = mockFetchByUrl({
+      openrouter: async () => {
+        throw new Error('Should not hit OpenRouter fetch');
+      },
+      fireworks: () => Promise.resolve({
+        ok: true,
+        status: 200,
+        json: async () => ({
+          choices: [{ message: { content: 'fireworks rescue' } }],
+          usage: { prompt_tokens: 10, completion_tokens: 20, total_tokens: 30 },
+          model: 'accounts/fireworks/models/llama-v3p3-70b-instruct',
+        }),
+      } as Response),
+    });
+
+    const result = await callModel({ ...DEFAULT_OPTIONS });
+    expect(result.content).toBe('fireworks rescue');
+  });
+
+  it('resolves provider by model provider name (Fireworks path)', async () => {
+    const { callModel } = await import('../index');
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      headers: makeHeaders(),
+      json: async () => ({
+        choices: [{ message: { content: 'from-fireworks' } }],
+        usage: { prompt_tokens: 1, completion_tokens: 1, total_tokens: 2 },
+        model: 'accounts/fireworks/models/gpt-oss-20b',
+      }),
+    });
+    globalThis.fetch = fetchMock;
+
+    const result = await callModel({
+      ...DEFAULT_OPTIONS,
+      model: 'accounts/fireworks/models/gpt-oss-20b',
+    });
+
+    expect(result.content).toBe('from-fireworks');
+    expect(fetchMock).toHaveBeenCalledWith(
+      'https://api.fireworks.ai/inference/v1/chat/completions',
+      expect.any(Object),
+    );
+  });
 });
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -345,7 +524,20 @@ describe('CallRecord observability', () => {
     const records: CallRecord[] = [];
     setCallRecorder((record) => records.push(record));
 
-    globalThis.fetch = mockFetchError(500);
+    globalThis.fetch = mockFetchByUrl({
+      openrouter: () => Promise.resolve({
+        ok: false,
+        status: 500,
+        headers: makeHeaders(),
+        text: async () => 'Error 500',
+      } as Response),
+      fireworks: () => Promise.resolve({
+        ok: false,
+        status: 500,
+        headers: makeHeaders(),
+        text: async () => 'Error 500',
+      } as Response),
+    });
 
     await expect(
       callModel({ ...DEFAULT_OPTIONS, retries: 1, timeout: 30_000 }),
@@ -502,7 +694,7 @@ describe('callModel — validate option', () => {
     ).rejects.toThrow(/Content validation failed/);
 
     // 1 initial + 2 retries = 3 total calls
-    expect(globalThis.fetch).toHaveBeenCalledTimes(3);
+    expect(globalThis.fetch).toHaveBeenCalledTimes(6);
   });
 
   it('validate not provided — backward compatible', async () => {
@@ -546,5 +738,146 @@ describe('callModel — validate option', () => {
     expect(records[0].status).toBe('success');
     expect(records[0].attempts).toBe(2);
     expect(result.attempts).toBe(2);
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// callModel — provider failover
+// ═══════════════════════════════════════════════════════════════════════════
+
+describe('callModel — provider failover', () => {
+  it('fails over to Fireworks after retry exhaustion', async () => {
+    const { callModel, setCallRecorder } = await import('../index');
+    const records: CallRecord[] = [];
+    setCallRecorder((record) => records.push(record));
+
+    globalThis.fetch = mockFetchByUrl({
+      openrouter: () => Promise.resolve({
+        ok: false,
+        status: 500,
+        headers: makeHeaders(),
+        text: async () => 'Error 500',
+      } as Response),
+      fireworks: () => Promise.resolve({
+        ok: true,
+        status: 200,
+        json: async () => ({
+          choices: [{ message: { content: 'fireworks ok' } }],
+          usage: { prompt_tokens: 10, completion_tokens: 20, total_tokens: 30 },
+          model: 'accounts/fireworks/models/llama-v3p3-70b-instruct',
+        }),
+      } as Response),
+    });
+
+    const result = await callModel({ ...DEFAULT_OPTIONS, retries: 1, timeout: 30_000 });
+
+    expect(result.content).toBe('fireworks ok');
+    expect(result.model).toBe('accounts/fireworks/models/llama-v3p3-70b-instruct');
+    expect(result.attempts).toBe(3);
+    expect(records).toHaveLength(1);
+    expect(records[0].failedProvider).toBe('openrouter');
+    expect(records[0].failoverReason).toBe('retry_exhausted');
+    expect(records[0].originalModel).toBe(DEFAULT_OPTIONS.model);
+    expect(records[0].provider).toBe('fireworks');
+  });
+
+  it('fails over on non-retryable provider error', async () => {
+    const { callModel, setCallRecorder } = await import('../index');
+    const records: CallRecord[] = [];
+    setCallRecorder((record) => records.push(record));
+
+    globalThis.fetch = mockFetchByUrl({
+      openrouter: () => Promise.resolve({
+        ok: false,
+        status: 400,
+        headers: makeHeaders(),
+        text: async () => 'Error 400',
+      } as Response),
+      fireworks: () => Promise.resolve({
+        ok: true,
+        status: 200,
+        json: async () => ({
+          choices: [{ message: { content: 'fireworks ok' } }],
+          usage: { prompt_tokens: 10, completion_tokens: 20, total_tokens: 30 },
+          model: 'accounts/fireworks/models/llama-v3p3-70b-instruct',
+        }),
+      } as Response),
+    });
+
+    const result = await callModel({ ...DEFAULT_OPTIONS, retries: 0, timeout: 30_000 });
+
+    expect(result.content).toBe('fireworks ok');
+    expect(result.attempts).toBe(2);
+    expect(records).toHaveLength(1);
+    expect(records[0].failoverReason).toBe('non_retryable');
+  });
+
+  it('short-circuits when provider circuit is open', async () => {
+    const { callModel, setCallRecorder } = await import('../index');
+    const { getProviderBreaker } = await import('../circuit-breaker');
+    const records: CallRecord[] = [];
+    setCallRecorder((record) => records.push(record));
+
+    const breaker = getProviderBreaker('openrouter');
+    for (let i = 0; i < 5; i++) {
+      breaker.recordFailure();
+    }
+
+    globalThis.fetch = mockFetchByUrl({
+      openrouter: async () => {
+        throw new Error('OpenRouter should have been skipped');
+      },
+      fireworks: () => Promise.resolve({
+        ok: true,
+        status: 200,
+        json: async () => ({
+          choices: [{ message: { content: 'fireworks ok' } }],
+          usage: { prompt_tokens: 10, completion_tokens: 20, total_tokens: 30 },
+          model: 'accounts/fireworks/models/llama-v3p3-70b-instruct',
+        }),
+      } as Response),
+    });
+
+    const result = await callModel({ ...DEFAULT_OPTIONS, retries: 0, timeout: 30_000 });
+
+    expect(result.content).toBe('fireworks ok');
+    expect(globalThis.fetch).toHaveBeenCalledTimes(1);
+    expect(records).toHaveLength(1);
+    expect(records[0].failedProvider).toBe('openrouter');
+    expect(records[0].failoverReason).toBe('circuit_open');
+  });
+
+  it('does not short-circuit when Fireworks has accumulated failures', async () => {
+    const { callModel } = await import('../index');
+    const { getProviderBreaker } = await import('../circuit-breaker');
+
+    const fireworksBreaker = getProviderBreaker('fireworks');
+    for (let i = 0; i < 10; i++) {
+      fireworksBreaker.recordFailure();
+    }
+
+    globalThis.fetch = mockFetchByUrl({
+      openrouter: () => Promise.resolve({
+        ok: false,
+        status: 500,
+        headers: makeHeaders(),
+        text: async () => 'Error 500',
+      } as Response),
+      fireworks: () => Promise.resolve({
+        ok: true,
+        status: 200,
+        json: async () => ({
+          choices: [{ message: { content: 'fireworks still available' } }],
+          usage: { prompt_tokens: 10, completion_tokens: 20, total_tokens: 30 },
+          model: 'accounts/fireworks/models/llama-v3p3-70b-instruct',
+        }),
+      } as Response),
+    });
+
+    const result = await callModel({ ...DEFAULT_OPTIONS, retries: 0, timeout: 30_000 });
+
+    expect(result.content).toBe('fireworks still available');
+    expect(globalThis.fetch).toHaveBeenCalledTimes(2);
+    expect(fireworksBreaker.getState()).toBe('closed');
   });
 });

@@ -40,6 +40,7 @@ async function callRankerModel(
     system: systemPrompt,
     messages: [{ role: 'user', content: userPrompt }],
     temperature: 0,
+    timeout: 60_000,
     caller: 'dok3SourceRanker',
   });
   console.log(`[DOK3 SourceRanker] Semantic ranking: ${(performance.now() - t0).toFixed(0)}ms (model: ${result.model})`);

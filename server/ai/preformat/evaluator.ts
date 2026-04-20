@@ -249,6 +249,7 @@ export async function evaluateNeedsPreformat(
     system: EVALUATION_SYSTEM_PROMPT,
     messages: [{ role: 'user', content: userMessage }],
     temperature: 0,
+    timeout: 45_000,
     responseFormat: {
       type: 'json_schema',
       jsonSchema: {

@@ -11,6 +11,7 @@ export async function discussionGradeDok2Job(
   helpers: JobHelpers
 ) {
   const { summaryId, brainliftId } = payload;
+  const isFinalAttempt = helpers.job.attempts >= helpers.job.max_attempts;
   helpers.logger.info(`[Discussion Grade] Starting DOK2 grading for summary ${summaryId}`);
 
   // Fetch the summary
@@ -82,6 +83,12 @@ export async function discussionGradeDok2Job(
       `[Discussion Grade] Summary ${summaryId} graded: score=${result.score}`
     );
   } catch (err) {
-    helpers.logger.error(`[Discussion Grade] Grading failed for summary ${summaryId}:`, { err });
+    helpers.logger.error(
+      `[Discussion Grade] Grading failed for summary ${summaryId} (attempt ${helpers.job.attempts}/${helpers.job.max_attempts}):`,
+      { err },
+    );
+    if (!isFinalAttempt) {
+      throw err;
+    }
   }
 }

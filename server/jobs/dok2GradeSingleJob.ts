@@ -13,6 +13,7 @@ export async function dok2GradeSingleJob(
   helpers: JobHelpers
 ) {
   const { summaryId, brainliftId } = payload;
+  const isFinalAttempt = helpers.job.attempts >= helpers.job.max_attempts;
   helpers.logger.info(`[DOK2 Grade Single] Starting grading for summary ${summaryId}`);
 
   const summary = await storage.getDok2SummaryByIdForBrainlift(summaryId, brainliftId);
@@ -64,7 +65,13 @@ export async function dok2GradeSingleJob(
       `[DOK2 Grade Single] Summary ${summaryId} graded: score=${result.score}`
     );
   } catch (err) {
-    helpers.logger.error(`[DOK2 Grade Single] Grading failed for summary ${summaryId}:`, { err });
+    helpers.logger.error(
+      `[DOK2 Grade Single] Grading failed for summary ${summaryId} (attempt ${helpers.job.attempts}/${helpers.job.max_attempts}):`,
+      { err },
+    );
+    if (!isFinalAttempt) {
+      throw err;
+    }
     await db.update(dok2Summaries).set({ gradingStatus: 'error' }).where(eq(dok2Summaries.id, summaryId));
   }
 

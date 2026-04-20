@@ -177,6 +177,7 @@ describe('brainliftExtractor - findContradictions', () => {
     expect(mockCallModel).toHaveBeenCalledWith(
       expect.objectContaining({
         model: 'anthropic/claude-sonnet-4',
+        timeout: 60_000,
         caller: 'brainliftExtractor.contradictions',
       }),
     );

@@ -10,9 +10,17 @@ import type { JobHelpers } from 'graphile-worker';
 
 // Mock dependencies before importing jobs
 vi.mock('../../storage/base', () => ({
-  db: { update: vi.fn(), select: vi.fn() },
+  db: {
+    update: vi.fn(() => ({
+      set: vi.fn(() => ({
+        where: vi.fn().mockResolvedValue(undefined),
+      })),
+    })),
+    select: vi.fn(),
+  },
   eq: vi.fn(),
-  facts: { id: 'id', score: 'score', note: 'note', isGradeable: 'is_gradeable' },
+  facts: { id: 'id', score: 'score', note: 'note', isGradeable: 'is_gradeable', gradingStatus: 'grading_status' },
+  dok2Summaries: { id: 'id', gradingStatus: 'grading_status' },
 }));
 
 vi.mock('../../storage', () => ({
@@ -87,7 +95,10 @@ describe('dok1GradeSingleJob', () => {
       expect.any(String),
       expect.any(Boolean),
     );
-    expect(recomputeBrainliftScore).toHaveBeenCalledWith(10);
+    expect(recomputeBrainliftScore).toHaveBeenCalledWith(
+      10,
+      expect.objectContaining({ dokLevel: 1, itemId: 1 }),
+    );
   });
 
   it('handles missing fact gracefully without calling grader or recompute', async () => {
@@ -97,6 +108,43 @@ describe('dok1GradeSingleJob', () => {
 
     expect(verifyFactWithAllModels).not.toHaveBeenCalled();
     expect(recomputeBrainliftScore).not.toHaveBeenCalled();
+  });
+
+  it('re-throws non-final failures so graphile-worker retries', async () => {
+    (storage.getFactByIdForBrainlift as any).mockResolvedValue({
+      id: 1, fact: 'The sky is blue', source: 'https://example.com', brainliftId: 10,
+    });
+    (verifyFactWithAllModels as any).mockRejectedValueOnce(new Error('transient'));
+
+    const nonFinalHelpers = {
+      ...mockHelpers,
+      job: { attempts: 1, max_attempts: 3 },
+    } as unknown as JobHelpers;
+
+    await expect(
+      dok1GradeSingleJob({ factId: 1, brainliftId: 10 }, nonFinalHelpers),
+    ).rejects.toThrow('transient');
+    expect(recomputeBrainliftScore).not.toHaveBeenCalled();
+  });
+
+  it('keeps terminal behavior on final failure attempt', async () => {
+    (storage.getFactByIdForBrainlift as any).mockResolvedValue({
+      id: 1, fact: 'The sky is blue', source: 'https://example.com', brainliftId: 10,
+    });
+    (verifyFactWithAllModels as any).mockRejectedValueOnce(new Error('permanent'));
+
+    const finalHelpers = {
+      ...mockHelpers,
+      job: { attempts: 3, max_attempts: 3 },
+    } as unknown as JobHelpers;
+
+    await expect(
+      dok1GradeSingleJob({ factId: 1, brainliftId: 10 }, finalHelpers),
+    ).resolves.toBeUndefined();
+    expect(recomputeBrainliftScore).toHaveBeenCalledWith(
+      10,
+      expect.objectContaining({ dokLevel: 1, itemId: 1 }),
+    );
   });
 });
 
@@ -124,7 +172,10 @@ describe('dok2GradeSingleJob', () => {
       'Test brainlift purpose',
       'https://example.com',
     );
-    expect(recomputeBrainliftScore).toHaveBeenCalledWith(10);
+    expect(recomputeBrainliftScore).toHaveBeenCalledWith(
+      10,
+      expect.objectContaining({ dokLevel: 2, itemId: 5 }),
+    );
   });
 
   it('handles missing summary gracefully without calling grader or recompute', async () => {
@@ -133,6 +184,30 @@ describe('dok2GradeSingleJob', () => {
     await dok2GradeSingleJob({ summaryId: 999, brainliftId: 10 }, mockHelpers);
 
     expect(gradeDOK2Summary).not.toHaveBeenCalled();
+    expect(recomputeBrainliftScore).not.toHaveBeenCalled();
+  });
+
+  it('re-throws non-final failures so graphile-worker retries', async () => {
+    (storage.getDok2SummaryByIdForBrainlift as any).mockResolvedValue({
+      id: 5, brainliftId: 10, sourceName: 'Source A', sourceUrl: 'https://example.com',
+    });
+    (storage.getBrainliftById as any).mockResolvedValue({
+      id: 10, description: 'Test brainlift purpose',
+    });
+    (storage.getDok2PointsForSummary as any).mockResolvedValue([
+      { text: 'Point 1', sortOrder: 0 },
+    ]);
+    (storage.getRelatedDOK1sForSummary as any).mockResolvedValue([]);
+    (gradeDOK2Summary as any).mockRejectedValueOnce(new Error('transient'));
+
+    const nonFinalHelpers = {
+      ...mockHelpers,
+      job: { attempts: 2, max_attempts: 3 },
+    } as unknown as JobHelpers;
+
+    await expect(
+      dok2GradeSingleJob({ summaryId: 5, brainliftId: 10 }, nonFinalHelpers),
+    ).rejects.toThrow('transient');
     expect(recomputeBrainliftScore).not.toHaveBeenCalled();
   });
 });

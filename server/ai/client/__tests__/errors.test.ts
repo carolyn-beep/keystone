@@ -16,6 +16,8 @@ import {
   RETRYABLE_STATUS_CODES,
 } from '../errors';
 
+const PROVIDER = 'openrouter' as const;
+
 // ═══════════════════════════════════════════════════════════════════════════
 // AIClientError (base)
 // ═══════════════════════════════════════════════════════════════════════════
@@ -45,18 +47,25 @@ describe('AIClientError', () => {
 
 describe('RetryableError', () => {
   it('extends AIClientError', () => {
-    const err = new RetryableError('retryable', 'model', 500);
+    const err = new RetryableError('retryable', 'model', PROVIDER, 500);
     expect(err).toBeInstanceOf(AIClientError);
     expect(err).toBeInstanceOf(RetryableError);
   });
 
   it('carries statusCode', () => {
-    const err = new RetryableError('server error', 'model', 502);
+    const err = new RetryableError('server error', 'model', PROVIDER, 502);
     expect(err.statusCode).toBe(502);
   });
 
+  it('carries provider and retryAfterMs', () => {
+    const err = new RetryableError('server error', 'model', PROVIDER, 502, 900);
+    expect(err.provider).toBe(PROVIDER);
+    expect(err.retryAfterMs).toBe(900);
+    expect(err.retryAfter).toBe(900);
+  });
+
   it('has correct name', () => {
-    const err = new RetryableError('test', 'model', 500);
+    const err = new RetryableError('test', 'model', PROVIDER, 500);
     expect(err.name).toBe('RetryableError');
   });
 });
@@ -67,23 +76,29 @@ describe('RetryableError', () => {
 
 describe('NonRetryableError', () => {
   it('extends AIClientError', () => {
-    const err = new NonRetryableError('bad request', 'model', 400);
+    const err = new NonRetryableError('bad request', 'model', PROVIDER, 400);
     expect(err).toBeInstanceOf(AIClientError);
     expect(err).toBeInstanceOf(NonRetryableError);
   });
 
   it('carries statusCode', () => {
-    const err = new NonRetryableError('unauthorized', 'model', 401);
+    const err = new NonRetryableError('unauthorized', 'model', PROVIDER, 401);
     expect(err.statusCode).toBe(401);
   });
 
+  it('carries provider and retryAfterMs', () => {
+    const err = new NonRetryableError('unauthorized', 'model', PROVIDER, 401, 3000);
+    expect(err.provider).toBe(PROVIDER);
+    expect(err.retryAfterMs).toBe(3000);
+  });
+
   it('is NOT instanceof RetryableError', () => {
-    const err = new NonRetryableError('bad', 'model', 400);
+    const err = new NonRetryableError('bad', 'model', PROVIDER, 400);
     expect(err).not.toBeInstanceOf(RetryableError);
   });
 
   it('has correct name', () => {
-    const err = new NonRetryableError('test', 'model', 400);
+    const err = new NonRetryableError('test', 'model', PROVIDER, 400);
     expect(err.name).toBe('NonRetryableError');
   });
 });
@@ -94,28 +109,29 @@ describe('NonRetryableError', () => {
 
 describe('RateLimitError', () => {
   it('extends RetryableError', () => {
-    const err = new RateLimitError('model');
+    const err = new RateLimitError('model', PROVIDER);
     expect(err).toBeInstanceOf(RetryableError);
     expect(err).toBeInstanceOf(AIClientError);
   });
 
   it('has statusCode 429', () => {
-    const err = new RateLimitError('model');
+    const err = new RateLimitError('model', PROVIDER);
     expect(err.statusCode).toBe(429);
   });
 
   it('carries optional retryAfter', () => {
-    const err = new RateLimitError('model', 30);
-    expect(err.retryAfter).toBe(30);
+    const err = new RateLimitError('model', PROVIDER, 30_000);
+    expect(err.retryAfter).toBe(30_000);
+    expect(err.retryAfterMs).toBe(30_000);
   });
 
   it('retryAfter is undefined when not provided', () => {
-    const err = new RateLimitError('model');
+    const err = new RateLimitError('model', PROVIDER);
     expect(err.retryAfter).toBeUndefined();
   });
 
   it('has correct name', () => {
-    const err = new RateLimitError('model');
+    const err = new RateLimitError('model', PROVIDER);
     expect(err.name).toBe('RateLimitError');
   });
 });
@@ -210,7 +226,7 @@ describe('RETRYABLE_STATUS_CODES', () => {
 
 describe('instanceof hierarchy', () => {
   it('RateLimitError is instanceof RetryableError and AIClientError', () => {
-    const err = new RateLimitError('model');
+    const err = new RateLimitError('model', PROVIDER);
     expect(err instanceof RateLimitError).toBe(true);
     expect(err instanceof RetryableError).toBe(true);
     expect(err instanceof AIClientError).toBe(true);
@@ -218,7 +234,7 @@ describe('instanceof hierarchy', () => {
   });
 
   it('NonRetryableError is not instanceof RetryableError', () => {
-    const err = new NonRetryableError('msg', 'model', 400);
+    const err = new NonRetryableError('msg', 'model', PROVIDER, 400);
     expect(err instanceof NonRetryableError).toBe(true);
     expect(err instanceof RetryableError).toBe(false);
   });

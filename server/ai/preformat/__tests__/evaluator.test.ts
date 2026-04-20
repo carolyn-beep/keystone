@@ -188,6 +188,7 @@ describe('evaluateNeedsPreformat', () => {
       expect(callArgs.caller).toBe('preformat.evaluation');
       expect(callArgs.models).toEqual(['anthropic/claude-opus-4.6', 'anthropic/claude-sonnet-4.6']);
       expect(callArgs.temperature).toBe(0);
+      expect(callArgs.timeout).toBe(45_000);
 
       // Verify the responseFormat has decision as enum
       const schema = (callArgs.responseFormat as { type: string; jsonSchema: { schema: Record<string, unknown> } }).jsonSchema.schema;

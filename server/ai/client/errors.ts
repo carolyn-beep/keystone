@@ -5,6 +5,7 @@
  * RetryableError signals retry is appropriate.
  * NonRetryableError signals do not retry.
  */
+import type { ProviderName } from './types';
 
 export class AIClientError extends Error {
   readonly model: string;
@@ -17,32 +18,52 @@ export class AIClientError extends Error {
 }
 
 export class RetryableError extends AIClientError {
+  readonly provider: ProviderName;
   readonly statusCode: number;
+  readonly retryAfterMs?: number;
+  readonly retryAfter?: number;
 
-  constructor(message: string, model: string, statusCode: number) {
+  constructor(
+    message: string,
+    model: string,
+    provider: ProviderName,
+    statusCode: number,
+    retryAfterMs?: number,
+  ) {
     super(message, model);
     this.name = 'RetryableError';
+    this.provider = provider;
     this.statusCode = statusCode;
+    this.retryAfterMs = retryAfterMs;
+    // Backward-compatible alias for legacy callers/tests.
+    this.retryAfter = retryAfterMs;
   }
 }
 
 export class NonRetryableError extends AIClientError {
+  readonly provider: ProviderName;
   readonly statusCode: number;
+  readonly retryAfterMs?: number;
 
-  constructor(message: string, model: string, statusCode: number) {
+  constructor(
+    message: string,
+    model: string,
+    provider: ProviderName,
+    statusCode: number,
+    retryAfterMs?: number,
+  ) {
     super(message, model);
     this.name = 'NonRetryableError';
+    this.provider = provider;
     this.statusCode = statusCode;
+    this.retryAfterMs = retryAfterMs;
   }
 }
 
 export class RateLimitError extends RetryableError {
-  readonly retryAfter?: number;
-
-  constructor(model: string, retryAfter?: number) {
-    super(`Rate limited on model ${model}`, model, 429);
+  constructor(model: string, provider: ProviderName, retryAfterMs?: number) {
+    super(`Rate limited on model ${model}`, model, provider, 429, retryAfterMs);
     this.name = 'RateLimitError';
-    this.retryAfter = retryAfter;
   }
 }
 

@@ -93,6 +93,7 @@ async function callChunkLLM(
     system: config.system,
     messages: [{ role: 'user', content: config.user }],
     temperature: 0,
+    timeout: 60_000,
     responseFormat: {
       type: 'json_schema',
       jsonSchema: config.jsonSchema as { name: string; strict?: boolean; schema: Record<string, unknown> },
@@ -231,4 +232,3 @@ function emptyResults(): PreformatLLMResults {
     scratchpad: [],
   };
 }
-

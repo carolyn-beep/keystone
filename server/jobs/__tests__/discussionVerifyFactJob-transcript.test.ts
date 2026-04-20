@@ -59,6 +59,10 @@ const mockHelpers = {
     warn: vi.fn(),
     debug: vi.fn(),
   },
+  job: {
+    attempts: 1,
+    max_attempts: 3,
+  },
 } as unknown as JobHelpers;
 
 beforeEach(() => {
@@ -199,5 +203,36 @@ describe('discussionVerifyFactJob - transcript integration', () => {
       undefined,
       null
     );
+  });
+
+  it('re-throws verification errors on non-final attempts', async () => {
+    mockGetFact.mockResolvedValue({
+      id: 4,
+      brainliftId: 10,
+      fact: 'Non-final retry behavior',
+      source: 'https://example.com',
+      originalId: '4',
+      category: 'General',
+      score: 0,
+      isGradeable: true,
+      note: null,
+    } as any);
+
+    mockFetchEvidence.mockResolvedValue({
+      content: 'doc',
+      url: 'https://example.com',
+      error: null,
+      fetchedAt: new Date(),
+    });
+    mockVerify.mockRejectedValueOnce(new Error('transient'));
+
+    const nonFinalHelpers = {
+      ...mockHelpers,
+      job: { attempts: 1, max_attempts: 3 },
+    } as unknown as JobHelpers;
+
+    await expect(
+      discussionVerifyFactJob({ factId: 4, brainliftId: 10 }, nonFinalHelpers),
+    ).rejects.toThrow('transient');
   });
 });

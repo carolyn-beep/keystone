@@ -179,6 +179,7 @@ async function extractChunk(chunk: string, title: string, chunkIdx: number): Pro
           },
         },
       },
+      timeout: 180_000,
       caller: 'brainliftExtractor.chunkExtraction',
     });
 
@@ -809,6 +810,7 @@ If NO tension exists, return EXACTLY:
           content: `List of Facts:\n${facts.map(f => `ID: ${f.id} - ${f.fact}`).join('\n')}\n\nAnalyze the facts and return JSON as specified.`
         }
       ],
+      timeout: 60_000,
       caller: 'brainliftExtractor.contradictions',
     });
     const contradictionDuration = performance.now() - contradictionStart;
