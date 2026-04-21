@@ -44,8 +44,8 @@ import {
 
 // ─── Model Constants ─────────────────────────────────────────────────────────
 
-const MID_TIER_MODELS = ['google/gemini-2.0-flash-001', 'anthropic/claude-sonnet-4.5'] as const;
-const DIVERGENCE_TIER_MODELS = ['google/gemini-2.0-flash-001', 'anthropic/claude-haiku-4.5'] as const;
+const MID_TIER_MODELS = ['qwen/qwen-plus', 'google/gemini-2.0-flash-001'] as const;
+const DIVERGENCE_TIER_MODELS = ['qwen/qwen-plus', 'google/gemini-2.0-flash-001'] as const;
 const QUALITY_TIER_MODELS = ['anthropic/claude-opus-4.6', 'anthropic/claude-sonnet-4.5'] as const;
 
 

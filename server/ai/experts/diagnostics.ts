@@ -8,7 +8,7 @@ import {
 import { callModelWithFallback } from '../client';
 
 const PRIMARY_MODEL = 'anthropic/claude-sonnet-4.5';
-const FALLBACK_MODEL = 'google/gemini-2.0-flash-001';
+const FALLBACK_MODEL = 'qwen/qwen-plus';
 
 /**
  * Diagnostic for real expert section format issues.

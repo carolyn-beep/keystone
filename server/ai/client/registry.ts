@@ -57,6 +57,12 @@ export const MODEL_REGISTRY: Record<string, ModelDef> = {
     tier: 'fast',
     displayName: 'Gemini 2.0 Flash',
   },
+  'qwen/qwen-plus': {
+    id: 'qwen/qwen-plus',
+    provider: 'openrouter',
+    tier: 'fast',
+    displayName: 'Qwen Plus',
+  },
 
   // Budget tier
   'qwen/qwen3-32b': {

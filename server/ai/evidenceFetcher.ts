@@ -75,7 +75,7 @@ async function fetchWebContent(url: string): Promise<{ content: string | null; e
       .replace(/\s+/g, ' ')
       .trim();
 
-    const content = textContent.slice(0, 8000);
+    const content = textContent;
     console.log(`[Evidence] Successfully extracted ${content.length} chars from ${url}`);
     return { content, error: null };
   } catch (err: any) {
@@ -100,32 +100,25 @@ async function searchForEvidence(
     fetchContext = `\n\nNOTE: The source URL/document could not be fetched directly (${fetchError}). Use your training knowledge to provide evidence.`;
   }
 
-  const prompt = `You are an educational research expert. Evaluate this claim using your knowledge of the cited source and broader educational research.
+  const prompt = `You are an expert fact-checker. Evaluate this claim using your knowledge of the cited source and related authoritative work.
 
 CLAIM: "${fact}"
 
 CITED SOURCE: ${source || 'Not specified'}${fetchContext}
 
 Your task:
-1. If you recognize the source (book, paper, author), share what you know about its key findings relevant to this claim
-2. Cite related research that supports or contradicts this claim (e.g., "Willingham (2009) argues...", "Rosenshine's research shows...")
-3. Provide specific evidence: studies, statistics, established principles from cognitive science or educational psychology
+1. If you recognize the source (article, paper, book, documentation, author, or organization), share what you know about its key findings or positions relevant to this claim
+2. Cite related work that supports or contradicts this claim, referencing specific authors, organizations, or sources where possible
+3. Provide specific evidence: data, established principles, or consensus findings in the claim's domain
 
-IMPORTANT: Many educational claims cite well-known works like:
-- Willingham's "Why Don't Students Like School?"
-- Rosenshine's Principles of Instruction
-- Sweller's Cognitive Load Theory
-- Hattie's Visible Learning research
-- Knowledge-rich curriculum research (Hirsch, Christodoulou, etc.)
+If the claim references a source you recognize, draw on your knowledge of that work. Do NOT just say "I cannot access the source" - instead, provide what you know about the topic from authoritative sources.
 
-If the claim references such sources, draw on your knowledge of these works. Do NOT just say "I cannot access the source" - instead, provide what you know about the topic from educational research literature.
-
-Provide a substantive evidence summary (max 500 words) with specific references to research. Plain text only, no markdown or emojis.`;
+Provide a substantive evidence summary (max 500 words) with specific references. Plain text only, no markdown or emojis.`;
 
   try {
     console.log('[Evidence] Searching with AI models...');
     const result = await callModelWithFallback({
-      models: ['google/gemini-2.0-flash-001', 'anthropic/claude-haiku-4.5'],
+      models: ['qwen/qwen-plus', 'google/gemini-2.0-flash-001'],
       messages: [{ role: 'user', content: prompt }],
       temperature: 0.1,
       maxTokens: 1000,

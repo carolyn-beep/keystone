@@ -9,7 +9,7 @@ export async function summarizeFact(fullText: string): Promise<string> {
 
   try {
     const result = await callModelWithFallback({
-      models: ['google/gemini-2.0-flash-001', 'anthropic/claude-haiku-4.5'],
+      models: ['qwen/qwen-plus', 'google/gemini-2.0-flash-001'],
       system: SYSTEM_PROMPT,
       messages: [{ role: 'user', content: `Summarize this fact:\n\n${fullText}` }],
       maxTokens: 150,

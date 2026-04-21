@@ -21,7 +21,7 @@ purposeSuggestionsRouter.post(
 
     try {
       const result = await callModel({
-        model: 'google/gemini-2.0-flash-001',
+        model: 'qwen/qwen-plus',
         messages: [
           {
             role: 'user',

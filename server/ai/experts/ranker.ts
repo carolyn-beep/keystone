@@ -5,7 +5,7 @@ import { extractExpertsFromFactSources } from './extractors';
 import { buildExpertProfiles, computeImpactScore } from './profiler';
 import { callModelWithFallback } from '../client';
 
-const CLEANUP_MODEL_PRIMARY = 'google/gemini-2.0-flash-001';
+const CLEANUP_MODEL_PRIMARY = 'qwen/qwen-plus';
 const CLEANUP_MODEL_FALLBACK = 'anthropic/claude-haiku-4.5';
 
 const SYSTEM_PROMPT = `You are an expert analyst performing STACK RANKING of researchers based on their MEASURED IMPACT on a document.

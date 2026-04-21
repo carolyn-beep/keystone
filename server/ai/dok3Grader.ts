@@ -285,7 +285,7 @@ export async function checkSourceTraceability(
 
         const t0 = performance.now();
         const result = await callModelWithFallback({
-          models: ['google/gemini-2.0-flash-001', 'anthropic/claude-sonnet-4.5'],
+          models: ['qwen/qwen-plus', 'google/gemini-2.0-flash-001'],
           system: DOK3_TRACEABILITY_SYSTEM_PROMPT,
           messages: [{ role: 'user', content: userPrompt }],
           temperature: 0.1,
