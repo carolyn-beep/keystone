@@ -35,9 +35,6 @@ export function ConfirmationModal({
 }: ConfirmationModalProps) {
   const handleConfirm = () => {
     onConfirm();
-    if (!isLoading) {
-      onOpenChange(false);
-    }
   };
 
   return (

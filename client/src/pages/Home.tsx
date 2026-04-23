@@ -6,6 +6,7 @@ import { queryClient } from '@/lib/queryClient';
 import { authClient } from '@/lib/auth-client';
 import { Loader2 } from 'lucide-react';
 import { ConfirmationModal } from '@/components/ui/confirmation-modal';
+import { useToast } from '@/hooks/use-toast';
 import { HomeHeader } from '@/components/home/HomeHeader';
 import { EmptyState } from '@/components/home/EmptyState';
 import { BrainliftCard } from '@/components/home/BrainliftCard';
@@ -19,6 +20,7 @@ export default function Home() {
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
   const [brainliftToDelete, setBrainliftToDelete] = useState<{ id: number; title: string } | null>(null);
   const prefetchRef = useRef<HTMLDivElement>(null);
+  const { toast } = useToast();
 
   // Get session to check if user is admin
   const { data: session } = authClient.useSession();
@@ -104,8 +106,17 @@ export default function Home() {
         method: 'DELETE',
       });
       if (!res.ok) {
-        const data = await res.json();
-        throw new Error(data.message || 'Delete failed');
+        const text = await res.text();
+        let message = 'Delete failed';
+        if (text) {
+          try {
+            const data = JSON.parse(text) as { message?: string };
+            message = data.message || message;
+          } catch {
+            message = text;
+          }
+        }
+        throw new Error(message);
       }
       return res.json();
     },
@@ -113,12 +124,33 @@ export default function Home() {
       queryClient.invalidateQueries({ queryKey: ['/api/brainlifts'] });
       setDeleteModalOpen(false);
       setBrainliftToDelete(null);
+      toast({
+        title: 'Brainlift deleted',
+        description: 'The brainlift was deleted successfully.',
+      });
+    },
+    onError: (error) => {
+      toast({
+        title: 'Failed to delete brainlift',
+        description: error instanceof Error ? error.message : 'Delete failed',
+        variant: 'destructive',
+      });
     },
   });
 
-  const handleDelete = (e: React.MouseEvent, brainlift: { id: number; title: string }) => {
+  const handleDelete = (e: React.MouseEvent, brainlift: { id: number; title: string; canDelete: boolean }) => {
     e.preventDefault();
     e.stopPropagation();
+
+    if (!brainlift.canDelete) {
+      toast({
+        title: 'Cannot delete brainlift',
+        description: 'Only the owner can delete this brainlift.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
     setBrainliftToDelete(brainlift);
     setDeleteModalOpen(true);
   };
@@ -176,6 +208,7 @@ export default function Home() {
                   key={brainlift.slug}
                   brainlift={brainlift}
                   adminView={adminView}
+                  canDelete={brainlift.createdByUserId === session?.user?.id}
                   onDelete={handleDelete}
                 />
               ))}

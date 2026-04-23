@@ -98,6 +98,7 @@ async function extractConcepts(
       },
     ],
     temperature: 0,
+    timeout: 30_000,
     caller: 'quizGenerator.conceptExtraction',
     responseFormat: {
       type: 'json_schema',
@@ -158,6 +159,7 @@ Generate exactly ${questionCount} questions.`,
       },
     ],
     temperature: 0,
+    timeout: 50_000,
     caller: 'quizGenerator.questionGeneration',
     responseFormat: {
       type: 'json_schema',

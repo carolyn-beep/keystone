@@ -1,0 +1,4 @@
+# Daily QA batch processing
+15 3 * * * analytics:run-verification-batch {"batchType":"verification"}
+# Hourly guard for Sao Paulo Saturday 23:59 weekly consistency run
+59 * * * * analytics:run-weekly-grader-consistency {"triggerKind":"cron"}

@@ -803,7 +803,7 @@ export function AddBrainliftModal({ show, mode, onClose, onSuccess }: AddBrainli
                           >
                             Cancel
                           </TactileButton>
-                          {!isBusy && activeTab === 'workflowy' && (
+                          {process.env.NODE_ENV !== 'production' && !isBusy && activeTab === 'workflowy' && (
                             <TactileButton
                               variant="inset"
                               onClick={handleRunAgent}

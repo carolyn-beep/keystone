@@ -32,7 +32,7 @@ async function getSummarizedPurpose(fullPurpose: string, title: string): Promise
 
   try {
     const response = await openai.chat.completions.create({
-      model: 'google/gemini-2.0-flash-001',
+      model: 'qwen/qwen-plus',
       messages: [
         {
           role: 'system',
@@ -154,6 +154,7 @@ export async function createBrainliftForAgent(
       originalContent: result.markdown,
       importHierarchy: result.hierarchy,
       sourceType: 'Workflowy',
+      origin: 'agent',
       importStatus: 'pending',
       expertDiagnostics: null,
     } as any,

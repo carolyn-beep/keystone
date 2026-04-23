@@ -125,7 +125,11 @@ export async function dok3GradeJob(
 
   // Recompute brainlift score after each insight is graded
   try {
-    await recomputeBrainliftScore(brainliftId);
+    await recomputeBrainliftScore(brainliftId, {
+      trigger: 'pipeline',
+      dokLevel: 3,
+      itemId: insightId,
+    });
   } catch (err: any) {
     helpers.logger.error(`[DOK3 Grade] Score recomputation failed:`, { err });
   }

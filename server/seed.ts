@@ -66,6 +66,7 @@ export async function seedDatabase() {
             summary: dynamicSummary,
             author: data.author || null,
             classification: data.classification || 'brainlift',
+            origin: 'seed',
             rejectionReason: data.rejectionReason || null,
             rejectionSubtype: data.rejectionSubtype || null,
             rejectionRecommendation: data.rejectionRecommendation || null,

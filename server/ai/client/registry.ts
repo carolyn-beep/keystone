@@ -6,7 +6,14 @@
  * Timeout and retries are opt-in per call site, not forced by the registry.
  */
 
-import type { ModelDef } from './types';
+import type { ModelDef, ModelTier } from './types';
+
+export const FIREWORKS_TIER_MODELS: Record<ModelTier, string> = {
+  premium: 'accounts/fireworks/models/minimax-m2p1',
+  standard: 'accounts/fireworks/models/glm-4p7',
+  fast: 'accounts/fireworks/models/llama-v3p3-70b-instruct',
+  budget: 'accounts/fireworks/models/gpt-oss-20b',
+};
 
 export const MODEL_REGISTRY: Record<string, ModelDef> = {
   // Premium tier
@@ -50,6 +57,12 @@ export const MODEL_REGISTRY: Record<string, ModelDef> = {
     tier: 'fast',
     displayName: 'Gemini 2.0 Flash',
   },
+  'qwen/qwen-plus': {
+    id: 'qwen/qwen-plus',
+    provider: 'openrouter',
+    tier: 'fast',
+    displayName: 'Qwen Plus',
+  },
 
   // Budget tier
   'qwen/qwen3-32b': {
@@ -63,6 +76,32 @@ export const MODEL_REGISTRY: Record<string, ModelDef> = {
     provider: 'openrouter',
     tier: 'budget',
     displayName: 'Llama 3.1 8B',
+  },
+
+  // Fireworks tier models
+  [FIREWORKS_TIER_MODELS.premium]: {
+    id: FIREWORKS_TIER_MODELS.premium,
+    provider: 'fireworks',
+    tier: 'premium',
+    displayName: 'Fireworks MiniMax 2.5',
+  },
+  [FIREWORKS_TIER_MODELS.standard]: {
+    id: FIREWORKS_TIER_MODELS.standard,
+    provider: 'fireworks',
+    tier: 'standard',
+    displayName: 'Fireworks GLM 4.7',
+  },
+  [FIREWORKS_TIER_MODELS.fast]: {
+    id: FIREWORKS_TIER_MODELS.fast,
+    provider: 'fireworks',
+    tier: 'fast',
+    displayName: 'Fireworks Llama V3P3 70B Instruct',
+  },
+  [FIREWORKS_TIER_MODELS.budget]: {
+    id: FIREWORKS_TIER_MODELS.budget,
+    provider: 'fireworks',
+    tier: 'budget',
+    displayName: 'Fireworks GPT-OSS 20B',
   },
 };
 
@@ -94,4 +133,13 @@ export function getModelOrThrow(id: string): ModelDef {
  */
 export function getModelDisplayName(id: string): string {
   return MODEL_REGISTRY[id]?.displayName ?? id;
+}
+
+export function getFireworksFallback(modelId: string): string | null {
+  const model = getModel(modelId);
+  if (!model || model.provider === 'fireworks') {
+    return null;
+  }
+
+  return FIREWORKS_TIER_MODELS[model.tier] ?? null;
 }

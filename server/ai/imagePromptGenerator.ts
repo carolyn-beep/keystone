@@ -55,6 +55,7 @@ export async function generateImagePrompt(
     messages: [{ role: 'user', content: prompt }],
     maxTokens: 100,
     temperature: 0.7,
+    timeout: 15_000,
     caller: 'imagePromptGenerator',
   });
 

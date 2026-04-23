@@ -33,6 +33,7 @@ export interface FactRowProps {
   sourceUrls?: Record<string, string>;
   isRedundant?: boolean;
   canModify?: boolean;
+  isAdmin?: boolean;
 }
 
 // Check if a source string contains a URL
@@ -193,6 +194,7 @@ export function FactRow({
   sourceUrls,
   isRedundant = false,
   canModify = true,
+  isAdmin = false,
 }: FactRowProps) {
   const { toast } = useToast();
   const [showAIAnalysis, setShowAIAnalysis] = useState(false);
@@ -350,8 +352,8 @@ export function FactRow({
               >{scoreLabel}</span>
             </div>
 
-            {/* Grade */}
-            <Popover.Root open={gradeOpen} onOpenChange={setGradeOpen}>
+            {/* Grade - admin only */}
+            {isAdmin && <Popover.Root open={gradeOpen} onOpenChange={setGradeOpen}>
               <div className="flex flex-col items-center gap-4">
                 <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-[0.35em]">GRADE</span>
 
@@ -443,7 +445,7 @@ export function FactRow({
                   </Popover.Content>
                 </Popover.Portal>
               </div>
-            </Popover.Root>
+            </Popover.Root>}
           </div>
 
           {hasAIAnalysis && (

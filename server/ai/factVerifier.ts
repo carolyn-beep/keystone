@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { type VerificationStatus } from '@shared/schema';
 import { callModelWithFallback } from './client/index';
+import { type PreviousEvaluation, formatPreviousEvaluationSection, formatRegradingRules } from '@shared/types/regrading';
 
 const modelGradeSchema = z.object({
   score: z.number().min(1).max(5),
@@ -27,7 +28,7 @@ export interface VerificationResult {
   consensus: ConsensusResult;
 }
 
-const GRADING_SYSTEM_PROMPT = `You are an expert fact-checker verifying educational claims. You have deep knowledge of educational research, cognitive science, and pedagogy.
+const GRADING_SYSTEM_PROMPT = `You are an expert fact-checker. You rigorously evaluate claims against provided evidence, or against your domain knowledge when evidence is unavailable.
 
 GRADING SCALE (1-5):
 5 = VERIFIED: Claim is well-supported by evidence or established research
@@ -39,10 +40,10 @@ GRADING SCALE (1-5):
 INSTRUCTIONS:
 1. If SOURCE EVIDENCE is provided, use it to verify the claim.
 2. If SOURCE_LINK_FAILED is true OR no evidence available:
-   - Use your knowledge of educational research and cognitive science to evaluate the claim
-   - Reference relevant studies, authors, or established findings you know about
-   - Be specific: cite researchers (e.g., "Willingham's research on...", "Rosenshine's principles...")
-   - Grade based on how well the claim aligns with established research literature
+   - Use your knowledge of the relevant domain to evaluate the claim
+   - Reference relevant studies, authorities, or established findings you know about
+   - Be specific: cite sources or experts where possible
+   - Grade based on how well the claim aligns with established knowledge in its domain
 3. Your rationale should be substantive and educational - explain WHY the claim is or isn't supported.
 4. Only set "isNonGradeable": true for highly obscure claims about specific unpublished data that cannot be evaluated.
 
@@ -144,25 +145,37 @@ async function callVerificationModel(
   fact: string,
   source: string,
   evidence: string,
-  linkFailed: boolean = false
+  linkFailed: boolean = false,
+  previousEvaluation?: PreviousEvaluation
 ): Promise<ModelGradeResult & { isNonGradeable?: boolean }> {
-  const userPrompt = `CLAIM TO VERIFY:
+  let userPrompt = `CLAIM TO VERIFY:
 "${fact}"
 
 CITED SOURCE:
 ${source || 'No source citation provided'}
 
 SOURCE EVIDENCE:
-${evidence || 'No direct evidence available - use your knowledge of educational research to evaluate this claim'}
+${evidence || 'No direct evidence available - use your knowledge of the relevant domain to evaluate this claim'}
 
 SOURCE_LINK_FAILED: ${linkFailed}
 
-Grade this claim based on available evidence OR your knowledge of educational research literature. Provide a substantive rationale explaining your assessment.`;
+Grade this claim based on available evidence OR your knowledge of the relevant domain. Provide a substantive rationale explaining your assessment.`;
+
+  let systemPrompt = GRADING_SYSTEM_PROMPT;
+
+  if (previousEvaluation) {
+    systemPrompt += formatRegradingRules();
+    userPrompt += '\n\n' + formatPreviousEvaluationSection(previousEvaluation);
+  }
+
+  const mode: 'EVIDENCE' | 'DOMAIN_KNOWLEDGE' = linkFailed || !evidence ? 'DOMAIN_KNOWLEDGE' : 'EVIDENCE';
+  const sourcePreview = source.length > 100 ? `${source.slice(0, 100)}...` : source;
+  const factPreview = fact.length > 100 ? `${fact.slice(0, 100)}...` : fact;
 
   try {
     const result = await callModelWithFallback({
-      models: ['google/gemini-2.0-flash-001', 'anthropic/claude-haiku-4.5'],
-      system: GRADING_SYSTEM_PROMPT,
+      models: ['qwen/qwen-plus', 'google/gemini-2.0-flash-001'],
+      system: systemPrompt,
       messages: [{ role: 'user', content: userPrompt }],
       temperature: 0.1,
       maxTokens: 800,
@@ -175,6 +188,12 @@ Grade this claim based on available evidence OR your knowledge of educational re
 
     const parsed = parseVerificationResponse(result.content);
 
+    const modeExtras = mode === 'EVIDENCE'
+      ? ` evidenceChars=${evidence.length}`
+      : (linkFailed ? ' linkFailed=true' : '');
+    const scoreStr = parsed.isNonGradeable ? 'NG' : String(parsed.score);
+    console.log(`[FactVerifier] mode=${mode} score=${scoreStr} model=${result.model}${modeExtras} source="${sourcePreview}" fact="${factPreview}"`);
+
     return {
       model: result.model,
       score: parsed.isNonGradeable ? 0 : parsed.score,
@@ -185,6 +204,8 @@ Grade this claim based on available evidence OR your knowledge of educational re
     };
   } catch (err: any) {
     console.error(`Fact verification failed:`, err);
+    const errorPreview = (err.message || 'Unknown error').slice(0, 200).replace(/\s+/g, ' ');
+    console.log(`[FactVerifier] mode=${mode} status=failed error="${errorPreview}" source="${sourcePreview}" fact="${factPreview}"`);
     return {
       model: 'unknown',
       score: null,
@@ -254,9 +275,10 @@ export async function verifyFactWithAllModels(
   source: string,
   evidence: string,
   linkFailed: boolean = false,
+  previousEvaluation?: PreviousEvaluation,
   modelWeights?: ModelWeights
 ): Promise<VerificationResult & { consensus: ConsensusResult & { isNonGradeable?: boolean } }> {
-  const result = await callVerificationModel(fact, source, evidence, linkFailed);
+  const result = await callVerificationModel(fact, source, evidence, linkFailed, previousEvaluation);
 
   const modelResults = [result];
   const consensus = calculateConsensus(modelResults, modelWeights);

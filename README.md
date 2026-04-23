@@ -72,21 +72,26 @@ Child resources (experts, facts, learning stream items) are always accessed thro
 
 The codebase routes all LLM chat completion calls through a single client (`server/ai/client/`) instead of scattering raw `fetch()` and SDK calls across 20+ files. Two entry points cover every use case:
 
-- **`callModel(options)`** — single model call with optional timeout (AbortController-based) and retry (exponential backoff with error classification: retryable for 429/500/502/503, non-retryable for 400/401/403).
-- **`callModelWithFallback(options)`** — tries models in order, returns the first success. Used for high-stakes calls like DOK4 quality evaluation where a fallback is worth the cost.
+- **`callModel(options)`** — single logical model call with timeout, retry, provider-aware error classification, and automatic failover to the mapped Fireworks tier model when the primary provider is unavailable or exhausted.
+- **`callModelWithFallback(options)`** — tries all primary models first, then runs a deduped Fireworks fallback chain. Used for high-stakes calls like DOK3/DOK4 grading where preserving the caller's model preference order matters.
 
-Every call requires a `caller` string (e.g. `'dok4Grader.qualityEvaluation'`) that tags the request for observability. Each call emits a structured `CallRecord` with model, provider, duration, token usage, estimated cost, retry count, and success/failure status — designed to power a future admin analytics panel.
+Every call requires a `caller` string (e.g. `'dok4Grader.qualityEvaluation'`) that tags the request for observability. Each logical call emits a structured `CallRecord` with model, provider, duration, token usage, estimated cost, retry count, success/failure status, and failover metadata (`failedProvider`, `failoverReason`, `originalModel`). These records feed the provider health admin surface at `/admin/providers`.
+
+The runtime is explicitly provider-aware:
+- **OpenRouter** is the primary text-generation provider for all registry-backed models.
+- **Fireworks** is the terminal fallback provider, mapped by tier and intentionally kept available even when OpenRouter is breaker-open.
+- **Circuit breaker semantics** are asymmetric by design: OpenRouter uses a real `closed -> open -> half-open` breaker, while Fireworks does not self-break because it is the last fallback in the chain.
 
 The **model registry** (`server/ai/client/registry.ts`) is the single source of truth for all model IDs, metadata, and tier classification:
 
-| Tier | Models | Use Case |
-|------|--------|----------|
-| Premium | Claude Opus 4.6 | High-stakes evaluation, structural decisions |
-| Standard | Claude Sonnet 4.5/4.6 | General-purpose grading, quality fallback |
-| Fast | Claude Haiku 4.5, Gemini 2.0 Flash | Parallel batch operations, classification |
-| Budget | Qwen 3 32B, Llama 3.1 8B | Low-priority fallbacks |
+| Tier | Primary Models | Fireworks Fallback | Use Case |
+|------|----------------|--------------------|----------|
+| Premium | Claude Opus 4.6 | MiniMax 2.5 | High-stakes evaluation, structural decisions |
+| Standard | Claude Sonnet 4/4.5/4.6 | GLM 4.7 | General-purpose grading, quality fallback |
+| Fast | Claude Haiku 4.5, Gemini 2.0 Flash | Llama V3P3 70B Instruct | Parallel batch operations, classification |
+| Budget | Qwen 3 32B, Llama 3.1 8B | GPT-OSS 20B | Low-priority fallbacks |
 
-A provider abstraction (`AIProvider` interface) ships with OpenRouter and supports adding direct Anthropic/OpenAI/Google providers later. 17 call sites across the grading pipeline, auto-linkers, preformat service, and expert extraction have been migrated. The exceptions are Vercel AI SDK routes (discussion, import agent — different streaming paradigm), Claude Agent SDK (research swarm), and OpenAI image generation (not chat completions).
+A provider abstraction (`AIProvider` interface) now ships with both OpenRouter and Fireworks. The unified client covers the grading pipeline, auto-linkers, preformat service, expert extraction, and other non-streaming text-generation call sites. The main exceptions are still Vercel AI SDK routes (discussion, import agent — different streaming paradigm) and the Claude Agent SDK research swarm. Image generation is handled separately in `server/ai/imageGenerator.ts`, with its own OpenAI primary + Fireworks fallback path.
 
 ---
 
@@ -146,7 +151,7 @@ In both modes, by the time the user reviews their BrainLift, everything from fac
 
 ## DOK1 Grading — Fact Verification
 
-Every fact in a BrainLift is verified through a multi-model consensus pipeline.
+Every fact in a BrainLift is verified through a single logical verifier chain managed by the unified AI client.
 
 ### Evidence Fetching (Two-Tier)
 
@@ -156,9 +161,9 @@ Before grading, the system gathers evidence for each fact:
 
 2. **AI-powered evidence search** — when the direct fetch fails or no URL is present, a language model searches its knowledge base for the cited work. The prompt grounds the search in specific educational research literature (Willingham, Rosenshine, Sweller, Hattie, Hirsch, Christodoulou) so evidence retrieval is domain-aware rather than generic.
 
-### Multi-Model Consensus
+### Tiered Verifier Chain
 
-Each fact is graded independently by two models on a 1--5 scale:
+Each fact is graded on a 1--5 scale:
 
 | Score | Meaning |
 |-------|---------|
@@ -168,20 +173,25 @@ Each fact is graded independently by two models on a 1--5 scale:
 | 2 | Questionable — oversimplified or poorly supported |
 | 1 | Likely false — contradicts established evidence |
 
-The primary model is Gemini 2.0 Flash. The fallback is Qwen 3 32B — an open-source model routed through OpenRouter. The choice is deliberate: Qwen is dramatically cheaper than proprietary alternatives, and the system is designed so that its accuracy improves over time without retraining.
+The fact verifier in `server/ai/factVerifier.ts` uses an ordered fast-tier chain tuned for batch throughput and resilience:
 
-The final score is a **weighted median** rather than a simple average. Each model carries a dynamic weight derived from its historical accuracy against human overrides. When a human corrects a grade, the system records the LLM's score alongside the human score in an `llmFeedback` table, then immediately recalculates the model's mean absolute error and weight. The formula (`min(2.0, max(0.5, 1 / (mae + 0.5)))`) means accurate models gain influence (up to 2x) while inaccurate models are dampened (down to 0.5x). This happens on every override — no batch reprocessing, no manual tuning. The consensus self-corrects as usage accumulates.
+1. `google/gemini-2.0-flash-001`
+2. `anthropic/claude-haiku-4.5`
+3. Fireworks fast-tier fallback: `accounts/fireworks/models/llama-v3p3-70b-instruct`
 
-The practical effect: if Qwen consistently agrees with human reviewers in a particular domain, its weight rises and it starts driving consensus decisions. A cheap open-source model can gradually earn the trust of the system through observed performance, not assumed capability. An admin analytics endpoint exposes per-model MAE, weight, accuracy tier, and recent feedback history for monitoring.
+For each fact, the unified client runs one logical verification call through that chain in order. This keeps DOK1 grading fast enough for high-concurrency batch verification while still preserving automatic provider failover under outage conditions.
+
+The verifier returns a structured score + rationale payload through the unified client, and that result is normalized into the shared verification shape used by the grading pipeline and review UI.
 
 ### Confidence and Review Flags
 
-Each verification carries a confidence level:
-- **High** — model scores within 1 point of each other
-- **Medium** — moderate spread
-- **Low** — spread of 3+ points, or insufficient valid results
+The verifier emits the shared consensus shape used elsewhere in the pipeline, so the rest of the grading system can consume DOK1 results through the same interface as before.
 
-Facts with low confidence or high spread are flagged `needsReview`, surfacing them for human attention without blocking the pipeline. Those human overrides are exactly what feeds the model accuracy loop — review flags create a natural flywheel where the cases most likely to need correction are also the ones that generate the most valuable training signal.
+In practice:
+- **Successful verifier chain** — high confidence, no review flag
+- **Complete verifier failure** — low confidence, `needsReview`, and a fallback plausible score so the pipeline can keep moving
+
+Human overrides still matter: the platform records LLM vs. human grading outcomes for analytics and future calibration, even though the current verifier runtime is no longer a parallel multi-vote setup.
 
 ### Concurrency
 
@@ -724,7 +734,7 @@ The platform uses Graphile Worker (PostgreSQL-backed) for async processing:
 | `learning-stream:research` | After expert extraction | Run multi-agent research swarm |
 | `learning-stream:extract-content` | On item insert | Extract viewable content from URL |
 | `learning-stream:generate-quiz` | After quizzable content extraction | Generate knowledge check quiz (two-phase MCQ) |
-| `brainlift:generate-image` | Manual | Generate AI cover image |
+| `brainlift:generate-image` | Manual | Generate AI cover image (OpenAI primary, Fireworks fallback) |
 | `discussion:verify-fact` | Discussion tool call | Verify a fact the student articulated |
 | `discussion:grade-dok2` | Discussion tool call | Grade a DOK2 summary the student wrote |
 | `dok4:grade` | After all linked DOK3s graded | Run 6-step DOK4 evaluation pipeline |
@@ -782,7 +792,9 @@ docker exec -i wizardly_kalam psql -U postgres -d dok1grader_local < migrations/
 |----------|---------|
 | `DATABASE_URL` | PostgreSQL connection string |
 | `ANTHROPIC_API_KEY` | Claude API (discussions, extraction, orchestration, adversary, evaluation) |
-| `OPENROUTER_API_KEY` | Unified AI client (all grading, verification, auto-linking, preformat, expert extraction) |
+| `OPENROUTER_API_KEY` | Primary text-generation provider for the unified AI client |
+| `FIREWORKS_API_KEY` | Fireworks failover provider for the unified AI client and image fallback |
+| `OPENAI_API_KEY` | Primary image-generation provider (`gpt-image-1`) |
 | `EXA_API_KEY` | Exa search API (research swarm) |
 | `YOUTUBE_API_KEY` | YouTube Data API (video researcher agent) |
 | `JINA_API_KEY` | Jina Reader API (article content extraction) |

@@ -14,6 +14,7 @@ import { type DOK2FailReason } from '@shared/schema';
 import { fetchEvidenceForFact } from './evidenceFetcher';
 import { DOK2_GRADING_SYSTEM_PROMPT, DOK2_GRADING_USER_PROMPT } from '../prompts/dok2-grading';
 import { callModelWithFallback } from './client/index';
+import { type PreviousEvaluation, formatPreviousEvaluationSection, formatRegradingRules } from '@shared/types/regrading';
 
 // Zod schema for validating LLM response
 const dok2GradeSchema = z.object({
@@ -167,6 +168,7 @@ export async function gradeDOK2Summary(
   sourceUrl?: string | null,
   failedUrlCache?: Map<string, string>,
   cachedTranscript?: string | null,
+  previousEvaluation?: PreviousEvaluation,
 ): Promise<DOK2GradeResult> {
   console.log(`[DOK2-Grade] === Starting DOK2 grading ===`);
   console.log(`[DOK2-Grade] Summary points: ${summaryPoints.length}, Related DOK1s: ${relatedDOK1s.length}`);
@@ -198,15 +200,21 @@ export async function gradeDOK2Summary(
   }
 
   // Step 2: Build the prompt with all context
-  const userPrompt = buildUserPrompt(summaryPoints, relatedDOK1s, brainliftPurpose, sourceContent);
+  let userPrompt = buildUserPrompt(summaryPoints, relatedDOK1s, brainliftPurpose, sourceContent);
+  let systemPrompt = DOK2_GRADING_SYSTEM_PROMPT;
+
+  if (previousEvaluation) {
+    systemPrompt += formatRegradingRules();
+    userPrompt += '\n\n' + formatPreviousEvaluationSection(previousEvaluation);
+  }
 
   // Step 3: Call the grading model via unified client (Gemini primary, Qwen fallback)
   try {
     console.log('[DOK2-Grade] Calling unified client for grading...');
     const t0 = performance.now();
     const result = await callModelWithFallback({
-      models: ['google/gemini-2.0-flash-001', 'anthropic/claude-sonnet-4.6'],
-      system: DOK2_GRADING_SYSTEM_PROMPT,
+      models: ['qwen/qwen-plus', 'google/gemini-2.0-flash-001'],
+      system: systemPrompt,
       messages: [{ role: 'user', content: userPrompt }],
       temperature: 0.1,
       maxTokens: 1500,
@@ -235,6 +243,50 @@ export async function gradeDOK2Summary(
       feedback: 'Please try re-importing this BrainLift or contact support if the issue persists.',
       failReason: null,
       sourceVerified,
+    };
+  }
+}
+
+export async function gradeDOK2SummaryFromFrozenSource(
+  summaryPoints: string[],
+  relatedDOK1s: RelatedDOK1[],
+  brainliftPurpose: string,
+  sourceUrl: string | null,
+  sourceContent: string,
+  previousEvaluation?: PreviousEvaluation,
+): Promise<DOK2GradeResult> {
+  let userPrompt = buildUserPrompt(summaryPoints, relatedDOK1s, brainliftPurpose, sourceContent);
+  let systemPrompt = DOK2_GRADING_SYSTEM_PROMPT;
+
+  if (previousEvaluation) {
+    systemPrompt += formatRegradingRules();
+    userPrompt += '\n\n' + formatPreviousEvaluationSection(previousEvaluation);
+  }
+
+  try {
+    const result = await callModelWithFallback({
+      models: ['qwen/qwen-plus', 'google/gemini-2.0-flash-001'],
+      system: systemPrompt,
+      messages: [{ role: 'user', content: userPrompt }],
+      temperature: 0.1,
+      maxTokens: 1500,
+      timeout: 60_000,
+      retries: 2,
+      caller: 'dok2Grader.frozenSummaryGrading',
+      validate: (content) => { parseGradingResponse(content); },
+    });
+
+    const gradeResult = parseGradingResponse(result.content);
+    return applySourceLinkPenalty(gradeResult, Boolean(sourceUrl), Boolean(sourceUrl && sourceContent));
+  } catch (error: any) {
+    console.error(`[DOK2-Grade] Frozen summary grading failed: ${error.message}`);
+    return {
+      displayTitle: null,
+      score: 3,
+      diagnosis: 'Unable to grade this summary due to a system error. Both grading models failed.',
+      feedback: 'Please review the frozen monitoring corpus inputs and retry the weekly run.',
+      failReason: null,
+      sourceVerified: Boolean(sourceUrl && sourceContent),
     };
   }
 }

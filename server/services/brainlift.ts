@@ -10,6 +10,10 @@ import { gradeDOK2Summary, type DOK2GradeResult } from "../ai/dok2Grader";
 import { type BrainliftOutput } from "../ai/brainliftExtractor";
 import { type BrainliftData } from "@shared/schema";
 import { type ImportProgress, STAGE_LABELS } from "@shared/import-progress";
+import { recordBrainliftScoreEvent } from "./analytics-score-events";
+import { formatBrainliftOverallScore } from "./brainlift-score";
+import type { PersistFactVerificationInput, ScoreEventContext } from "@shared/analytics-types";
+import { persistFactVerification } from "./persist-fact-verification";
 import pLimit from "p-limit";
 import { withRetryTimeout } from "../utils/timeout";
 
@@ -24,6 +28,21 @@ interface PostProcessingInput {
 }
 
 type ProgressCallback = (event: ImportProgress) => void;
+
+type GradedFactSummary = {
+  originalId: string;
+  category: string | null;
+  source: string | null;
+  fact: string;
+  summary: string;
+  score: number;
+  contradicts: string | null;
+  note: string | null;
+  flags: string[];
+  isGradeable: boolean;
+  evidence?: PersistFactVerificationInput['evidence'];
+  verification?: PersistFactVerificationInput['verification'];
+};
 
 /**
  * Run post-processing pipeline (expert extraction + redundancy analysis) after brainlift creation/update.
@@ -121,7 +140,10 @@ export async function runPostProcessingPipeline(
  *   - If DOK1+DOK2 only: (DOK1 + DOK2) / 2  (50/50)
  *   - If only one category: use that single mean
  */
-export async function recomputeBrainliftScore(brainliftId: number): Promise<void> {
+export async function recomputeBrainliftScore(
+  brainliftId: number,
+  analyticsContext: Omit<ScoreEventContext, 'brainliftId'> = { trigger: 'pipeline' }
+): Promise<void> {
   const [dok1Mean, dok2Mean, dok3Mean, dok4Mean] = await Promise.all([
     storage.getDOK1MeanScore(brainliftId),
     storage.getDOK2MeanScore(brainliftId),
@@ -132,28 +154,12 @@ export async function recomputeBrainliftScore(brainliftId: number): Promise<void
   const brainlift = await storage.getBrainliftById(brainliftId);
   if (!brainlift) return;
 
-  let combinedMeanScore: string;
-  const available: number[] = [];
-
-  if (dok4Mean !== null && dok3Mean !== null && dok2Mean !== null && dok1Mean !== null) {
-    // All four categories — equal 25% weights
-    combinedMeanScore = (dok1Mean * 0.25 + dok2Mean * 0.25 + dok3Mean * 0.25 + dok4Mean * 0.25).toFixed(2);
-  } else if (dok3Mean !== null && dok1Mean !== null && dok2Mean !== null) {
-    // Three categories (no DOK4) — weighted 33/34/33
-    combinedMeanScore = (dok1Mean * 0.33 + dok2Mean * 0.34 + dok3Mean * 0.33).toFixed(2);
-  } else if (dok1Mean !== null && dok2Mean !== null) {
-    // DOK1 + DOK2 only — 50/50
-    combinedMeanScore = ((dok1Mean + dok2Mean) / 2).toFixed(2);
-  } else {
-    // One or zero categories
-    if (dok1Mean !== null) available.push(dok1Mean);
-    if (dok2Mean !== null) available.push(dok2Mean);
-    if (dok3Mean !== null) available.push(dok3Mean);
-    if (dok4Mean !== null) available.push(dok4Mean);
-    combinedMeanScore = available.length > 0
-      ? (available.reduce((a, b) => a + b, 0) / available.length).toFixed(2)
-      : '0';
-  }
+  const combinedMeanScore = formatBrainliftOverallScore({
+    dok1: dok1Mean,
+    dok2: dok2Mean,
+    dok3: dok3Mean,
+    dok4: dok4Mean,
+  });
 
   const existingSummary = (brainlift.summary as Record<string, unknown>) || {};
   await storage.updateBrainliftFields(brainliftId, {
@@ -164,6 +170,15 @@ export async function recomputeBrainliftScore(brainliftId: number): Promise<void
       contradictionCount: (existingSummary.contradictionCount as number) || 0,
     },
   });
+
+  try {
+    await recordBrainliftScoreEvent({
+      brainliftId,
+      ...analyticsContext,
+    });
+  } catch (err) {
+    console.error(`[Score] Analytics logging failed for brainlift ${brainliftId}:`, err);
+  }
 
   console.log(`[Score] Recomputed brainlift ${brainliftId}: DOK1=${dok1Mean?.toFixed(2) ?? 'n/a'}, DOK2=${dok2Mean?.toFixed(2) ?? 'n/a'}, DOK3=${dok3Mean?.toFixed(2) ?? 'n/a'}, DOK4=${dok4Mean?.toFixed(2) ?? 'n/a'}, Combined=${combinedMeanScore}`);
 }
@@ -212,23 +227,23 @@ export async function saveBrainliftFromAI(
 
   // Run fact processing and contradiction detection in parallel
   const [factsWithSummaries, contradictionClusters] = await Promise.all([
-    Promise.all(data.facts.map(fact => limit(async () => {
+    Promise.all(data.facts.map(fact => limit(async (): Promise<GradedFactSummary> => {
       // Fast path: skip DOK1 grading entirely
-      if (skipDok1Grading) {
-        completedCount++;
-        onProgress?.({ stage: 'grading', message: 'Skipping DOK1 grading', completed: completedCount, total: totalFacts });
-        return {
-          originalId: fact.id,
+        if (skipDok1Grading) {
+          completedCount++;
+          onProgress?.({ stage: 'grading', message: 'Skipping DOK1 grading', completed: completedCount, total: totalFacts });
+          return {
+            originalId: fact.id,
           category: fact.category,
           source: fact.source || null,
           fact: fact.fact,
           summary: fact.fact.substring(0, 100),
           score: 0,
-          contradicts: fact.contradicts,
-          note: fact.aiNotes || 'Grading skipped',
-          flags: fact.flags || [],
-          isGradeable: false,
-        };
+            contradicts: fact.contradicts,
+            note: fact.aiNotes || 'Grading skipped',
+            flags: fact.flags || [],
+            isGradeable: false,
+          };
       }
 
       const factStart = Date.now();
@@ -239,7 +254,12 @@ export async function saveBrainliftFromAI(
           const summary = await summarizeFact(fact.fact);
 
           // Auto-grading logic
-          let evidenceContent = "";
+          let evidence = {
+            url: fact.source || null,
+            content: null as string | null,
+            error: null as string | null,
+            fetchedAt: new Date(),
+          };
 
           // If source exists, fetch evidence
           let linkFailed = false;
@@ -250,16 +270,27 @@ export async function saveBrainliftFromAI(
             if (sourceUrl) {
               try {
                 const cachedTranscript = await resolveYouTubeTranscript(sourceUrl, transcriptCache);
-                const evidence = await fetchEvidenceForFact(fact.fact, sourceUrl, failedUrlCache, cachedTranscript);
-                evidenceContent = evidence.content || "";
-                if (!evidenceContent) linkFailed = true;
+                const evidenceResult = await fetchEvidenceForFact(fact.fact, sourceUrl, failedUrlCache, cachedTranscript);
+                evidence = {
+                  url: evidenceResult.url ?? sourceUrl,
+                  content: evidenceResult.content || null,
+                  error: evidenceResult.error || null,
+                  fetchedAt: evidenceResult.fetchedAt ? new Date(evidenceResult.fetchedAt) : new Date(),
+                };
+                if (!evidence.content) linkFailed = true;
               } catch {
+                evidence = {
+                  url: sourceUrl,
+                  content: null,
+                  error: 'Evidence fetch failed',
+                  fetchedAt: new Date(),
+                };
                 linkFailed = true;
               }
             }
           }
 
-          const verification = await verifyFactWithAllModels(fact.fact, fact.source || "", evidenceContent, linkFailed);
+          const verification = await verifyFactWithAllModels(fact.fact, fact.source || "", evidence.content || "", linkFailed);
           let finalScore = verification.consensus.consensusScore;
           let rationale = verification.consensus.verificationNotes;
           let isGradeable = true;
@@ -294,6 +325,8 @@ export async function saveBrainliftFromAI(
             note: `${rationale}\n\n${sourceHyperlink}`,
             flags: fact.flags || [],
             isGradeable,
+            evidence,
+            verification,
           };
         }, 30_000, `fact ${fact.id}`);
 
@@ -375,7 +408,7 @@ export async function saveBrainliftFromAI(
         if (dbId) {
           await storage.updateFactGrading(dbId, existingBrainlift.id, {
             score: graded.score,
-            note: graded.note,
+            note: graded.note ?? '',
             isGradeable: graded.isGradeable,
             summary: graded.summary,
           });
@@ -406,6 +439,7 @@ export async function saveBrainliftFromAI(
           rejectionRecommendation: data.rejectionRecommendation || null,
           originalContent: originalContent || null,
           sourceType: sourceType || null,
+          origin: 'ui',
           expertDiagnostics: expertDiagnostics || null,
         },
         factsWithSummaries,
@@ -413,6 +447,30 @@ export async function saveBrainliftFromAI(
         userId
       );
     }
+
+    const savedFacts = await storage.getFactsForBrainlift(brainlift.id);
+    const factIdMap = new Map(savedFacts.map(f => [f.originalId, f.id]));
+
+    await Promise.all(factsWithSummaries.map(async (graded) => {
+      if (!graded.evidence || !graded.verification) {
+        return;
+      }
+
+      const dbFactId = factIdMap.get(graded.originalId);
+      if (!dbFactId) {
+        return;
+      }
+
+      try {
+        await persistFactVerification({
+          factId: dbFactId,
+          evidence: graded.evidence,
+          verification: graded.verification,
+        });
+      } catch (err) {
+        console.error(`[Auto-Grade] Failed to persist verification for fact ${graded.originalId}:`, err);
+      }
+    }));
 
     // Save DOK2 summaries if present (with grading)
     if (data.dok2Summaries && data.dok2Summaries.length > 0) {
@@ -551,7 +609,14 @@ export async function saveBrainliftFromAI(
         // Auto mode: run full DOK3+DOK4 auto-link and grading pipeline inline
         console.log(`[Auto-Grade] Auto-link mode: running DOK3/DOK4 pipeline...`);
         const { runDOK3DOK4Pipeline } = await import('./grading-pipeline');
-        await runDOK3DOK4Pipeline(brainlift.id, slug, onProgress);
+
+        // Thread explicit back-references from extraction data to skip LLM-based auto-linking
+        const extractionData = (data.dok3Insights || data.dok4Spovs) ? {
+          dok3ExplicitRefs: (data.dok3Insights || []).map((i: { explicitDok2Refs?: number[] | null }) => i.explicitDok2Refs ?? null),
+          dok4ExplicitRefs: (data.dok4Spovs || []).map((s: { explicitDok3Refs?: number[] | null }) => s.explicitDok3Refs ?? null),
+        } : undefined;
+
+        await runDOK3DOK4Pipeline(brainlift.id, slug, onProgress, extractionData);
         // Pipeline calls recomputeBrainliftScore internally
       } else {
         // Manual mode: DOK3 insights stay pending_linking, emit info event for linking UI
@@ -618,7 +683,7 @@ export async function saveBrainliftFromAI(
         }
 
         // Recompute score (DOK1+DOK2 only in manual mode)
-        await recomputeBrainliftScore(brainlift.id);
+        await recomputeBrainliftScore(brainlift.id, { trigger: 'import' });
       }
     }
   } catch (err: any) {

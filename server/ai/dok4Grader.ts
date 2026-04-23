@@ -17,6 +17,7 @@
 import { z } from 'zod';
 import pLimit from 'p-limit';
 import { callModelWithFallback } from './client';
+import { formatRegradingRules } from '@shared/types/regrading';
 import type {
   DOK4RejectionCategory,
   DOK4TraceabilityResult,
@@ -43,8 +44,8 @@ import {
 
 // ─── Model Constants ─────────────────────────────────────────────────────────
 
-const MID_TIER_MODELS = ['google/gemini-2.0-flash-001', 'anthropic/claude-sonnet-4.5'] as const;
-const DIVERGENCE_TIER_MODELS = ['google/gemini-2.0-flash-001', 'anthropic/claude-haiku-4.5'] as const;
+const MID_TIER_MODELS = ['qwen/qwen-plus', 'google/gemini-2.0-flash-001'] as const;
+const DIVERGENCE_TIER_MODELS = ['qwen/qwen-plus', 'google/gemini-2.0-flash-001'] as const;
 const QUALITY_TIER_MODELS = ['anthropic/claude-opus-4.6', 'anthropic/claude-sonnet-4.5'] as const;
 
 
@@ -56,8 +57,8 @@ const POV_VALIDATION_JSON_SCHEMA = {
     type: 'object',
     properties: {
       accept: { type: 'boolean' },
-      rejection_reason: { type: ['string', 'null'] },
-      rejection_category: { type: ['string', 'null'], enum: ['not_a_claim', 'dok3_misclassification', 'opinion_without_evidence', null] },
+      rejection_reason: { anyOf: [{ type: 'string' }, { type: 'null' }] },
+      rejection_category: { anyOf: [{ type: 'string', enum: ['not_a_claim', 'dok3_misclassification', 'opinion_without_evidence'] }, { type: 'null' }] },
     },
     required: ['accept', 'rejection_reason', 'rejection_category'],
     additionalProperties: false,
@@ -424,10 +425,15 @@ export async function evaluateDOK4Quality(
 ): Promise<DOK4QualityResult> {
   const userPrompt = buildQualityEvaluationUserPrompt(context);
 
+  let systemPrompt = DOK4_QUALITY_EVALUATION_SYSTEM_PROMPT;
+  if (context.previousEvaluation) {
+    systemPrompt += formatRegradingRules();
+  }
+
   const t0 = performance.now();
   const result = await callModelWithFallback({
     models: [...QUALITY_TIER_MODELS],
-    system: DOK4_QUALITY_EVALUATION_SYSTEM_PROMPT,
+    system: systemPrompt,
     messages: [{ role: 'user', content: userPrompt }],
     temperature: 0.1,
     timeout: 70_000,

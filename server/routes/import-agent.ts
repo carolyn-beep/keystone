@@ -19,6 +19,7 @@ import { verifyFactWithAllModels } from '../ai/factVerifier';
 import { gradeDOK2Summary } from '../ai/dok2Grader';
 import { gradeDOK3Insight } from '../ai/dok3Grader';
 import { recomputeBrainliftScore, runPostProcessingPipeline } from '../services/brainlift';
+import { persistFactVerification } from '../services/persist-fact-verification';
 import { createBrainliftForAgent } from '../services/import-agent';
 import { STAGE_LABELS } from '@shared/import-progress';
 import { withRetryTimeout } from '../utils/timeout';
@@ -306,16 +307,32 @@ importAgentRouter.post(
               }
             }
 
-            let evidenceContent = '';
+            let evidence = {
+              url: sourceUrl,
+              content: null as string | null,
+              error: null as string | null,
+              fetchedAt: new Date(),
+            };
             let linkFailed = false;
 
             if (sourceUrl) {
               try {
                 const cachedTranscript = await resolveYouTubeTranscript(sourceUrl, transcriptCache);
-                const evidence = await fetchEvidenceForFact(fact.fact, sourceUrl, failedUrlCache, cachedTranscript);
-                evidenceContent = evidence.content || '';
-                if (!evidenceContent) linkFailed = true;
+                const evidenceResult = await fetchEvidenceForFact(fact.fact, sourceUrl, failedUrlCache, cachedTranscript);
+                evidence = {
+                  url: evidenceResult.url ?? sourceUrl,
+                  content: evidenceResult.content || null,
+                  error: evidenceResult.error || null,
+                  fetchedAt: evidenceResult.fetchedAt ? new Date(evidenceResult.fetchedAt) : new Date(),
+                };
+                if (!evidence.content) linkFailed = true;
               } catch {
+                evidence = {
+                  url: sourceUrl,
+                  content: null,
+                  error: 'Evidence fetch failed',
+                  fetchedAt: new Date(),
+                };
                 linkFailed = true;
               }
             }
@@ -323,7 +340,7 @@ importAgentRouter.post(
             const verification = await verifyFactWithAllModels(
               fact.fact,
               fact.source || '',
-              evidenceContent,
+              evidence.content || '',
               linkFailed
             );
 
@@ -351,6 +368,16 @@ importAgentRouter.post(
               isGradeable,
               summary,
             });
+
+            try {
+              await persistFactVerification({
+                factId: fact.id,
+                evidence,
+                verification,
+              });
+            } catch (err) {
+              console.error(`[Cascade] Failed to persist verification for fact ${fact.id}:`, err);
+            }
           }, 30_000, `cascade fact ${fact.id}`);
         } catch (err: any) {
           console.error(`[Cascade] DOK1 fact ${fact.id} failed:`, err.message);
@@ -488,7 +515,7 @@ importAgentRouter.post(
       }
 
       // ── 4. Score Recomputation ────────────────────────────────────────
-      await recomputeBrainliftScore(brainlift.id);
+      await recomputeBrainliftScore(brainlift.id, { trigger: 'pipeline' });
 
       // ── 5. Post-processing (experts + redundancy + image job) ─────────
       const finalFacts = await storage.getFactsForBrainlift(brainlift.id);

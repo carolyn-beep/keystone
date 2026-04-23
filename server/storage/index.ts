@@ -11,14 +11,23 @@ import * as sharesStorage from './shares';
 import * as learningStreamStorage from './learning-stream';
 import * as dok3Storage from './dok3';
 import * as dok4Storage from './dok4';
+import * as analyticsDashboardStorage from './analytics-dashboard';
 import * as importAgentStorage from './import-agent';
+import * as qaBatchesStorage from './qa-batches';
 import * as brainliftSourcesStorage from './brainlift-sources';
+import * as graderMonitoringStorage from './grader-monitoring';
 import * as knowledgeCheckStorage from './knowledge-check';
 import * as nativeBrainliftsStorage from './native-brainlifts';
 import * as builderExpertsStorage from './builder-experts';
 import * as knowledgeTreeStorage from './knowledge-tree';
 import * as apiKeysStorage from './api-keys';
 import * as internalStorage from './internal';
+import * as versionsStorage from './versions';
+import * as staleStorage from './stale';
+import * as dok1CrudStorage from './dok1-crud';
+import * as dok2CrudStorage from './dok2-crud';
+import * as dok3CrudStorage from './dok3-crud';
+import * as dok4CrudStorage from './dok4-crud';
 
 // Re-export types from base
 export type {
@@ -82,6 +91,7 @@ export const storage = {
   getFactsForBrainlift: verificationsStorage.getFactsForBrainlift,
   getFactsWithVerifications: verificationsStorage.getFactsWithVerifications,
   createFactVerification: verificationsStorage.createFactVerification,
+  saveFactVerificationResult: verificationsStorage.saveFactVerificationResult,
   setHumanOverride: verificationsStorage.setHumanOverride,
   getFactByIdForBrainlift: verificationsStorage.getFactByIdForBrainlift,
   getFactVerificationForBrainlift: verificationsStorage.getFactVerificationForBrainlift,
@@ -98,6 +108,41 @@ export const storage = {
   // Analytics
   getModelAccuracyStats: analyticsStorage.getModelAccuracyStats,
   getLlmFeedbackHistory: analyticsStorage.getLlmFeedbackHistory,
+  getVolumeAnalytics: analyticsDashboardStorage.getVolumeAnalytics,
+  getHumanVerificationAnalytics: analyticsDashboardStorage.getHumanVerificationAnalytics,
+  getVanillaComparisonAnalytics: analyticsDashboardStorage.getVanillaComparisonAnalytics,
+  getDokCliffAnalytics: analyticsDashboardStorage.getDokCliffAnalytics,
+  getScoreDistributionAnalytics: analyticsDashboardStorage.getScoreDistributionAnalytics,
+  getSpovDistributionAnalytics: analyticsDashboardStorage.getSpovDistributionAnalytics,
+  getScoreImprovementAnalytics: analyticsDashboardStorage.getScoreImprovementAnalytics,
+  getBrainliftScoreHistoryAnalytics: analyticsDashboardStorage.getBrainliftScoreHistoryAnalytics,
+  getLeaderboardAnalytics: analyticsDashboardStorage.getLeaderboardAnalytics,
+  getGraderConsistencyAnalytics: graderMonitoringStorage.getGraderConsistencyAnalytics,
+  getModelDriftAnalytics: graderMonitoringStorage.getModelDriftAnalytics,
+
+  // QA batches
+  createQABatch: qaBatchesStorage.createQABatch,
+  updateQABatch: qaBatchesStorage.updateQABatch,
+  getQABatchById: qaBatchesStorage.getQABatchById,
+  getLatestQABatchByType: qaBatchesStorage.getLatestQABatchByType,
+  getLatestBaselineQABatch: qaBatchesStorage.getLatestBaselineQABatch,
+  getLatestPendingQABatch: qaBatchesStorage.getLatestPendingQABatch,
+  setQABatchRunning: qaBatchesStorage.setQABatchRunning,
+  completeQABatch: qaBatchesStorage.completeQABatch,
+  failQABatch: qaBatchesStorage.failQABatch,
+  replaceVerificationTruthRows: qaBatchesStorage.replaceVerificationTruthRows,
+  getVerificationTruthRowsForBatch: qaBatchesStorage.getVerificationTruthRowsForBatch,
+
+  // Weekly grader monitoring
+  getActiveGraderMonitoringSet: graderMonitoringStorage.getActiveGraderMonitoringSet,
+  getFrozenSnapshotsForMonitoringSet: graderMonitoringStorage.getFrozenSnapshotsForMonitoringSet,
+  createOrReuseWeeklyConsistencyRun: graderMonitoringStorage.createOrReuseWeeklyConsistencyRun,
+  setWeeklyConsistencyRunRunning: graderMonitoringStorage.setWeeklyConsistencyRunRunning,
+  replaceWeeklyConsistencyPassResults: graderMonitoringStorage.replaceWeeklyConsistencyPassResults,
+  getWeeklyConsistencyPassResults: graderMonitoringStorage.getWeeklyConsistencyPassResults,
+  getPreviousCompletedWeeklyConsistencyRun: graderMonitoringStorage.getPreviousCompletedWeeklyConsistencyRun,
+  completeWeeklyConsistencyRun: graderMonitoringStorage.completeWeeklyConsistencyRun,
+  failWeeklyConsistencyRun: graderMonitoringStorage.failWeeklyConsistencyRun,
 
   // DOK2 Summaries
   saveDOK2Summaries: dok2Storage.saveDOK2Summaries,
@@ -106,6 +151,9 @@ export const storage = {
   deleteDOK2Summaries: dok2Storage.deleteDOK2Summaries,
   getDOK2MeanScore: dok2Storage.getDOK2MeanScore,
   updateDOK2Grading: dok2Storage.updateDOK2Grading,
+  getDok2SummaryByIdForBrainlift: dok2Storage.getDok2SummaryByIdForBrainlift,
+  getDok2PointsForSummary: dok2Storage.getDok2PointsForSummary,
+  getRelatedDOK1sForSummary: dok2Storage.getRelatedDOK1sForSummary,
 
   // Learning Stream
   addLearningStreamItem: learningStreamStorage.addLearningStreamItem,
@@ -216,7 +264,37 @@ export const storage = {
   getAssessmentDOK2: internalStorage.getAssessmentDOK2,
   getAssessmentDOK3: internalStorage.getAssessmentDOK3,
   getAssessmentDOK4: internalStorage.getAssessmentDOK4,
+
+  // DOK Item Versioning
+  createVersion: versionsStorage.createVersion,
+  getVersionHistory: versionsStorage.getVersionHistory,
+  pruneVersions: versionsStorage.pruneVersions,
+
+  // Stale Flag Management
+  propagateStaleFlags: staleStorage.propagateStaleFlags,
+  dismissStaleFlag: staleStorage.dismissStaleFlag,
+  getStaleItems: staleStorage.getStaleItems,
+
+  // DOK CRUD (create, edit, delete, impact preview)
+  createFact: dok1CrudStorage.createFact,
+  editFact: dok1CrudStorage.editFact,
+  deleteFact: dok1CrudStorage.deleteFact,
+  getFactDeleteImpact: dok1CrudStorage.getFactDeleteImpact,
+  createDok2Summary: dok2CrudStorage.createDok2Summary,
+  editDok2Summary: dok2CrudStorage.editDok2Summary,
+  deleteDok2Summary: dok2CrudStorage.deleteDok2Summary,
+  getDok2DeleteImpact: dok2CrudStorage.getDok2DeleteImpact,
+  createDok3Insight: dok3CrudStorage.createDok3Insight,
+  editDok3Insight: dok3CrudStorage.editDok3Insight,
+  deleteDok3Insight: dok3CrudStorage.deleteDok3Insight,
+  getDok3DeleteImpact: dok3CrudStorage.getDok3DeleteImpact,
+  addLinksToDok3Insight: dok3CrudStorage.addLinksToDok3Insight,
+  createDok4Spov: dok4CrudStorage.createDok4Spov,
+  editDok4Spov: dok4CrudStorage.editDok4Spov,
+  deleteDok4Spov: dok4CrudStorage.deleteDok4Spov,
+  getDok4DeleteImpact: dok4CrudStorage.getDok4DeleteImpact,
+  addLinksToDok4Spov: dok4CrudStorage.addLinksToDok4Spov,
 };
 
 // Export individual modules for direct access if needed
-export { brainliftsStorage, expertsStorage, verificationsStorage, redundancyStorage, analyticsStorage, dok2Storage, sharesStorage, learningStreamStorage, dok3Storage, dok4Storage, importAgentStorage, brainliftSourcesStorage, knowledgeCheckStorage, nativeBrainliftsStorage, builderExpertsStorage, knowledgeTreeStorage, apiKeysStorage, internalStorage };
+export { brainliftsStorage, expertsStorage, verificationsStorage, redundancyStorage, analyticsStorage, dok2Storage, sharesStorage, learningStreamStorage, dok3Storage, dok4Storage, importAgentStorage, brainliftSourcesStorage, knowledgeCheckStorage, nativeBrainliftsStorage, builderExpertsStorage, knowledgeTreeStorage, apiKeysStorage, internalStorage, versionsStorage, staleStorage, dok1CrudStorage, dok2CrudStorage, dok3CrudStorage, dok4CrudStorage };

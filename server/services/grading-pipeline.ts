@@ -24,6 +24,17 @@ import { recomputeBrainliftScore } from './brainlift';
 type ProgressCallback = (event: ImportProgress) => void;
 
 /**
+ * Explicit back-references from extraction, threaded through the pipeline
+ * to skip LLM-based auto-linking when available.
+ */
+export interface PipelineExtractionData {
+  /** Parallel to DOK3 insight insertion order. "Source N" refs (1-indexed). */
+  dok3ExplicitRefs: (number[] | null)[];
+  /** Parallel to DOK4 SPOV insertion order. "Insight N" refs (1-indexed). */
+  dok4ExplicitRefs: (number[] | null)[];
+}
+
+/**
  * Run the full DOK3+DOK4 auto-link and grading pipeline.
  *
  * Expects:
@@ -31,12 +42,16 @@ type ProgressCallback = (event: ImportProgress) => void;
  * - DOK2 summaries already graded and saved in DB
  * - DOK4 SPOVs already saved (pending_linking) in DB
  *
+ * When extractionData is provided (MCP-created brainlifts), explicit back-references
+ * are used to link DOK3/DOK4 without LLM calls.
+ *
  * Individual grading errors are logged but do not block subsequent phases.
  */
 export async function runDOK3DOK4Pipeline(
   brainliftId: number,
   slug: string,
   onProgress?: ProgressCallback,
+  extractionData?: PipelineExtractionData,
 ): Promise<void> {
   const dok3GradeLimit = pLimit(20);
   const dok4GradeLimit = pLimit(10);
@@ -63,7 +78,10 @@ export async function runDOK3DOK4Pipeline(
       total: insights.length,
     });
 
-    const linkResults = await autoLinkDOK3Insights(brainliftId, insightInputs, dok2Inputs as any);
+    const linkResults = await autoLinkDOK3Insights(
+      brainliftId, insightInputs, dok2Inputs as any,
+      extractionData?.dok3ExplicitRefs,
+    );
 
     onProgress?.({
       stage: 'dok3_linking',
@@ -145,8 +163,8 @@ export async function runDOK3DOK4Pipeline(
       const dok3Inputs = gradedInsights.map((i: any) => ({ id: i.id, text: i.text }));
       const spovIds = spovs.map((s: any) => s.id);
       const spovTexts = spovs.map((s: any) => s.text);
-      // No explicit refs in auto-mode (those come from extraction data)
-      const explicitRefs = spovs.map(() => null);
+      // Use explicit refs from extraction when available
+      const explicitRefs = extractionData?.dok4ExplicitRefs ?? spovs.map(() => null);
 
       await autoLinkDOK4Spovs(brainliftId, spovIds, spovTexts, dok3Inputs, explicitRefs);
     }
@@ -219,5 +237,5 @@ export async function runDOK3DOK4Pipeline(
 
   // ── Phase 5: Recompute brainlift score ──
 
-  await recomputeBrainliftScore(brainliftId);
+  await recomputeBrainliftScore(brainliftId, { trigger: 'pipeline' });
 }

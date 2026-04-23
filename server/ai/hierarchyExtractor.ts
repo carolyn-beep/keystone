@@ -625,9 +625,64 @@ export function findDOK3Nodes(roots: HierarchyNode[]): HierarchyNode[] {
   return results;
 }
 
+// Pattern to skip "Sources" nodes when collecting DOK3 insight text
+const SOURCES_PATTERN = /^sources$/i;
+
+/**
+ * Parse explicit DOK2 source references from a DOK3 insight node's children.
+ * Looks for a child named "Sources" (case-insensitive) with grandchildren
+ * matching "Source N" pattern.
+ *
+ * Returns array of 1-indexed source numbers, or null if no Sources child found.
+ */
+function parseExplicitSourceRefs(insightNode: HierarchyNode): number[] | null {
+  const sourcesChild = insightNode.children.find(
+    c => SOURCES_PATTERN.test(c.name.trim())
+  );
+
+  if (!sourcesChild) return null;
+
+  const refs: number[] = [];
+  const sourcePattern = /Source\s*(\d+)/i;
+
+  for (const grandchild of sourcesChild.children) {
+    const match = grandchild.name.match(sourcePattern);
+    if (match) {
+      refs.push(parseInt(match[1], 10));
+    }
+  }
+
+  return refs.length > 0 ? refs : null;
+}
+
+/**
+ * Collect nested text from a DOK3 insight node, skipping "Sources" children.
+ */
+function collectDOK3InsightText(node: HierarchyNode): string {
+  const parts: string[] = [];
+  const mainText = node.name.trim();
+  if (mainText.length >= 10) {
+    parts.push(mainText);
+  }
+
+  for (const child of node.children) {
+    if (SOURCES_PATTERN.test(child.name.trim())) continue; // Skip "Sources" node
+    if (child.isDOK1Marker || child.isDOK2Marker || child.isDOK3Marker ||
+        child.isDOK4Marker || child.isSourceMarker || child.isCategoryMarker) continue;
+
+    const nestedParts = collectNestedText(child, 0, false);
+    for (const p of nestedParts) {
+      parts.push('  '.repeat(p.depth + 1) + p.text);
+    }
+  }
+
+  return parts.join('\n');
+}
+
 /**
  * Extract DOK3 insights from DOK3 marker children
- * Each child of a DOK3 marker is treated as a separate cross-source insight
+ * Each child of a DOK3 marker is treated as a separate cross-source insight.
+ * Parses explicit "Sources" back-references when present.
  */
 export function extractDOK3Insights(roots: HierarchyNode[]): DOK3ExtractedInsight[] {
   const dok3Nodes = findDOK3Nodes(roots);
@@ -644,11 +699,11 @@ export function extractDOK3Insights(roots: HierarchyNode[]): DOK3ExtractedInsigh
         continue;
       }
 
-      // Collect the full text of this insight (including nested children)
-      const nestedParts = collectNestedText(child, 0, false);
-      const fullText = nestedParts.length > 0
-        ? nestedParts.map(p => '  '.repeat(p.depth) + p.text).join('\n')
-        : child.name.trim();
+      // Parse explicit source references before collecting text
+      const explicitDok2Refs = parseExplicitSourceRefs(child);
+
+      // Collect text, stripping "Sources" section from the body
+      const fullText = collectDOK3InsightText(child);
 
       if (fullText.length < 10) continue; // Skip very short entries
 
@@ -657,11 +712,12 @@ export function extractDOK3Insights(roots: HierarchyNode[]): DOK3ExtractedInsigh
         id: String(counter),
         text: fullText,
         workflowyNodeId: child.id,
+        explicitDok2Refs,
       });
     }
   }
 
-  log(`[DOK3Extractor] Extracted ${insights.length} DOK3 insights`);
+  log(`[DOK3Extractor] Extracted ${insights.length} DOK3 insights (${insights.filter(i => i.explicitDok2Refs).length} with explicit source refs)`);
   return insights;
 }
 
@@ -708,7 +764,7 @@ const LINKS_PATTERN = /^links$/i;
  * Includes direct child text as supporting detail (skips Links nodes and markers).
  * Returns null if the node should be skipped.
  */
-function extractSingleSpov(node: HierarchyNode): { text: string; nodeId: string; explicitDok3Refs: number[] } | null {
+function extractSingleSpov(node: HierarchyNode): { text: string; nodeId: string; explicitDok3Refs: number[] | null } | null {
   if (isMarkerNode(node)) return null;
 
   let text = node.name.trim();
@@ -780,7 +836,7 @@ export function extractDOK4Spovs(dok4Nodes: HierarchyNode[]): DOK4ExtractedSpov[
                   id: `spov-${counter}`,
                   text: result.text,
                   workflowyNodeId: result.nodeId,
-                  explicitDok3Refs: result.explicitDok3Refs.length > 0
+                  explicitDok3Refs: (result.explicitDok3Refs && result.explicitDok3Refs.length > 0)
                     ? result.explicitDok3Refs
                     : parseExplicitLinkRefs(inner), // Check parent for links too
                 });

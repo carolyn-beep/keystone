@@ -32,7 +32,7 @@ const sampleContext = {
 };
 
 describe('imagePromptGenerator', () => {
-  it('calls callModelWithFallback with correct models, temperature, maxTokens, and caller', async () => {
+  it('calls callModelWithFallback with correct models, temperature, maxTokens, timeout, and caller', async () => {
     mockCallModelWithFallback.mockResolvedValue({
       content: 'an open book with gears emerging from its pages',
       model: 'anthropic/claude-opus-4.6',
@@ -47,6 +47,7 @@ describe('imagePromptGenerator', () => {
         models: ['anthropic/claude-opus-4.6', 'anthropic/claude-sonnet-4.6'],
         temperature: 0.7,
         maxTokens: 100,
+        timeout: 15_000,
         caller: 'imagePromptGenerator',
       }),
     );

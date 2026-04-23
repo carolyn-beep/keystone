@@ -242,6 +242,8 @@ ${insightList}`;
       },
     },
     caller: 'dok4AutoLinker',
+    timeout: 30_000,
+    retries: 2,
   });
 
   const parsed = JSON.parse(result.content) as { rankings: SemanticRanking[] };

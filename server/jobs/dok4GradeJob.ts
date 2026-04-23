@@ -96,7 +96,11 @@ export async function dok4GradeJob(
 
   // Recompute brainlift score after each SPOV is graded
   try {
-    await recomputeBrainliftScore(brainliftId);
+    await recomputeBrainliftScore(brainliftId, {
+      trigger: 'pipeline',
+      dokLevel: 4,
+      itemId: spovId,
+    });
   } catch (err: any) {
     helpers.logger.error(`[DOK4 Grade] Score recomputation failed:`, { err });
   }

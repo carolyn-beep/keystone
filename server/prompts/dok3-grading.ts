@@ -6,6 +6,8 @@
  * - DOK3_TRACEABILITY_SYSTEM_PROMPT: Per-source binary traceability check (Step 2)
  */
 
+import { type PreviousEvaluation, formatPreviousEvaluationSection } from '@shared/types/regrading';
+
 // ─── Step 3: Conceptual Coherence Evaluation ──────────────────────────────────
 
 export const DOK3_GRADING_SYSTEM_PROMPT = `You are an evaluator of DOK3 insights within a structured knowledge framework
@@ -102,6 +104,11 @@ linked evidence. Compare the current submission against the previous
 breakdown. Note what improved, what regressed, and what remains unchanged.
 Your score should reflect the current state, not the delta.
 
+If the edit DIRECTLY ADDRESSES your previous feedback, the new score
+MUST be >= the previous score. Only score lower if the edit introduced
+NEW PROBLEMS not present before. Reference the previous feedback in your
+rationale to show continuity.
+
 Respond ONLY with this JSON. No markdown. No backticks. No preamble.
 {
   "framework_name": "short, domain-specific name for the student's framework",
@@ -159,7 +166,7 @@ interface DOK3EvidenceForPrompt {
     index: number;
   };
   traceabilityStatus: string;
-  previousEvaluation: null; // Stubbed for future re-grading
+  previousEvaluation: PreviousEvaluation | null;
 }
 
 /**
@@ -221,9 +228,8 @@ Foundation Integrity Index: ${metrics.index.toFixed(2)}/5
 
 TRACEABILITY: ${evidence.traceabilityStatus}`;
 
-  // Future: append previous evaluation for re-grading
   if (evidence.previousEvaluation) {
-    prompt += '\n\nPREVIOUS EVALUATION:\n(Re-grading not yet implemented)';
+    prompt += '\n\n' + formatPreviousEvaluationSection(evidence.previousEvaluation);
   }
 
   return prompt;

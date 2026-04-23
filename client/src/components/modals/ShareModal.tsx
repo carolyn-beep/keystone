@@ -10,10 +10,10 @@ interface ShareModalProps {
   show: boolean;
   onClose: () => void;
   slug: string;
-  isOwner: boolean;
+  canManageShares: boolean;
 }
 
-export function ShareModal({ show, onClose, slug, isOwner }: ShareModalProps) {
+export function ShareModal({ show, onClose, slug, canManageShares }: ShareModalProps) {
   const [identifier, setIdentifier] = useState('');
   const [permission, setPermission] = useState<'viewer' | 'editor'>('viewer');
   const [pendingPermission, setPendingPermission] = useState<'viewer' | 'editor'>('viewer');
@@ -158,7 +158,7 @@ export function ShareModal({ show, onClose, slug, isOwner }: ShareModalProps) {
             )}
 
             {/* Add People Section */}
-            {isOwner && (
+            {canManageShares && (
               <div className="mb-6">
                 <h3 className="text-sm font-semibold mb-3 text-foreground">Add people</h3>
                 <div className="flex gap-2">
@@ -197,7 +197,7 @@ export function ShareModal({ show, onClose, slug, isOwner }: ShareModalProps) {
             )}
 
             {/* Share Link Section */}
-            {isOwner && (
+            {canManageShares && (
               <div>
                 <h3 className="text-sm font-semibold mb-3 text-foreground">Share link</h3>
                 <div className="flex gap-2">

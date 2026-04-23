@@ -25,6 +25,7 @@ export async function createNativeBrainlift(input: {
       description: input.purpose,
       author: input.owner ?? null,
       sourceType: 'native',
+      origin: 'builder',
       importStatus: 'complete',
       summary: { totalFacts: 0, meanScore: "0", score5Count: 0, contradictionCount: 0 },
       createdByUserId: input.userId,

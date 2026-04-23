@@ -36,10 +36,11 @@ async function callRankerModel(
 
   const t0 = performance.now();
   const result = await callModelWithFallback({
-    models: ['anthropic/claude-haiku-4.5', 'google/gemini-2.0-flash-001'],
+    models: ['qwen/qwen-plus', 'google/gemini-2.0-flash-001'],
     system: systemPrompt,
     messages: [{ role: 'user', content: userPrompt }],
     temperature: 0,
+    timeout: 60_000,
     caller: 'dok3SourceRanker',
   });
   console.log(`[DOK3 SourceRanker] Semantic ranking: ${(performance.now() - t0).toFixed(0)}ms (model: ${result.model})`);

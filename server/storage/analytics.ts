@@ -7,6 +7,7 @@ import { MODEL_REGISTRY } from '../ai/client/registry';
 
 // Fact-verification models used for accuracy tracking
 const FACT_VERIFICATION_MODELS = [
+  'qwen/qwen-plus',
   'google/gemini-2.0-flash-001',
   'qwen/qwen3-32b',
 ] as const;

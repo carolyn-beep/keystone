@@ -20,6 +20,7 @@ import {
   buildTraceabilityUserPrompt,
 } from '../prompts/dok3-grading';
 import { callModelWithFallback } from './client';
+import type { PreviousEvaluation } from '@shared/types/regrading';
 
 export type DOK3ProgressCallback = (event: DOK3GradingProgress) => void;
 
@@ -121,6 +122,8 @@ export interface DOK3GradeResult {
   traceabilityFlaggedSource: string | null;
   evaluatorModel: string;
 }
+
+export type FrozenDOK3GradeResult = Omit<DOK3GradeResult, 'insightId'>;
 
 /**
  * Extract JSON from an LLM response, stripping markdown fences.
@@ -282,7 +285,7 @@ export async function checkSourceTraceability(
 
         const t0 = performance.now();
         const result = await callModelWithFallback({
-          models: ['google/gemini-2.0-flash-001', 'anthropic/claude-sonnet-4.5'],
+          models: ['qwen/qwen-plus', 'google/gemini-2.0-flash-001'],
           system: DOK3_TRACEABILITY_SYSTEM_PROMPT,
           messages: [{ role: 'user', content: userPrompt }],
           temperature: 0.1,
@@ -322,7 +325,8 @@ export async function checkSourceTraceability(
 async function evaluateConceptualCoherence(
   context: DOK3EvaluationContext,
   foundationMetrics: FoundationMetrics,
-  traceability: TraceabilityResult
+  traceability: TraceabilityResult,
+  previousEvaluation?: PreviousEvaluation | null
 ): Promise<{ result: DOK3EvaluationResult; model: string }> {
   // Build traceability status string
   const traceabilityStatus = traceability.flagged
@@ -361,7 +365,7 @@ async function evaluateConceptualCoherence(
         index: foundationMetrics.index,
       },
       traceabilityStatus,
-      previousEvaluation: null,
+      previousEvaluation: previousEvaluation ?? null,
     }
   );
 
@@ -413,7 +417,8 @@ export function computeFinalScore(rawScore: number, ceiling: number): number {
 export async function gradeDOK3Insight(
   insightId: number,
   brainliftId: number,
-  onProgress?: DOK3ProgressCallback
+  onProgress?: DOK3ProgressCallback,
+  previousEvaluation?: PreviousEvaluation,
 ): Promise<DOK3GradeResult> {
   console.log(`[DOK3-Grade] === Starting DOK3 grading for insight ${insightId} ===`);
 
@@ -452,7 +457,8 @@ export async function gradeDOK3Insight(
     const { result: evaluation, model: evaluatorModel } = await evaluateConceptualCoherence(
       context,
       foundation,
-      traceability
+      traceability,
+      previousEvaluation,
     );
 
     // Step 4: Final Score
@@ -492,6 +498,41 @@ export async function gradeDOK3Insight(
     await storage.updateDOK3InsightStatus(insightId, brainliftId, 'error');
     throw error;
   }
+}
+
+export async function gradeFrozenDOK3Insight(
+  context: DOK3EvaluationContext,
+  previousEvaluation?: PreviousEvaluation,
+): Promise<FrozenDOK3GradeResult> {
+  if (context.linkedDok2s.length === 0) {
+    throw new Error('Frozen insight has no linked DOK2 summaries');
+  }
+
+  const foundation = computeFoundationIndex(context);
+  const traceability = await checkSourceTraceability(context.insight.text, context);
+  const { result: evaluation, model: evaluatorModel } = await evaluateConceptualCoherence(
+    context,
+    foundation,
+    traceability,
+    previousEvaluation,
+  );
+  const finalScore = computeFinalScore(evaluation.score, foundation.ceiling);
+
+  return {
+    score: finalScore,
+    frameworkName: evaluation.framework_name,
+    frameworkDescription: evaluation.framework_description,
+    criteriaBreakdown: evaluation.criteria,
+    rationale: evaluation.rationale,
+    feedback: evaluation.feedback,
+    dok1FoundationScore: foundation.dok1Score,
+    dok2SynthesisScore: foundation.dok2Score,
+    foundationIntegrityIndex: foundation.index,
+    ceiling: foundation.ceiling,
+    traceabilityFlagged: traceability.flagged,
+    traceabilityFlaggedSource: traceability.flaggedSource,
+    evaluatorModel,
+  };
 }
 
 // ─── Batch Helper ─────────────────────────────────────────────────────────────

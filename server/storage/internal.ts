@@ -6,14 +6,23 @@
  */
 
 import {
-  db, eq, sql,
+  db, eq, and, sql, asc, desc,
   brainlifts, facts, factVerifications,
   dok2Summaries, dok2Points,
   dok3Insights, dok3InsightLinks,
   dok4Spovs, dok4Dok3Links,
 } from './base';
+import type { SQL } from 'drizzle-orm';
+import type { PgColumn } from 'drizzle-orm/pg-core';
 
 // ── Types ──
+
+export interface AssessmentFilterParams {
+  itemId?: number;
+  sortBy?: 'id' | 'score' | 'updatedAt';
+  order?: 'asc' | 'desc';
+  status?: string;
+}
 
 export interface DOKProgress {
   total: number;
@@ -131,10 +140,21 @@ export async function getAssessmentDOK1(
   brainliftId: number,
   offset: number,
   limit: number,
+  filters: AssessmentFilterParams = {},
 ): Promise<{ items: any[]; total: number }> {
+  const conditions: SQL[] = [eq(facts.brainliftId, brainliftId)];
+  if (filters.itemId != null) conditions.push(eq(facts.id, filters.itemId));
+  if (filters.status) conditions.push(eq(facts.gradingStatus, filters.status));
+  const where = and(...conditions)!;
+
+  const sortCol = filters.sortBy === 'score' ? facts.score
+    : filters.sortBy === 'updatedAt' ? facts.updatedAt
+    : facts.id;
+  const orderDir = filters.order === 'desc' ? desc(sortCol) : asc(sortCol);
+
   const [countResult] = await db.select({ count: sql<number>`count(*)` })
     .from(facts)
-    .where(eq(facts.brainliftId, brainliftId));
+    .where(where);
 
   const rows = await db
     .select({
@@ -145,10 +165,11 @@ export async function getAssessmentDOK1(
       score: facts.score,
       note: facts.note,
       isGradeable: facts.isGradeable,
+      gradingStatus: facts.gradingStatus,
     })
     .from(facts)
-    .where(eq(facts.brainliftId, brainliftId))
-    .orderBy(facts.id)
+    .where(where)
+    .orderBy(orderDir)
     .limit(limit)
     .offset(offset);
 
@@ -157,10 +178,11 @@ export async function getAssessmentDOK1(
       id: r.id,
       fact: r.fact,
       source: r.source,
-      sourceUrl: null, // Facts don't have sourceUrl directly
+      sourceUrl: null,
       category: r.category,
       score: r.score,
       note: r.note,
+      gradingStatus: r.gradingStatus,
     })),
     total: Number(countResult.count),
   };
@@ -173,10 +195,22 @@ export async function getAssessmentDOK2(
   brainliftId: number,
   offset: number,
   limit: number,
+  filters: AssessmentFilterParams = {},
 ): Promise<{ items: any[]; total: number }> {
+  const conditions: SQL[] = [eq(dok2Summaries.brainliftId, brainliftId)];
+  if (filters.itemId != null) conditions.push(eq(dok2Summaries.id, filters.itemId));
+  if (filters.status) conditions.push(eq(dok2Summaries.gradingStatus, filters.status));
+  const where = and(...conditions)!;
+
+  // DOK2 uses 'grade' column for score
+  const sortCol = filters.sortBy === 'score' ? dok2Summaries.grade
+    : filters.sortBy === 'updatedAt' ? dok2Summaries.updatedAt
+    : dok2Summaries.id;
+  const orderDir = filters.order === 'desc' ? desc(sortCol) : asc(sortCol);
+
   const [countResult] = await db.select({ count: sql<number>`count(*)` })
     .from(dok2Summaries)
-    .where(eq(dok2Summaries.brainliftId, brainliftId));
+    .where(where);
 
   const summaries = await db
     .select({
@@ -187,10 +221,11 @@ export async function getAssessmentDOK2(
       diagnosis: dok2Summaries.diagnosis,
       feedback: dok2Summaries.feedback,
       failReason: dok2Summaries.failReason,
+      gradingStatus: dok2Summaries.gradingStatus,
     })
     .from(dok2Summaries)
-    .where(eq(dok2Summaries.brainliftId, brainliftId))
-    .orderBy(dok2Summaries.id)
+    .where(where)
+    .orderBy(orderDir)
     .limit(limit)
     .offset(offset);
 
@@ -223,6 +258,7 @@ export async function getAssessmentDOK2(
       diagnosis: s.diagnosis,
       feedback: s.feedback,
       failReason: s.failReason,
+      gradingStatus: s.gradingStatus,
     })),
     total: Number(countResult.count),
   };
@@ -236,10 +272,21 @@ export async function getAssessmentDOK3(
   offset: number,
   limit: number,
   detail: 'summary' | 'full' = 'summary',
+  filters: AssessmentFilterParams = {},
 ): Promise<{ items: any[]; total: number }> {
+  const conditions: SQL[] = [eq(dok3Insights.brainliftId, brainliftId)];
+  if (filters.itemId != null) conditions.push(eq(dok3Insights.id, filters.itemId));
+  if (filters.status) conditions.push(eq(dok3Insights.status, filters.status));
+  const where = and(...conditions)!;
+
+  const sortCol = filters.sortBy === 'score' ? dok3Insights.score
+    : filters.sortBy === 'updatedAt' ? dok3Insights.updatedAt
+    : dok3Insights.id;
+  const orderDir = filters.order === 'desc' ? desc(sortCol) : asc(sortCol);
+
   const [countResult] = await db.select({ count: sql<number>`count(*)` })
     .from(dok3Insights)
-    .where(eq(dok3Insights.brainliftId, brainliftId));
+    .where(where);
 
   const insights = await db
     .select({
@@ -256,8 +303,8 @@ export async function getAssessmentDOK3(
       linkingFlagged: dok3Insights.linkingFlagged,
     })
     .from(dok3Insights)
-    .where(eq(dok3Insights.brainliftId, brainliftId))
-    .orderBy(dok3Insights.id)
+    .where(where)
+    .orderBy(orderDir)
     .limit(limit)
     .offset(offset);
 
@@ -313,10 +360,21 @@ export async function getAssessmentDOK4(
   offset: number,
   limit: number,
   detail: 'summary' | 'full' = 'summary',
+  filters: AssessmentFilterParams = {},
 ): Promise<{ items: any[]; total: number }> {
+  const conditions: SQL[] = [eq(dok4Spovs.brainliftId, brainliftId)];
+  if (filters.itemId != null) conditions.push(eq(dok4Spovs.id, filters.itemId));
+  if (filters.status) conditions.push(eq(dok4Spovs.status, filters.status));
+  const where = and(...conditions)!;
+
+  const sortCol = filters.sortBy === 'score' ? dok4Spovs.score
+    : filters.sortBy === 'updatedAt' ? dok4Spovs.updatedAt
+    : dok4Spovs.id;
+  const orderDir = filters.order === 'desc' ? desc(sortCol) : asc(sortCol);
+
   const [countResult] = await db.select({ count: sql<number>`count(*)` })
     .from(dok4Spovs)
-    .where(eq(dok4Spovs.brainliftId, brainliftId));
+    .where(where);
 
   const spovs = await db
     .select({
@@ -336,8 +394,8 @@ export async function getAssessmentDOK4(
       divergenceVanillaResponse: dok4Spovs.divergenceVanillaResponse,
     })
     .from(dok4Spovs)
-    .where(eq(dok4Spovs.brainliftId, brainliftId))
-    .orderBy(dok4Spovs.id)
+    .where(where)
+    .orderBy(orderDir)
     .limit(limit)
     .offset(offset);
 

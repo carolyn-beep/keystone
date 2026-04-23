@@ -16,6 +16,7 @@
  */
 
 import { storage } from '../storage';
+import type { PreviousEvaluation } from '@shared/types/regrading';
 import {
   validatePOV,
   checkDOK4SourceTraceability,
@@ -41,6 +42,7 @@ export async function gradeDOK4Spov(
   spovId: number,
   brainliftId: number,
   onProgress?: (message: string) => void,
+  previousEvaluation?: PreviousEvaluation,
 ): Promise<DOK4GradeServiceResult> {
   // Load evaluation context (includes foundation computation)
   const context = await storage.getSpovEvaluationContext(spovId);
@@ -104,6 +106,7 @@ export async function gradeDOK4Spov(
       ...context,
       traceabilityResult,
       divergenceResult,
+      previousEvaluation,
     };
 
     const qualityResult = await evaluateDOK4Quality(fullContext);

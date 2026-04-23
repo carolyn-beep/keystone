@@ -12,10 +12,21 @@ import type { CallRecord } from '../types';
 // Test Helpers
 // ═══════════════════════════════════════════════════════════════════════════
 
-function mockFetchForModel(modelResponses: Record<string, { ok: boolean; status: number; content?: string }>) {
-  let callIndex = 0;
+function makeHeaders(headers: Record<string, string> = {}) {
+  return {
+    get: (name: string) => {
+      const key = Object.keys(headers).find(
+        (candidate) => candidate.toLowerCase() === name.toLowerCase(),
+      );
+      return key ? headers[key] : null;
+    },
+  };
+}
+
+function mockFetchForModel(
+  modelResponses: Record<string, { ok: boolean; status: number; content?: string; headers?: Record<string, string> }>,
+) {
   return vi.fn().mockImplementation(async (_url: string, options: { body: string }) => {
-    callIndex++;
     const body = JSON.parse(options.body);
     const modelId = body.model;
     const response = modelResponses[modelId];
@@ -24,6 +35,7 @@ function mockFetchForModel(modelResponses: Record<string, { ok: boolean; status:
       return {
         ok: false,
         status: 500,
+        headers: makeHeaders(),
         text: async () => `Unexpected model: ${modelId}`,
       };
     }
@@ -43,19 +55,38 @@ function mockFetchForModel(modelResponses: Record<string, { ok: boolean; status:
     return {
       ok: false,
       status: response.status,
+      headers: makeHeaders(response.headers),
       text: async () => `Error ${response.status} from ${modelId}`,
     };
   });
 }
 
 let originalFetch: typeof globalThis.fetch;
+const originalOpenRouterApiKey = process.env.OPENROUTER_API_KEY;
+const originalFireworksApiKey = process.env.FIREWORKS_API_KEY;
 
-beforeEach(() => {
+beforeEach(async () => {
   originalFetch = globalThis.fetch;
+  process.env.OPENROUTER_API_KEY = 'test-openrouter-key';
+  process.env.FIREWORKS_API_KEY = 'test-fireworks-key';
+  const client = await import('../index');
+  client.resetProviderRegistryForTests();
+  const breakers = await import('../circuit-breaker');
+  breakers.resetCircuitBreakersForTests();
+  const events = await import('../provider-events');
+  events.resetFailoverEventsForTests();
 });
 
-afterEach(() => {
+afterEach(async () => {
   globalThis.fetch = originalFetch;
+  process.env.OPENROUTER_API_KEY = originalOpenRouterApiKey;
+  process.env.FIREWORKS_API_KEY = originalFireworksApiKey;
+  const client = await import('../index');
+  client.resetProviderRegistryForTests();
+  const breakers = await import('../circuit-breaker');
+  breakers.resetCircuitBreakersForTests();
+  const events = await import('../provider-events');
+  events.resetFailoverEventsForTests();
 });
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -126,6 +157,7 @@ describe('callModelWithFallback — fallback', () => {
 
     expect(result.content).toBe('fallback result');
     expect(result.model).toBe('anthropic/claude-haiku-4.5');
+    expect(globalThis.fetch).toHaveBeenCalledTimes(2);
   });
 
   it('falls to third model when second also fails', async () => {
@@ -153,6 +185,95 @@ describe('callModelWithFallback — fallback', () => {
     expect(result.model).toBe('google/gemini-2.0-flash-001');
   });
 
+  it('tries all primaries before using Fireworks fallbacks', async () => {
+    const { callModelWithFallback } = await import('../index');
+
+    globalThis.fetch = mockFetchForModel({
+      'anthropic/claude-opus-4.6': { ok: false, status: 500 },
+      'anthropic/claude-sonnet-4.5': { ok: false, status: 500 },
+      'accounts/fireworks/models/minimax-m2p1': { ok: true, status: 200, content: 'minimax rescue' },
+    });
+
+    const result = await callModelWithFallback({
+      models: ['anthropic/claude-opus-4.6', 'anthropic/claude-sonnet-4.5'],
+      messages: [{ role: 'user', content: 'test' }],
+      caller: 'test',
+      timeout: 30_000,
+      retries: 0,
+    });
+
+    expect(result.content).toBe('minimax rescue');
+    expect(result.model).toBe('accounts/fireworks/models/minimax-m2p1');
+    expect(globalThis.fetch).toHaveBeenCalledTimes(3);
+
+    const calledModels = vi.mocked(globalThis.fetch).mock.calls.map(([, options]) => {
+      const body = JSON.parse((options as { body: string }).body);
+      return body.model;
+    });
+    expect(calledModels).toEqual([
+      'anthropic/claude-opus-4.6',
+      'anthropic/claude-sonnet-4.5',
+      'accounts/fireworks/models/minimax-m2p1',
+    ]);
+  });
+
+  it('dedupes shared Fireworks fallbacks after exhausting all primaries', async () => {
+    const { callModelWithFallback } = await import('../index');
+
+    globalThis.fetch = mockFetchForModel({
+      'google/gemini-2.0-flash-001': { ok: false, status: 500 },
+      'anthropic/claude-haiku-4.5': { ok: false, status: 500 },
+      'accounts/fireworks/models/llama-v3p3-70b-instruct': { ok: true, status: 200, content: 'llama rescue' },
+    });
+
+    const result = await callModelWithFallback({
+      models: ['google/gemini-2.0-flash-001', 'anthropic/claude-haiku-4.5'],
+      messages: [{ role: 'user', content: 'test' }],
+      caller: 'test',
+      timeout: 30_000,
+      retries: 0,
+    });
+
+    expect(result.content).toBe('llama rescue');
+    expect(result.model).toBe('accounts/fireworks/models/llama-v3p3-70b-instruct');
+    expect(globalThis.fetch).toHaveBeenCalledTimes(3);
+
+    const calledModels = vi.mocked(globalThis.fetch).mock.calls.map(([, options]) => {
+      const body = JSON.parse((options as { body: string }).body);
+      return body.model;
+    });
+    expect(calledModels).toEqual([
+      'google/gemini-2.0-flash-001',
+      'anthropic/claude-haiku-4.5',
+      'accounts/fireworks/models/llama-v3p3-70b-instruct',
+    ]);
+  });
+
+  it('falls over immediately when first model asks for Retry-After > 10s', async () => {
+    const { callModelWithFallback } = await import('../index');
+
+    globalThis.fetch = mockFetchForModel({
+      'anthropic/claude-sonnet-4': {
+        ok: false,
+        status: 429,
+        headers: { 'Retry-After': '11' },
+      },
+      'anthropic/claude-haiku-4.5': { ok: true, status: 200, content: 'fallback after cap' },
+    });
+
+    const result = await callModelWithFallback({
+      models: ['anthropic/claude-sonnet-4', 'anthropic/claude-haiku-4.5'],
+      messages: [{ role: 'user', content: 'test' }],
+      caller: 'test',
+      timeout: 30_000,
+      retries: 3,
+    });
+
+    expect(result.content).toBe('fallback after cap');
+    expect(result.model).toBe('anthropic/claude-haiku-4.5');
+    expect(globalThis.fetch).toHaveBeenCalledTimes(2);
+  });
+
   it('throws AllModelsFailed when all models fail', async () => {
     const { callModelWithFallback } = await import('../index');
     const { AllModelsFailed } = await import('../errors');
@@ -178,13 +299,14 @@ describe('callModelWithFallback — fallback', () => {
     const { AllModelsFailed } = await import('../errors');
 
     globalThis.fetch = mockFetchForModel({
-      'anthropic/claude-sonnet-4': { ok: false, status: 500 },
+      'google/gemini-2.0-flash-001': { ok: false, status: 500 },
       'anthropic/claude-haiku-4.5': { ok: false, status: 400 },
+      'accounts/fireworks/models/llama-v3p3-70b-instruct': { ok: false, status: 503 },
     });
 
     try {
       await callModelWithFallback({
-        models: ['anthropic/claude-sonnet-4', 'anthropic/claude-haiku-4.5'],
+        models: ['google/gemini-2.0-flash-001', 'anthropic/claude-haiku-4.5'],
         messages: [{ role: 'user', content: 'test' }],
         caller: 'test',
         timeout: 30_000,
@@ -194,9 +316,9 @@ describe('callModelWithFallback — fallback', () => {
     } catch (err) {
       expect(err).toBeInstanceOf(AllModelsFailed);
       const allFailed = err as InstanceType<typeof AllModelsFailed>;
-      expect(allFailed.errors).toHaveLength(2);
+      expect(allFailed.errors).toHaveLength(3);
       expect(allFailed.models).toEqual([
-        'anthropic/claude-sonnet-4',
+        'google/gemini-2.0-flash-001',
         'anthropic/claude-haiku-4.5',
       ]);
     }
@@ -232,5 +354,31 @@ describe('callModelWithFallback — CallRecord emission', () => {
     expect(records[0].requestedModel).toBe('anthropic/claude-sonnet-4');
     expect(records[1].status).toBe('success');
     expect(records[1].requestedModel).toBe('anthropic/claude-haiku-4.5');
+  });
+
+  it('records Fireworks success against the original model when primaries are exhausted', async () => {
+    const { callModelWithFallback, setCallRecorder } = await import('../index');
+    const records: CallRecord[] = [];
+    setCallRecorder((record) => records.push(record));
+
+    globalThis.fetch = mockFetchForModel({
+      'anthropic/claude-opus-4.6': { ok: false, status: 500 },
+      'anthropic/claude-sonnet-4.5': { ok: false, status: 500 },
+      'accounts/fireworks/models/minimax-m2p1': { ok: true, status: 200, content: 'minimax ok' },
+    });
+
+    await callModelWithFallback({
+      models: ['anthropic/claude-opus-4.6', 'anthropic/claude-sonnet-4.5'],
+      messages: [{ role: 'user', content: 'test' }],
+      caller: 'test-fallback',
+      timeout: 30_000,
+      retries: 0,
+    });
+
+    expect(records).toHaveLength(3);
+    expect(records[2].status).toBe('success');
+    expect(records[2].requestedModel).toBe('anthropic/claude-opus-4.6');
+    expect(records[2].actualModel).toBe('accounts/fireworks/models/minimax-m2p1');
+    expect(records[2].failedProvider).toBe('openrouter');
   });
 });

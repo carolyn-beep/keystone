@@ -5,7 +5,7 @@ import { extractExpertsFromFactSources } from './extractors';
 import { buildExpertProfiles, computeImpactScore } from './profiler';
 import { callModelWithFallback } from '../client';
 
-const CLEANUP_MODEL_PRIMARY = 'google/gemini-2.0-flash-001';
+const CLEANUP_MODEL_PRIMARY = 'qwen/qwen-plus';
 const CLEANUP_MODEL_FALLBACK = 'anthropic/claude-haiku-4.5';
 
 const SYSTEM_PROMPT = `You are an expert analyst performing STACK RANKING of researchers based on their MEASURED IMPACT on a document.
@@ -88,6 +88,7 @@ Example: ["John Smith", "0", "Jane Doe", "Focus"] → [true, false, true, false]
         messages: [{ role: 'user', content: JSON.stringify(names) }],
         temperature: 0,
         maxTokens: 200,
+        timeout: 10_000,
         caller: 'expertRanker.cleanup',
       });
 
@@ -222,6 +223,7 @@ Assign differentiated scores (1-10) based on the citation counts or relevance in
       messages: [{ role: 'user', content: userPrompt }],
       temperature: 0.1,
       maxTokens: 2000,
+      timeout: 60_000,
       caller: 'expertRanker.stackRanking',
     });
     console.log(`[Expert Ranker] Stack ranking: ${(performance.now() - t0).toFixed(0)}ms (model: ${result.model})`);

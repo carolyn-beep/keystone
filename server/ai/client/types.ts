@@ -8,7 +8,12 @@
 // --- Model Registry ---
 
 export type ModelTier = 'premium' | 'standard' | 'fast' | 'budget';
-export type ProviderName = 'openrouter' | 'anthropic' | 'openai' | 'google';
+export type ProviderName =
+  | 'openrouter'
+  | 'anthropic'
+  | 'openai'
+  | 'google'
+  | 'fireworks';
 
 export interface ModelDef {
   id: string;
@@ -85,6 +90,9 @@ export interface CallRecord {
   requestedModel: string;
   actualModel: string;
   provider: ProviderName;
+  failedProvider?: ProviderName;
+  failoverReason?: 'retry_exhausted' | 'retry_after_exceeded' | 'non_retryable' | 'provider_unavailable' | 'circuit_open';
+  originalModel?: string;
   status: 'success' | 'error';
   error?: string;
   durationMs: number;

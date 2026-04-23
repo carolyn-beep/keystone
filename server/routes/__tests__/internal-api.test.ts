@@ -596,7 +596,97 @@ describe('FR4: GET /api/internal/brainlifts/:slug/assessment', () => {
 
     await assessmentHandler(req, res);
 
-    expect(mockGetAssessmentDOK1).toHaveBeenCalledWith(1, 0, 50);
+    expect(mockGetAssessmentDOK1).toHaveBeenCalledWith(1, 0, 50, { itemId: undefined, sortBy: undefined, order: undefined, status: undefined });
+  });
+
+  it('passes filter params to DOK1 assessment', async () => {
+    mockGetAssessmentDOK1.mockResolvedValue({ items: [], total: 0 });
+
+    const { assessmentHandler } = await import('../internal');
+    const req = createMockReq({
+      params: { slug: 'assess-bl' },
+      query: { dok: '1', itemId: '42', sortBy: 'score', order: 'asc', status: 'graded' },
+    });
+    const res = createMockRes();
+
+    await assessmentHandler(req, res);
+
+    expect(mockGetAssessmentDOK1).toHaveBeenCalledWith(
+      1, 0, 20,
+      { itemId: 42, sortBy: 'score', order: 'asc', status: 'graded' },
+    );
+  });
+
+  it('passes filter params to DOK2 assessment', async () => {
+    mockGetAssessmentDOK2.mockResolvedValue({ items: [], total: 0 });
+
+    const { assessmentHandler } = await import('../internal');
+    const req = createMockReq({
+      params: { slug: 'assess-bl' },
+      query: { dok: '2', sortBy: 'updatedAt', order: 'desc' },
+    });
+    const res = createMockRes();
+
+    await assessmentHandler(req, res);
+
+    expect(mockGetAssessmentDOK2).toHaveBeenCalledWith(
+      1, 0, 20,
+      { itemId: undefined, sortBy: 'updatedAt', order: 'desc', status: undefined },
+    );
+  });
+
+  it('passes filter params to DOK3 assessment', async () => {
+    mockGetAssessmentDOK3.mockResolvedValue({ items: [], total: 0 });
+
+    const { assessmentHandler } = await import('../internal');
+    const req = createMockReq({
+      params: { slug: 'assess-bl' },
+      query: { dok: '3', status: 'regrading', detail: 'full' },
+    });
+    const res = createMockRes();
+
+    await assessmentHandler(req, res);
+
+    expect(mockGetAssessmentDOK3).toHaveBeenCalledWith(
+      1, 0, 20, 'full',
+      { itemId: undefined, sortBy: undefined, order: undefined, status: 'regrading' },
+    );
+  });
+
+  it('passes filter params to DOK4 assessment', async () => {
+    mockGetAssessmentDOK4.mockResolvedValue({ items: [], total: 0 });
+
+    const { assessmentHandler } = await import('../internal');
+    const req = createMockReq({
+      params: { slug: 'assess-bl' },
+      query: { dok: '4', itemId: '99' },
+    });
+    const res = createMockRes();
+
+    await assessmentHandler(req, res);
+
+    expect(mockGetAssessmentDOK4).toHaveBeenCalledWith(
+      1, 0, 20, 'summary',
+      { itemId: 99, sortBy: undefined, order: undefined, status: undefined },
+    );
+  });
+
+  it('ignores invalid sortBy values', async () => {
+    mockGetAssessmentDOK1.mockResolvedValue({ items: [], total: 0 });
+
+    const { assessmentHandler } = await import('../internal');
+    const req = createMockReq({
+      params: { slug: 'assess-bl' },
+      query: { dok: '1', sortBy: 'invalid', order: 'bad', status: 'nope' },
+    });
+    const res = createMockRes();
+
+    await assessmentHandler(req, res);
+
+    expect(mockGetAssessmentDOK1).toHaveBeenCalledWith(
+      1, 0, 20,
+      { itemId: undefined, sortBy: undefined, order: undefined, status: undefined },
+    );
   });
 
   it('returns 404 for slug owned by another user', async () => {

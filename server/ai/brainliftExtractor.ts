@@ -147,7 +147,7 @@ async function extractChunk(chunk: string, title: string, chunkIdx: number): Pro
   console.log(`[DOK1 Extractor] FALLBACK: Chunk ${chunkIdx + 1} started (${chunk.length} chars)`);
   try {
     const result = await callModel({
-      model: 'google/gemini-2.0-flash-001',
+      model: 'qwen/qwen-plus',
       system: LLM_EXTRACT_SYSTEM,
       messages: [
         { role: 'user', content: `Extract DOK1 facts from chunk ${chunkIdx + 1} of "${title}":\n\n${chunk}` }
@@ -179,6 +179,7 @@ async function extractChunk(chunk: string, title: string, chunkIdx: number): Pro
           },
         },
       },
+      timeout: 180_000,
       caller: 'brainliftExtractor.chunkExtraction',
     });
 
@@ -262,7 +263,7 @@ async function summarizePurposeForDisplay(fullPurpose: string, title: string): P
 
   try {
     const result = await callModelWithFallback({
-      models: ['google/gemini-2.0-flash-001', 'anthropic/claude-sonnet-4.6'],
+      models: ['qwen/qwen-plus', 'google/gemini-2.0-flash-001'],
       system: `Compress a purpose statement into ONE punchy sentence (50-120 chars).
 
 FORMAT: "[Topic]: [key question or goal]"
@@ -809,6 +810,7 @@ If NO tension exists, return EXACTLY:
           content: `List of Facts:\n${facts.map(f => `ID: ${f.id} - ${f.fact}`).join('\n')}\n\nAnalyze the facts and return JSON as specified.`
         }
       ],
+      timeout: 60_000,
       caller: 'brainliftExtractor.contradictions',
     });
     const contradictionDuration = performance.now() - contradictionStart;
