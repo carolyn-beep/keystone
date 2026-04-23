@@ -194,6 +194,11 @@ export interface TaskListItem {
   } | null;
 }
 
+export interface CrossBrainliftTaskListItem extends TaskListItem {
+  brainliftSlug: string;
+  brainliftTitle: string;
+}
+
 export interface TaskDetailResponse extends TaskListItem {
   plan: {
     id: number;

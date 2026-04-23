@@ -478,6 +478,113 @@ export async function listTasksForBrainlift(
   });
 }
 
+/**
+ * Lists tasks across every active sprint plan belonging to brainlifts the user can access
+ * (owned or shared). Same filter shape as listTasksForBrainlift. Each row carries the
+ * brainlift slug and title so cross-brainlift callers can render context per task.
+ */
+export async function listTasksForUser(
+  userId: string,
+  opts: {
+    date?: string;
+    week?: number;
+    state?: 'all' | 'complete' | 'incomplete';
+    includePastDue?: boolean;
+    localDate?: string;
+  } = {},
+): Promise<Array<SprintTaskListRow & { brainliftSlug: string; brainliftTitle: string }>> {
+  if (opts.includePastDue && !opts.localDate) {
+    throw new Error('localDate is required when includePastDue=true');
+  }
+  if (opts.date) parseIsoDate(opts.date, 'date');
+  if (opts.localDate) parseIsoDate(opts.localDate, 'localDate');
+
+  const referenceDate = opts.localDate ?? toIsoDate(new Date());
+
+  const conditions = [
+    eq(plans.status, 'active' as SprintPlanStatus),
+    sql`(
+      ${brainlifts.createdByUserId} = ${userId}
+      OR EXISTS (
+        SELECT 1 FROM ${brainliftShares}
+        WHERE ${brainliftShares.brainliftId} = ${brainlifts.id}
+          AND ${brainliftShares.userId} = ${userId}
+          AND ${brainliftShares.type} = 'user'
+      )
+    )`,
+  ];
+
+  if (opts.week != null) {
+    conditions.push(eq(tasks.weekNumber, opts.week));
+  }
+
+  if (opts.includePastDue) {
+    conditions.push(
+      sql`(${tasks.scheduledDate} = ${opts.localDate!} OR (${tasks.scheduledDate} < ${opts.localDate!} AND ${deliverables.id} IS NULL))`,
+    );
+  } else if (opts.date) {
+    conditions.push(eq(tasks.scheduledDate, opts.date));
+  }
+
+  if (opts.state === 'complete') {
+    conditions.push(sql`${deliverables.id} IS NOT NULL`);
+  } else if (opts.state === 'incomplete') {
+    conditions.push(sql`${deliverables.id} IS NULL`);
+  }
+
+  const rows = await db
+    .select({
+      id: tasks.id,
+      planId: tasks.planId,
+      brainliftId: tasks.brainliftId,
+      brainliftSlug: brainlifts.slug,
+      brainliftTitle: brainlifts.title,
+      scheduledDate: tasks.scheduledDate,
+      weekNumber: tasks.weekNumber,
+      dayInWeek: tasks.dayInWeek,
+      title: tasks.title,
+      description: tasks.description,
+      milestone: tasks.milestone,
+      deliverableId: deliverables.id,
+      deliverableTitle: deliverables.title,
+      deliverableDocUrl: deliverables.docUrl,
+      deliverableCreatedAt: deliverables.createdAt,
+    })
+    .from(tasks)
+    .innerJoin(plans, eq(plans.id, tasks.planId))
+    .innerJoin(brainlifts, eq(brainlifts.id, tasks.brainliftId))
+    .leftJoin(deliverables, eq(deliverables.taskId, tasks.id))
+    .where(and(...conditions))
+    .orderBy(asc(tasks.scheduledDate), asc(brainlifts.slug), asc(tasks.id));
+
+  return rows.map((row) => {
+    const hasDeliverable = row.deliverableId != null;
+    return {
+      id: row.id,
+      planId: row.planId,
+      brainliftId: row.brainliftId,
+      brainliftSlug: row.brainliftSlug,
+      brainliftTitle: row.brainliftTitle,
+      scheduledDate: row.scheduledDate,
+      weekNumber: row.weekNumber,
+      dayInWeek: row.dayInWeek,
+      title: row.title,
+      description: row.description,
+      milestone: row.milestone ?? null,
+      isComplete: hasDeliverable,
+      isPastDue: !hasDeliverable && row.scheduledDate < referenceDate,
+      deliverable: hasDeliverable
+        ? {
+            id: row.deliverableId!,
+            title: row.deliverableTitle!,
+            docUrl: row.deliverableDocUrl!,
+            createdAt: row.deliverableCreatedAt!.toISOString(),
+          }
+        : null,
+    };
+  });
+}
+
 export async function getTaskForBrainlift(taskId: number, brainliftId: number): Promise<SprintTaskDetailRow | null> {
   const [row] = await db
     .select({

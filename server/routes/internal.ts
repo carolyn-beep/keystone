@@ -17,6 +17,7 @@ import { readFileSync, existsSync } from 'fs';
 import path from 'path';
 import {
   createDeliverableRequestSchema,
+  listTasksQuerySchema,
   taskIdParamsSchema,
   updateDeliverableRequestSchema,
 } from '@shared/routes';
@@ -344,6 +345,35 @@ export async function internalListTasksHandler(req: Request, res: Response): Pro
   await publicListTasksHandler(req, res);
 }
 
+export async function internalListAllTasksForUserHandler(req: Request, res: Response): Promise<void> {
+  const authContext = req.authContext!;
+  const query = listTasksQuerySchema.parse(req.query);
+
+  const rows = await storage.listTasksForUser(authContext.userId, {
+    date: query.date,
+    week: query.week,
+    state: query.state,
+    includePastDue: query.includePastDue,
+    localDate: query.localDate,
+  });
+
+  res.json(rows.map((row) => ({
+    id: row.id,
+    planId: row.planId,
+    brainliftSlug: row.brainliftSlug,
+    brainliftTitle: row.brainliftTitle,
+    scheduledDate: row.scheduledDate,
+    weekNumber: row.weekNumber,
+    dayInWeek: row.dayInWeek,
+    title: row.title,
+    description: row.description,
+    milestone: row.milestone,
+    isComplete: row.isComplete,
+    isPastDue: row.isPastDue,
+    deliverable: row.deliverable,
+  })));
+}
+
 export async function internalGetTaskHandler(req: Request, res: Response): Promise<void> {
   await publicGetTaskHandler(req, res);
 }
@@ -480,6 +510,12 @@ internalRouter.get(
   requireServiceAuth,
   requireBrainliftAccess,
   asyncHandler(internalGetActivePlanHandler),
+);
+
+internalRouter.get(
+  '/api/internal/tasks',
+  requireServiceAuth,
+  asyncHandler(internalListAllTasksForUserHandler),
 );
 
 internalRouter.get(

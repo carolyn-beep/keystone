@@ -312,6 +312,7 @@ export const storage = {
   reclaimStaleGeneratingPlans: sprintsStorage.reclaimStaleGeneratingPlans,
   deleteFailedPlans: sprintsStorage.deleteFailedPlans,
   listTasksForBrainlift: sprintsStorage.listTasksForBrainlift,
+  listTasksForUser: sprintsStorage.listTasksForUser,
   getTaskForBrainlift: sprintsStorage.getTaskForBrainlift,
   getDeliverableByTaskId: sprintsStorage.getDeliverableByTaskId,
   createDeliverable: sprintsStorage.createDeliverable,
