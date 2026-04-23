@@ -17,6 +17,7 @@ import { dok1GradeSingleJob } from './dok1GradeSingleJob';
 import { dok2GradeSingleJob } from './dok2GradeSingleJob';
 import { runVerificationBatchJob } from './run-verification-batch';
 import { runWeeklyGraderConsistencyJob } from './run-weekly-grader-consistency';
+import { sprintGenerateJob } from './sprintGenerateJob';
 
 /**
  * Central registry of all background jobs.
@@ -47,6 +48,7 @@ const tasks = {
   'dok2:grade-single': dok2GradeSingleJob,
   'analytics:run-verification-batch': runVerificationBatchJob,
   'analytics:run-weekly-grader-consistency': runWeeklyGraderConsistencyJob,
+  'sprint:generate': sprintGenerateJob,
 } as const;
 
 export default tasks;

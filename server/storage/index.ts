@@ -28,6 +28,7 @@ import * as dok1CrudStorage from './dok1-crud';
 import * as dok2CrudStorage from './dok2-crud';
 import * as dok3CrudStorage from './dok3-crud';
 import * as dok4CrudStorage from './dok4-crud';
+import * as sprintsStorage from './sprints';
 
 // Re-export types from base
 export type {
@@ -42,6 +43,10 @@ export type {
   BuilderExpert, InsertBuilderExpert,
   NativePhaseProgress, BuilderPhaseStatus, BuilderSuggestionStatus,
   Category, InsertCategory, CategorySuggestionState,
+  SprintPlan, InsertSprintPlan,
+  SprintTask, InsertSprintTask,
+  Deliverable, InsertDeliverable,
+  PlatformConfig, InsertPlatformConfig,
 } from './base';
 
 /**
@@ -67,6 +72,7 @@ export const storage = {
   isOwner: brainliftsStorage.isOwner,
   getImageGenerationContext: brainliftsStorage.getImageGenerationContext,
   getLearningStreamContext: brainliftsStorage.getLearningStreamContext,
+  getSprintPlanContext: brainliftsStorage.getSprintPlanContext,
 
   // Shares
   getUserSharePermission: sharesStorage.getUserSharePermission,
@@ -294,7 +300,27 @@ export const storage = {
   deleteDok4Spov: dok4CrudStorage.deleteDok4Spov,
   getDok4DeleteImpact: dok4CrudStorage.getDok4DeleteImpact,
   addLinksToDok4Spov: dok4CrudStorage.addLinksToDok4Spov,
+
+  // Sprint foundation
+  getActivePlan: sprintsStorage.getActivePlan,
+  getCurrentPlan: sprintsStorage.getCurrentPlan,
+  listPlans: sprintsStorage.listPlans,
+  createPlanWithTasks: sprintsStorage.createPlanWithTasks,
+  createGeneratingPlan: sprintsStorage.createGeneratingPlan,
+  finalizeGeneratingPlan: sprintsStorage.finalizeGeneratingPlan,
+  markPlanGenerationFailed: sprintsStorage.markPlanGenerationFailed,
+  reclaimStaleGeneratingPlans: sprintsStorage.reclaimStaleGeneratingPlans,
+  deleteFailedPlans: sprintsStorage.deleteFailedPlans,
+  listTasksForBrainlift: sprintsStorage.listTasksForBrainlift,
+  getTaskForBrainlift: sprintsStorage.getTaskForBrainlift,
+  getDeliverableByTaskId: sprintsStorage.getDeliverableByTaskId,
+  createDeliverable: sprintsStorage.createDeliverable,
+  listDeliverablesForBrainlift: sprintsStorage.listDeliverablesForBrainlift,
+  markPlanCompleteIfAllDelivered: sprintsStorage.markPlanCompleteIfAllDelivered,
+  setPlanGdriveFolder: sprintsStorage.setPlanGdriveFolder,
+  setBrainliftGdriveRootFolder: sprintsStorage.setBrainliftGdriveRootFolder,
+  getSprintSharingAudience: sprintsStorage.getSprintSharingAudience,
 };
 
 // Export individual modules for direct access if needed
-export { brainliftsStorage, expertsStorage, verificationsStorage, redundancyStorage, analyticsStorage, dok2Storage, sharesStorage, learningStreamStorage, dok3Storage, dok4Storage, importAgentStorage, brainliftSourcesStorage, knowledgeCheckStorage, nativeBrainliftsStorage, builderExpertsStorage, knowledgeTreeStorage, apiKeysStorage, internalStorage, versionsStorage, staleStorage, dok1CrudStorage, dok2CrudStorage, dok3CrudStorage, dok4CrudStorage };
+export { brainliftsStorage, expertsStorage, verificationsStorage, redundancyStorage, analyticsStorage, dok2Storage, sharesStorage, learningStreamStorage, dok3Storage, dok4Storage, importAgentStorage, brainliftSourcesStorage, knowledgeCheckStorage, nativeBrainliftsStorage, builderExpertsStorage, knowledgeTreeStorage, apiKeysStorage, internalStorage, versionsStorage, staleStorage, dok1CrudStorage, dok2CrudStorage, dok3CrudStorage, dok4CrudStorage, sprintsStorage };

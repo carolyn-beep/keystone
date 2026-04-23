@@ -197,6 +197,30 @@ describe('requireServiceAuth', () => {
     expect(next).toHaveBeenCalled();
   });
 
+  it('propagates admin role in authContext for downstream ACL middleware', async () => {
+    mockedFindOrCreate.mockResolvedValue({
+      userId: 'admin-user-1',
+      isNew: false,
+      role: 'admin' as const,
+    });
+
+    const req = createMockReq({
+      'x-service-key': 'test-key-abc',
+      'x-user-email': 'admin@example.com',
+      'x-user-name': 'Admin User',
+    });
+    const res = createMockRes();
+
+    await requireServiceAuth(req as Request, res as Response, next);
+
+    expect((req as any).authContext).toEqual({
+      userId: 'admin-user-1',
+      role: 'admin',
+      isAdmin: true,
+    });
+    expect(next).toHaveBeenCalled();
+  });
+
   it('sets serviceAuth with apiKeyId and apiKeyName', async () => {
     mockedValidateApiKey.mockResolvedValue({
       id: 42,

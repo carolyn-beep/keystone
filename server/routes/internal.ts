@@ -15,10 +15,17 @@
 import { Router, type Request, type Response } from 'express';
 import { readFileSync, existsSync } from 'fs';
 import path from 'path';
+import {
+  createDeliverableRequestSchema,
+  taskIdParamsSchema,
+  updateDeliverableRequestSchema,
+} from '@shared/routes';
 import { requireServiceAuth } from '../middleware/service-auth';
-import { asyncHandler, BadRequestError } from '../middleware/error-handler';
+import { requireBrainliftAccess, requireBrainliftModify } from '../middleware/brainlift-auth';
+import { asyncHandler, BadRequestError, NotFoundError } from '../middleware/error-handler';
 import { storage } from '../storage';
 import { processGradeRequest } from '../services/internal-grading';
+import { createGoogleDriveService, type GoogleDriveService } from '../services/googleDrive';
 import {
   getBrainliftProgress,
   getBrainliftScores,
@@ -35,6 +42,16 @@ import type { PreviousEvaluation } from '@shared/types/regrading';
 import { db } from '../db';
 import { facts, dok2Summaries, dok3Insights, dok4Spovs } from '@shared/schema';
 import { eq, and, inArray } from 'drizzle-orm';
+import { SprintStorageConflictError, setDeliverableSourceSurface } from '../storage/sprints';
+import {
+  createPlanHandler as publicCreatePlanHandler,
+  listPlansHandler as publicListPlansHandler,
+  getActivePlanHandler as publicGetActivePlanHandler,
+  listTasksHandler as publicListTasksHandler,
+  getTaskHandler as publicGetTaskHandler,
+  readDeliverableHandler as publicReadDeliverableHandler,
+  listDeliverablesHandler as publicListDeliverablesHandler,
+} from './sprints';
 
 export const internalRouter = Router();
 
@@ -290,6 +307,221 @@ internalRouter.get(
   '/api/internal/brainlifts/:slug/assessment',
   requireServiceAuth,
   asyncHandler(assessmentHandler),
+);
+
+// ── Scope Breaker internal sprint routes (spec 03) ──
+
+let internalGoogleDriveService: GoogleDriveService | null = null;
+
+function getInternalGoogleDriveService(): GoogleDriveService {
+  if (!internalGoogleDriveService) {
+    internalGoogleDriveService = createGoogleDriveService();
+  }
+  return internalGoogleDriveService;
+}
+
+async function getTaskForInternalRouteOr404(brainliftId: number, taskId: number) {
+  const task = await storage.getTaskForBrainlift(taskId, brainliftId);
+  if (!task) {
+    throw new NotFoundError('Task not found');
+  }
+  return task;
+}
+
+export async function internalCreatePlanHandler(req: Request, res: Response): Promise<void> {
+  await publicCreatePlanHandler(req, res);
+}
+
+export async function internalListPlansHandler(req: Request, res: Response): Promise<void> {
+  await publicListPlansHandler(req, res);
+}
+
+export async function internalGetActivePlanHandler(req: Request, res: Response): Promise<void> {
+  await publicGetActivePlanHandler(req, res);
+}
+
+export async function internalListTasksHandler(req: Request, res: Response): Promise<void> {
+  await publicListTasksHandler(req, res);
+}
+
+export async function internalGetTaskHandler(req: Request, res: Response): Promise<void> {
+  await publicGetTaskHandler(req, res);
+}
+
+export async function internalReadDeliverableHandler(req: Request, res: Response): Promise<void> {
+  await publicReadDeliverableHandler(req, res);
+}
+
+export async function internalListDeliverablesHandler(req: Request, res: Response): Promise<void> {
+  await publicListDeliverablesHandler(req, res);
+}
+
+export async function internalCreateDeliverableHandler(req: Request, res: Response): Promise<void> {
+  const brainlift = req.brainlift!;
+  const authContext = req.authContext!;
+  const { taskId } = taskIdParamsSchema.parse(req.params);
+  const body = createDeliverableRequestSchema.parse(req.body);
+
+  const task = await getTaskForInternalRouteOr404(brainlift.id, taskId);
+  const existingDeliverable = await storage.getDeliverableByTaskId(taskId, brainlift.id);
+
+  if (existingDeliverable) {
+    res.status(409).json({ message: 'A deliverable already exists for this task' });
+    return;
+  }
+
+  const planRows = await storage.listPlans(brainlift.id);
+  const plan = planRows.find((row) => row.id === task.plan.id);
+  if (!plan) {
+    throw new NotFoundError('Plan not found');
+  }
+
+  const drive = getInternalGoogleDriveService();
+  const audience = await storage.getSprintSharingAudience(brainlift.id);
+
+  const rootFolder = await drive.ensureRootFolder({
+    brainliftId: brainlift.id,
+    brainliftTitle: brainlift.title,
+    ownerName: audience.ownerName,
+    existingFolderId: brainlift.gdriveRootFolderId ?? null,
+  });
+
+  if (!brainlift.gdriveRootFolderId || brainlift.gdriveRootFolderId !== rootFolder.folderId) {
+    await storage.setBrainliftGdriveRootFolder(brainlift.id, rootFolder.folderId);
+  }
+
+  await drive.syncRootFolderEditors(rootFolder.folderId, [
+    audience.ownerEmail,
+    ...audience.editorEmails,
+    ...audience.guideEmails,
+  ]);
+
+  const planFolder = await drive.ensurePlanFolder({
+    planId: plan.id,
+    startDate: plan.startDate,
+    existingFolderId: plan.gdriveFolderId ?? null,
+    rootFolderId: rootFolder.folderId,
+  });
+
+  if (!plan.gdriveFolderId || plan.gdriveFolderId !== planFolder.folderId) {
+    await storage.setPlanGdriveFolder(plan.id, planFolder.folderId);
+  }
+
+  const createdDoc = await drive.createGoogleDocFromMarkdown({
+    parentFolderId: planFolder.folderId,
+    title: body.title,
+    markdown: body.markdown,
+  });
+
+  try {
+    const deliverable = await storage.createDeliverable({
+      taskId,
+      brainliftId: brainlift.id,
+      title: body.title,
+      docFileId: createdDoc.fileId,
+      docUrl: createdDoc.docUrl,
+      sourceSurface: 'mcp',
+      createdByUserId: authContext.userId,
+    });
+
+    await storage.markPlanCompleteIfAllDelivered(task.plan.id);
+    res.status(201).json({ docUrl: deliverable.docUrl });
+  } catch (error) {
+    try {
+      await drive.deleteGoogleDoc(createdDoc.fileId);
+    } catch (cleanupError) {
+      console.error('[Internal Sprints] Failed to clean up orphaned Google Doc:', cleanupError);
+    }
+
+    if (error instanceof SprintStorageConflictError) {
+      res.status(409).json({ message: error.message });
+      return;
+    }
+
+    throw error;
+  }
+}
+
+export async function internalUpdateDeliverableHandler(req: Request, res: Response): Promise<void> {
+  const brainlift = req.brainlift!;
+  const { taskId } = taskIdParamsSchema.parse(req.params);
+  const body = updateDeliverableRequestSchema.parse(req.body);
+
+  await getTaskForInternalRouteOr404(brainlift.id, taskId);
+
+  const deliverable = await storage.getDeliverableByTaskId(taskId, brainlift.id);
+  if (!deliverable) {
+    throw new NotFoundError('Deliverable not found');
+  }
+
+  const drive = getInternalGoogleDriveService();
+  await drive.replaceGoogleDocFromMarkdown(deliverable.docFileId, body.markdown);
+  await setDeliverableSourceSurface(deliverable.id, brainlift.id, 'mcp');
+
+  res.json({ docUrl: deliverable.docUrl });
+}
+
+internalRouter.post(
+  '/api/internal/brainlifts/:slug/plans',
+  requireServiceAuth,
+  requireBrainliftModify,
+  asyncHandler(internalCreatePlanHandler),
+);
+
+internalRouter.get(
+  '/api/internal/brainlifts/:slug/plans',
+  requireServiceAuth,
+  requireBrainliftAccess,
+  asyncHandler(internalListPlansHandler),
+);
+
+internalRouter.get(
+  '/api/internal/brainlifts/:slug/plans/active',
+  requireServiceAuth,
+  requireBrainliftAccess,
+  asyncHandler(internalGetActivePlanHandler),
+);
+
+internalRouter.get(
+  '/api/internal/brainlifts/:slug/tasks',
+  requireServiceAuth,
+  requireBrainliftAccess,
+  asyncHandler(internalListTasksHandler),
+);
+
+internalRouter.get(
+  '/api/internal/brainlifts/:slug/tasks/:taskId',
+  requireServiceAuth,
+  requireBrainliftAccess,
+  asyncHandler(internalGetTaskHandler),
+);
+
+internalRouter.post(
+  '/api/internal/brainlifts/:slug/tasks/:taskId/deliverable',
+  requireServiceAuth,
+  requireBrainliftModify,
+  asyncHandler(internalCreateDeliverableHandler),
+);
+
+internalRouter.get(
+  '/api/internal/brainlifts/:slug/tasks/:taskId/deliverable',
+  requireServiceAuth,
+  requireBrainliftAccess,
+  asyncHandler(internalReadDeliverableHandler),
+);
+
+internalRouter.put(
+  '/api/internal/brainlifts/:slug/tasks/:taskId/deliverable',
+  requireServiceAuth,
+  requireBrainliftModify,
+  asyncHandler(internalUpdateDeliverableHandler),
+);
+
+internalRouter.get(
+  '/api/internal/brainlifts/:slug/deliverables',
+  requireServiceAuth,
+  requireBrainliftAccess,
+  asyncHandler(internalListDeliverablesHandler),
 );
 
 // ── Helpers ──

@@ -1,9 +1,9 @@
 import {
-  db, eq, inArray, desc, and, sql, isNull,
+  db, eq, inArray, desc, asc, and, sql, isNull,
   brainlifts, facts, contradictionClusters,
   brainliftVersions, experts, factVerifications, factModelScores,
   llmFeedback, factRedundancyGroups, dok2Summaries, dok2Points, dok2FactRelations,
-  nativeBrainliftDetails, builderExperts,
+  nativeBrainliftDetails, builderExperts, dok4Spovs, user,
   type Brainlift, type BrainliftData, type InsertBrainlift,
   type BrainliftVersion, type AuthContext
 } from './base';
@@ -399,6 +399,150 @@ export function isOwner(brainlift: Brainlift, authContext: AuthContext): boolean
 // ============================================================================
 // Context Queries - Optimized for specific AI operations
 // ============================================================================
+
+export interface SprintGenerationContext {
+  brainlift: {
+    id: number;
+    title: string;
+    description: string;
+    displayPurpose: string | null;
+  };
+  creator: {
+    userId: string;
+    email: string | null;
+    name: string | null;
+  };
+  experts: Array<{
+    name: string;
+    rankScore: number | null;
+    rationale: string | null;
+  }>;
+  spovs: Array<{
+    id: number;
+    text: string;
+    score: number | null;
+    status: string;
+  }>;
+  sources: Array<{
+    displayTitle: string;
+    sourceName: string;
+    grade: number | null;
+    points: string[];
+  }>;
+}
+
+const SPRINT_CONTEXT_SOURCE_LIMIT = 5;
+const SPRINT_CONTEXT_SPOV_LIMIT = 5;
+const SPRINT_CONTEXT_EXPERT_LIMIT = 5;
+const SPRINT_CONTEXT_POINTS_PER_SOURCE = 5;
+
+export async function getSprintPlanContext(brainliftId: number): Promise<SprintGenerationContext | null> {
+  const [brainlift] = await db
+    .select({
+      id: brainlifts.id,
+      title: brainlifts.title,
+      description: brainlifts.description,
+      displayPurpose: brainlifts.displayPurpose,
+      createdByUserId: brainlifts.createdByUserId,
+      creatorEmail: user.email,
+      creatorName: user.name,
+    })
+    .from(brainlifts)
+    .leftJoin(user, eq(brainlifts.createdByUserId, user.id))
+    .where(eq(brainlifts.id, brainliftId))
+    .limit(1);
+
+  if (!brainlift) return null;
+
+  const [expertRows, spovRows, sourceRows] = await Promise.all([
+    db
+      .select({
+        name: experts.name,
+        rankScore: experts.rankScore,
+        rationale: experts.rationale,
+      })
+      .from(experts)
+      .where(eq(experts.brainliftId, brainliftId))
+      .orderBy(desc(experts.rankScore), desc(experts.id))
+      .limit(SPRINT_CONTEXT_EXPERT_LIMIT),
+    db
+      .select({
+        id: dok4Spovs.id,
+        text: dok4Spovs.text,
+        score: dok4Spovs.score,
+        status: dok4Spovs.status,
+      })
+      .from(dok4Spovs)
+      .where(and(eq(dok4Spovs.brainliftId, brainliftId), eq(dok4Spovs.status, 'graded')))
+      .orderBy(desc(dok4Spovs.score), desc(dok4Spovs.id))
+      .limit(SPRINT_CONTEXT_SPOV_LIMIT),
+    db
+      .select({
+        id: dok2Summaries.id,
+        displayTitle: dok2Summaries.displayTitle,
+        sourceName: dok2Summaries.sourceName,
+        grade: dok2Summaries.grade,
+      })
+      .from(dok2Summaries)
+      .where(and(
+        eq(dok2Summaries.brainliftId, brainliftId),
+        eq(dok2Summaries.isStale, false),
+        eq(dok2Summaries.gradingStatus, 'graded'),
+      ))
+      .orderBy(sql`${dok2Summaries.grade} DESC NULLS LAST`, desc(dok2Summaries.id))
+      .limit(SPRINT_CONTEXT_SOURCE_LIMIT),
+  ]);
+
+  const summaryIds = sourceRows.map((row) => row.id);
+  const pointRows = summaryIds.length === 0
+    ? []
+    : await db
+        .select({
+          summaryId: dok2Points.summaryId,
+          text: dok2Points.text,
+          sortOrder: dok2Points.sortOrder,
+          id: dok2Points.id,
+        })
+        .from(dok2Points)
+        .where(inArray(dok2Points.summaryId, summaryIds))
+        .orderBy(asc(dok2Points.summaryId), asc(dok2Points.sortOrder), asc(dok2Points.id));
+
+  const pointsBySummaryId = new Map<number, string[]>();
+  for (const point of pointRows) {
+    const bucket = pointsBySummaryId.get(point.summaryId) ?? [];
+    if (bucket.length < SPRINT_CONTEXT_POINTS_PER_SOURCE) {
+      bucket.push(point.text);
+      pointsBySummaryId.set(point.summaryId, bucket);
+    }
+  }
+
+  const sources = sourceRows.map((row) => ({
+    displayTitle: row.displayTitle ?? row.sourceName,
+    sourceName: row.sourceName,
+    grade: row.grade == null ? null : Number(row.grade),
+    points: pointsBySummaryId.get(row.id) ?? [],
+  }));
+
+  return {
+    brainlift: {
+      id: brainlift.id,
+      title: brainlift.title,
+      description: brainlift.description,
+      displayPurpose: brainlift.displayPurpose,
+    },
+    creator: {
+      userId: brainlift.createdByUserId ?? '',
+      email: brainlift.creatorEmail ?? null,
+      name: brainlift.creatorName ?? null,
+    },
+    experts: expertRows,
+    spovs: spovRows.map((row) => ({
+      ...row,
+      score: row.score == null ? null : Number(row.score),
+    })),
+    sources,
+  };
+}
 
 export interface ImageGenerationContext {
   id: number;

@@ -1,4 +1,4 @@
-import { pgTable, text, serial, integer, jsonb, boolean, timestamp, varchar, index, unique, check } from "drizzle-orm/pg-core";
+import { pgTable, text, serial, integer, jsonb, boolean, timestamp, varchar, date, index, unique, uniqueIndex, check } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 import { relations, sql } from "drizzle-orm";
@@ -127,6 +127,7 @@ export const brainlifts = pgTable("brainlifts", {
   sourceType: text("source_type"),
   origin: text("origin").$type<AnalyticsOrigin | null>(),
   coverImageUrl: text("cover_image_url"),  // AI-generated cover image stored in S3
+  gdriveRootFolderId: text("gdrive_root_folder_id"),
   expertDiagnostics: jsonb("expert_diagnostics").$type<{
     isValid: boolean;
     diagnostics: Array<{
@@ -286,6 +287,90 @@ export const brainliftShares = pgTable("brainlift_shares", {
   `),
 ]);
 
+export const SPRINT_PLAN_STATUS = {
+  ACTIVE: 'active',
+  COMPLETE: 'complete',
+  GENERATING: 'generating',
+  FAILED: 'failed',
+} as const;
+
+export type SprintPlanStatus = typeof SPRINT_PLAN_STATUS[keyof typeof SPRINT_PLAN_STATUS];
+
+export const DELIVERABLE_SOURCE_SURFACE = {
+  MCP: 'mcp',
+  UI: 'ui',
+} as const;
+
+export type DeliverableSourceSurface = typeof DELIVERABLE_SOURCE_SURFACE[keyof typeof DELIVERABLE_SOURCE_SURFACE];
+
+export const SPRINT_TASK_MILESTONE = {
+  WEEKLY_ARTIFACT: 'weekly_artifact',
+} as const;
+
+export type SprintTaskMilestone = typeof SPRINT_TASK_MILESTONE[keyof typeof SPRINT_TASK_MILESTONE];
+
+export const plans = pgTable("plans", {
+  id: serial("id").primaryKey(),
+  brainliftId: integer("brainlift_id").notNull().references(() => brainlifts.id, { onDelete: "cascade" }),
+  startDate: date("start_date").notNull(),
+  endDate: date("end_date").notNull(),
+  status: text("status").$type<SprintPlanStatus>().notNull().default('active'),
+  gdriveFolderId: text("gdrive_folder_id"),
+  generationError: text("generation_error"),
+  generationStartedAt: timestamp("generation_started_at"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  createdByUserId: text("created_by_user_id").notNull().references(() => user.id),
+}, (table) => [
+  index("plans_brainlift_id_idx").on(table.brainliftId),
+  index("plans_status_idx").on(table.status),
+  uniqueIndex("plans_one_active_per_brainlift_idx")
+    .on(table.brainliftId)
+    .where(sql`${table.status} IN ('active', 'generating')`),
+  check("plans_valid_status", sql`${table.status} IN ('active', 'complete', 'generating', 'failed')`),
+]);
+
+export const tasks = pgTable("tasks", {
+  id: serial("id").primaryKey(),
+  planId: integer("plan_id").notNull().references(() => plans.id, { onDelete: "cascade" }),
+  brainliftId: integer("brainlift_id").notNull().references(() => brainlifts.id, { onDelete: "cascade" }),
+  scheduledDate: date("scheduled_date").notNull(),
+  weekNumber: integer("week_number").notNull(),
+  dayInWeek: integer("day_in_week").notNull(),
+  title: text("title").notNull(),
+  description: text("description").notNull(),
+  milestone: text("milestone").$type<SprintTaskMilestone>(),
+}, (table) => [
+  index("tasks_plan_id_idx").on(table.planId),
+  index("tasks_brainlift_id_idx").on(table.brainliftId),
+  index("tasks_scheduled_date_idx").on(table.scheduledDate),
+  check("tasks_valid_week_number", sql`${table.weekNumber} >= 1`),
+  check("tasks_valid_day_in_week", sql`${table.dayInWeek} >= 1 AND ${table.dayInWeek} <= 7`),
+  check("tasks_valid_milestone", sql`${table.milestone} IS NULL OR ${table.milestone} IN ('weekly_artifact')`),
+]);
+
+export const deliverables = pgTable("deliverables", {
+  id: serial("id").primaryKey(),
+  taskId: integer("task_id").notNull().references(() => tasks.id, { onDelete: "cascade" }).unique(),
+  brainliftId: integer("brainlift_id").notNull().references(() => brainlifts.id, { onDelete: "cascade" }),
+  title: text("title").notNull(),
+  docFileId: text("doc_file_id").notNull(),
+  docUrl: text("doc_url").notNull(),
+  sourceSurface: text("source_surface").$type<DeliverableSourceSurface>().notNull().default('ui'),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  createdByUserId: text("created_by_user_id").notNull().references(() => user.id),
+}, (table) => [
+  index("deliverables_brainlift_id_idx").on(table.brainliftId),
+  check("deliverables_valid_source_surface", sql`${table.sourceSurface} IN ('mcp', 'ui')`),
+]);
+
+export const platformConfig = pgTable("platform_config", {
+  key: text("key").primaryKey(),
+  value: jsonb("value").$type<unknown>().notNull(),
+  updatedAt: timestamp("updated_at")
+    .defaultNow()
+    .$onUpdate(() => new Date())
+    .notNull(),
+});
 
 export const VERIFICATION_STATUS = {
   PENDING: 'pending',
@@ -450,6 +535,8 @@ export const userRelations = relations(user, ({ many }) => ({
   sessions: many(session),
   accounts: many(account),
   brainlifts: many(brainlifts),
+  sprintPlansCreated: many(plans),
+  deliverablesCreated: many(deliverables),
 }));
 
 export const sessionRelations = relations(session, ({ one }) => ({
@@ -477,6 +564,9 @@ export const brainliftsRelations = relations(brainlifts, ({ one, many }) => ({
   versions: many(brainliftVersions),
   experts: many(experts),
   shares: many(brainliftShares),
+  plans: many(plans),
+  tasks: many(tasks),
+  deliverables: many(deliverables),
   learningStreamItems: many(learningStreamItems),
   categories: many(categories),
   nativeDetails: one(nativeBrainliftDetails),
@@ -495,6 +585,45 @@ export const brainliftSharesRelations = relations(brainliftShares, ({ one }) => 
   }),
   createdBy: one(user, {
     fields: [brainliftShares.createdByUserId],
+    references: [user.id],
+  }),
+}));
+
+export const plansRelations = relations(plans, ({ one, many }) => ({
+  brainlift: one(brainlifts, {
+    fields: [plans.brainliftId],
+    references: [brainlifts.id],
+  }),
+  createdBy: one(user, {
+    fields: [plans.createdByUserId],
+    references: [user.id],
+  }),
+  tasks: many(tasks),
+}));
+
+export const tasksRelations = relations(tasks, ({ one }) => ({
+  plan: one(plans, {
+    fields: [tasks.planId],
+    references: [plans.id],
+  }),
+  brainlift: one(brainlifts, {
+    fields: [tasks.brainliftId],
+    references: [brainlifts.id],
+  }),
+  deliverable: one(deliverables),
+}));
+
+export const deliverablesRelations = relations(deliverables, ({ one }) => ({
+  task: one(tasks, {
+    fields: [deliverables.taskId],
+    references: [tasks.id],
+  }),
+  brainlift: one(brainlifts, {
+    fields: [deliverables.brainliftId],
+    references: [brainlifts.id],
+  }),
+  createdBy: one(user, {
+    fields: [deliverables.createdByUserId],
     references: [user.id],
   }),
 }));
@@ -1270,6 +1399,10 @@ export const insertDok2FactRelationSchema = createInsertSchema(dok2FactRelations
 export const insertDok3InsightSchema = createInsertSchema(dok3Insights).omit({ id: true, createdAt: true });
 export const insertDok3InsightLinkSchema = createInsertSchema(dok3InsightLinks).omit({ id: true });
 export const insertBrainliftShareSchema = createInsertSchema(brainliftShares).omit({ id: true, createdAt: true });
+export const insertPlanSchema = createInsertSchema(plans).omit({ id: true, createdAt: true });
+export const insertTaskSchema = createInsertSchema(tasks).omit({ id: true });
+export const insertDeliverableSchema = createInsertSchema(deliverables).omit({ id: true, createdAt: true });
+export const insertPlatformConfigSchema = createInsertSchema(platformConfig).omit({ updatedAt: true });
 export const insertLearningStreamItemSchema = createInsertSchema(learningStreamItems).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertCategorySchema = createInsertSchema(categories).omit({ id: true, createdAt: true });
 export const insertImportAgentConversationSchema = createInsertSchema(importAgentConversations).omit({ id: true, updatedAt: true });
@@ -1335,6 +1468,14 @@ export type DOK3InsightLink = typeof dok3InsightLinks.$inferSelect;
 export type InsertDOK3InsightLink = z.infer<typeof insertDok3InsightLinkSchema>;
 export type BrainliftShare = typeof brainliftShares.$inferSelect;
 export type InsertBrainliftShare = z.infer<typeof insertBrainliftShareSchema>;
+export type SprintPlan = typeof plans.$inferSelect;
+export type InsertSprintPlan = z.infer<typeof insertPlanSchema>;
+export type SprintTask = typeof tasks.$inferSelect;
+export type InsertSprintTask = z.infer<typeof insertTaskSchema>;
+export type Deliverable = typeof deliverables.$inferSelect;
+export type InsertDeliverable = z.infer<typeof insertDeliverableSchema>;
+export type PlatformConfig = typeof platformConfig.$inferSelect;
+export type InsertPlatformConfig = z.infer<typeof insertPlatformConfigSchema>;
 export type InsertLearningStreamItem = z.infer<typeof insertLearningStreamItemSchema>;
 export type Category = typeof categories.$inferSelect;
 export type InsertCategory = z.infer<typeof insertCategorySchema>;
