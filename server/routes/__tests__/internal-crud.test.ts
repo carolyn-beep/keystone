@@ -34,6 +34,8 @@ const {
   return {
     mockStorage: {
       getBrainliftBySlug: vi.fn(),
+      canAccessBrainlift: vi.fn(),
+      canModifyBrainlift: vi.fn(),
       // DOK1
       getFactByIdForBrainlift: vi.fn(),
       editFact: vi.fn(),
@@ -153,6 +155,12 @@ vi.mock('fs', () => ({
 
 beforeEach(() => {
   vi.clearAllMocks();
+  mockStorage.canAccessBrainlift.mockImplementation(async (brainlift: any, authContext: any) =>
+    brainlift.createdByUserId === authContext.userId
+  );
+  mockStorage.canModifyBrainlift.mockImplementation(async (brainlift: any, authContext: any) =>
+    brainlift.createdByUserId === authContext.userId
+  );
   // Setup withJob mock chain
   mockWithJob.mockReturnValue({
     forPayload: vi.fn().mockReturnValue({
@@ -221,6 +229,43 @@ describe('FR1: Internal Edit Endpoint', () => {
       expect.objectContaining({ dokLevel: 1, itemId: 1, brainliftId: 42 }),
     );
     expect(mockWithJob).toHaveBeenCalledWith('dok1:regrade');
+  });
+
+  it('allows shared editors to edit a DOK1 fact', async () => {
+    mockStorage.getBrainliftBySlug.mockResolvedValue({
+      ...testBrainlift,
+      createdByUserId: 'owner-user',
+    });
+    mockStorage.canModifyBrainlift.mockResolvedValue(true);
+    mockStorage.getFactByIdForBrainlift.mockResolvedValue({ id: 1, fact: 'Shared fact' });
+    mockStorage.editFact.mockResolvedValue({
+      previousText: 'Shared fact',
+      previousScore: 4,
+      previousFeedback: 'Solid',
+    });
+
+    const { internalEditHandler } = await import('../internal');
+    const req = createMockReq({
+      authContext: { userId: 'shared-editor', role: 'user', isAdmin: false },
+      params: { slug: 'test-bl', dokLevel: '1', itemId: '1' },
+      body: { text: 'Editor updated fact' },
+    });
+    const res = createMockRes();
+
+    await internalEditHandler(req, res);
+
+    expect(mockStorage.canModifyBrainlift).toHaveBeenCalledWith(
+      expect.objectContaining({ slug: 'test-bl' }),
+      expect.objectContaining({ userId: 'shared-editor' }),
+    );
+    expect(res.status).not.toHaveBeenCalledWith(404);
+    expect(res.json).toHaveBeenCalledWith(
+      expect.objectContaining({
+        id: 1,
+        dokLevel: 1,
+        status: 'regrading',
+      }),
+    );
   });
 
   it('edits a DOK2 summary with points', async () => {
@@ -333,7 +378,7 @@ describe('FR1: Internal Edit Endpoint', () => {
     expect(res.status).toHaveBeenCalledWith(404);
   });
 
-  it('returns 404 for slug owned by different user', async () => {
+  it('returns 404 when modify access is denied', async () => {
     mockStorage.getBrainliftBySlug.mockResolvedValue({
       ...testBrainlift,
       createdByUserId: 'other-user',
@@ -348,6 +393,10 @@ describe('FR1: Internal Edit Endpoint', () => {
 
     await internalEditHandler(req, res);
 
+    expect(mockStorage.canModifyBrainlift).toHaveBeenCalledWith(
+      expect.objectContaining({ slug: 'test-bl' }),
+      expect.objectContaining({ userId: 'test-user-1' }),
+    );
     expect(res.status).toHaveBeenCalledWith(404);
   });
 });
@@ -397,7 +446,10 @@ describe('FR2: Internal Delete Endpoint', () => {
     await internalDeleteHandler(req, res);
 
     expect(mockStorage.deleteFact).toHaveBeenCalledWith(1, 42);
-    expect(mockRecomputeBrainliftScore).toHaveBeenCalledWith(42);
+    expect(mockRecomputeBrainliftScore).toHaveBeenCalledWith(
+      42,
+      expect.objectContaining({ trigger: 'delete', dokLevel: 1, itemId: 1 }),
+    );
     expect(res.json).toHaveBeenCalled();
   });
 
@@ -595,6 +647,41 @@ describe('FR4: Stale Management Endpoints', () => {
       dok2: [5],
       dok3: [],
       dok4: [20],
+    });
+  });
+
+  it('allows shared viewers to read stale items', async () => {
+    mockStorage.getBrainliftBySlug.mockResolvedValue({
+      ...testBrainlift,
+      createdByUserId: 'owner-user',
+    });
+    mockStorage.canAccessBrainlift.mockResolvedValue(true);
+    mockGetStaleItems.mockResolvedValue({
+      dok1: [],
+      dok2: [5],
+      dok3: [],
+      dok4: [],
+    });
+
+    const { internalGetStaleHandler } = await import('../internal');
+    const req = createMockReq({
+      authContext: { userId: 'shared-viewer', role: 'user', isAdmin: false },
+      params: { slug: 'test-bl' },
+    });
+    const res = createMockRes();
+
+    await internalGetStaleHandler(req, res);
+
+    expect(mockStorage.canAccessBrainlift).toHaveBeenCalledWith(
+      expect.objectContaining({ slug: 'test-bl' }),
+      expect.objectContaining({ userId: 'shared-viewer' }),
+    );
+    expect(res.status).not.toHaveBeenCalledWith(404);
+    expect(res.json).toHaveBeenCalledWith({
+      dok1: [],
+      dok2: [5],
+      dok3: [],
+      dok4: [],
     });
   });
 

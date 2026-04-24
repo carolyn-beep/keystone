@@ -166,7 +166,7 @@ export async function listBrainliftsHandler(
     req.authContext!,
     offset,
     pageSize,
-    'owned',
+    'all',
   );
 
   res.json({
@@ -202,8 +202,8 @@ export async function statusHandler(
 ): Promise<void> {
   const { slug } = req.params;
 
-  const brainlift = await storage.getBrainliftBySlug(slug);
-  if (!brainlift || brainlift.createdByUserId !== req.authContext!.userId) {
+  const brainlift = await resolveInternalBrainlift(req, slug, 'access');
+  if (!brainlift) {
     res.status(404).json({ error: 'Brainlift not found' });
     return;
   }
@@ -247,8 +247,8 @@ export async function assessmentHandler(
     return;
   }
 
-  const brainlift = await storage.getBrainliftBySlug(slug);
-  if (!brainlift || brainlift.createdByUserId !== req.authContext!.userId) {
+  const brainlift = await resolveInternalBrainlift(req, slug, 'access');
+  if (!brainlift) {
     res.status(404).json({ error: 'Brainlift not found' });
     return;
   }
@@ -606,14 +606,26 @@ function deriveStatusFromProgress(
   return 'complete';
 }
 
+type InternalBrainliftAccess = 'access' | 'modify';
+
 /**
- * Resolve a brainlift by slug and verify the authenticated user owns it.
- * Returns null if not found or not owned (prevents IDOR).
+ * Resolve a brainlift by slug and verify the authenticated user has the
+ * required access level. Returns null for both "not found" and "not allowed"
+ * to preserve IDOR protections.
  */
-async function resolveOwnedBrainlift(slug: string, userId: number | string) {
+async function resolveInternalBrainlift(
+  req: Request,
+  slug: string,
+  requiredAccess: InternalBrainliftAccess,
+) {
   const brainlift = await storage.getBrainliftBySlug(slug);
-  if (!brainlift || brainlift.createdByUserId !== userId) return null;
-  return brainlift;
+  if (!brainlift) return null;
+
+  const hasAccess = requiredAccess === 'modify'
+    ? await storage.canModifyBrainlift(brainlift, req.authContext!)
+    : await storage.canAccessBrainlift(brainlift, req.authContext!);
+
+  return hasAccess ? brainlift : null;
 }
 
 /**
@@ -644,7 +656,7 @@ export async function internalEditHandler(
     return;
   }
 
-  const brainlift = await resolveOwnedBrainlift(slug, req.authContext!.userId);
+  const brainlift = await resolveInternalBrainlift(req, slug, 'modify');
   if (!brainlift) {
     res.status(404).json({ error: 'Brainlift not found' });
     return;
@@ -813,7 +825,7 @@ export async function internalDeleteHandler(
     return;
   }
 
-  const brainlift = await resolveOwnedBrainlift(slug, req.authContext!.userId);
+  const brainlift = await resolveInternalBrainlift(req, slug, 'modify');
   if (!brainlift) {
     res.status(404).json({ error: 'Brainlift not found' });
     return;
@@ -873,7 +885,7 @@ export async function internalCreateDok1Handler(
   req: Request,
   res: Response,
 ): Promise<void> {
-  const brainlift = await resolveOwnedBrainlift(req.params.slug, req.authContext!.userId);
+  const brainlift = await resolveInternalBrainlift(req, req.params.slug, 'modify');
   if (!brainlift) {
     res.status(404).json({ error: 'Brainlift not found' });
     return;
@@ -915,7 +927,7 @@ export async function internalCreateDok2Handler(
   req: Request,
   res: Response,
 ): Promise<void> {
-  const brainlift = await resolveOwnedBrainlift(req.params.slug, req.authContext!.userId);
+  const brainlift = await resolveInternalBrainlift(req, req.params.slug, 'modify');
   if (!brainlift) {
     res.status(404).json({ error: 'Brainlift not found' });
     return;
@@ -980,7 +992,7 @@ export async function internalCreateDok3Handler(
   req: Request,
   res: Response,
 ): Promise<void> {
-  const brainlift = await resolveOwnedBrainlift(req.params.slug, req.authContext!.userId);
+  const brainlift = await resolveInternalBrainlift(req, req.params.slug, 'modify');
   if (!brainlift) {
     res.status(404).json({ error: 'Brainlift not found' });
     return;
@@ -1046,7 +1058,7 @@ export async function internalCreateDok4Handler(
   req: Request,
   res: Response,
 ): Promise<void> {
-  const brainlift = await resolveOwnedBrainlift(req.params.slug, req.authContext!.userId);
+  const brainlift = await resolveInternalBrainlift(req, req.params.slug, 'modify');
   if (!brainlift) {
     res.status(404).json({ error: 'Brainlift not found' });
     return;
@@ -1120,7 +1132,7 @@ export async function internalGetStaleHandler(
   req: Request,
   res: Response,
 ): Promise<void> {
-  const brainlift = await resolveOwnedBrainlift(req.params.slug, req.authContext!.userId);
+  const brainlift = await resolveInternalBrainlift(req, req.params.slug, 'access');
   if (!brainlift) {
     res.status(404).json({ error: 'Brainlift not found' });
     return;
@@ -1155,7 +1167,7 @@ export async function internalDismissStaleHandler(
     return;
   }
 
-  const brainlift = await resolveOwnedBrainlift(slug, req.authContext!.userId);
+  const brainlift = await resolveInternalBrainlift(req, slug, 'modify');
   if (!brainlift) {
     res.status(404).json({ error: 'Brainlift not found' });
     return;
@@ -1184,7 +1196,7 @@ export async function internalLinkDok3Handler(
     return;
   }
 
-  const brainlift = await resolveOwnedBrainlift(slug, req.authContext!.userId);
+  const brainlift = await resolveInternalBrainlift(req, slug, 'modify');
   if (!brainlift) {
     res.status(404).json({ error: 'Brainlift not found' });
     return;
@@ -1255,7 +1267,7 @@ export async function internalLinkDok4Handler(
     return;
   }
 
-  const brainlift = await resolveOwnedBrainlift(slug, req.authContext!.userId);
+  const brainlift = await resolveInternalBrainlift(req, slug, 'modify');
   if (!brainlift) {
     res.status(404).json({ error: 'Brainlift not found' });
     return;

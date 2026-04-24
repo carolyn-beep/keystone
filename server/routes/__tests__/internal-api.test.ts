@@ -18,6 +18,7 @@ const { mockProcessGradeRequest, mockStorage } = vi.hoisted(() => ({
   mockStorage: {
     getBrainliftBySlug: vi.fn(),
     getBrainliftsForUserPaginated: vi.fn(),
+    canAccessBrainlift: vi.fn(),
   },
 }));
 
@@ -76,6 +77,9 @@ vi.mock('fs', () => ({
 
 beforeEach(() => {
   vi.clearAllMocks();
+  mockStorage.canAccessBrainlift.mockImplementation(async (brainlift: any, authContext: any) =>
+    brainlift.createdByUserId === authContext.userId
+  );
 });
 
 function createMockReq(overrides: Record<string, any> = {}): any {
@@ -226,6 +230,46 @@ describe('FR2: GET /api/internal/brainlifts', () => {
     );
   });
 
+  it('includes shared brainlifts for shared editors', async () => {
+    mockStorage.getBrainliftsForUserPaginated.mockResolvedValue({
+      brainlifts: [
+        {
+          id: 2,
+          slug: 'shared-bl',
+          title: 'Shared BL',
+          importStatus: 'complete',
+          summary: null,
+          createdAt: new Date('2026-01-02'),
+          createdByUserId: 'owner-user',
+        },
+      ],
+      total: 1,
+    });
+
+    const { listBrainliftsHandler } = await import('../internal');
+    const req = createMockReq({
+      authContext: { userId: 'shared-editor', role: 'user', isAdmin: false },
+      query: { page: '1', pageSize: '10' },
+    });
+    const res = createMockRes();
+
+    await listBrainliftsHandler(req, res);
+
+    expect(mockStorage.getBrainliftsForUserPaginated).toHaveBeenCalledWith(
+      expect.objectContaining({ userId: 'shared-editor' }),
+      0,
+      10,
+      'all',
+    );
+    expect(res.json).toHaveBeenCalledWith(
+      expect.objectContaining({
+        brainlifts: expect.arrayContaining([
+          expect.objectContaining({ slug: 'shared-bl', title: 'Shared BL' }),
+        ]),
+      }),
+    );
+  });
+
   it('caps pageSize at 20', async () => {
     mockStorage.getBrainliftsForUserPaginated.mockResolvedValue({
       brainlifts: [],
@@ -242,7 +286,7 @@ describe('FR2: GET /api/internal/brainlifts', () => {
       expect.anything(),
       0,  // offset
       20, // capped pageSize
-      'owned',
+      'all',
     );
   });
 
@@ -262,7 +306,7 @@ describe('FR2: GET /api/internal/brainlifts', () => {
       expect.anything(),
       0,  // offset = (1-1) * 10
       10, // default pageSize
-      'owned',
+      'all',
     );
   });
 });
@@ -325,7 +369,7 @@ describe('FR3: GET /api/internal/brainlifts/:slug/status', () => {
     expect(res.status).toHaveBeenCalledWith(404);
   });
 
-  it('returns 404 for slug owned by another user (IDOR prevention)', async () => {
+  it('returns 404 when read access is denied (IDOR prevention)', async () => {
     mockStorage.getBrainliftBySlug.mockResolvedValue({
       id: 1,
       slug: 'other-bl',
@@ -340,6 +384,10 @@ describe('FR3: GET /api/internal/brainlifts/:slug/status', () => {
 
     await statusHandler(req, res);
 
+    expect(mockStorage.canAccessBrainlift).toHaveBeenCalledWith(
+      expect.objectContaining({ slug: 'other-bl' }),
+      expect.objectContaining({ userId: 'test-user-1' }),
+    );
     expect(res.status).toHaveBeenCalledWith(404);
   });
 
@@ -456,6 +504,78 @@ describe('FR4: GET /api/internal/brainlifts/:slug/assessment', () => {
           pageSize: 20,
           totalItems: 1,
         }),
+      }),
+    );
+  });
+
+  it('allows shared editors to read assessment data', async () => {
+    mockStorage.getBrainliftBySlug.mockResolvedValue({
+      id: 2,
+      slug: 'shared-assess-bl',
+      title: 'Shared Assess BL',
+      importStatus: 'complete',
+      createdByUserId: 'owner-user',
+    });
+    mockStorage.canAccessBrainlift.mockResolvedValue(true);
+    mockGetAssessmentDOK1.mockResolvedValue({
+      items: [{ id: 7, fact: 'Shared fact', score: 5 }],
+      total: 1,
+    });
+
+    const { assessmentHandler } = await import('../internal');
+    const req = createMockReq({
+      authContext: { userId: 'shared-editor', role: 'user', isAdmin: false },
+      params: { slug: 'shared-assess-bl' },
+      query: { dok: '1' },
+    });
+    const res = createMockRes();
+
+    await assessmentHandler(req, res);
+
+    expect(mockStorage.canAccessBrainlift).toHaveBeenCalledWith(
+      expect.objectContaining({ slug: 'shared-assess-bl' }),
+      expect.objectContaining({ userId: 'shared-editor' }),
+    );
+    expect(res.status).not.toHaveBeenCalledWith(404);
+    expect(res.json).toHaveBeenCalledWith(
+      expect.objectContaining({
+        slug: 'shared-assess-bl',
+        items: expect.arrayContaining([
+          expect.objectContaining({ id: 7, fact: 'Shared fact' }),
+        ]),
+      }),
+    );
+  });
+
+  it('allows shared viewers to read assessment data', async () => {
+    mockStorage.getBrainliftBySlug.mockResolvedValue({
+      id: 3,
+      slug: 'viewer-assess-bl',
+      title: 'Viewer Assess BL',
+      importStatus: 'complete',
+      createdByUserId: 'owner-user',
+    });
+    mockStorage.canAccessBrainlift.mockResolvedValue(true);
+    mockGetAssessmentDOK2.mockResolvedValue({
+      items: [{ id: 8, points: ['Viewer point'] }],
+      total: 1,
+    });
+
+    const { assessmentHandler } = await import('../internal');
+    const req = createMockReq({
+      authContext: { userId: 'shared-viewer', role: 'user', isAdmin: false },
+      params: { slug: 'viewer-assess-bl' },
+      query: { dok: '2' },
+    });
+    const res = createMockRes();
+
+    await assessmentHandler(req, res);
+
+    expect(res.status).not.toHaveBeenCalledWith(404);
+    expect(res.json).toHaveBeenCalledWith(
+      expect.objectContaining({
+        slug: 'viewer-assess-bl',
+        dok: 2,
       }),
     );
   });
@@ -689,7 +809,7 @@ describe('FR4: GET /api/internal/brainlifts/:slug/assessment', () => {
     );
   });
 
-  it('returns 404 for slug owned by another user', async () => {
+  it('returns 404 when assessment read access is denied', async () => {
     mockStorage.getBrainliftBySlug.mockResolvedValue({
       id: 1,
       slug: 'other-bl',
@@ -706,6 +826,10 @@ describe('FR4: GET /api/internal/brainlifts/:slug/assessment', () => {
 
     await assessmentHandler(req, res);
 
+    expect(mockStorage.canAccessBrainlift).toHaveBeenCalledWith(
+      expect.objectContaining({ slug: 'other-bl' }),
+      expect.objectContaining({ userId: 'test-user-1' }),
+    );
     expect(res.status).toHaveBeenCalledWith(404);
   });
 
