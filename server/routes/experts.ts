@@ -34,7 +34,6 @@ expertsRouter.post(
       author: brainlift.author,
       facts: brainlift.facts,
       originalContent: brainlift.originalContent || '',
-      readingList: brainlift.readingList || [],
     });
 
     const savedExperts = await storage.saveExperts(brainlift.id, expertsData);

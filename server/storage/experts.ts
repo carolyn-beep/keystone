@@ -1,13 +1,24 @@
 import {
-  db, eq, desc, and,
+  db, eq, desc, and, sql,
   experts,
   type Expert, type InsertExpert
 } from './base';
+import { deriveTwitterHandle } from './brainlifts';
+
+function expertOrderBy() {
+  return [sql`${experts.rankScore} DESC NULLS LAST`, desc(experts.id)] as const;
+}
+
+function normalizeTwitterHandle(whereValue?: string | null): string | null {
+  if (!whereValue) return null;
+  const handle = deriveTwitterHandle(whereValue);
+  return handle ? `@${handle}` : null;
+}
 
 export async function getExpertsByBrainliftId(brainliftId: number): Promise<Expert[]> {
   return await db.select().from(experts)
     .where(eq(experts.brainliftId, brainliftId))
-    .orderBy(desc(experts.rankScore));
+    .orderBy(...expertOrderBy());
 }
 
 export async function saveExperts(brainliftId: number, expertsData: InsertExpert[]): Promise<Expert[]> {
@@ -18,8 +29,43 @@ export async function saveExperts(brainliftId: number, expertsData: InsertExpert
     if (expertsData.length === 0) return [];
 
     const inserted = await tx.insert(experts).values(expertsData).returning();
-    return inserted.sort((a, b) => (b.rankScore ?? 0) - (a.rankScore ?? 0));
+    return inserted.sort((a, b) => {
+      if (a.rankScore === null && b.rankScore === null) return b.id - a.id;
+      if (a.rankScore === null) return 1;
+      if (b.rankScore === null) return -1;
+      return b.rankScore - a.rankScore || b.id - a.id;
+    });
   });
+}
+
+export async function createExpertsForBrainlift(
+  brainliftId: number,
+  expertsData: Array<{
+    name: string;
+    who: string;
+    why: string;
+    focus?: string | null;
+    where?: string | null;
+    twitterHandle?: string | null;
+  }>,
+): Promise<Expert[]> {
+  if (expertsData.length === 0) return [];
+
+  return db.insert(experts).values(
+    expertsData.map((expert) => ({
+      brainliftId,
+      name: expert.name,
+      who: expert.who,
+      why: expert.why,
+      focus: expert.focus ?? null,
+      where: expert.where ?? null,
+      rankScore: null,
+      rationale: null,
+      source: 'listed',
+      twitterHandle: expert.twitterHandle ?? normalizeTwitterHandle(expert.where),
+      isFollowing: true,
+    })),
+  ).returning();
 }
 
 export async function getFollowedExperts(brainliftId: number): Promise<Expert[]> {
@@ -28,7 +74,7 @@ export async function getFollowedExperts(brainliftId: number): Promise<Expert[]>
       eq(experts.brainliftId, brainliftId),
       eq(experts.isFollowing, true)
     ))
-    .orderBy(desc(experts.rankScore));
+    .orderBy(...expertOrderBy());
 }
 
 /**
@@ -58,4 +104,25 @@ export async function deleteExpertForBrainlift(
   const result = await db.delete(experts)
     .where(and(eq(experts.id, expertId), eq(experts.brainliftId, brainliftId)));
   return (result.rowCount ?? 0) > 0;
+}
+
+export async function updateExpertRankings(
+  brainliftId: number,
+  rankings: Array<{ expertId: number; rankScore: number | null; rationale: string | null }>,
+): Promise<void> {
+  if (rankings.length === 0) return;
+
+  await db.transaction(async (tx) => {
+    for (const ranking of rankings) {
+      await tx.update(experts)
+        .set({
+          rankScore: ranking.rankScore,
+          rationale: ranking.rationale,
+        })
+        .where(and(
+          eq(experts.id, ranking.expertId),
+          eq(experts.brainliftId, brainliftId),
+        ));
+    }
+  });
 }

@@ -10,6 +10,10 @@ import {
 import { getDOK2Summaries, deleteDOK2Summaries } from './dok2';
 import { getSharedBrainlifts } from './shares';
 
+function expertOrderBy() {
+  return [sql`${experts.rankScore} DESC NULLS LAST`, desc(experts.id)] as const;
+}
+
 export async function getBrainliftBySlug(slug: string): Promise<BrainliftData | undefined> {
   const [brainlift] = await db.select().from(brainlifts).where(eq(brainlifts.slug, slug));
 
@@ -17,7 +21,9 @@ export async function getBrainliftBySlug(slug: string): Promise<BrainliftData | 
 
   const brainliftFacts = await db.select().from(facts).where(eq(facts.brainliftId, brainlift.id));
   const clusters = await db.select().from(contradictionClusters).where(eq(contradictionClusters.brainliftId, brainlift.id));
-  const brainliftExperts = await db.select().from(experts).where(eq(experts.brainliftId, brainlift.id));
+  const brainliftExperts = await db.select().from(experts)
+    .where(eq(experts.brainliftId, brainlift.id))
+    .orderBy(...expertOrderBy());
   const dok2SummariesData = await getDOK2Summaries(brainlift.id);
 
   return {
@@ -25,7 +31,7 @@ export async function getBrainliftBySlug(slug: string): Promise<BrainliftData | 
     improperlyFormatted: brainlift.improperlyFormatted ?? false,
     facts: brainliftFacts,
     contradictionClusters: clusters,
-    experts: brainliftExperts.sort((a, b) => (b.rankScore ?? 0) - (a.rankScore ?? 0)),
+    experts: brainliftExperts,
     dok2Summaries: dok2SummariesData.length > 0 ? dok2SummariesData : undefined,
   };
 }
@@ -42,7 +48,9 @@ export async function getBrainliftDataById(id: number): Promise<BrainliftData | 
 
   const brainliftFacts = await db.select().from(facts).where(eq(facts.brainliftId, brainlift.id));
   const clusters = await db.select().from(contradictionClusters).where(eq(contradictionClusters.brainliftId, brainlift.id));
-  const brainliftExperts = await db.select().from(experts).where(eq(experts.brainliftId, brainlift.id));
+  const brainliftExperts = await db.select().from(experts)
+    .where(eq(experts.brainliftId, brainlift.id))
+    .orderBy(...expertOrderBy());
   const dok2SummariesData = await getDOK2Summaries(brainlift.id);
 
   return {
@@ -50,7 +58,7 @@ export async function getBrainliftDataById(id: number): Promise<BrainliftData | 
     improperlyFormatted: brainlift.improperlyFormatted ?? false,
     facts: brainliftFacts,
     contradictionClusters: clusters,
-    experts: brainliftExperts.sort((a, b) => (b.rankScore ?? 0) - (a.rankScore ?? 0)),
+    experts: brainliftExperts,
     dok2Summaries: dok2SummariesData.length > 0 ? dok2SummariesData : undefined,
   };
 }
@@ -463,7 +471,7 @@ export async function getSprintPlanContext(brainliftId: number): Promise<SprintG
       })
       .from(experts)
       .where(eq(experts.brainliftId, brainliftId))
-      .orderBy(desc(experts.rankScore), desc(experts.id))
+      .orderBy(...expertOrderBy())
       .limit(SPRINT_CONTEXT_EXPERT_LIMIT),
     db
       .select({
@@ -679,7 +687,7 @@ export async function getLearningStreamContext(brainliftId: number): Promise<Lea
         eq(experts.isFollowing, true)
       )
     )
-    .orderBy(desc(experts.rankScore))
+    .orderBy(...expertOrderBy())
     .limit(10);
 
   // Native fallback: use builder experts when no ranked experts exist

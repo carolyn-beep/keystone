@@ -14,6 +14,10 @@ export function extractTwitterHandle(block: string): string | null {
     /\[@([A-Za-z0-9_]+)\]\(https?:\/\/(?:x|twitter)\.com\/[^)]+\)/i,
     // Markdown link with URL containing handle: [text](https://x.com/handle)
     /\[[^\]]*\]\(https?:\/\/(?:x|twitter)\.com\/([A-Za-z0-9_]+)[^)]*\)/i,
+    // Where: @handle
+    /(?:^|\n)\s*-?\s*Where\s*:\s*@([A-Za-z0-9_]+)/im,
+    // Where: https://x.com/handle
+    /(?:^|\n)\s*-?\s*Where\s*:\s*(?:https?:\/\/)?(?:www\.)?(?:x|twitter)\.com\/([A-Za-z0-9_]+)/im,
     // URL with handle: https://x.com/handle (with various terminators)
     /(?:https?:\/\/)?(?:x|twitter)\.com\/([A-Za-z0-9_]+)(?:[?\s)\]]|$)/i,
     // X: @handle or Twitter: @handle (with or without colon)
@@ -72,7 +76,15 @@ export function extractExpertsFromFactSources(
         const normalizedName = name.toLowerCase();
         if (!seenNames.has(normalizedName)) {
           seenNames.add(normalizedName);
-          experts.push({ name, twitterHandle: null, description });
+          experts.push({
+            name,
+            twitterHandle: null,
+            description,
+            who: null,
+            why: null,
+            focus: null,
+            where: null,
+          });
         }
         break;
       }

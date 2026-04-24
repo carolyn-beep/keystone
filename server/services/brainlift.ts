@@ -44,78 +44,54 @@ type GradedFactSummary = {
   verification?: PersistFactVerificationInput['verification'];
 };
 
-/**
- * Run post-processing pipeline (expert extraction + redundancy analysis) after brainlift creation/update.
- * Both tasks run in parallel and errors are logged but don't fail the main operation.
- */
-export async function runPostProcessingPipeline(
+export async function extractBrainliftExperts(
   input: PostProcessingInput,
-  onProgress?: ProgressCallback
+  onProgress?: ProgressCallback,
 ): Promise<void> {
-  await Promise.all([
-    // Expert extraction
-    (async () => {
-      try {
-        onProgress?.({ stage: 'experts', message: STAGE_LABELS.experts });
-        const expertData = await extractAndRankExperts({
-          brainliftId: input.brainliftId,
-          title: input.title,
-          description: input.description,
-          author: input.author,
-          facts: input.facts as any[],
-          originalContent: input.originalContent,
-        });
+  try {
+    onProgress?.({ stage: 'experts', message: STAGE_LABELS.experts });
+    const expertData = await extractAndRankExperts({
+      brainliftId: input.brainliftId,
+      title: input.title,
+      description: input.description,
+      author: input.author,
+      facts: input.facts as any[],
+      originalContent: input.originalContent,
+    });
 
-        if (expertData.length > 0) {
-          await storage.saveExperts(input.brainliftId, expertData);
-        }
-      } catch (err) {
-        console.error("Expert extraction failed during post-processing:", err);
-      }
-    })(),
+    if (expertData.length > 0) {
+      await storage.saveExperts(input.brainliftId, expertData);
+    }
+  } catch (err) {
+    console.error('Expert extraction failed during post-processing:', err);
+  }
+}
 
-    // Redundancy analysis
-    (async () => {
-      try {
-        onProgress?.({ stage: 'redundancy', message: STAGE_LABELS.redundancy });
-        const savedFacts = await storage.getFactsForBrainlift(input.brainliftId);
-        const redundancyResult = await analyzeFactRedundancy(savedFacts);
+export async function analyzeBrainliftRedundancy(
+  input: PostProcessingInput,
+  onProgress?: ProgressCallback,
+): Promise<void> {
+  try {
+    onProgress?.({ stage: 'redundancy', message: STAGE_LABELS.redundancy });
+    const savedFacts = await storage.getFactsForBrainlift(input.brainliftId);
+    const redundancyResult = await analyzeFactRedundancy(savedFacts);
 
-        if (redundancyResult.redundancyGroups.length > 0) {
-          await storage.saveRedundancyGroups(input.brainliftId, redundancyResult.redundancyGroups.map(g => ({
-            groupName: g.groupName,
-            factIds: g.factIds,
-            primaryFactId: g.primaryFactId,
-            similarityScore: g.similarityScore,
-            reason: g.reason,
-            status: 'pending' as const,
-          })));
-        }
-      } catch (err) {
-        console.error("Redundancy analysis failed during post-processing:", err);
-      }
-    })(),
-  ]);
+    if (redundancyResult.redundancyGroups.length > 0) {
+      await storage.saveRedundancyGroups(input.brainliftId, redundancyResult.redundancyGroups.map(g => ({
+        groupName: g.groupName,
+        factIds: g.factIds,
+        primaryFactId: g.primaryFactId,
+        similarityScore: g.similarityScore,
+        reason: g.reason,
+        status: 'pending' as const,
+      })));
+    }
+  } catch (err) {
+    console.error('Redundancy analysis failed during post-processing:', err);
+  }
+}
 
-  // Queue learning stream research job (non-blocking)
-  // This runs AFTER experts are extracted and saved to database
-  // DISABLED: Temporarily commented out for testing
-  // try {
-  //   const { withJob } = await import('../utils/withJob');
-  //
-  //   await withJob('learning-stream:research')
-  //     .forPayload({
-  //       brainliftId: input.brainliftId,
-  //     })
-  //     .queue();
-  //
-  //   console.log(`[Learning Stream] Research job queued for brainlift ${input.slug}`);
-  // } catch (jobErr) {
-  //   // Don't fail the import if job queuing fails
-  //   console.error('[Learning Stream] Failed to queue research job:', jobErr);
-  // }
-
-  // Queue cover image generation job (non-blocking)
+export async function queueBrainliftAssetJobs(input: Pick<PostProcessingInput, 'brainliftId' | 'slug'>): Promise<void> {
   try {
     const { withJob } = await import('../utils/withJob');
 
@@ -699,16 +675,21 @@ export async function saveBrainliftFromAI(
     throw err;
   }
 
-  // Run expert extraction and redundancy analysis in parallel after save
-  await runPostProcessingPipeline({
+  const postProcessingInput = {
     brainliftId: brainlift.id,
-    slug: slug,
+    slug,
     title: data.title,
     description: data.description,
     author: data.owner || null,
     facts: factsWithSummaries,
     originalContent: originalContent || '',
-  }, onProgress);
+  };
+
+  await Promise.all([
+    extractBrainliftExperts(postProcessingInput, onProgress),
+    analyzeBrainliftRedundancy(postProcessingInput, onProgress),
+  ]);
+  await queueBrainliftAssetJobs(postProcessingInput);
 
   return storage.getBrainliftBySlug(slug) as Promise<BrainliftData>;
 }

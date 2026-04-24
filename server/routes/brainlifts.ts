@@ -5,7 +5,12 @@ import { z } from "zod";
 import multer from "multer";
 import { extractBrainlift } from "../ai/brainliftExtractor";
 import { extractContent, validateContent, type SourceType } from "../utils/content-extractor";
-import { saveBrainliftFromAI, runPostProcessingPipeline } from "../services/brainlift";
+import {
+  analyzeBrainliftRedundancy,
+  extractBrainliftExperts,
+  queueBrainliftAssetJobs,
+  saveBrainliftFromAI,
+} from "../services/brainlift";
 import { preformatHierarchy } from "../services/brainlift-preformat";
 import { evaluateNeedsPreformat } from "../ai/preformat/evaluator";
 import { requireAuth } from "../middleware/auth";
@@ -354,8 +359,7 @@ brainliftsRouter.patch(
       clusters
     );
 
-    // Run expert extraction and redundancy analysis in parallel after update
-    await runPostProcessingPipeline({
+    const postProcessingInput = {
       brainliftId: updatedBrainlift.id,
       slug: slug,
       title: brainliftData.title,
@@ -363,7 +367,13 @@ brainliftsRouter.patch(
       author: (brainliftData as any).author || null,
       facts: facts,
       originalContent: content,
-    });
+    };
+
+    await Promise.all([
+      extractBrainliftExperts(postProcessingInput),
+      analyzeBrainliftRedundancy(postProcessingInput),
+    ]);
+    await queueBrainliftAssetJobs(postProcessingInput);
 
     res.json(await storage.getBrainliftBySlug(slug));
   })

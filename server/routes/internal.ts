@@ -10,11 +10,15 @@
  *   GET  /api/internal/brainlifts                  — Paginated list of user's brainlifts (spec 03)
  *   GET  /api/internal/brainlifts/:slug/status     — Grading progress (spec 03)
  *   GET  /api/internal/brainlifts/:slug/assessment — Paginated assessment results (spec 03)
+ *   GET  /api/internal/brainlifts/:slug/experts    — List experts for one brainlift
+ *   POST /api/internal/brainlifts/:slug/experts    — Create experts for one brainlift
+ *   DELETE /api/internal/brainlifts/:slug/experts/:id — Delete one expert
  */
 
 import { Router, type Request, type Response } from 'express';
 import { readFileSync, existsSync } from 'fs';
 import path from 'path';
+import { z } from 'zod';
 import {
   createDeliverableRequestSchema,
   listTasksQuerySchema,
@@ -55,6 +59,16 @@ import {
 } from './sprints';
 
 export const internalRouter = Router();
+
+const createExpertsRequestSchema = z.object({
+  experts: z.array(z.object({
+    name: z.string().trim().min(1),
+    who: z.string().trim().min(1),
+    why: z.string().trim().min(1),
+    focus: z.string().trim().min(1).optional(),
+    where: z.string().trim().min(1).optional(),
+  })).min(1),
+});
 
 // ── Template endpoint (spec 02) ──
 
@@ -308,6 +322,91 @@ internalRouter.get(
   '/api/internal/brainlifts/:slug/assessment',
   requireServiceAuth,
   asyncHandler(assessmentHandler),
+);
+
+async function queueExpertsRerank(brainliftId: number): Promise<void> {
+  try {
+    await withJob('experts:rerank')
+      .forPayload({ brainliftId })
+      .withOptions({ jobKey: `rerank-experts-${brainliftId}` })
+      .queue();
+  } catch (error) {
+    console.error('[Internal Experts] Failed to queue rerank job:', error);
+  }
+}
+
+export async function listExpertsHandler(
+  req: Request,
+  res: Response,
+): Promise<void> {
+  const brainlift = await resolveInternalBrainlift(req, req.params.slug, 'access');
+  if (!brainlift) {
+    res.status(404).json({ error: 'Brainlift not found' });
+    return;
+  }
+
+  const experts = await storage.getExpertsByBrainliftId(brainlift.id);
+  res.json(experts);
+}
+
+export async function createExpertsHandler(
+  req: Request,
+  res: Response,
+): Promise<void> {
+  const brainlift = await resolveInternalBrainlift(req, req.params.slug, 'modify');
+  if (!brainlift) {
+    res.status(404).json({ error: 'Brainlift not found' });
+    return;
+  }
+
+  const { experts } = createExpertsRequestSchema.parse(req.body);
+  const createdExperts = await storage.createExpertsForBrainlift(brainlift.id, experts);
+  await queueExpertsRerank(brainlift.id);
+  res.status(201).json(createdExperts);
+}
+
+export async function deleteExpertHandler(
+  req: Request,
+  res: Response,
+): Promise<void> {
+  const brainlift = await resolveInternalBrainlift(req, req.params.slug, 'modify');
+  if (!brainlift) {
+    res.status(404).json({ error: 'Brainlift not found' });
+    return;
+  }
+
+  const expertId = parseInt(req.params.id, 10);
+  if (isNaN(expertId)) {
+    res.status(400).json({ error: 'Invalid expert ID' });
+    return;
+  }
+
+  const deleted = await storage.deleteExpertForBrainlift(expertId, brainlift.id);
+  if (!deleted) {
+    res.status(404).json({ error: 'Expert not found' });
+    return;
+  }
+
+  await queueExpertsRerank(brainlift.id);
+  res.status(204).end();
+}
+
+internalRouter.get(
+  '/api/internal/brainlifts/:slug/experts',
+  requireServiceAuth,
+  asyncHandler(listExpertsHandler),
+);
+
+internalRouter.post(
+  '/api/internal/brainlifts/:slug/experts',
+  requireServiceAuth,
+  asyncHandler(createExpertsHandler),
+);
+
+internalRouter.delete(
+  '/api/internal/brainlifts/:slug/experts/:id',
+  requireServiceAuth,
+  asyncHandler(deleteExpertHandler),
 );
 
 // ── Scope Breaker internal sprint routes (spec 03) ──

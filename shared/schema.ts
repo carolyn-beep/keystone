@@ -252,6 +252,10 @@ export const experts = pgTable("experts", {
   id: serial("id").primaryKey(),
   brainliftId: integer("brainlift_id").notNull().references(() => brainlifts.id),
   name: text("name").notNull(),
+  who: text("who"),
+  why: text("why"),
+  focus: text("focus"),
+  where: text("where"),
   rankScore: integer("rank_score"), // 1-10 impact score (null if unranked)
   rationale: text("rationale"), // One-line explanation for ranking (null if unranked)
   source: text("source").notNull(), // "listed" (from brainlift) or "verification" (from fact notes)

@@ -13,6 +13,16 @@ export const expertExtractionSchema = z.object({
 
 export type ExpertExtractionOutput = z.infer<typeof expertExtractionSchema>;
 
+export const expertRerankSchema = z.object({
+  experts: z.array(z.object({
+    expertId: z.number().int().positive(),
+    rankScore: z.number().min(1).max(10).nullable(),
+    rationale: z.string().nullable(),
+  })),
+});
+
+export type ExpertRerankOutput = z.infer<typeof expertRerankSchema>;
+
 export interface ExtractionInput {
   brainliftId: number;
   title: string;
@@ -36,7 +46,7 @@ export interface ExpertProfile {
 export type ParserType = 'h2_header' | 'numbered' | 'bullet_fallback' | 'none';
 
 export interface DocumentExtractionResult {
-  experts: Array<{name: string, twitterHandle: string | null, description: string}>;
+  experts: ExtractedExpert[];
   parserUsed: ParserType;
   expertsSectionFound: boolean;
   expertsSectionLength: number | null;
@@ -65,6 +75,10 @@ export interface ExtractedExpert {
   name: string;
   twitterHandle: string | null;
   description: string;
+  who: string | null;
+  why: string | null;
+  focus: string | null;
+  where: string | null;
 }
 
 export { InsertExpert };

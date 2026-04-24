@@ -89,8 +89,10 @@ export const storage = {
   // Experts
   getExpertsByBrainliftId: expertsStorage.getExpertsByBrainliftId,
   saveExperts: expertsStorage.saveExperts,
+  createExpertsForBrainlift: expertsStorage.createExpertsForBrainlift,
   getFollowedExperts: expertsStorage.getFollowedExperts,
   updateExpertFollowingForBrainlift: expertsStorage.updateExpertFollowingForBrainlift,
+  updateExpertRankings: expertsStorage.updateExpertRankings,
   deleteExpertForBrainlift: expertsStorage.deleteExpertForBrainlift,
 
   // Verifications
