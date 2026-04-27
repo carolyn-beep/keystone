@@ -24,11 +24,16 @@ export type {
   BuilderExpert, InsertBuilderExpert,
   NativePhaseProgress, BuilderPhaseStatus, BuilderSuggestionStatus,
   Category, InsertCategory, CategorySuggestionState,
+  SprintPlan, InsertSprintPlan, SprintPlanStatus,
+  SprintTask, InsertSprintTask, SprintTaskMilestone,
+  Deliverable, InsertDeliverable, DeliverableSourceSurface,
+  PlatformConfig, InsertPlatformConfig,
   ApiKey,
 } from "@shared/schema";
 
 export {
-  brainlifts, facts, contradictionClusters,
+  user,
+  brainlifts, brainliftShares, facts, contradictionClusters,
   brainliftVersions, experts, factVerifications, factModelScores,
   llmFeedback, modelAccuracyStats, factRedundancyGroups,
   brainliftScoreLog, brainliftScoreSummary,
@@ -40,6 +45,7 @@ export {
   importAgentConversations, brainliftSources,
   nativeBrainliftDetails, builderExperts,
   categories,
+  plans, tasks, deliverables, platformConfig,
   apiKeys,
 } from "@shared/schema";
 

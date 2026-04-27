@@ -84,6 +84,8 @@ describe('processGradeRequest', () => {
     expect(mockParseMarkdownBrainlift).toHaveBeenCalledWith('# BL\n\nContent');
     expect(mockExtractBrainlift).toHaveBeenCalled();
     expect(mockCreateBrainlift).toHaveBeenCalled();
+    const createCall = mockCreateBrainlift.mock.calls[0];
+    expect(createCall[0].origin).toBe('mcp');
     expect(mockWithJob).toHaveBeenCalledWith('internal:grade');
     expect(mockQueueFn).toHaveBeenCalled();
   });

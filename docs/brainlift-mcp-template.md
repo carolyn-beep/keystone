@@ -55,6 +55,8 @@ Everything below this line defines the exact structure the parser expects. Follo
 
 **The entire document is built from indented bullet lists.** Every piece of content is a `- ` prefixed line, and the parent-child hierarchy is determined entirely by indentation (2 spaces per level). Think of it like an outliner: each indent level nests content one layer deeper.
 
+**One intentional exception exists:** the `## Experts` block below uses plain markdown headings and plain text fields. This is safe. The DOK parser ignores those lines, while the expert extractor reads them from `originalContent`.
+
 ---
 
 ## Template
@@ -67,6 +69,20 @@ Everything below this line defines the exact structure the parser expects. Follo
 
 - Purpose
   - [What this Brainlift is about and why it matters]
+
+## Experts
+
+## [Expert Name]
+Who: [One-line description of who they are]
+Why follow: [Why they matter for this brainlift]
+Focus: [Optional subject-matter focus]
+Where: [Optional X/Twitter handle or profile URL]
+
+## [Another Expert Name]
+Who: [One-line description]
+Why follow: [Why they matter]
+Focus: [Optional focus]
+Where: [Optional handle or URL]
 
 - Knowledge Tree
   - Category: [Category Name]
@@ -133,7 +149,7 @@ The levels build on each other: DOK1 facts support DOK2 summaries, DOK2 summarie
 ### Structure
 
 - The file starts with `# Title` on the first line
-- **Every line of content is a `- ` prefixed bullet.** There are no plain text lines, no numbered lists, no headers other than the title. Bullets are the only content format.
+- **Every line of DOK content is a `- ` prefixed bullet.** There are no numbered lists, and no headers other than the title plus the intentional `## Experts` block. Bullets are the only content format for Owner, Purpose, Knowledge Tree, DOK3, and DOK4.
 - **Indentation is exactly 2 spaces per level.** This is how the parser determines what belongs to what. A fact indented 6 spaces deep lives under a DOK1 marker indented 4 spaces deep, which lives under a Source indented 2 spaces deep. Get this wrong and content gets orphaned or misattributed.
   ```
   - Level 0 (0 spaces before -)
@@ -152,6 +168,7 @@ These keywords are detected by exact patterns. Use them exactly as shown:
 |---------|--------|-------|
 | Owner | `- Owner` (alone on its line, name on next line as child) | NOT `- Owner: Name` |
 | Purpose | `- Purpose` (alone on its line, content as children) | Must be exactly "Purpose", nothing after it |
+| Experts | `## Experts` followed by repeated `## [Expert Name]` blocks | Exception: plain-text section consumed by the expert extractor, not the DOK bullet parser |
 | Knowledge Tree | `- Knowledge Tree` | Container for all categories and sources |
 | Category | `- Category: [Name]` | Groups related sources together. Nested under Knowledge Tree |
 | Source | `- Source N: [Name]` | Globally numbered: Source 1, Source 2, Source 3, etc. |
@@ -202,6 +219,7 @@ Each DOK4 SPOV must have a `Links` child listing which DOK3 insights it builds o
 
 ### Content Requirements
 
+- Experts: include at least 3 real public figures when creating a new Brainlift. Each expert needs `Who` and `Why follow`; `Focus` and `Where` are optional but encouraged.
 - Facts (DOK1): at least 10 characters each
 - Summary points (DOK2): at least 10 characters each
 - SPOVs (DOK4): at least 10 characters each
@@ -219,6 +237,25 @@ Each DOK4 SPOV must have a `Links` child listing which DOK3 insights it builds o
 
 - Purpose
   - Understanding how Name, Image, and Likeness policies are reshaping college athletics recruiting, compliance, and athlete development
+
+## Experts
+
+## Michael McCann
+Who: Sports law professor and legal analyst
+Why follow: Tracks the legal and antitrust implications of NIL policy changes
+Focus: NCAA litigation and athlete compensation
+Where: @McCannSportsLaw
+
+## Eben Novy-Williams
+Who: Sports business reporter
+Why follow: Covers how NIL markets, collectives, and media rights reshape incentives
+Focus: NIL deal economics and institutional strategy
+Where: @novy_williams
+
+## Karen Weaver
+Who: Former athletic director and sports-management scholar
+Why follow: Brings governance and compliance context to how programs operationalize NIL
+Focus: Athletic department strategy and regulation
 
 - Knowledge Tree
   - Category: Legal Framework

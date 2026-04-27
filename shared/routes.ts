@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { insertBrainliftSchema, brainlifts, insertFactSchema, insertContradictionClusterSchema } from './schema';
+import { insertBrainliftSchema, brainlifts, insertFactSchema, insertContradictionClusterSchema, type SprintTaskMilestone } from './schema';
 
 export const errorSchemas = {
   validation: z.object({
@@ -118,3 +118,164 @@ export function buildUrl(path: string, params?: Record<string, string | number>)
 
 export type BrainliftListResponse = z.infer<typeof api.brainlifts.list.responses[200]>;
 export type BrainliftDetailResponse = z.infer<typeof api.brainlifts.get.responses[200]>;
+
+const ISO_LOCAL_DATE_REGEX = /^\d{4}-\d{2}-\d{2}$/;
+
+function isValidLocalDate(value: string): boolean {
+  if (!ISO_LOCAL_DATE_REGEX.test(value)) return false;
+  const parsed = new Date(`${value}T00:00:00.000Z`);
+  return !Number.isNaN(parsed.getTime()) && parsed.toISOString().slice(0, 10) === value;
+}
+
+export const localDateSchema = z
+  .string()
+  .regex(ISO_LOCAL_DATE_REGEX, 'Expected YYYY-MM-DD')
+  .refine(isValidLocalDate, 'Expected valid calendar date');
+
+const queryBooleanSchema = z.preprocess((value) => {
+  if (typeof value === 'boolean') return value;
+  if (value === 'true') return true;
+  if (value === 'false') return false;
+  return value;
+}, z.boolean());
+
+const queryIntegerSchema = z.preprocess((value) => {
+  if (typeof value === 'number') return value;
+  if (typeof value === 'string' && value.trim().length > 0) return Number(value);
+  return value;
+}, z.number().int().positive());
+
+const weekQuerySchema = z.preprocess((value) => {
+  if (typeof value === 'number') return value;
+  if (typeof value === 'string' && value.trim().length > 0) return Number(value);
+  return value;
+}, z.number().int().min(1));
+
+export const generatePlanDiagnosisSchema = z.object({
+  goalRaw: z.string().trim().min(1).max(2000),
+  currentState: z.string().trim().min(1).max(4000),
+});
+
+export type GeneratePlanDiagnosis = z.infer<typeof generatePlanDiagnosisSchema>;
+
+export const generatePlanRequestSchema = z.object({
+  localDate: localDateSchema,
+  diagnosis: generatePlanDiagnosisSchema,
+});
+
+export type GeneratePlanRequest = z.infer<typeof generatePlanRequestSchema>;
+
+export interface PlanHistoryItem {
+  id: number;
+  startDate: string;
+  endDate: string;
+  status: 'active' | 'complete' | 'generating' | 'failed';
+  taskCount: number;
+  completedTaskCount: number;
+  generationError?: string | null;
+}
+
+export interface TaskListItem {
+  id: number;
+  planId: number;
+  scheduledDate: string;
+  weekNumber: number;
+  dayInWeek: number;
+  title: string;
+  description: string;
+  milestone: SprintTaskMilestone | null;
+  isComplete: boolean;
+  isPastDue: boolean;
+  deliverable: {
+    id: number;
+    title: string;
+    docUrl: string;
+    createdAt: string;
+  } | null;
+}
+
+export interface CrossBrainliftTaskListItem extends TaskListItem {
+  brainliftSlug: string;
+  brainliftTitle: string;
+}
+
+export interface TaskDetailResponse extends TaskListItem {
+  plan: {
+    id: number;
+    startDate: string;
+    endDate: string;
+    status: 'active' | 'complete' | 'generating' | 'failed';
+  };
+}
+
+export interface GeneratedPlanResponse {
+  plan: PlanHistoryItem;
+  tasks: TaskListItem[];
+}
+
+export const listTasksQuerySchema = z
+  .object({
+    date: localDateSchema.optional(),
+    week: weekQuerySchema.optional(),
+    state: z.enum(['all', 'complete', 'incomplete']).optional().default('all'),
+    includePastDue: queryBooleanSchema.optional().default(false),
+    localDate: localDateSchema.optional(),
+  })
+  .superRefine((value, ctx) => {
+    if (value.includePastDue && !value.localDate) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['localDate'],
+        message: 'localDate is required when includePastDue=true',
+      });
+    }
+  });
+
+export type ListTasksQuery = z.infer<typeof listTasksQuerySchema>;
+
+export const taskIdParamsSchema = z.object({
+  taskId: queryIntegerSchema,
+});
+
+export type TaskIdParams = z.infer<typeof taskIdParamsSchema>;
+
+export const createDeliverableRequestSchema = z.object({
+  title: z.string().trim().min(1),
+  markdown: z.string(),
+});
+
+export type CreateDeliverableRequest = z.infer<typeof createDeliverableRequestSchema>;
+
+export interface ReadDeliverableResponse {
+  title: string;
+  contentMarkdown: string;
+  docUrl: string;
+}
+
+export const updateDeliverableRequestSchema = z.object({
+  markdown: z.string(),
+});
+
+export type UpdateDeliverableRequest = z.infer<typeof updateDeliverableRequestSchema>;
+
+export interface DeliverableListItem {
+  id: number;
+  taskId: number;
+  planId: number;
+  title: string;
+  taskTitle: string;
+  scheduledDate: string;
+  createdAt: string;
+  docUrl: string;
+}
+
+export interface DeliverableListResponse {
+  plans: PlanHistoryItem[];
+  deliverables: DeliverableListItem[];
+}
+
+export const listDeliverablesQuerySchema = z.object({
+  planId: queryIntegerSchema.optional(),
+});
+
+export type ListDeliverablesQuery = z.infer<typeof listDeliverablesQuerySchema>;

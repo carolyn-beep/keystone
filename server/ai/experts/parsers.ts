@@ -1,6 +1,20 @@
 import type { DocumentExtractionResult, ExtractedExpert } from './types';
 import { extractTwitterHandle } from './extractors';
 
+function extractStructuredField(block: string, label: string): string | null {
+  const escaped = label.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const match = block.match(new RegExp(`(?:^|\\n)\\s*-?\\s*${escaped}\\s*:\\s*([^\\n]+)`, 'i'));
+  return match?.[1]?.trim() || null;
+}
+
+function deriveDescription(fields: {
+  who: string | null;
+  focus: string | null;
+  why: string | null;
+}): string {
+  return fields.who || fields.focus || fields.why || '';
+}
+
 /**
  * Find and extract the Experts section from document content
  */
@@ -85,13 +99,12 @@ export function parseH2HeaderFormat(expertSection: string): ExtractedExpert[] {
     }
     // Handle "Expert N" format (no name in header) - look for name in "- Who:" or "- Name:" field
     else if (/^Expert\s+\d+$/i.test(name)) {
-      const whoMatch = block.match(/- Who:\s*([^\n]+)/i);
-      const nameMatch = block.match(/- Name:\s*([^\n]+)/i);
-      if (whoMatch) {
-        name = whoMatch[1].trim();
-        nameFromWhoField = true;
-      } else if (nameMatch) {
-        name = nameMatch[1].trim();
+      const nameField = extractStructuredField(block, 'Name');
+      const whoField = extractStructuredField(block, 'Who');
+      if (nameField) {
+        name = nameField.trim();
+      } else if (whoField) {
+        name = whoField.trim();
         nameFromWhoField = true;
       } else {
         // Can't find a name for this expert, skip it
@@ -109,30 +122,16 @@ export function parseH2HeaderFormat(expertSection: string): ExtractedExpert[] {
     // Skip empty names
     if (!name) continue;
 
-    // Extract description from Who: or Why follow: field
-    // If name came from Who field, use Focus for description instead
-    let description = '';
-    const descPatterns = nameFromWhoField
-      ? [
-          /- Focus:\s*([^\n]+)/i,
-          /- Why follow[:\s]*\n?\s*-?\s*([^\n]+)/i,
-        ]
-      : [
-          /- Who:\s*([^\n]+)/i,
-          /- Why follow[:\s]*\n?\s*-?\s*([^\n]+)/i,
-        ];
-    for (const pattern of descPatterns) {
-      const descMatch = pattern.exec(block);
-      if (descMatch) {
-        description = descMatch[1].trim();
-        break;
-      }
-    }
+    const who = nameFromWhoField ? null : extractStructuredField(block, 'Who');
+    const focus = extractStructuredField(block, 'Focus');
+    const why = extractStructuredField(block, 'Why follow');
+    const where = extractStructuredField(block, 'Where');
+    const description = deriveDescription({ who, focus, why });
 
     // Extract Twitter handle
     const twitterHandle = extractTwitterHandle(block);
 
-    experts.push({ name, twitterHandle, description });
+    experts.push({ name, twitterHandle, description, who, why, focus, where });
   }
 
   return experts;
@@ -175,24 +174,18 @@ export function parseNumberedFormat(expertSection: string): ExtractedExpert[] {
     // Skip if name looks like a section header
     if (name.match(/^(Why follow|Focus|Key views|Where|Expertise|Main views)/i)) continue;
 
-    // Extract description from "Why follow" or "Main Views" field
-    let description = '';
-    const descPatterns = [
-      /- Why follow[:\s]*\n?\s*-?\s*(.+)/i,
-      /- Main [Vv]iews[:\s]*\n?\s*-?\s*(.+)/i,
-    ];
-    for (const pattern of descPatterns) {
-      const descMatch = pattern.exec(block);
-      if (descMatch) {
-        description = descMatch[1].trim();
-        break;
-      }
-    }
+    const who = extractStructuredField(block, 'Who');
+    const focus = extractStructuredField(block, 'Focus');
+    const why =
+      extractStructuredField(block, 'Why follow') ||
+      extractStructuredField(block, 'Main views');
+    const where = extractStructuredField(block, 'Where');
+    const description = deriveDescription({ who, focus, why });
 
     // Extract Twitter handle
     const twitterHandle = extractTwitterHandle(block);
 
-    experts.push({ name, twitterHandle, description });
+    experts.push({ name, twitterHandle, description, who, why, focus, where });
   }
 
   return experts;
@@ -262,7 +255,15 @@ export function extractExpertsFromDocumentWithMetadata(content: string): Documen
       // Skip common non-name patterns and section headers
       if (!name.match(/^(The|An?|This|That|These|Some|Many|All|Most|Each|Why follow|Focus|Key views|Where|Expertise Topic|Expert #\d+|Main views)/i)) {
         const twitterHandle = extractTwitterHandle(line);
-        experts.push({ name, twitterHandle, description: '' });
+        experts.push({
+          name,
+          twitterHandle,
+          description: '',
+          who: null,
+          why: null,
+          focus: null,
+          where: null,
+        });
       }
     }
   }

@@ -18,6 +18,11 @@ const { mockProcessGradeRequest, mockStorage } = vi.hoisted(() => ({
   mockStorage: {
     getBrainliftBySlug: vi.fn(),
     getBrainliftsForUserPaginated: vi.fn(),
+    canAccessBrainlift: vi.fn(),
+    canModifyBrainlift: vi.fn(),
+    getExpertsByBrainliftId: vi.fn(),
+    createExpertsForBrainlift: vi.fn(),
+    deleteExpertForBrainlift: vi.fn(),
   },
 }));
 
@@ -29,6 +34,21 @@ const { mockGetBrainliftProgress, mockGetBrainliftScores, mockGetAssessmentDOK1,
   mockGetAssessmentDOK3: vi.fn(),
   mockGetAssessmentDOK4: vi.fn(),
 }));
+
+const { mockWithJob, mockForPayload, mockWithOptions, mockQueue } = vi.hoisted(() => {
+  const mockQueue = vi.fn().mockResolvedValue('job-1');
+  const mockWithOptions = vi.fn().mockReturnValue({ queue: mockQueue });
+  const mockForPayload = vi.fn().mockReturnValue({
+    queue: mockQueue,
+    withOptions: mockWithOptions,
+  });
+  return {
+    mockWithJob: vi.fn().mockReturnValue({ forPayload: mockForPayload }),
+    mockForPayload,
+    mockWithOptions,
+    mockQueue,
+  };
+});
 
 // Mock storage facade
 vi.mock('../../storage', () => ({
@@ -45,9 +65,45 @@ vi.mock('../../storage/internal', () => ({
   getAssessmentDOK4: mockGetAssessmentDOK4,
 }));
 
+vi.mock('../../storage/versions', () => ({
+  createVersion: vi.fn().mockResolvedValue(undefined),
+  pruneVersions: vi.fn().mockResolvedValue(undefined),
+}));
+
+vi.mock('../../storage/stale', () => ({
+  propagateStaleFlags: vi.fn().mockResolvedValue({ dok2Count: 0, dok3Count: 0, dok4Count: 0 }),
+  dismissStaleFlag: vi.fn().mockResolvedValue(undefined),
+  getStaleItems: vi.fn().mockResolvedValue([]),
+}));
+
 // Mock service layer
 vi.mock('../../services/internal-grading', () => ({
   processGradeRequest: mockProcessGradeRequest,
+}));
+
+vi.mock('../../services/brainlift', () => ({
+  recomputeBrainliftScore: vi.fn().mockResolvedValue(undefined),
+}));
+
+vi.mock('../../utils/withJob', () => ({
+  withJob: mockWithJob,
+}));
+
+vi.mock('../../db', () => ({
+  db: {
+    select: vi.fn().mockReturnValue({
+      from: vi.fn().mockReturnValue({
+        where: vi.fn().mockResolvedValue([]),
+      }),
+    }),
+    update: vi.fn().mockReturnValue({
+      set: vi.fn().mockReturnValue({
+        where: vi.fn().mockReturnValue({
+          returning: vi.fn().mockResolvedValue([]),
+        }),
+      }),
+    }),
+  },
 }));
 
 // Mock service auth middleware to pass through with test user
@@ -76,6 +132,18 @@ vi.mock('fs', () => ({
 
 beforeEach(() => {
   vi.clearAllMocks();
+  mockStorage.canAccessBrainlift.mockImplementation(async (brainlift: any, authContext: any) =>
+    brainlift.createdByUserId === authContext.userId
+  );
+  mockStorage.canModifyBrainlift.mockImplementation(async (brainlift: any, authContext: any) =>
+    brainlift.createdByUserId === authContext.userId
+  );
+  mockWithJob.mockReturnValue({ forPayload: mockForPayload });
+  mockForPayload.mockReturnValue({
+    queue: mockQueue,
+    withOptions: mockWithOptions,
+  });
+  mockWithOptions.mockReturnValue({ queue: mockQueue });
 });
 
 function createMockReq(overrides: Record<string, any> = {}): any {
@@ -92,6 +160,7 @@ function createMockRes(): any {
   const res: any = {};
   res.status = vi.fn().mockReturnValue(res);
   res.json = vi.fn().mockReturnValue(res);
+  res.end = vi.fn().mockReturnValue(res);
   return res;
 }
 
@@ -226,6 +295,46 @@ describe('FR2: GET /api/internal/brainlifts', () => {
     );
   });
 
+  it('includes shared brainlifts for shared editors', async () => {
+    mockStorage.getBrainliftsForUserPaginated.mockResolvedValue({
+      brainlifts: [
+        {
+          id: 2,
+          slug: 'shared-bl',
+          title: 'Shared BL',
+          importStatus: 'complete',
+          summary: null,
+          createdAt: new Date('2026-01-02'),
+          createdByUserId: 'owner-user',
+        },
+      ],
+      total: 1,
+    });
+
+    const { listBrainliftsHandler } = await import('../internal');
+    const req = createMockReq({
+      authContext: { userId: 'shared-editor', role: 'user', isAdmin: false },
+      query: { page: '1', pageSize: '10' },
+    });
+    const res = createMockRes();
+
+    await listBrainliftsHandler(req, res);
+
+    expect(mockStorage.getBrainliftsForUserPaginated).toHaveBeenCalledWith(
+      expect.objectContaining({ userId: 'shared-editor' }),
+      0,
+      10,
+      'all',
+    );
+    expect(res.json).toHaveBeenCalledWith(
+      expect.objectContaining({
+        brainlifts: expect.arrayContaining([
+          expect.objectContaining({ slug: 'shared-bl', title: 'Shared BL' }),
+        ]),
+      }),
+    );
+  });
+
   it('caps pageSize at 20', async () => {
     mockStorage.getBrainliftsForUserPaginated.mockResolvedValue({
       brainlifts: [],
@@ -242,7 +351,7 @@ describe('FR2: GET /api/internal/brainlifts', () => {
       expect.anything(),
       0,  // offset
       20, // capped pageSize
-      'owned',
+      'all',
     );
   });
 
@@ -262,7 +371,7 @@ describe('FR2: GET /api/internal/brainlifts', () => {
       expect.anything(),
       0,  // offset = (1-1) * 10
       10, // default pageSize
-      'owned',
+      'all',
     );
   });
 });
@@ -325,7 +434,7 @@ describe('FR3: GET /api/internal/brainlifts/:slug/status', () => {
     expect(res.status).toHaveBeenCalledWith(404);
   });
 
-  it('returns 404 for slug owned by another user (IDOR prevention)', async () => {
+  it('returns 404 when read access is denied (IDOR prevention)', async () => {
     mockStorage.getBrainliftBySlug.mockResolvedValue({
       id: 1,
       slug: 'other-bl',
@@ -340,6 +449,10 @@ describe('FR3: GET /api/internal/brainlifts/:slug/status', () => {
 
     await statusHandler(req, res);
 
+    expect(mockStorage.canAccessBrainlift).toHaveBeenCalledWith(
+      expect.objectContaining({ slug: 'other-bl' }),
+      expect.objectContaining({ userId: 'test-user-1' }),
+    );
     expect(res.status).toHaveBeenCalledWith(404);
   });
 
@@ -456,6 +569,78 @@ describe('FR4: GET /api/internal/brainlifts/:slug/assessment', () => {
           pageSize: 20,
           totalItems: 1,
         }),
+      }),
+    );
+  });
+
+  it('allows shared editors to read assessment data', async () => {
+    mockStorage.getBrainliftBySlug.mockResolvedValue({
+      id: 2,
+      slug: 'shared-assess-bl',
+      title: 'Shared Assess BL',
+      importStatus: 'complete',
+      createdByUserId: 'owner-user',
+    });
+    mockStorage.canAccessBrainlift.mockResolvedValue(true);
+    mockGetAssessmentDOK1.mockResolvedValue({
+      items: [{ id: 7, fact: 'Shared fact', score: 5 }],
+      total: 1,
+    });
+
+    const { assessmentHandler } = await import('../internal');
+    const req = createMockReq({
+      authContext: { userId: 'shared-editor', role: 'user', isAdmin: false },
+      params: { slug: 'shared-assess-bl' },
+      query: { dok: '1' },
+    });
+    const res = createMockRes();
+
+    await assessmentHandler(req, res);
+
+    expect(mockStorage.canAccessBrainlift).toHaveBeenCalledWith(
+      expect.objectContaining({ slug: 'shared-assess-bl' }),
+      expect.objectContaining({ userId: 'shared-editor' }),
+    );
+    expect(res.status).not.toHaveBeenCalledWith(404);
+    expect(res.json).toHaveBeenCalledWith(
+      expect.objectContaining({
+        slug: 'shared-assess-bl',
+        items: expect.arrayContaining([
+          expect.objectContaining({ id: 7, fact: 'Shared fact' }),
+        ]),
+      }),
+    );
+  });
+
+  it('allows shared viewers to read assessment data', async () => {
+    mockStorage.getBrainliftBySlug.mockResolvedValue({
+      id: 3,
+      slug: 'viewer-assess-bl',
+      title: 'Viewer Assess BL',
+      importStatus: 'complete',
+      createdByUserId: 'owner-user',
+    });
+    mockStorage.canAccessBrainlift.mockResolvedValue(true);
+    mockGetAssessmentDOK2.mockResolvedValue({
+      items: [{ id: 8, points: ['Viewer point'] }],
+      total: 1,
+    });
+
+    const { assessmentHandler } = await import('../internal');
+    const req = createMockReq({
+      authContext: { userId: 'shared-viewer', role: 'user', isAdmin: false },
+      params: { slug: 'viewer-assess-bl' },
+      query: { dok: '2' },
+    });
+    const res = createMockRes();
+
+    await assessmentHandler(req, res);
+
+    expect(res.status).not.toHaveBeenCalledWith(404);
+    expect(res.json).toHaveBeenCalledWith(
+      expect.objectContaining({
+        slug: 'viewer-assess-bl',
+        dok: 2,
       }),
     );
   });
@@ -689,7 +874,7 @@ describe('FR4: GET /api/internal/brainlifts/:slug/assessment', () => {
     );
   });
 
-  it('returns 404 for slug owned by another user', async () => {
+  it('returns 404 when assessment read access is denied', async () => {
     mockStorage.getBrainliftBySlug.mockResolvedValue({
       id: 1,
       slug: 'other-bl',
@@ -706,6 +891,10 @@ describe('FR4: GET /api/internal/brainlifts/:slug/assessment', () => {
 
     await assessmentHandler(req, res);
 
+    expect(mockStorage.canAccessBrainlift).toHaveBeenCalledWith(
+      expect.objectContaining({ slug: 'other-bl' }),
+      expect.objectContaining({ userId: 'test-user-1' }),
+    );
     expect(res.status).toHaveBeenCalledWith(404);
   });
 
@@ -722,6 +911,130 @@ describe('FR4: GET /api/internal/brainlifts/:slug/assessment', () => {
     await assessmentHandler(req, res);
 
     expect(res.status).toHaveBeenCalledWith(404);
+  });
+});
+
+describe('Internal expert endpoints', () => {
+  const ownedBrainlift = {
+    id: 99,
+    slug: 'experts-bl',
+    title: 'Experts Brainlift',
+    createdByUserId: 'test-user-1',
+  };
+
+  it('lists experts for an owned brainlift', async () => {
+    mockStorage.getBrainliftBySlug.mockResolvedValue(ownedBrainlift);
+    mockStorage.getExpertsByBrainliftId.mockResolvedValue([
+      {
+        id: 1,
+        name: 'Expert One',
+        who: 'Researcher',
+        why: 'Relevant',
+        focus: 'Topic',
+        where: '@expert1',
+        rankScore: 8,
+        rationale: '8 citations',
+        twitterHandle: '@expert1',
+        source: 'listed',
+        isFollowing: true,
+      },
+    ]);
+
+    const { listExpertsHandler } = await import('../internal');
+    const req = createMockReq({ params: { slug: 'experts-bl' } });
+    const res = createMockRes();
+
+    await listExpertsHandler(req, res);
+
+    expect(mockStorage.getExpertsByBrainliftId).toHaveBeenCalledWith(99);
+    expect(res.json).toHaveBeenCalledWith([
+      expect.objectContaining({ id: 1, name: 'Expert One', who: 'Researcher' }),
+    ]);
+  });
+
+  it('creates experts and queues a deduped rerank job', async () => {
+    mockStorage.getBrainliftBySlug.mockResolvedValue(ownedBrainlift);
+    mockStorage.createExpertsForBrainlift.mockResolvedValue([
+      {
+        id: 10,
+        name: 'New Expert',
+        who: 'Analyst',
+        why: 'Useful',
+        focus: 'Policy',
+        where: '@newexpert',
+        rankScore: null,
+        rationale: null,
+        twitterHandle: '@newexpert',
+        source: 'listed',
+        isFollowing: true,
+      },
+    ]);
+
+    const { createExpertsHandler } = await import('../internal');
+    const req = createMockReq({
+      params: { slug: 'experts-bl' },
+      body: {
+        experts: [
+          {
+            name: 'New Expert',
+            who: 'Analyst',
+            why: 'Useful',
+            focus: 'Policy',
+            where: '@newexpert',
+          },
+        ],
+      },
+    });
+    const res = createMockRes();
+
+    await createExpertsHandler(req, res);
+
+    expect(mockStorage.createExpertsForBrainlift).toHaveBeenCalledWith(99, [
+      {
+        name: 'New Expert',
+        who: 'Analyst',
+        why: 'Useful',
+        focus: 'Policy',
+        where: '@newexpert',
+      },
+    ]);
+    expect(mockWithJob).toHaveBeenCalledWith('experts:rerank');
+    expect(mockForPayload).toHaveBeenCalledWith({ brainliftId: 99 });
+    expect(mockWithOptions).toHaveBeenCalledWith({ jobKey: 'rerank-experts-99' });
+    expect(res.status).toHaveBeenCalledWith(201);
+    expect(res.json).toHaveBeenCalledWith([
+      expect.objectContaining({ id: 10, name: 'New Expert' }),
+    ]);
+  });
+
+  it('rejects invalid expert payloads', async () => {
+    mockStorage.getBrainliftBySlug.mockResolvedValue(ownedBrainlift);
+
+    const { createExpertsHandler } = await import('../internal');
+    const req = createMockReq({
+      params: { slug: 'experts-bl' },
+      body: { experts: [] },
+    });
+    const res = createMockRes();
+
+    await expect(createExpertsHandler(req, res)).rejects.toThrow();
+    expect(mockStorage.createExpertsForBrainlift).not.toHaveBeenCalled();
+  });
+
+  it('deletes an expert and returns 204', async () => {
+    mockStorage.getBrainliftBySlug.mockResolvedValue(ownedBrainlift);
+    mockStorage.deleteExpertForBrainlift.mockResolvedValue(true);
+
+    const { deleteExpertHandler } = await import('../internal');
+    const req = createMockReq({ params: { slug: 'experts-bl', id: '10' } });
+    const res = createMockRes();
+
+    await deleteExpertHandler(req, res);
+
+    expect(mockStorage.deleteExpertForBrainlift).toHaveBeenCalledWith(10, 99);
+    expect(mockWithOptions).toHaveBeenCalledWith({ jobKey: 'rerank-experts-99' });
+    expect(res.status).toHaveBeenCalledWith(204);
+    expect(res.end).toHaveBeenCalled();
   });
 });
 

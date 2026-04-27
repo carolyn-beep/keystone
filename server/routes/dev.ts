@@ -20,6 +20,7 @@ import {
   diagnoseExpertFormat,
   type ExpertProfile,
   type DocumentExtractionResult,
+  type ExtractedExpert,
   type ParserType,
   type FormatDiagnosticsResult,
 } from '../ai/experts';
@@ -65,7 +66,7 @@ interface ParseWorkflowyResponse {
 interface ExtractExpertsResponse {
   success: boolean;
   data?: {
-    experts: Array<{name: string, twitterHandle: string | null, description: string}>;
+    experts: ExtractedExpert[];
     profiles: ExpertProfile[] | null;
     expertsSectionRaw: string | null;
   };
@@ -380,7 +381,7 @@ if (!isDev) {
     }
 
     // Extract experts from fact sources if facts provided
-    let factSourceExperts: Array<{name: string, twitterHandle: string | null, description: string}> = [];
+    let factSourceExperts: ExtractedExpert[] = [];
     if (facts && Array.isArray(facts) && facts.length > 0) {
       factSourceExperts = extractExpertsFromFactSources(facts);
       if (factSourceExperts.length > 0) {
@@ -410,7 +411,6 @@ if (!isDev) {
         facts,
         content,
         author || null,
-        readingList || []
       );
 
       // Add warnings for low/no citation experts
@@ -428,7 +428,7 @@ if (!isDev) {
     const expertsSectionRaw = findExpertsSection(content);
 
     // Run format compliance diagnostics
-    const formatCompliance = diagnoseExpertFormat(content);
+    const formatCompliance = await diagnoseExpertFormat(content);
 
     const response: ExtractExpertsResponse = {
       success: true,

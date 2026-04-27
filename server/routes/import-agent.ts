@@ -18,7 +18,12 @@ import { resolveYouTubeTranscript } from '../utils/resolve-youtube-transcript';
 import { verifyFactWithAllModels } from '../ai/factVerifier';
 import { gradeDOK2Summary } from '../ai/dok2Grader';
 import { gradeDOK3Insight } from '../ai/dok3Grader';
-import { recomputeBrainliftScore, runPostProcessingPipeline } from '../services/brainlift';
+import {
+  analyzeBrainliftRedundancy,
+  extractBrainliftExperts,
+  queueBrainliftAssetJobs,
+  recomputeBrainliftScore,
+} from '../services/brainlift';
 import { persistFactVerification } from '../services/persist-fact-verification';
 import { createBrainliftForAgent } from '../services/import-agent';
 import { STAGE_LABELS } from '@shared/import-progress';
@@ -519,18 +524,20 @@ importAgentRouter.post(
 
       // ── 5. Post-processing (experts + redundancy + image job) ─────────
       const finalFacts = await storage.getFactsForBrainlift(brainlift.id);
-      await runPostProcessingPipeline(
-        {
-          brainliftId: brainlift.id,
-          slug: brainlift.slug,
-          title: brainlift.title,
-          description: brainliftData?.description || '',
-          author: brainliftData?.author || null,
-          facts: finalFacts,
-          originalContent: brainlift.originalContent || '',
-        },
-        (event) => sse.send(event)
-      );
+      const postProcessingInput = {
+        brainliftId: brainlift.id,
+        slug: brainlift.slug,
+        title: brainlift.title,
+        description: brainliftData?.description || '',
+        author: brainliftData?.author || null,
+        facts: finalFacts,
+        originalContent: brainlift.originalContent || '',
+      };
+      await Promise.all([
+        extractBrainliftExperts(postProcessingInput, (event) => sse.send(event)),
+        analyzeBrainliftRedundancy(postProcessingInput, (event) => sse.send(event)),
+      ]);
+      await queueBrainliftAssetJobs(postProcessingInput);
 
       // ── 6. Finalize ──────────────────────────────────────────────────
       await storage.updateImportStatus(brainlift.id, 'complete');

@@ -3,7 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import { Link, useSearch } from 'wouter';
 import { authClient } from '@/lib/auth-client';
 import { BrainliftVersion, type Fact } from '@shared/schema';
-import { AlertTriangle, FileText, Loader2, Copy } from 'lucide-react';
+import { AlertTriangle, FileText, Loader2, Copy, CalendarDays, FolderOpen } from 'lucide-react';
 import { PiCompassToolFill } from 'react-icons/pi';
 import { RiQuillPenAiFill } from 'react-icons/ri';
 import { FaBalanceScale } from 'react-icons/fa';
@@ -31,6 +31,8 @@ import { LearningStreamTab } from '@/components/LearningStreamTab';
 import { SavedItemsPage, GradedItemsPage } from '@/components/learning-stream';
 import { ImportAgentModal } from '@/components/import-agent/ImportAgentModal';
 import { RedundancyPage } from '@/components/fact-grading/RedundancyPage';
+import { SprintTab, parseTaskViewId } from '@/components/sprint/SprintTab';
+import { DocumentHubTab } from '@/components/documents/DocumentHubTab';
 import { usePDFExport } from '@/hooks/usePDFExport';
 import { useShareToken } from '@/hooks/useShareToken';
 import { useDOK3Insights } from '@/hooks/useDOK3Insights';
@@ -47,7 +49,7 @@ interface DashboardProps {
   isSharedView?: boolean;
 }
 
-const VALID_TABS = ['brainlift', 'facts', 'facts-redundancy', 'contradictions', 'summaries', 'insights', 'dok4', 'scratchpad', 'learning', 'learning-saved', 'learning-graded'] as const;
+const VALID_TABS = ['brainlift', 'facts', 'facts-redundancy', 'contradictions', 'summaries', 'insights', 'dok4', 'scratchpad', 'sprint', 'document-hub', 'learning', 'learning-saved', 'learning-graded'] as const;
 type TabKey = typeof VALID_TABS[number];
 
 // Backwards compat: map old ?tab=grading to facts
@@ -68,6 +70,8 @@ const NAV_ITEMS: NavItem[] = [
   { id: 'insights', label: 'DOK3 Insights', icon: DeskLampIcon },
   { id: 'dok4', label: 'DOK4 SPOVs', icon: TbTargetArrow as NavItem['icon'] },
   { id: 'scratchpad', label: 'Scratchpad', icon: ScratchpadIcon },
+  { id: 'sprint', label: 'Sprint', icon: CalendarDays as NavItem['icon'] },
+  { id: 'document-hub', label: 'Document Hub', icon: FolderOpen as NavItem['icon'] },
   {
     id: 'learning',
     label: 'Learning Stream',
@@ -104,12 +108,18 @@ export default function Dashboard({ slug, isSharedView = false }: DashboardProps
     return tab && VALID_TABS.includes(tab as TabKey) ? tab : 'brainlift';
   }, [searchString]);
 
-  // URL-synced expanded item (?view=123)
-  const viewingItemId = useMemo(() => {
+  // URL-synced expanded view (?view=123 for learning stream, ?view=task-123 for sprint)
+  const viewParam = useMemo(() => {
     const params = new URLSearchParams(searchString);
-    const id = params.get('view');
-    return id ? parseInt(id, 10) : null;
+    return params.get('view');
   }, [searchString]);
+
+  const viewingItemId = useMemo(() => {
+    if (!viewParam || !/^\d+$/.test(viewParam)) return null;
+    return parseInt(viewParam, 10);
+  }, [viewParam]);
+
+  const viewingTaskId = useMemo(() => parseTaskViewId(viewParam), [viewParam]);
 
   const setActiveTab = useCallback((tab: string) => {
     const params = new URLSearchParams(window.location.search);
@@ -137,6 +147,19 @@ export default function Dashboard({ slug, isSharedView = false }: DashboardProps
     const newSearch = params.toString();
     const newUrl = newSearch ? `?${newSearch}` : window.location.pathname;
     // pushState so back button closes the expanded view
+    window.history.pushState(null, '', newUrl);
+    window.dispatchEvent(new PopStateEvent('popstate'));
+  }, []);
+
+  const setViewingTaskId = useCallback((id: number | null) => {
+    const params = new URLSearchParams(window.location.search);
+    if (id) {
+      params.set('view', `task-${id}`);
+    } else {
+      params.delete('view');
+    }
+    const newSearch = params.toString();
+    const newUrl = newSearch ? `?${newSearch}` : window.location.pathname;
     window.history.pushState(null, '', newUrl);
     window.dispatchEvent(new PopStateEvent('popstate'));
   }, []);
@@ -497,6 +520,20 @@ const { downloadBrainliftPDF } = usePDFExport();
           items={dok3.scratchpadItems}
           isLoading={dok3.isScratchpadLoading}
         />
+      )}
+
+      {/* Sprint Tab */}
+      {!isNotBrainlift && activeTab === 'sprint' && (
+        <SprintTab
+          slug={slug}
+          viewTaskId={viewingTaskId}
+          onSelectTask={setViewingTaskId}
+        />
+      )}
+
+      {/* Document Hub Tab */}
+      {!isNotBrainlift && activeTab === 'document-hub' && (
+        <DocumentHubTab slug={slug} />
       )}
 
       {/* Contradictions Tab - Card-based styled design */}

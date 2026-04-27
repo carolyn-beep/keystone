@@ -2,8 +2,8 @@
 
 ## Overview
 
-- **Total Endpoints:** 56
-- **Production Endpoints:** 50
+- **Total Endpoints:** 59
+- **Production Endpoints:** 53
 - **Development-Only Endpoints:** 6
 - **Domain Routers:** 11
 
@@ -243,6 +243,9 @@ All routes nested under `/api/brainlifts/:slug/learning-stream` for authorizatio
 | `GET` | `/api/internal/brainlifts` | Service Key | Paginated list of user's brainlifts |
 | `GET` | `/api/internal/brainlifts/:slug/status` | Service Key | Grading progress with per-DOK counts |
 | `GET` | `/api/internal/brainlifts/:slug/assessment` | Service Key | Paginated assessment results by DOK level |
+| `GET` | `/api/internal/brainlifts/:slug/experts` | Service Key | List imported experts for one owned brainlift |
+| `POST` | `/api/internal/brainlifts/:slug/experts` | Service Key | Batch-create imported experts and queue rerank |
+| `DELETE` | `/api/internal/brainlifts/:slug/experts/:id` | Service Key | Delete one imported expert and queue rerank |
 
 ### POST /api/internal/grade
 
@@ -265,6 +268,25 @@ All routes nested under `/api/brainlifts/:slug/learning-stream` for authorizatio
 - **Query:** `dok` (required, 1-4), `page` (default 1), `pageSize` (default 20, max 50), `detail` ('summary' | 'full')
 - **Response (200):** `{ slug, dok, status, items: [...], pagination }`
 - **Errors:** 400 (missing/invalid dok), 404 (unknown slug or wrong user)
+
+### GET /api/internal/brainlifts/:slug/experts
+
+- **Response (200):** `[{ id, name, who, why, focus, where, rankScore, rationale, twitterHandle, source, isFollowing }]`
+- **Ordering:** `rankScore DESC NULLS LAST`, then newest ID first
+- **Errors:** 404 (unknown slug or wrong user)
+
+### POST /api/internal/brainlifts/:slug/experts
+
+- **Body:** `{ experts: [{ name, who, why, focus?, where? }] }`
+- **Response (201):** created expert rows with assigned IDs and null ranking fields until rerank completes
+- **Side effect:** queues `experts:rerank` with a per-brainlift `jobKey`
+- **Errors:** 400 (invalid payload), 404 (unknown slug or wrong user)
+
+### DELETE /api/internal/brainlifts/:slug/experts/:id
+
+- **Response (204):** no content
+- **Side effect:** queues `experts:rerank` with a per-brainlift `jobKey`
+- **Errors:** 400 (invalid ID), 404 (unknown slug, wrong user, or missing expert)
 
 ---
 

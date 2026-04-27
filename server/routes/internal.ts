@@ -10,15 +10,27 @@
  *   GET  /api/internal/brainlifts                  — Paginated list of user's brainlifts (spec 03)
  *   GET  /api/internal/brainlifts/:slug/status     — Grading progress (spec 03)
  *   GET  /api/internal/brainlifts/:slug/assessment — Paginated assessment results (spec 03)
+ *   GET  /api/internal/brainlifts/:slug/experts    — List experts for one brainlift
+ *   POST /api/internal/brainlifts/:slug/experts    — Create experts for one brainlift
+ *   DELETE /api/internal/brainlifts/:slug/experts/:id — Delete one expert
  */
 
 import { Router, type Request, type Response } from 'express';
 import { readFileSync, existsSync } from 'fs';
 import path from 'path';
+import { z } from 'zod';
+import {
+  createDeliverableRequestSchema,
+  listTasksQuerySchema,
+  taskIdParamsSchema,
+  updateDeliverableRequestSchema,
+} from '@shared/routes';
 import { requireServiceAuth } from '../middleware/service-auth';
-import { asyncHandler, BadRequestError } from '../middleware/error-handler';
+import { requireBrainliftAccess, requireBrainliftModify } from '../middleware/brainlift-auth';
+import { asyncHandler, BadRequestError, NotFoundError } from '../middleware/error-handler';
 import { storage } from '../storage';
 import { processGradeRequest } from '../services/internal-grading';
+import { createGoogleDriveService, type GoogleDriveService } from '../services/googleDrive';
 import {
   getBrainliftProgress,
   getBrainliftScores,
@@ -35,8 +47,28 @@ import type { PreviousEvaluation } from '@shared/types/regrading';
 import { db } from '../db';
 import { facts, dok2Summaries, dok3Insights, dok4Spovs } from '@shared/schema';
 import { eq, and, inArray } from 'drizzle-orm';
+import { SprintStorageConflictError, setDeliverableSourceSurface } from '../storage/sprints';
+import {
+  createPlanHandler as publicCreatePlanHandler,
+  listPlansHandler as publicListPlansHandler,
+  getActivePlanHandler as publicGetActivePlanHandler,
+  listTasksHandler as publicListTasksHandler,
+  getTaskHandler as publicGetTaskHandler,
+  readDeliverableHandler as publicReadDeliverableHandler,
+  listDeliverablesHandler as publicListDeliverablesHandler,
+} from './sprints';
 
 export const internalRouter = Router();
+
+const createExpertsRequestSchema = z.object({
+  experts: z.array(z.object({
+    name: z.string().trim().min(1),
+    who: z.string().trim().min(1),
+    why: z.string().trim().min(1),
+    focus: z.string().trim().min(1).optional(),
+    where: z.string().trim().min(1).optional(),
+  })).min(1),
+});
 
 // ── Template endpoint (spec 02) ──
 
@@ -148,7 +180,7 @@ export async function listBrainliftsHandler(
     req.authContext!,
     offset,
     pageSize,
-    'owned',
+    'all',
   );
 
   res.json({
@@ -184,8 +216,8 @@ export async function statusHandler(
 ): Promise<void> {
   const { slug } = req.params;
 
-  const brainlift = await storage.getBrainliftBySlug(slug);
-  if (!brainlift || brainlift.createdByUserId !== req.authContext!.userId) {
+  const brainlift = await resolveInternalBrainlift(req, slug, 'access');
+  if (!brainlift) {
     res.status(404).json({ error: 'Brainlift not found' });
     return;
   }
@@ -229,8 +261,8 @@ export async function assessmentHandler(
     return;
   }
 
-  const brainlift = await storage.getBrainliftBySlug(slug);
-  if (!brainlift || brainlift.createdByUserId !== req.authContext!.userId) {
+  const brainlift = await resolveInternalBrainlift(req, slug, 'access');
+  if (!brainlift) {
     res.status(404).json({ error: 'Brainlift not found' });
     return;
   }
@@ -292,6 +324,341 @@ internalRouter.get(
   asyncHandler(assessmentHandler),
 );
 
+async function queueExpertsRerank(brainliftId: number): Promise<void> {
+  try {
+    await withJob('experts:rerank')
+      .forPayload({ brainliftId })
+      .withOptions({ jobKey: `rerank-experts-${brainliftId}` })
+      .queue();
+  } catch (error) {
+    console.error('[Internal Experts] Failed to queue rerank job:', error);
+  }
+}
+
+export async function listExpertsHandler(
+  req: Request,
+  res: Response,
+): Promise<void> {
+  const brainlift = await resolveInternalBrainlift(req, req.params.slug, 'access');
+  if (!brainlift) {
+    res.status(404).json({ error: 'Brainlift not found' });
+    return;
+  }
+
+  const experts = await storage.getExpertsByBrainliftId(brainlift.id);
+  res.json(experts);
+}
+
+export async function createExpertsHandler(
+  req: Request,
+  res: Response,
+): Promise<void> {
+  const brainlift = await resolveInternalBrainlift(req, req.params.slug, 'modify');
+  if (!brainlift) {
+    res.status(404).json({ error: 'Brainlift not found' });
+    return;
+  }
+
+  const { experts } = createExpertsRequestSchema.parse(req.body);
+  const createdExperts = await storage.createExpertsForBrainlift(brainlift.id, experts);
+  await queueExpertsRerank(brainlift.id);
+  res.status(201).json(createdExperts);
+}
+
+export async function deleteExpertHandler(
+  req: Request,
+  res: Response,
+): Promise<void> {
+  const brainlift = await resolveInternalBrainlift(req, req.params.slug, 'modify');
+  if (!brainlift) {
+    res.status(404).json({ error: 'Brainlift not found' });
+    return;
+  }
+
+  const expertId = parseInt(req.params.id, 10);
+  if (isNaN(expertId)) {
+    res.status(400).json({ error: 'Invalid expert ID' });
+    return;
+  }
+
+  const deleted = await storage.deleteExpertForBrainlift(expertId, brainlift.id);
+  if (!deleted) {
+    res.status(404).json({ error: 'Expert not found' });
+    return;
+  }
+
+  await queueExpertsRerank(brainlift.id);
+  res.status(204).end();
+}
+
+internalRouter.get(
+  '/api/internal/brainlifts/:slug/experts',
+  requireServiceAuth,
+  asyncHandler(listExpertsHandler),
+);
+
+internalRouter.post(
+  '/api/internal/brainlifts/:slug/experts',
+  requireServiceAuth,
+  asyncHandler(createExpertsHandler),
+);
+
+internalRouter.delete(
+  '/api/internal/brainlifts/:slug/experts/:id',
+  requireServiceAuth,
+  asyncHandler(deleteExpertHandler),
+);
+
+// ── Scope Breaker internal sprint routes (spec 03) ──
+
+let internalGoogleDriveService: GoogleDriveService | null = null;
+
+function getInternalGoogleDriveService(): GoogleDriveService {
+  if (!internalGoogleDriveService) {
+    internalGoogleDriveService = createGoogleDriveService();
+  }
+  return internalGoogleDriveService;
+}
+
+async function getTaskForInternalRouteOr404(brainliftId: number, taskId: number) {
+  const task = await storage.getTaskForBrainlift(taskId, brainliftId);
+  if (!task) {
+    throw new NotFoundError('Task not found');
+  }
+  return task;
+}
+
+export async function internalCreatePlanHandler(req: Request, res: Response): Promise<void> {
+  await publicCreatePlanHandler(req, res);
+}
+
+export async function internalListPlansHandler(req: Request, res: Response): Promise<void> {
+  await publicListPlansHandler(req, res);
+}
+
+export async function internalGetActivePlanHandler(req: Request, res: Response): Promise<void> {
+  await publicGetActivePlanHandler(req, res);
+}
+
+export async function internalListTasksHandler(req: Request, res: Response): Promise<void> {
+  await publicListTasksHandler(req, res);
+}
+
+export async function internalListAllTasksForUserHandler(req: Request, res: Response): Promise<void> {
+  const authContext = req.authContext!;
+  const query = listTasksQuerySchema.parse(req.query);
+
+  const rows = await storage.listTasksForUser(authContext.userId, {
+    date: query.date,
+    week: query.week,
+    state: query.state,
+    includePastDue: query.includePastDue,
+    localDate: query.localDate,
+  });
+
+  res.json(rows.map((row) => ({
+    id: row.id,
+    planId: row.planId,
+    brainliftSlug: row.brainliftSlug,
+    brainliftTitle: row.brainliftTitle,
+    scheduledDate: row.scheduledDate,
+    weekNumber: row.weekNumber,
+    dayInWeek: row.dayInWeek,
+    title: row.title,
+    description: row.description,
+    milestone: row.milestone,
+    isComplete: row.isComplete,
+    isPastDue: row.isPastDue,
+    deliverable: row.deliverable,
+  })));
+}
+
+export async function internalGetTaskHandler(req: Request, res: Response): Promise<void> {
+  await publicGetTaskHandler(req, res);
+}
+
+export async function internalReadDeliverableHandler(req: Request, res: Response): Promise<void> {
+  await publicReadDeliverableHandler(req, res);
+}
+
+export async function internalListDeliverablesHandler(req: Request, res: Response): Promise<void> {
+  await publicListDeliverablesHandler(req, res);
+}
+
+export async function internalCreateDeliverableHandler(req: Request, res: Response): Promise<void> {
+  const brainlift = req.brainlift!;
+  const authContext = req.authContext!;
+  const { taskId } = taskIdParamsSchema.parse(req.params);
+  const body = createDeliverableRequestSchema.parse(req.body);
+
+  const task = await getTaskForInternalRouteOr404(brainlift.id, taskId);
+  const existingDeliverable = await storage.getDeliverableByTaskId(taskId, brainlift.id);
+
+  if (existingDeliverable) {
+    res.status(409).json({ message: 'A deliverable already exists for this task' });
+    return;
+  }
+
+  const planRows = await storage.listPlans(brainlift.id);
+  const plan = planRows.find((row) => row.id === task.plan.id);
+  if (!plan) {
+    throw new NotFoundError('Plan not found');
+  }
+
+  const drive = getInternalGoogleDriveService();
+  const audience = await storage.getSprintSharingAudience(brainlift.id);
+
+  const rootFolder = await drive.ensureRootFolder({
+    brainliftId: brainlift.id,
+    brainliftTitle: brainlift.title,
+    ownerName: audience.ownerName,
+    existingFolderId: brainlift.gdriveRootFolderId ?? null,
+  });
+
+  if (!brainlift.gdriveRootFolderId || brainlift.gdriveRootFolderId !== rootFolder.folderId) {
+    await storage.setBrainliftGdriveRootFolder(brainlift.id, rootFolder.folderId);
+  }
+
+  await drive.syncRootFolderEditors(rootFolder.folderId, [
+    audience.ownerEmail,
+    ...audience.editorEmails,
+    ...audience.guideEmails,
+  ]);
+
+  const planFolder = await drive.ensurePlanFolder({
+    planId: plan.id,
+    startDate: plan.startDate,
+    existingFolderId: plan.gdriveFolderId ?? null,
+    rootFolderId: rootFolder.folderId,
+  });
+
+  if (!plan.gdriveFolderId || plan.gdriveFolderId !== planFolder.folderId) {
+    await storage.setPlanGdriveFolder(plan.id, planFolder.folderId);
+  }
+
+  const createdDoc = await drive.createGoogleDocFromMarkdown({
+    parentFolderId: planFolder.folderId,
+    title: body.title,
+    markdown: body.markdown,
+  });
+
+  try {
+    const deliverable = await storage.createDeliverable({
+      taskId,
+      brainliftId: brainlift.id,
+      title: body.title,
+      docFileId: createdDoc.fileId,
+      docUrl: createdDoc.docUrl,
+      sourceSurface: 'mcp',
+      createdByUserId: authContext.userId,
+    });
+
+    await storage.markPlanCompleteIfAllDelivered(task.plan.id);
+    res.status(201).json({ docUrl: deliverable.docUrl });
+  } catch (error) {
+    try {
+      await drive.deleteGoogleDoc(createdDoc.fileId);
+    } catch (cleanupError) {
+      console.error('[Internal Sprints] Failed to clean up orphaned Google Doc:', cleanupError);
+    }
+
+    if (error instanceof SprintStorageConflictError) {
+      res.status(409).json({ message: error.message });
+      return;
+    }
+
+    throw error;
+  }
+}
+
+export async function internalUpdateDeliverableHandler(req: Request, res: Response): Promise<void> {
+  const brainlift = req.brainlift!;
+  const { taskId } = taskIdParamsSchema.parse(req.params);
+  const body = updateDeliverableRequestSchema.parse(req.body);
+
+  await getTaskForInternalRouteOr404(brainlift.id, taskId);
+
+  const deliverable = await storage.getDeliverableByTaskId(taskId, brainlift.id);
+  if (!deliverable) {
+    throw new NotFoundError('Deliverable not found');
+  }
+
+  const drive = getInternalGoogleDriveService();
+  await drive.replaceGoogleDocFromMarkdown(deliverable.docFileId, body.markdown);
+  await setDeliverableSourceSurface(deliverable.id, brainlift.id, 'mcp');
+
+  res.json({ docUrl: deliverable.docUrl });
+}
+
+internalRouter.post(
+  '/api/internal/brainlifts/:slug/plans',
+  requireServiceAuth,
+  requireBrainliftModify,
+  asyncHandler(internalCreatePlanHandler),
+);
+
+internalRouter.get(
+  '/api/internal/brainlifts/:slug/plans',
+  requireServiceAuth,
+  requireBrainliftAccess,
+  asyncHandler(internalListPlansHandler),
+);
+
+internalRouter.get(
+  '/api/internal/brainlifts/:slug/plans/active',
+  requireServiceAuth,
+  requireBrainliftAccess,
+  asyncHandler(internalGetActivePlanHandler),
+);
+
+internalRouter.get(
+  '/api/internal/tasks',
+  requireServiceAuth,
+  asyncHandler(internalListAllTasksForUserHandler),
+);
+
+internalRouter.get(
+  '/api/internal/brainlifts/:slug/tasks',
+  requireServiceAuth,
+  requireBrainliftAccess,
+  asyncHandler(internalListTasksHandler),
+);
+
+internalRouter.get(
+  '/api/internal/brainlifts/:slug/tasks/:taskId',
+  requireServiceAuth,
+  requireBrainliftAccess,
+  asyncHandler(internalGetTaskHandler),
+);
+
+internalRouter.post(
+  '/api/internal/brainlifts/:slug/tasks/:taskId/deliverable',
+  requireServiceAuth,
+  requireBrainliftModify,
+  asyncHandler(internalCreateDeliverableHandler),
+);
+
+internalRouter.get(
+  '/api/internal/brainlifts/:slug/tasks/:taskId/deliverable',
+  requireServiceAuth,
+  requireBrainliftAccess,
+  asyncHandler(internalReadDeliverableHandler),
+);
+
+internalRouter.put(
+  '/api/internal/brainlifts/:slug/tasks/:taskId/deliverable',
+  requireServiceAuth,
+  requireBrainliftModify,
+  asyncHandler(internalUpdateDeliverableHandler),
+);
+
+internalRouter.get(
+  '/api/internal/brainlifts/:slug/deliverables',
+  requireServiceAuth,
+  requireBrainliftAccess,
+  asyncHandler(internalListDeliverablesHandler),
+);
+
 // ── Helpers ──
 
 /**
@@ -338,14 +705,26 @@ function deriveStatusFromProgress(
   return 'complete';
 }
 
+type InternalBrainliftAccess = 'access' | 'modify';
+
 /**
- * Resolve a brainlift by slug and verify the authenticated user owns it.
- * Returns null if not found or not owned (prevents IDOR).
+ * Resolve a brainlift by slug and verify the authenticated user has the
+ * required access level. Returns null for both "not found" and "not allowed"
+ * to preserve IDOR protections.
  */
-async function resolveOwnedBrainlift(slug: string, userId: number | string) {
+async function resolveInternalBrainlift(
+  req: Request,
+  slug: string,
+  requiredAccess: InternalBrainliftAccess,
+) {
   const brainlift = await storage.getBrainliftBySlug(slug);
-  if (!brainlift || brainlift.createdByUserId !== userId) return null;
-  return brainlift;
+  if (!brainlift) return null;
+
+  const hasAccess = requiredAccess === 'modify'
+    ? await storage.canModifyBrainlift(brainlift, req.authContext!)
+    : await storage.canAccessBrainlift(brainlift, req.authContext!);
+
+  return hasAccess ? brainlift : null;
 }
 
 /**
@@ -376,7 +755,7 @@ export async function internalEditHandler(
     return;
   }
 
-  const brainlift = await resolveOwnedBrainlift(slug, req.authContext!.userId);
+  const brainlift = await resolveInternalBrainlift(req, slug, 'modify');
   if (!brainlift) {
     res.status(404).json({ error: 'Brainlift not found' });
     return;
@@ -545,7 +924,7 @@ export async function internalDeleteHandler(
     return;
   }
 
-  const brainlift = await resolveOwnedBrainlift(slug, req.authContext!.userId);
+  const brainlift = await resolveInternalBrainlift(req, slug, 'modify');
   if (!brainlift) {
     res.status(404).json({ error: 'Brainlift not found' });
     return;
@@ -605,7 +984,7 @@ export async function internalCreateDok1Handler(
   req: Request,
   res: Response,
 ): Promise<void> {
-  const brainlift = await resolveOwnedBrainlift(req.params.slug, req.authContext!.userId);
+  const brainlift = await resolveInternalBrainlift(req, req.params.slug, 'modify');
   if (!brainlift) {
     res.status(404).json({ error: 'Brainlift not found' });
     return;
@@ -647,7 +1026,7 @@ export async function internalCreateDok2Handler(
   req: Request,
   res: Response,
 ): Promise<void> {
-  const brainlift = await resolveOwnedBrainlift(req.params.slug, req.authContext!.userId);
+  const brainlift = await resolveInternalBrainlift(req, req.params.slug, 'modify');
   if (!brainlift) {
     res.status(404).json({ error: 'Brainlift not found' });
     return;
@@ -712,7 +1091,7 @@ export async function internalCreateDok3Handler(
   req: Request,
   res: Response,
 ): Promise<void> {
-  const brainlift = await resolveOwnedBrainlift(req.params.slug, req.authContext!.userId);
+  const brainlift = await resolveInternalBrainlift(req, req.params.slug, 'modify');
   if (!brainlift) {
     res.status(404).json({ error: 'Brainlift not found' });
     return;
@@ -778,7 +1157,7 @@ export async function internalCreateDok4Handler(
   req: Request,
   res: Response,
 ): Promise<void> {
-  const brainlift = await resolveOwnedBrainlift(req.params.slug, req.authContext!.userId);
+  const brainlift = await resolveInternalBrainlift(req, req.params.slug, 'modify');
   if (!brainlift) {
     res.status(404).json({ error: 'Brainlift not found' });
     return;
@@ -852,7 +1231,7 @@ export async function internalGetStaleHandler(
   req: Request,
   res: Response,
 ): Promise<void> {
-  const brainlift = await resolveOwnedBrainlift(req.params.slug, req.authContext!.userId);
+  const brainlift = await resolveInternalBrainlift(req, req.params.slug, 'access');
   if (!brainlift) {
     res.status(404).json({ error: 'Brainlift not found' });
     return;
@@ -887,7 +1266,7 @@ export async function internalDismissStaleHandler(
     return;
   }
 
-  const brainlift = await resolveOwnedBrainlift(slug, req.authContext!.userId);
+  const brainlift = await resolveInternalBrainlift(req, slug, 'modify');
   if (!brainlift) {
     res.status(404).json({ error: 'Brainlift not found' });
     return;
@@ -916,7 +1295,7 @@ export async function internalLinkDok3Handler(
     return;
   }
 
-  const brainlift = await resolveOwnedBrainlift(slug, req.authContext!.userId);
+  const brainlift = await resolveInternalBrainlift(req, slug, 'modify');
   if (!brainlift) {
     res.status(404).json({ error: 'Brainlift not found' });
     return;
@@ -987,7 +1366,7 @@ export async function internalLinkDok4Handler(
     return;
   }
 
-  const brainlift = await resolveOwnedBrainlift(slug, req.authContext!.userId);
+  const brainlift = await resolveInternalBrainlift(req, slug, 'modify');
   if (!brainlift) {
     res.status(404).json({ error: 'Brainlift not found' });
     return;

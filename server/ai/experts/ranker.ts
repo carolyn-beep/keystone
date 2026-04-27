@@ -1,5 +1,11 @@
-import type { ExtractionInput, ExtractedExpert, InsertExpert } from './types';
-import { expertExtractionSchema } from './types';
+import type { Expert } from '@shared/schema';
+import type {
+  ExpertExtractionOutput,
+  ExtractionInput,
+  ExtractedExpert,
+  InsertExpert,
+} from './types';
+import { expertExtractionSchema, expertRerankSchema } from './types';
 import { extractExpertsFromDocument } from './parsers';
 import { extractExpertsFromFactSources } from './extractors';
 import { buildExpertProfiles, computeImpactScore } from './profiler';
@@ -42,6 +48,170 @@ Output ONLY valid JSON:
 }
 
 Sort by rankScore descending. Keep rationales under 50 chars with actual numbers.`;
+
+const RERANK_SYSTEM_PROMPT = `You are an expert analyst reranking existing experts for a document.
+
+You will receive expert IDs plus impact metrics. Rank each expert by actual measured impact on the document.
+
+Rules:
+1. Return every provided expert exactly once.
+2. Preserve the provided expertId values exactly.
+3. Assign differentiated rankScores from 1-10 based on the metrics.
+4. Keep rationales under 50 chars and include actual numbers when possible.
+5. Output valid JSON only.
+
+Format:
+{
+  "experts": [
+    {
+      "expertId": 123,
+      "rankScore": 8,
+      "rationale": "6 citations, 2 score-5 facts"
+    }
+  ]
+}`;
+
+type ExistingExpertForRerank = Pick<
+  Expert,
+  'id' | 'name' | 'who' | 'why' | 'focus' | 'where' | 'twitterHandle' | 'isFollowing'
+>;
+
+function descriptionFromExpert(expert: {
+  who?: string | null;
+  focus?: string | null;
+  why?: string | null;
+}): string {
+  return expert.who || expert.focus || expert.why || '';
+}
+
+function createInsertExpert(
+  brainliftId: number,
+  expert: ExtractedExpert,
+  ranking?: {
+    rankScore: number | null;
+    rationale: string | null;
+    source: InsertExpert['source'];
+    twitterHandle: string | null;
+  },
+): InsertExpert {
+  return {
+    brainliftId,
+    name: expert.name,
+    who: expert.who,
+    why: expert.why,
+    focus: expert.focus,
+    where: expert.where,
+    rankScore: ranking?.rankScore ?? null,
+    rationale: ranking?.rationale ?? null,
+    source: ranking?.source ?? 'listed',
+    twitterHandle: ranking?.twitterHandle ?? expert.twitterHandle,
+    isFollowing: true,
+  };
+}
+
+function buildProfilesContext(experts: ExtractedExpert[], profiles: ReturnType<typeof buildExpertProfiles>): string {
+  return profiles
+    .map((profile) => {
+      const totalCitations = profile.factCitations + profile.noteCitations + profile.sourceCitations;
+      const matchingExpert = experts.find((expert) => expert.name.toLowerCase() === profile.name.toLowerCase());
+      const descriptor = matchingExpert?.description ? ` — ${matchingExpert.description}` : '';
+      return `- ${profile.name}${profile.twitterHandle ? ` (${profile.twitterHandle})` : ''}: ${totalCitations} total citations (${profile.factCitations} in facts, ${profile.noteCitations} in notes, ${profile.sourceCitations} in sources), ${profile.score5FactCitations} score-5 verified facts, ${profile.isInDok1Section ? 'IN DOK1 EXPERTS SECTION' : 'not in DOK1 section'}${descriptor}`;
+    })
+    .join('\n');
+}
+
+function buildRankingPrompt(input: ExtractionInput, experts: ExtractedExpert[], profilesContext: string, maxCitations: number): string {
+  return `Stack rank these experts by their MEASURED IMPACT on this brainlift:
+
+**Brainlift:** ${input.title}
+**Description:** ${input.description}
+
+${experts.length > 0 ? `**EXPERT IMPACT METRICS (use these numbers for ranking):**
+${profilesContext}
+
+**Maximum citations by any expert:** ${maxCitations}` : `**BRAINLIFT CONTENT:**
+${input.originalContent?.slice(0, 10000)}`}
+
+Assign differentiated scores (1-10) based on the citation counts or relevance in the text. ${experts.length > 0 ? 'No two experts with different citation counts should have the same score.' : 'Identify the top 5-10 experts mentioned in the text if none were explicitly listed.'}`;
+}
+
+async function stackRankExpertsByName(input: ExtractionInput, experts: ExtractedExpert[]): Promise<string> {
+  const profiles = buildExpertProfiles(
+    experts,
+    input.facts,
+    input.originalContent || '',
+    input.author,
+  );
+  const maxCitations = Math.max(
+    ...profiles.map((profile) => profile.factCitations + profile.noteCitations + profile.sourceCitations),
+    1,
+  );
+  const profilesContext = buildProfilesContext(experts, profiles);
+  const userPrompt = buildRankingPrompt(input, experts, profilesContext, maxCitations);
+
+  const t0 = performance.now();
+  const result = await callModelWithFallback({
+    models: ['anthropic/claude-sonnet-4.6', 'anthropic/claude-haiku-4.5'],
+    system: SYSTEM_PROMPT,
+    messages: [{ role: 'user', content: userPrompt }],
+    temperature: 0.1,
+    maxTokens: 2000,
+    timeout: 60_000,
+    caller: 'expertRanker.stackRanking',
+  });
+  console.log(`[Expert Ranker] Stack ranking: ${(performance.now() - t0).toFixed(0)}ms (model: ${result.model})`);
+
+  let content = result.content.replace(/```json\s*/g, '').replace(/```\s*/g, '').trim();
+  if (content.includes('{')) {
+    const firstOpen = content.indexOf('{');
+    const lastClose = content.lastIndexOf('}');
+    if (firstOpen !== -1 && lastClose !== -1 && lastClose > firstOpen) {
+      content = content.substring(firstOpen, lastClose + 1);
+    }
+  }
+
+  return content;
+}
+
+function buildRerankPrompt(input: Omit<ExtractionInput, 'brainliftId'>, experts: ExistingExpertForRerank[], profilesContext: string, maxCitations: number): string {
+  return `Rerank these existing experts by measured impact on this brainlift:
+
+**Brainlift:** ${input.title}
+**Description:** ${input.description}
+**Maximum citations by any expert:** ${maxCitations}
+
+**Expert metrics:**
+${profilesContext}
+
+Return every provided expertId exactly once.`;
+}
+
+function heuristicRerank(experts: ExistingExpertForRerank[], extractedExperts: ExtractedExpert[], input: Omit<ExtractionInput, 'brainliftId'>) {
+  const profiles = buildExpertProfiles(
+    extractedExperts,
+    input.facts,
+    input.originalContent || '',
+    input.author,
+  );
+  const maxCitations = Math.max(
+    ...profiles.map((profile) => profile.factCitations + profile.noteCitations + profile.sourceCitations),
+    1,
+  );
+  const profileByName = new Map(profiles.map((profile) => [profile.name.toLowerCase(), profile]));
+
+  return experts.map((expert) => {
+    const profile = profileByName.get(expert.name.toLowerCase());
+    if (!profile) {
+      return { expertId: expert.id, rankScore: null, rationale: null };
+    }
+    const totalCitations = profile.factCitations + profile.noteCitations + profile.sourceCitations;
+    return {
+      expertId: expert.id,
+      rankScore: computeImpactScore(profile, maxCitations),
+      rationale: `${totalCitations} citations, ${profile.score5FactCitations} score-5 facts`,
+    };
+  });
+}
 
 /**
  * AI-powered cleanup pass to filter out invalid expert names.
@@ -178,157 +348,118 @@ export async function extractAndRankExperts(input: ExtractionInput): Promise<Ins
 
   console.log('Total merged experts (post-cleanup):', cleanedExperts.map(e => e.name));
 
-  const profiles = buildExpertProfiles(
-    cleanedExperts,
-    input.facts,
-    input.originalContent || '',
-    input.author
-  );
-
-  const maxCitations = Math.max(
-    ...profiles.map(p => p.factCitations + p.noteCitations + p.sourceCitations),
-    1
-  );
-
-  for (const profile of profiles) {
-    const suggestedScore = computeImpactScore(profile, maxCitations);
-    console.log(`Expert ${profile.name}: facts=${profile.factCitations}, notes=${profile.noteCitations}, sources=${profile.sourceCitations}, score5=${profile.score5FactCitations}, suggested=${suggestedScore}`);
-  }
-
-  const profilesContext = profiles
-    .map(p => {
-      const totalCitations = p.factCitations + p.noteCitations + p.sourceCitations;
-      return `- ${p.name}${p.twitterHandle ? ` (${p.twitterHandle})` : ''}: ${totalCitations} total citations (${p.factCitations} in facts, ${p.noteCitations} in notes, ${p.sourceCitations} in sources), ${p.score5FactCitations} score-5 verified facts, ${p.isInDok1Section ? 'IN DOK1 EXPERTS SECTION' : 'not in DOK1 section'}`;
-    })
-    .join('\n');
-
-  const userPrompt = `Stack rank these experts by their MEASURED IMPACT on this brainlift:
-
-**Brainlift:** ${input.title}
-**Description:** ${input.description}
-
-${allExperts.length > 0 ? `**EXPERT IMPACT METRICS (use these numbers for ranking):**
-${profilesContext}
-
-**Maximum citations by any expert:** ${maxCitations}` : `**BRAINLIFT CONTENT:**
-${input.originalContent?.slice(0, 10000)}`}
-
-Assign differentiated scores (1-10) based on the citation counts or relevance in the text. ${allExperts.length > 0 ? 'No two experts with different citation counts should have the same score.' : 'Identify the top 5-10 experts mentioned in the text if none were explicitly listed.'}`;
-
   try {
-    const t0 = performance.now();
-    const result = await callModelWithFallback({
-      models: ['anthropic/claude-sonnet-4.6', 'anthropic/claude-haiku-4.5'],
-      system: SYSTEM_PROMPT,
-      messages: [{ role: 'user', content: userPrompt }],
-      temperature: 0.1,
-      maxTokens: 2000,
-      timeout: 60_000,
-      caller: 'expertRanker.stackRanking',
-    });
-    console.log(`[Expert Ranker] Stack ranking: ${(performance.now() - t0).toFixed(0)}ms (model: ${result.model})`);
+    const rawRankingResponse = await stackRankExpertsByName(input, cleanedExperts);
+    const rankedExperts = expertExtractionSchema.parse(JSON.parse(rawRankingResponse)).experts;
+    console.log('AI returned experts with scores:', rankedExperts.map(expert => `${expert.name}: ${expert.rankScore}`));
+    const extractedByName = new Map(cleanedExperts.map((expert) => [expert.name.toLowerCase(), expert]));
 
-    let content = result.content;
-    content = content.replace(/```json\s*/g, '').replace(/```\s*/g, '').trim();
-
-    // Clean up response if it contains conversational text
-    let cleanResponse = content;
-    if (content.includes('{')) {
-      const firstOpen = content.indexOf('{');
-      const lastClose = content.lastIndexOf('}');
-      if (firstOpen !== -1 && lastClose !== -1 && lastClose > firstOpen) {
-        cleanResponse = content.substring(firstOpen, lastClose + 1);
-      }
-    }
-
-    try {
-      const parsed = JSON.parse(cleanResponse);
-      const validated = expertExtractionSchema.parse(parsed);
-
-      console.log('AI returned experts with scores:', validated.experts.map(e => `${e.name}: ${e.rankScore}`));
-
-      // Start with AI-ranked experts
-      const result: InsertExpert[] = validated.experts.map(expert => ({
-        brainliftId: input.brainliftId,
+    // Start with AI-ranked experts
+    const result: InsertExpert[] = rankedExperts.map((expert) => {
+      const extractedExpert = extractedByName.get(expert.name.toLowerCase()) || {
         name: expert.name,
+        twitterHandle: expert.twitterHandle,
+        description: '',
+        who: null,
+        why: null,
+        focus: null,
+        where: null,
+      };
+      return createInsertExpert(input.brainliftId, extractedExpert, {
         rankScore: expert.rankScore,
         rationale: expert.rationale,
         source: expert.source,
         twitterHandle: expert.twitterHandle,
-        isFollowing: true,
-      }));
+      });
+    });
 
-      // Add any pre-extracted experts that AI didn't rank (don't throw them away!)
-      const rankedNames = new Set(validated.experts.map(e => e.name.toLowerCase()));
-      for (const expert of cleanedExperts) {
-        if (!rankedNames.has(expert.name.toLowerCase())) {
-          console.log(`Adding unranked expert: ${expert.name}`);
-          result.push({
-            brainliftId: input.brainliftId,
-            name: expert.name,
-            rankScore: null,
-            rationale: null,
-            source: 'listed',
-            twitterHandle: expert.twitterHandle,
-            isFollowing: true,
-          });
-        }
+    // Add any pre-extracted experts that AI didn't rank (don't throw them away!)
+    const rankedNames = new Set(rankedExperts.map((expert) => expert.name.toLowerCase()));
+    for (const expert of cleanedExperts) {
+      if (!rankedNames.has(expert.name.toLowerCase())) {
+        console.log(`Adding unranked expert: ${expert.name}`);
+        result.push(createInsertExpert(input.brainliftId, expert));
       }
-
-      return result;
-    } catch (parseError) {
-      console.error("Failed to parse expert extraction JSON. Attempting fallback with pre-extracted data.", parseError);
-
-      // Fallback: use the experts we already extracted with their handles preserved
-      // Build a map for quick handle lookup
-      const handleMap = new Map<string, string | null>();
-      for (const expert of cleanedExperts) {
-        handleMap.set(expert.name.toLowerCase(), expert.twitterHandle);
-      }
-
-      // Try to extract names from the malformed JSON response
-      const expertMatches = Array.from(content.matchAll(/"name":\s*"([^"]+)"/g));
-      const manualExperts: InsertExpert[] = [];
-      const seenNames = new Set<string>();
-
-      for (const match of expertMatches) {
-        const name = match[1];
-        const normalizedName = name.toLowerCase();
-        if (seenNames.has(normalizedName)) continue;
-        seenNames.add(normalizedName);
-
-        // Look up the handle from our pre-extracted data
-        const twitterHandle = handleMap.get(normalizedName) || null;
-
-        manualExperts.push({
-          brainliftId: input.brainliftId,
-          name,
-          rankScore: 5,
-          rationale: "Identified from document context.",
-          source: 'listed',
-          twitterHandle,
-          isFollowing: true
-        });
-      }
-
-      // If no names extracted from AI response, just use our pre-extracted experts
-      if (manualExperts.length === 0) {
-        console.log("No names from AI response, using pre-extracted experts directly");
-        return cleanedExperts.map(expert => ({
-          brainliftId: input.brainliftId,
-          name: expert.name,
-          rankScore: 5,
-          rationale: "Listed in DOK1 Experts section",
-          source: 'listed' as const,
-          twitterHandle: expert.twitterHandle,
-          isFollowing: true
-        }));
-      }
-
-      return manualExperts;
     }
+
+    return result;
   } catch (error) {
     console.error('Expert extraction failed:', error);
+    return cleanedExperts.map((expert) => createInsertExpert(input.brainliftId, expert, {
+      rankScore: 5,
+      rationale: 'Listed in DOK1 Experts section',
+      source: 'listed',
+      twitterHandle: expert.twitterHandle,
+    }));
+  }
+}
+
+export async function rerankExistingExperts(input: Omit<ExtractionInput, 'brainliftId'> & {
+  experts: ExistingExpertForRerank[];
+}): Promise<Array<{ expertId: number; rankScore: number | null; rationale: string | null }>> {
+  if (input.experts.length === 0) {
     return [];
+  }
+
+  const extractedExperts: ExtractedExpert[] = input.experts.map((expert) => ({
+    name: expert.name,
+    twitterHandle: expert.twitterHandle,
+    description: descriptionFromExpert(expert),
+    who: expert.who,
+    why: expert.why,
+    focus: expert.focus,
+    where: expert.where,
+  }));
+
+  const profiles = buildExpertProfiles(
+    extractedExperts,
+    input.facts,
+    input.originalContent || '',
+    input.author,
+  );
+  const maxCitations = Math.max(
+    ...profiles.map((profile) => profile.factCitations + profile.noteCitations + profile.sourceCitations),
+    1,
+  );
+  const profilesContext = profiles
+    .map((profile) => {
+      const expert = input.experts.find((candidate) => candidate.name.toLowerCase() === profile.name.toLowerCase());
+      const totalCitations = profile.factCitations + profile.noteCitations + profile.sourceCitations;
+      return `- expertId=${expert?.id ?? 'unknown'} ${profile.name}${profile.twitterHandle ? ` (${profile.twitterHandle})` : ''}: ${totalCitations} total citations (${profile.factCitations} in facts, ${profile.noteCitations} in notes, ${profile.sourceCitations} in sources), ${profile.score5FactCitations} score-5 verified facts, ${profile.isInDok1Section ? 'IN DOK1 EXPERTS SECTION' : 'not in DOK1 section'}`;
+    })
+    .join('\n');
+
+  try {
+    const result = await callModelWithFallback({
+      models: ['anthropic/claude-sonnet-4.6', 'anthropic/claude-haiku-4.5'],
+      system: RERANK_SYSTEM_PROMPT,
+      messages: [{
+        role: 'user',
+        content: buildRerankPrompt(input, input.experts, profilesContext, maxCitations),
+      }],
+      temperature: 0.1,
+      maxTokens: 2000,
+      timeout: 60_000,
+      caller: 'expertRanker.rerankExisting',
+    });
+
+    let content = result.content.replace(/```json\s*/g, '').replace(/```\s*/g, '').trim();
+    if (content.includes('{')) {
+      const firstOpen = content.indexOf('{');
+      const lastClose = content.lastIndexOf('}');
+      if (firstOpen !== -1 && lastClose !== -1 && lastClose > firstOpen) {
+        content = content.substring(firstOpen, lastClose + 1);
+      }
+    }
+
+    const ranked = expertRerankSchema.parse(JSON.parse(content)).experts;
+    const expectedIds = new Set(input.experts.map((expert) => expert.id));
+    if (ranked.length !== input.experts.length || ranked.some((expert) => !expectedIds.has(expert.expertId))) {
+      throw new Error('Rerank response did not cover the expected expert IDs');
+    }
+    return ranked;
+  } catch (error) {
+    console.error('[Expert Ranker] Rerank fallback to heuristic scoring:', error);
+    return heuristicRerank(input.experts, extractedExperts, input);
   }
 }

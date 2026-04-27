@@ -3,7 +3,6 @@
 // Types
 export type {
   ExpertExtractionOutput,
-  ReadingListItem,
   ExtractionInput,
   ExpertProfile,
   ParserType,
@@ -17,7 +16,7 @@ export type {
 export { expertExtractionSchema } from './types';
 
 // Main extraction and ranking
-export { extractAndRankExperts } from './ranker';
+export { extractAndRankExperts, rerankExistingExperts } from './ranker';
 
 // Parsing utilities
 export {
