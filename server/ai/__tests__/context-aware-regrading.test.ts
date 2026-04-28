@@ -391,6 +391,8 @@ describe('FR5: DOK4 regrading prompt support', () => {
         previousCriteriaBreakdown: {
           S1: { assessment: 'strong', evidence: 'Contested position' },
           S3: { assessment: 'weak', evidence: 'Missing DOK1 links' },
+          // Legacy v1 key — should be scrubbed from the prompt by the formatter
+          // so the v2 grader is not nudged toward criteria that no longer exist.
           O1: { assessment: 'partial', evidence: 'Some causal reasoning' },
         },
         oldText: 'Original SPOV',
@@ -408,7 +410,10 @@ describe('FR5: DOK4 regrading prompt support', () => {
     expect(prompt).toContain('Evidence trail incomplete');
     expect(prompt).toContain('S1: strong');
     expect(prompt).toContain('S3: weak');
-    expect(prompt).toContain('O1: partial');
+    // Legacy O1 must be scrubbed: the v2 grader does not produce O1, so surfacing
+    // it in regrade context would confuse the model.
+    expect(prompt).not.toContain('O1: partial');
+    expect(prompt).not.toContain('Some causal reasoning');
     expect(prompt).toContain('Original SPOV');
     expect(prompt).toContain('Revised SPOV with better grounding');
   });
@@ -438,14 +443,12 @@ describe('FR5: DOK4 regrading prompt support', () => {
         position_summary: 'Test position',
         framework_dependency: 'Test framework',
         key_evidence: ['evidence 1'],
-        vulnerability_points: ['vuln 1'],
         criteria: {
           S1: { assessment: 'strong', evidence: 'e' },
+          S4: { assessment: 'strong', evidence: 'e' },
+          P1: { assessment: 'strong', evidence: 'e' },
           S2: { assessment: 'partial', evidence: 'e' },
           S3: { assessment: 'strong', evidence: 'e' },
-          S4: { assessment: 'strong', evidence: 'e' },
-          S5: { assessment: 'partial', evidence: 'e' },
-          O1: { assessment: 'strong', evidence: 'e' },
           O2: { assessment: 'partial', evidence: 'e' },
         },
         score: 4,

@@ -14,6 +14,7 @@ import {
 } from './base';
 import type { SQL } from 'drizzle-orm';
 import type { PgColumn } from 'drizzle-orm/pg-core';
+import { labelForCriterion, type LabelDokLevel } from '../lib/criteria-labels';
 
 // ── Types ──
 
@@ -338,7 +339,7 @@ export async function getAssessmentDOK3(
         feedback: i.feedback,
         foundationIntegrityIndex: i.foundationIntegrityIndex,
         linkedSources: sourcesMap.get(i.id) || [],
-        criteriaSummary: summarizeCriteria(i.criteriaBreakdown as Record<string, any> | null),
+        criteriaSummary: summarizeCriteria(i.criteriaBreakdown as Record<string, any> | null, 3),
       };
       if (detail === 'full') {
         base.criteriaBreakdown = i.criteriaBreakdown;
@@ -389,7 +390,6 @@ export async function getAssessmentDOK4(
       criteriaBreakdown: dok4Spovs.criteriaBreakdown,
       antimemeticAssessment: dok4Spovs.antimemeticAssessment,
       positionSummary: dok4Spovs.positionSummary,
-      vulnerabilityPoints: dok4Spovs.vulnerabilityPoints,
       divergenceQuestion: dok4Spovs.divergenceQuestion,
       divergenceVanillaResponse: dok4Spovs.divergenceVanillaResponse,
     })
@@ -432,13 +432,12 @@ export async function getAssessmentDOK4(
         rejectionReason: s.rejectionReason,
         rejectionCategory: s.rejectionCategory,
         linkedInsights: insightsMap.get(s.id) || [],
-        criteriaSummary: summarizeCriteria(s.criteriaBreakdown as Record<string, any> | null),
+        criteriaSummary: summarizeCriteria(s.criteriaBreakdown as Record<string, any> | null, 4),
       };
       if (detail === 'full') {
         base.criteriaBreakdown = s.criteriaBreakdown;
         base.antimemeticAssessment = s.antimemeticAssessment;
         base.positionSummary = s.positionSummary;
-        base.vulnerabilityPoints = s.vulnerabilityPoints;
         base.divergenceQuestion = s.divergenceQuestion;
         base.divergenceVanillaResponse = s.divergenceVanillaResponse;
       }
@@ -453,14 +452,26 @@ export async function getAssessmentDOK4(
 /**
  * Summarize criteria breakdown into a short string for summary detail level.
  * Returns null if no breakdown available.
+ *
+ * Each criterion code is rendered with its human-readable name via
+ * `labelForCriterion` so agents reading the summary can connect a low
+ * score to a concrete revision direction (e.g. low DOK4 P1 means shorten
+ * the SPOV). Unknown criterion codes pass through as raw keys.
+ *
+ * dokLevel is required because DOK3 and DOK4 share criterion codes (notably
+ * P1) with different meanings; the level disambiguates the lookup.
+ *
+ * Exported for unit testing.
  */
-function summarizeCriteria(breakdown: Record<string, any> | null): string | null {
+export function summarizeCriteria(
+  breakdown: Record<string, any> | null,
+  dokLevel: LabelDokLevel,
+): string | null {
   if (!breakdown || typeof breakdown !== 'object') return null;
 
   const entries = Object.entries(breakdown);
   if (entries.length === 0) return null;
 
-  // Sort by assessment quality indicator (simple heuristic)
   const scored = entries
     .map(([key, value]) => ({
       key,
@@ -470,6 +481,7 @@ function summarizeCriteria(breakdown: Record<string, any> | null): string | null
 
   if (scored.length === 0) return null;
 
-  // Return abbreviated list of criteria
-  return scored.map(s => `${s.key}: ${s.assessment.substring(0, 50)}`).join('; ');
+  return scored
+    .map(s => `${labelForCriterion(s.key, dokLevel)}: ${s.assessment.substring(0, 50)}`)
+    .join('; ');
 }

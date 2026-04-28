@@ -15,7 +15,7 @@ You are about to create a Brainlift -- a structured knowledge artifact that will
 - **No redundant facts.** If two facts say essentially the same thing from the same source, keep the stronger one. The grading system will flag redundancy, and it will cost you.
 - **DOK2 summaries are not copy-paste.** The grader checks whether you actually reorganized and interpreted the source. Copying the source's own language will get flagged as `copy_paste` and auto-fail.
 - **DOK3 insights must be genuine cross-source synthesis.** Restating a single source's argument with a citation to a second source is not synthesis. The grader evaluates whether the insight actually connects ideas that live in different sources.
-- **DOK4 SPOVs must be positions, not observations.** "NIL is changing college athletics" is an observation. "College athletics will bifurcate into professional and educational tiers within 10 years, and this is the healthiest outcome" is a position. The grader will reject observations, tautologies, and statements no expert would disagree with.
+- **DOK4 SPOVs must be positions, not observations.** "NIL is changing college athletics" is an observation. "Amateurism, not NIL, is the NCAA's death sentence" is a position. A SPOV should read like a quotable line someone could take a side against, not a paragraph. The DOK1-2-3 chain is where you justify it; the SPOV itself is the claim. The grader will reject observations, tautologies, and statements no informed reader would disagree with.
 - **Quality of sources matters.** Primary sources (court rulings, published research, official reports) grade higher than secondary commentary. The URL you provide is fetched and read -- the grader knows the difference.
 
 ### Recommended Scale
@@ -45,6 +45,7 @@ A Brainlift isn't just graded -- it's *used*. After grading, it steers an LLM aw
 | DOK3 insight with weak causal connection to cited sources | DOK3 | Traceability flag, lower V1-V3 criteria scores |
 | DOK4 SPOV that's not a real claim | DOK4 | Rejected outright (not graded) |
 | DOK4 SPOV that no expert would disagree with | DOK4 | Low divergence score -- it's not "spiky" enough |
+| DOK4 SPOV that buries its claim in jargon, hedging, or paragraph-length explanation | DOK4 | Low Punchiness (P1) score -- a SPOV should read like a quotable line, not a memo |
 | Missing source URLs | DOK1, DOK2 | Lower-confidence verification, grading penalties |
 
 ---
@@ -138,7 +139,7 @@ Where: [Optional handle or URL]
 | DOK1 | Facts | Atomic, verifiable claims extracted from a single source | Must be tied to a specific source. "The Supreme Court ruled unanimously in Alston v. NCAA (2021)..." |
 | DOK2 | Summaries | Your synthesis/reorganization of what a single source says | One DOK2 section per source. Not copy-paste -- your interpretation of the source's argument. |
 | DOK3 | Insights | Cross-source analytical claims that connect ideas from 2+ sources | Must draw from at least 2 different sources. "Alston's legal precedent combined with state NIL laws is accelerating..." |
-| DOK4 | SPOVs | Spiky Points of View -- your original, defensible, possibly contrarian positions | Must be grounded in your DOK3 insights. This is where your unique thinking lives. |
+| DOK4 | SPOVs | Spiky Points of View -- a single quotable line that takes a side; the DOK1-2-3 chain is the justification | Must be grounded in your DOK3 insights. This is where your unique thinking lives. |
 
 The levels build on each other: DOK1 facts support DOK2 summaries, DOK2 summaries from different sources feed DOK3 insights, and DOK3 insights ground DOK4 SPOVs.
 
@@ -297,11 +298,11 @@ Focus: Athletic department strategy and regulation
       - Source 1
 
 - DOK4
-  - College athletics will bifurcate into a professional tier (football/basketball with employment contracts) and an educational tier (Olympic sports with scholarship models) within 10 years, and this is the healthiest possible outcome for athlete welfare
+  - College football and basketball will be employee leagues within ten years, and that is the best thing that could happen to college sports.
     - Links
       - Insight 1
       - Insight 2
-  - The NCAA's real existential threat is not NIL itself but the loss of the amateurism narrative -- once athletes are understood as workers, the entire justification for the NCAA's regulatory authority collapses
+  - NIL is a distraction. The NCAA's real problem is that it can no longer call its athletes amateurs.
     - Links
       - Insight 1
 ```

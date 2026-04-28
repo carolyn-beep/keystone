@@ -726,6 +726,85 @@ describe('FR4: GET /api/internal/brainlifts/:slug/assessment', () => {
     );
   });
 
+  // ── Spec 07: Server API v2 alignment ──
+
+  it('does NOT include vulnerabilityPoints in DOK4 detail=full responses', async () => {
+    // Storage layer (getAssessmentDOK4) no longer surfaces vulnerabilityPoints
+    // for the v2 philosophy (see spec 07). Mock fixture mirrors the new shape:
+    // no vulnerabilityPoints key on items.
+    mockGetAssessmentDOK4.mockResolvedValue({
+      items: [
+        {
+          id: 1,
+          text: 'SPOV with v2 fields',
+          status: 'graded',
+          score: 4,
+          rationale: 'R',
+          feedback: 'F',
+          rejectionReason: null,
+          rejectionCategory: null,
+          linkedInsights: ['Insight 1'],
+          criteriaSummary: 'S1 (Contested): strong; P1 (Adds Explanatory Power): weak',
+          // detail=full extras present in v2 (no vulnerabilityPoints):
+          criteriaBreakdown: { S1: { assessment: 'strong' }, P1: { assessment: 'weak' } },
+          antimemeticAssessment: 'antim',
+          positionSummary: 'pos',
+          divergenceQuestion: 'q',
+          divergenceVanillaResponse: 'v',
+        },
+      ],
+      total: 1,
+    });
+
+    const { assessmentHandler } = await import('../internal');
+    const req = createMockReq({
+      params: { slug: 'assess-bl' },
+      query: { dok: '4', detail: 'full', page: '1', pageSize: '20' },
+    });
+    const res = createMockRes();
+
+    await assessmentHandler(req, res);
+
+    const responseData = res.json.mock.calls[0][0];
+    expect(responseData.dok).toBe(4);
+    expect(responseData.items).toHaveLength(1);
+    const item = responseData.items[0];
+    expect(item).not.toHaveProperty('vulnerabilityPoints');
+  });
+
+  it('returns labeled criteriaSummary for DOK4 v2 SPOVs', async () => {
+    mockGetAssessmentDOK4.mockResolvedValue({
+      items: [
+        {
+          id: 2,
+          text: 'SPOV with labels',
+          status: 'graded',
+          score: 3,
+          rationale: 'R',
+          feedback: 'F',
+          rejectionReason: null,
+          rejectionCategory: null,
+          linkedInsights: [],
+          criteriaSummary: 'S1 (Contested): strong; S4 (Clear Side): weak',
+        },
+      ],
+      total: 1,
+    });
+
+    const { assessmentHandler } = await import('../internal');
+    const req = createMockReq({
+      params: { slug: 'assess-bl' },
+      query: { dok: '4', page: '1', pageSize: '20' },
+    });
+    const res = createMockRes();
+
+    await assessmentHandler(req, res);
+
+    const responseData = res.json.mock.calls[0][0];
+    expect(responseData.items[0].criteriaSummary).toMatch(/S1 \(Contested\)/);
+    expect(responseData.items[0].criteriaSummary).toMatch(/S4 \(Clear Side\)/);
+  });
+
   it('returns 400 for missing dok param', async () => {
     const { assessmentHandler } = await import('../internal');
     const req = createMockReq({

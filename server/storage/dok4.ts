@@ -187,7 +187,7 @@ export async function saveDOK4GradeResult(
       positionSummary: result.positionSummary,
       frameworkDependency: result.frameworkDependency,
       keyEvidence: result.keyEvidence,
-      vulnerabilityPoints: result.vulnerabilityPoints,
+      vulnerabilityPoints: null,
       criteriaBreakdown: result.criteriaBreakdown,
       rationale: result.rationale,
       feedback: result.feedback,

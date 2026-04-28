@@ -3,14 +3,14 @@ import { AnimatePresence, motion } from 'framer-motion';
 import { RefreshCw, Loader2, ChevronDown, ChevronUp, Info, ShieldAlert, Radio, Weight, Link2, ArrowRight } from 'lucide-react';
 import { PiFootprintsFill } from 'react-icons/pi';
 import { FaArrowUpRightDots } from 'react-icons/fa6';
-import type { DOK4SpovWithLinks, DOK4CriteriaBreakdown, DOK4BarrierType } from '@shared/dok4-types';
+import type { DOK4SpovWithLinks, DOK4CriteriaBreakdown, DOK4CriterionKey, DOK4BarrierType } from '@shared/dok4-types';
 import type { DOK4GradingSSEEvent } from '@/hooks/useDOK4GradingEvents';
 import { tokens, getScoreChipColors } from '@/lib/colors';
 import { TactileButton } from '@/components/ui/tactile-button';
 import { FilterBar, type ExtraFilter } from '@/components/FilterBar';
 
 const SPOV_SCORE_LABELS: Record<number, string> = {
-  5: 'Field-Advancing', 4: 'Defensible', 3: 'Original, Weak Def.', 2: 'Borrowed', 1: 'Not Spiky',
+  5: 'Quotable', 4: 'Sharp Spiky', 3: 'Unrefined', 2: 'Borrowed', 1: 'Not Spiky',
 };
 
 const spovSearchFn = (spov: DOK4SpovWithLinks, query: string): boolean => {
@@ -26,7 +26,8 @@ const SPOV_EXTRA_FILTERS: ExtraFilter<DOK4SpovWithLinks>[] = [
 // ─── DOK4 Criteria Metadata ──────────────────────────────────────────────────
 
 interface CriterionMeta {
-  key: keyof DOK4CriteriaBreakdown;
+  // Includes legacy keys (S5, O1) so historical SPOVs graded under the v1 rubric still render.
+  key: DOK4CriterionKey;
   name: string;
   description: string;
 }
@@ -38,26 +39,32 @@ interface AxisMeta {
   criteria: CriterionMeta[];
 }
 
+// Criteria meta defines display labels for both current (v2) and legacy (v1) rubrics.
+// The renderer filters by what's present in spov.criteriaBreakdown, so legacy rows
+// (with S5/O1) and new rows (with P1) both render correctly.
 const DOK4_CRITERIA_AXES: AxisMeta[] = [
   {
     id: 'S',
     label: 'Spikiness',
-    question: 'Is this a real SPOV?',
+    question: 'Is the form right?',
     criteria: [
-      { key: 'S1', name: 'Contested Territory', description: 'Does the SPOV stake out a position that reasonable experts would disagree about?' },
-      { key: 'S2', name: 'LLM Divergence', description: 'Does the SPOV say something a vanilla LLM would not produce on its own?' },
-      { key: 'S3', name: 'Grounded & Traceable', description: 'Is the SPOV anchored in the student\'s DOK1-3 evidence chain?' },
-      { key: 'S4', name: 'Clear Side', description: 'Does the SPOV take an unambiguous position, not a hedge?' },
-      { key: 'S5', name: 'Cross-Domain Synthesis', description: 'Does the SPOV synthesize across multiple domains or frameworks?' },
+      { key: 'S1', name: 'Contested', description: 'Do informed practitioners take genuinely different sides on this question?' },
+      { key: 'S4', name: 'Clear Side', description: 'Does the SPOV commit to a stance with no hedging?' },
+      { key: 'P1', name: 'Punchiness', description: 'Is the SPOV a single, quotable, memorable line?' },
+      // Legacy v1 criterion (Cross-Domain Synthesis) — only renders for SPOVs graded before the v2 rewrite.
+      { key: 'S5', name: 'Cross-Domain Synthesis', description: 'Does the SPOV synthesize across multiple domains or frameworks? (Legacy criterion.)' },
     ],
   },
   {
     id: 'O',
     label: 'Ownership',
-    question: 'Is this the student\'s thinking?',
+    question: 'Did the student really make this?',
     criteria: [
-      { key: 'O1', name: 'Causal Reasoning', description: 'Does the student\'s reasoning chain show original causal logic, not just citation?' },
+      { key: 'S2', name: 'LLM Divergence', description: 'Does the SPOV diverge from a vanilla LLM\'s answer in a substantive way?' },
+      { key: 'S3', name: 'Grounded & Traceable', description: 'Is the SPOV anchored in the student\'s DOK1-3 evidence chain?' },
       { key: 'O2', name: 'Distinct Voice', description: 'Is the framing and language distinctly the student\'s own, not parroting sources?' },
+      // Legacy v1 criterion (Causal Reasoning) — only renders for SPOVs graded before the v2 rewrite.
+      { key: 'O1', name: 'Causal Reasoning', description: 'Does the student\'s reasoning chain show original causal logic? (Legacy criterion.)' },
     ],
   },
 ];
@@ -66,9 +73,9 @@ const DOK4_CRITERIA_AXES: AxisMeta[] = [
 
 function getDOK4QualityLabel(score: number | null): string {
   if (score === null) return 'Ungraded';
-  if (score === 5) return 'Field-Advancing';
-  if (score === 4) return 'Defensible';
-  if (score === 3) return 'Original, Weak Defense';
+  if (score === 5) return 'Quotable';
+  if (score === 4) return 'Sharp Spiky POV';
+  if (score === 3) return 'Original but Unrefined';
   if (score === 2) return 'Borrowed Spikiness';
   return 'Not Spiky';
 }
@@ -706,9 +713,10 @@ function SpovCard({ spov, expanded, onToggle, analysisExpanded, onToggleAnalysis
                     </span>
                     <div className="space-y-10">
                       {DOK4_CRITERIA_AXES.map(axis => {
-                        const axisCriteria = axis.criteria.filter(
-                          c => spov.criteriaBreakdown![c.key]
-                        );
+                        // Cast to a permissive shape so legacy keys (S5, O1) remain readable
+                        // for historical SPOVs without polluting the v2 type contract.
+                        const breakdown = spov.criteriaBreakdown as unknown as Record<string, { assessment: string; evidence: string }>;
+                        const axisCriteria = axis.criteria.filter(c => breakdown[c.key]);
                         if (axisCriteria.length === 0) return null;
 
                         return (
@@ -724,7 +732,7 @@ function SpovCard({ spov, expanded, onToggle, analysisExpanded, onToggleAnalysis
 
                             <div className="grid grid-cols-2 gap-5">
                               {axisCriteria.map((criterion, idx) => {
-                                const data = spov.criteriaBreakdown![criterion.key];
+                                const data = breakdown[criterion.key];
                                 const colors = getAssessmentColor(data.assessment);
                                 const isOddLast = axisCriteria.length % 2 === 1 && idx === axisCriteria.length - 1;
 

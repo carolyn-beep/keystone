@@ -39,10 +39,18 @@ export function formatPreviousEvaluationSection(prev: PreviousEvaluation): strin
   }
 
   if (prev.previousCriteriaBreakdown && Object.keys(prev.previousCriteriaBreakdown).length > 0) {
-    lines.push('');
-    lines.push('Previous Criteria:');
-    for (const [key, value] of Object.entries(prev.previousCriteriaBreakdown)) {
-      lines.push(`  ${key}: ${value.assessment} -- ${value.evidence}`);
+    // Skip legacy DOK4 criterion keys (S5 Cross-Domain Synthesis, O1 Causal Reasoning)
+    // so the v2 grader is not nudged to evaluate criteria that no longer exist.
+    const LEGACY_DOK4_KEYS = new Set(['S5', 'O1']);
+    const surfaced = Object.entries(prev.previousCriteriaBreakdown)
+      .filter(([key]) => !LEGACY_DOK4_KEYS.has(key));
+
+    if (surfaced.length > 0) {
+      lines.push('');
+      lines.push('Previous Criteria:');
+      for (const [key, value] of surfaced) {
+        lines.push(`  ${key}: ${value.assessment} -- ${value.evidence}`);
+      }
     }
   }
 
