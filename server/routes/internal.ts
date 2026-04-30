@@ -16,8 +16,6 @@
  */
 
 import { Router, type Request, type Response } from 'express';
-import { readFileSync, existsSync } from 'fs';
-import path from 'path';
 import { z } from 'zod';
 import {
   createDeliverableRequestSchema,
@@ -30,15 +28,14 @@ import { requireBrainliftAccess, requireBrainliftModify } from '../middleware/br
 import { asyncHandler, BadRequestError, NotFoundError } from '../middleware/error-handler';
 import { storage } from '../storage';
 import { processGradeRequest } from '../services/internal-grading';
-import { createGoogleDriveService, type GoogleDriveService } from '../services/googleDrive';
 import {
-  getBrainliftProgress,
-  getBrainliftScores,
-  getAssessmentDOK1,
-  getAssessmentDOK2,
-  getAssessmentDOK3,
-  getAssessmentDOK4,
-} from '../storage/internal';
+  buildGradingQueuedResponse,
+  getBrainliftAssessmentForAuthContext,
+  getBrainliftStatusForAuthContext,
+  getBrainliftTemplatePayload,
+  listBrainliftsForAuthContext,
+} from '../services/brainlift-grading-surface';
+import { createSprintDeliverable, updateSprintDeliverable } from '../services/sprint';
 import { createVersion, pruneVersions } from '../storage/versions';
 import { propagateStaleFlags, dismissStaleFlag, getStaleItems } from '../storage/stale';
 import { recomputeBrainliftScore } from '../services/brainlift';
@@ -47,7 +44,7 @@ import type { PreviousEvaluation } from '@shared/types/regrading';
 import { db } from '../db';
 import { facts, dok2Summaries, dok3Insights, dok4Spovs } from '@shared/schema';
 import { eq, and, inArray } from 'drizzle-orm';
-import { SprintStorageConflictError, setDeliverableSourceSurface } from '../storage/sprints';
+import { SprintStorageConflictError } from '../storage/sprints';
 import {
   createPlanHandler as publicCreatePlanHandler,
   listPlansHandler as publicListPlansHandler,
@@ -72,50 +69,18 @@ const createExpertsRequestSchema = z.object({
 
 // ── Template endpoint (spec 02) ──
 
-let cachedTemplate: string | null = null;
-let templateLoadError: string | null = null;
-
-function loadTemplate(): string | null {
-  if (cachedTemplate !== null) return cachedTemplate;
-
-  const templatePath = path.resolve(
-    process.cwd(),
-    'docs/brainlift-mcp-template.md',
-  );
-
-  if (!existsSync(templatePath)) {
-    templateLoadError = `Template file not found: ${templatePath}`;
-    console.error(templateLoadError);
-    return null;
-  }
-
-  try {
-    cachedTemplate = readFileSync(templatePath, 'utf-8');
-    return cachedTemplate;
-  } catch (error) {
-    templateLoadError = `Failed to read template: ${error instanceof Error ? error.message : String(error)}`;
-    console.error(templateLoadError);
-    return null;
-  }
-}
-
 export async function getTemplateHandler(
   _req: Request,
   res: Response,
 ): Promise<void> {
-  const template = loadTemplate();
-
-  if (template === null) {
+  try {
+    const payload = await getBrainliftTemplatePayload();
+    res.json(payload);
+  } catch (error) {
     res.status(500).json({
-      error: templateLoadError || 'Template not available',
+      error: error instanceof Error ? error.message : 'Template not available',
     });
-    return;
   }
-
-  res.json({
-    template,
-    format: 'markdown' as const,
-  });
 }
 
 internalRouter.get(
@@ -144,13 +109,7 @@ export async function gradeHandler(
       req.authContext!.userId,
     );
 
-    res.status(201).json({
-      slug: result.slug,
-      brainliftId: result.brainliftId,
-      status: 'grading' as const,
-      message: 'Brainlift created. Use get_brainlift_assessment to check results.',
-      retryAfter: 30,
-    });
+    res.status(201).json(buildGradingQueuedResponse(result));
   } catch (error: any) {
     if (error instanceof BadRequestError || error.statusCode === 400) {
       res.status(400).json({ error: error.message });
@@ -174,32 +133,8 @@ export async function listBrainliftsHandler(
 ): Promise<void> {
   const page = Math.max(1, parseInt(String(req.query.page)) || 1);
   const pageSize = Math.min(20, Math.max(1, parseInt(String(req.query.pageSize)) || 10));
-  const offset = (page - 1) * pageSize;
 
-  const { brainlifts, total } = await storage.getBrainliftsForUserPaginated(
-    req.authContext!,
-    offset,
-    pageSize,
-    'all',
-  );
-
-  res.json({
-    brainlifts: brainlifts.map(b => ({
-      slug: b.slug,
-      title: b.title,
-      status: deriveBrainliftStatus(b.importStatus ?? 'pending'),
-      score: b.summary && typeof b.summary === 'object' && 'meanScore' in b.summary
-        ? parseFloat(String((b.summary as any).meanScore)) || null
-        : null,
-      createdAt: b.createdAt.toISOString(),
-    })),
-    pagination: {
-      page,
-      pageSize,
-      totalItems: total,
-      totalPages: Math.ceil(total / pageSize),
-    },
-  });
+  res.json(await listBrainliftsForAuthContext(req.authContext!, { page, pageSize }));
 }
 
 internalRouter.get(
@@ -214,31 +149,16 @@ export async function statusHandler(
   req: Request,
   res: Response,
 ): Promise<void> {
-  const { slug } = req.params;
+  try {
+    res.json(await getBrainliftStatusForAuthContext(req.authContext!, req.params.slug));
+  } catch (error) {
+    if (error instanceof NotFoundError) {
+      res.status(404).json({ error: error.message });
+      return;
+    }
 
-  const brainlift = await resolveInternalBrainlift(req, slug, 'access');
-  if (!brainlift) {
-    res.status(404).json({ error: 'Brainlift not found' });
-    return;
+    throw error;
   }
-
-  const [progress, scores] = await Promise.all([
-    getBrainliftProgress(brainlift.id),
-    getBrainliftScores(brainlift.id),
-  ]);
-
-  const status = deriveStatusFromProgress(brainlift.importStatus ?? 'pending', progress);
-  const isComplete = status === 'complete';
-
-  res.json({
-    slug: brainlift.slug,
-    title: brainlift.title,
-    status,
-    progress,
-    score: scores,
-    retryAfter: isComplete ? 0 : 15,
-    createdAt: brainlift.createdAt.toISOString(),
-  });
 }
 
 internalRouter.get(
@@ -261,16 +181,9 @@ export async function assessmentHandler(
     return;
   }
 
-  const brainlift = await resolveInternalBrainlift(req, slug, 'access');
-  if (!brainlift) {
-    res.status(404).json({ error: 'Brainlift not found' });
-    return;
-  }
-
   const page = Math.max(1, parseInt(String(req.query.page)) || 1);
   const pageSize = Math.min(50, Math.max(1, parseInt(String(req.query.pageSize)) || 20));
   const detail = req.query.detail === 'full' ? 'full' : 'summary';
-  const offset = (page - 1) * pageSize;
 
   // Filter/sort params
   const itemIdRaw = parseInt(String(req.query.itemId));
@@ -280,42 +193,33 @@ export async function assessmentHandler(
   const orderRaw = String(req.query.order || '');
   const order = (['asc', 'desc'].includes(orderRaw) ? orderRaw : undefined) as 'asc' | 'desc' | undefined;
   const statusRaw = String(req.query.status || '');
-  const status = (['regrading', 'grading', 'graded', 'error'].includes(statusRaw) ? statusRaw : undefined);
+  const status = (['regrading', 'grading', 'graded', 'error'].includes(statusRaw) ? statusRaw : undefined) as 'regrading' | 'grading' | 'graded' | 'error' | undefined;
 
-  const filters = { itemId, sortBy, order, status };
-
-  let result: { items: any[]; total: number };
-
-  switch (dokParam) {
-    case 1:
-      result = await getAssessmentDOK1(brainlift.id, offset, pageSize, filters);
-      break;
-    case 2:
-      result = await getAssessmentDOK2(brainlift.id, offset, pageSize, filters);
-      break;
-    case 3:
-      result = await getAssessmentDOK3(brainlift.id, offset, pageSize, detail as 'summary' | 'full', filters);
-      break;
-    case 4:
-      result = await getAssessmentDOK4(brainlift.id, offset, pageSize, detail as 'summary' | 'full', filters);
-      break;
-    default:
-      res.status(400).json({ error: 'Invalid DOK level' });
-      return;
-  }
-
-  res.json({
-    slug: brainlift.slug,
-    dok: dokParam,
-    status: 'complete', // Per-DOK status could be enhanced later
-    items: result.items,
-    pagination: {
+  try {
+    res.json(await getBrainliftAssessmentForAuthContext(req.authContext!, {
+      slug,
+      dok: dokParam as 1 | 2 | 3 | 4,
       page,
       pageSize,
-      totalItems: result.total,
-      totalPages: Math.ceil(result.total / pageSize),
-    },
-  });
+      itemId,
+      sortBy,
+      order,
+      status,
+      detail,
+    }));
+  } catch (error) {
+    if (error instanceof NotFoundError) {
+      res.status(404).json({ error: error.message });
+      return;
+    }
+
+    if (error instanceof BadRequestError) {
+      res.status(400).json({ error: error.message });
+      return;
+    }
+
+    throw error;
+  }
 }
 
 internalRouter.get(
@@ -411,23 +315,6 @@ internalRouter.delete(
 
 // ── Scope Breaker internal sprint routes (spec 03) ──
 
-let internalGoogleDriveService: GoogleDriveService | null = null;
-
-function getInternalGoogleDriveService(): GoogleDriveService {
-  if (!internalGoogleDriveService) {
-    internalGoogleDriveService = createGoogleDriveService();
-  }
-  return internalGoogleDriveService;
-}
-
-async function getTaskForInternalRouteOr404(brainliftId: number, taskId: number) {
-  const task = await storage.getTaskForBrainlift(taskId, brainliftId);
-  if (!task) {
-    throw new NotFoundError('Task not found');
-  }
-  return task;
-}
-
 export async function internalCreatePlanHandler(req: Request, res: Response): Promise<void> {
   await publicCreatePlanHandler(req, res);
 }
@@ -491,77 +378,22 @@ export async function internalCreateDeliverableHandler(req: Request, res: Respon
   const { taskId } = taskIdParamsSchema.parse(req.params);
   const body = createDeliverableRequestSchema.parse(req.body);
 
-  const task = await getTaskForInternalRouteOr404(brainlift.id, taskId);
-  const existingDeliverable = await storage.getDeliverableByTaskId(taskId, brainlift.id);
-
-  if (existingDeliverable) {
-    res.status(409).json({ message: 'A deliverable already exists for this task' });
-    return;
-  }
-
-  const planRows = await storage.listPlans(brainlift.id);
-  const plan = planRows.find((row) => row.id === task.plan.id);
-  if (!plan) {
-    throw new NotFoundError('Plan not found');
-  }
-
-  const drive = getInternalGoogleDriveService();
-  const audience = await storage.getSprintSharingAudience(brainlift.id);
-
-  const rootFolder = await drive.ensureRootFolder({
-    brainliftId: brainlift.id,
-    brainliftTitle: brainlift.title,
-    ownerName: audience.ownerName,
-    existingFolderId: brainlift.gdriveRootFolderId ?? null,
-  });
-
-  if (!brainlift.gdriveRootFolderId || brainlift.gdriveRootFolderId !== rootFolder.folderId) {
-    await storage.setBrainliftGdriveRootFolder(brainlift.id, rootFolder.folderId);
-  }
-
-  await drive.syncRootFolderEditors(rootFolder.folderId, [
-    audience.ownerEmail,
-    ...audience.editorEmails,
-    ...audience.guideEmails,
-  ]);
-
-  const planFolder = await drive.ensurePlanFolder({
-    planId: plan.id,
-    startDate: plan.startDate,
-    existingFolderId: plan.gdriveFolderId ?? null,
-    rootFolderId: rootFolder.folderId,
-  });
-
-  if (!plan.gdriveFolderId || plan.gdriveFolderId !== planFolder.folderId) {
-    await storage.setPlanGdriveFolder(plan.id, planFolder.folderId);
-  }
-
-  const createdDoc = await drive.createGoogleDocFromMarkdown({
-    parentFolderId: planFolder.folderId,
-    title: body.title,
-    markdown: body.markdown,
-  });
-
   try {
-    const deliverable = await storage.createDeliverable({
+    const result = await createSprintDeliverable({
+      brainlift: {
+        id: brainlift.id,
+        title: brainlift.title,
+        gdriveRootFolderId: brainlift.gdriveRootFolderId ?? null,
+      },
+      userId: authContext.userId,
       taskId,
-      brainliftId: brainlift.id,
       title: body.title,
-      docFileId: createdDoc.fileId,
-      docUrl: createdDoc.docUrl,
+      markdown: body.markdown,
       sourceSurface: 'mcp',
-      createdByUserId: authContext.userId,
     });
 
-    await storage.markPlanCompleteIfAllDelivered(task.plan.id);
-    res.status(201).json({ docUrl: deliverable.docUrl });
+    res.status(201).json(result);
   } catch (error) {
-    try {
-      await drive.deleteGoogleDoc(createdDoc.fileId);
-    } catch (cleanupError) {
-      console.error('[Internal Sprints] Failed to clean up orphaned Google Doc:', cleanupError);
-    }
-
     if (error instanceof SprintStorageConflictError) {
       res.status(409).json({ message: error.message });
       return;
@@ -575,19 +407,12 @@ export async function internalUpdateDeliverableHandler(req: Request, res: Respon
   const brainlift = req.brainlift!;
   const { taskId } = taskIdParamsSchema.parse(req.params);
   const body = updateDeliverableRequestSchema.parse(req.body);
-
-  await getTaskForInternalRouteOr404(brainlift.id, taskId);
-
-  const deliverable = await storage.getDeliverableByTaskId(taskId, brainlift.id);
-  if (!deliverable) {
-    throw new NotFoundError('Deliverable not found');
-  }
-
-  const drive = getInternalGoogleDriveService();
-  await drive.replaceGoogleDocFromMarkdown(deliverable.docFileId, body.markdown);
-  await setDeliverableSourceSurface(deliverable.id, brainlift.id, 'mcp');
-
-  res.json({ docUrl: deliverable.docUrl });
+  res.json(await updateSprintDeliverable({
+    brainliftId: brainlift.id,
+    taskId,
+    markdown: body.markdown,
+    sourceSurface: 'mcp',
+  }));
 }
 
 internalRouter.post(
@@ -660,50 +485,6 @@ internalRouter.get(
 );
 
 // ── Helpers ──
-
-/**
- * Derive a simple brainlift status from importStatus.
- * Used for list endpoint where we don't have per-DOK progress.
- */
-function deriveBrainliftStatus(importStatus: string): string {
-  switch (importStatus) {
-    case 'complete': return 'complete';
-    case 'pending': return 'grading';
-    default: return 'grading';
-  }
-}
-
-/**
- * Derive detailed status from importStatus + per-DOK progress.
- *
- * Logic:
- *   - If importStatus is 'pending' and no DOK items exist: 'extracting'
- *   - If any DOK level has pending/grading items: 'grading'
- *   - If any DOK level has errors and none pending: 'error'
- *   - Otherwise: 'complete'
- */
-function deriveStatusFromProgress(
-  importStatus: string,
-  progress: { dok1: { total: number; pending: number; error: number }; dok2: { total: number; pending: number; error: number }; dok3: { total: number; pending: number; error: number }; dok4: { total: number; pending: number; error: number } },
-): 'extracting' | 'grading' | 'complete' | 'error' {
-  const totalItems = progress.dok1.total + progress.dok2.total + progress.dok3.total + progress.dok4.total;
-
-  if (importStatus === 'pending' && totalItems === 0) {
-    return 'extracting';
-  }
-
-  const totalPending = progress.dok1.pending + progress.dok2.pending + progress.dok3.pending + progress.dok4.pending;
-  if (totalPending > 0) {
-    return 'grading';
-  }
-
-  const totalErrors = progress.dok1.error + progress.dok2.error + progress.dok3.error + progress.dok4.error;
-  if (totalErrors > 0) {
-    return 'error';
-  }
-
-  return 'complete';
-}
 
 type InternalBrainliftAccess = 'access' | 'modify';
 

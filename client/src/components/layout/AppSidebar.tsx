@@ -2,6 +2,7 @@ import { ComponentType, useState } from 'react';
 import { Link, useLocation } from 'wouter';
 import { LogOut, Home, PanelLeftClose, PanelLeftOpen } from 'lucide-react';
 import { authClient } from '@/lib/auth-client';
+import { queryClient } from '@/lib/queryClient';
 import { SidebarNavItem } from './SidebarNavItem';
 
 export interface NavItem {
@@ -44,6 +45,7 @@ export function AppSidebar({
     await authClient.signOut({
       fetchOptions: {
         onSuccess: () => {
+          queryClient.clear();
           setLocation('/login');
         },
       },

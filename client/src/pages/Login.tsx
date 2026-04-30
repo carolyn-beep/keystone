@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { useLocation } from "wouter";
 import { authClient } from "@/lib/auth-client";
 import { Button } from "@/components/ui/button";
@@ -5,6 +6,10 @@ import { Card } from "@/components/ui/card";
 
 export default function Login() {
   const [, setLocation] = useLocation();
+  const [devEmail, setDevEmail] = useState("");
+  const [devPassword, setDevPassword] = useState("devpassword123");
+  const [devError, setDevError] = useState<string | null>(null);
+  const [devLoading, setDevLoading] = useState(false);
 
   // Get redirect URL from query params
   const searchParams = new URLSearchParams(window.location.search);
@@ -15,6 +20,29 @@ export default function Login() {
       provider: "google",
       callbackURL: redirectTo,
     });
+  };
+
+  const handleDevLogin = async () => {
+    if (!devEmail) return;
+    setDevError(null);
+    setDevLoading(true);
+    try {
+      const signIn = await authClient.signIn.email({ email: devEmail, password: devPassword });
+      if (signIn.error) {
+        const signUp = await authClient.signUp.email({
+          email: devEmail,
+          password: devPassword,
+          name: devEmail.split("@")[0],
+        });
+        if (signUp.error) {
+          setDevError(signUp.error.message ?? "Failed to create account");
+          return;
+        }
+      }
+      setLocation(redirectTo);
+    } finally {
+      setDevLoading(false);
+    }
   };
 
   // Check if already logged in
@@ -99,6 +127,33 @@ export default function Login() {
               <GoogleIcon className="mr-3 h-5 w-5" />
               Continue with Google
             </Button>
+
+            <div className="space-y-2 pt-4 border-t border-dashed">
+                <p className="text-xs uppercase tracking-wide text-muted-foreground">Dev quick login</p>
+                <input
+                  type="email"
+                  placeholder="email (creates if missing)"
+                  value={devEmail}
+                  onChange={(e) => setDevEmail(e.target.value)}
+                  className="w-full h-9 px-3 rounded-md border border-input bg-background text-sm"
+                />
+                <input
+                  type="password"
+                  placeholder="password"
+                  value={devPassword}
+                  onChange={(e) => setDevPassword(e.target.value)}
+                  className="w-full h-9 px-3 rounded-md border border-input bg-background text-sm"
+                />
+                {devError && <p className="text-xs text-destructive">{devError}</p>}
+                <Button
+                  onClick={handleDevLogin}
+                  disabled={devLoading || !devEmail || devPassword.length < 8}
+                  className="w-full"
+                  variant="secondary"
+                >
+                {devLoading ? "Signing in..." : "Sign in / sign up"}
+              </Button>
+            </div>
           </div>
 
           <div className="text-center text-sm text-muted-foreground">

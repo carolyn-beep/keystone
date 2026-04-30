@@ -4,6 +4,7 @@ import type { AnalyticsDokLevelFilter, LeaderboardRankBy } from '@shared/analyti
 import { authClient } from '@/lib/auth-client';
 import { TactileButton } from '@/components/ui/tactile-button';
 import { useLocation } from 'wouter';
+import { LIBRARY_ROUTE_PATH } from '@/components/chat/chat-home-helpers';
 import {
   getAnalyticsQuickRangeFilters,
   getDefaultAnalyticsPageFilters,
@@ -135,7 +136,7 @@ export default function Analytics() {
           <div className="relative grid gap-6 xl:grid-cols-[minmax(0,1fr)_280px]">
             <div>
               <div className="flex flex-wrap items-center gap-3">
-                <TactileButton variant="inset" className="flex items-center gap-2" onClick={() => setLocation('/')}>
+                <TactileButton variant="inset" className="flex items-center gap-2" onClick={() => setLocation(LIBRARY_ROUTE_PATH)}>
                   <ArrowLeft size={16} />
                   Library
                 </TactileButton>

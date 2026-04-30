@@ -687,14 +687,14 @@
   background: hsl(var(--card-elevated));
 }
 
-/* User message — warm muted bubble */
+/* User message — warmer accent bubble (slightly more amber than assistant) */
 .aui-user-message-content {
-  background: hsl(var(--sidebar));
+  background: hsl(var(--accent));
   color: hsl(var(--foreground));
   border-radius: 0.75rem;
 }
 
-/* Assistant message — fill available width, readable body */
+/* Assistant message — same warm bubble as user, fills available width */
 .aui-assistant-message-content {
   color: hsl(var(--foreground));
   font-size: 14px;
@@ -783,6 +783,430 @@
 }
 
 /* ===== End Import Agent overrides ===== */
+
+/* ===== Native Chat Home ===== */
+
+/* Warm parchment wash behind the entire chat column,
+   sitting under the engraving image. */
+.chat-main {
+  container-type: inline-size;
+  background:
+    /* warm tan wash, bottom-left */
+    radial-gradient(circle at bottom left, hsla(35, 50%, 72%, 0.12), transparent 28%),
+    /* deeper sand wash, top-right */
+    radial-gradient(circle at top right, hsla(28, 45%, 62%, 0.10), transparent 30%),
+    linear-gradient(180deg, rgba(249, 245, 237, 0.2), rgba(249, 245, 237, 0.3));
+}
+
+/* Engraving anchored to the chat main column so it fills the whole panel
+   (including behind the header) while the message viewport scrolls.
+   Image's central area is empty by design. */
+.chat-main::before {
+  content: "";
+  position: absolute;
+  right: 1.5rem;
+  bottom: 2rem;
+  /* Size to the whitespace right of the centered message thread.
+     Thread max-width is ~48rem, so half is ~24rem; we leave another ~4rem
+     buffer. Clamped to never overlap and never balloon past 330px. */
+  width: clamp(0px, calc(50cqw - 28rem), 330px);
+  height: clamp(0px, calc(50cqw - 28rem), 330px);
+  background-image: url('/ink-quill.webp');
+  background-position: bottom right;
+  background-repeat: no-repeat;
+  background-size: contain;
+  opacity: 0.22;
+  pointer-events: none;
+  z-index: 0;
+}
+
+.chat-main > * {
+  position: relative;
+  z-index: 1;
+}
+
+/* ===== Alpha X Buddy nameplate (chat sidebar) ===== */
+
+.alphax-nameplate {
+  position: relative;
+}
+
+.alphax-nameplate::after {
+  content: "";
+  position: absolute;
+  left: 1rem;
+  right: 1rem;
+  bottom: 0;
+  height: 1px;
+  background: linear-gradient(
+    to right,
+    transparent,
+    hsl(var(--border) / 0.9) 18%,
+    hsl(var(--border) / 0.9) 82%,
+    transparent
+  );
+  pointer-events: none;
+}
+
+.alphax-nameplate-button {
+  transition: transform 220ms ease, background-color 200ms ease;
+}
+
+.alphax-nameplate-button:hover {
+  background-color: hsl(var(--card) / 0.45);
+}
+
+.alphax-nameplate-button:active {
+  transform: translateY(0.5px);
+}
+
+.alphax-nameplate-button:focus-visible {
+  outline: none;
+  box-shadow:
+    0 0 0 1.5px hsl(var(--ring) / 0.55),
+    0 0 0 4px hsl(var(--ring) / 0.18);
+}
+
+/* Avatar block */
+.alphax-nameplate-avatar {
+  display: inline-flex;
+  height: 3rem;
+  width: 3rem;
+}
+
+.alphax-nameplate-glow {
+  position: absolute;
+  inset: -4px;
+  border-radius: 9999px;
+  background: radial-gradient(
+    closest-side,
+    hsl(var(--primary) / 0.28),
+    hsl(43 72% 64% / 0.18) 55%,
+    transparent 75%
+  );
+  filter: blur(5px);
+  opacity: 0.6;
+  transition: opacity 260ms ease, filter 260ms ease;
+  pointer-events: none;
+}
+
+.alphax-nameplate-button:hover .alphax-nameplate-glow {
+  opacity: 0.95;
+  filter: blur(6px);
+}
+
+.alphax-nameplate-frame {
+  position: relative;
+  display: flex;
+  height: 100%;
+  width: 100%;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  border-radius: 9999px;
+  background: transparent;
+}
+
+/* Wordmark */
+.alphax-nameplate-wordmark {
+  display: flex;
+  align-items: baseline;
+  gap: 0.4rem;
+  font-family: var(--font-serif);
+  color: hsl(var(--foreground));
+  white-space: nowrap;
+}
+
+.alphax-nameplate-word {
+  font-size: 22px;
+  line-height: 1;
+  font-weight: 500;
+  letter-spacing: 0.005em;
+}
+
+.alphax-nameplate-x {
+  position: relative;
+  font-style: italic;
+  font-weight: 600;
+  font-size: 28px;
+  line-height: 1;
+  letter-spacing: -0.01em;
+  background: linear-gradient(
+    140deg,
+    hsl(var(--primary)) 0%,
+    hsl(43 72% 52%) 60%,
+    hsl(var(--primary)) 100%
+  );
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  text-shadow: 0 0 20px hsl(var(--primary) / 0.2);
+  transform: translateY(1px);
+  transition: transform 220ms ease;
+}
+
+.alphax-nameplate-button:hover .alphax-nameplate-x {
+  transform: translateY(1px) rotate(-4deg);
+}
+
+.alphax-nameplate-x::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  bottom: -4px;
+  width: 4px;
+  height: 4px;
+  border-radius: 9999px;
+  background: hsl(var(--primary) / 0.55);
+  transform: translateX(-50%);
+  opacity: 0.7;
+}
+
+.native-chat-thread .aui-thread-root {
+  min-height: 100%;
+  background: transparent;
+}
+
+.native-chat-thread .aui-thread-viewport {
+  background: transparent;
+}
+
+
+.native-chat-thread .aui-thread-viewport-footer {
+  background: linear-gradient(to top, hsl(var(--card-elevated)) 76%, transparent);
+}
+
+.native-chat-thread .aui-composer-root {
+  background: transparent;
+  border: none;
+  padding: 0;
+  box-shadow: none;
+  padding-bottom: max(0.75rem, env(safe-area-inset-bottom));
+}
+
+/* Custom Claude-style composer card */
+.native-chat-thread .chat-composer-root {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  width: 100%;
+  margin: 0 auto;
+  padding: 0.75rem 0.875rem 0.625rem;
+  background: hsl(var(--card));
+  border: 1px solid hsl(var(--border));
+  border-radius: 1.25rem;
+  box-shadow: var(--shadow-card);
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.native-chat-thread .chat-composer-root:focus-within {
+  border-color: hsl(var(--primary) / 0.45);
+  box-shadow:
+    var(--shadow-card),
+    0 0 0 3px hsl(var(--primary) / 0.12);
+}
+
+.native-chat-thread .chat-composer-input {
+  width: 100%;
+  min-height: 2.25rem;
+  max-height: 12rem;
+  padding: 0.25rem 0.25rem 0;
+  background: transparent;
+  border: none;
+  outline: none;
+  resize: none;
+  font-family: inherit;
+  font-size: 14px;
+  line-height: 1.55;
+  color: hsl(var(--foreground));
+}
+
+.native-chat-thread .chat-composer-input::placeholder {
+  color: hsl(var(--muted-foreground));
+  font-style: italic;
+}
+
+.native-chat-thread .chat-composer-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.native-chat-thread .chat-composer-toolbar-left,
+.native-chat-thread .chat-composer-toolbar-right {
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+}
+
+.native-chat-thread .chat-composer-icon-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2rem;
+  height: 2rem;
+  border-radius: 0.625rem;
+  border: 1px solid hsl(var(--border));
+  background: transparent;
+  color: hsl(var(--muted-foreground));
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+}
+
+.native-chat-thread .chat-composer-icon-button:hover {
+  background: hsl(var(--sidebar));
+  color: hsl(var(--foreground));
+  border-color: hsl(var(--input));
+}
+
+.native-chat-thread .chat-composer-icon-button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.native-chat-thread .chat-composer-send {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2rem;
+  height: 2rem;
+  border-radius: 9999px;
+  border: none;
+  background: hsl(var(--warning));
+  color: hsl(var(--warning-foreground));
+  cursor: pointer;
+  transition: opacity 0.15s ease, transform 0.15s ease;
+  box-shadow: var(--shadow-xs);
+}
+
+.native-chat-thread .chat-composer-send:hover {
+  opacity: 0.92;
+}
+
+.native-chat-thread .chat-composer-send:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.native-chat-thread .chat-composer-send-stop {
+  display: inline-block;
+  width: 0.625rem;
+  height: 0.625rem;
+  border-radius: 0.125rem;
+  background: currentColor;
+}
+
+.native-chat-thread .aui-thread-welcome-suggestions {
+  justify-content: flex-start;
+  padding: 0;
+}
+
+.native-chat-thread .aui-thread-welcome-root .aui-avatar-root {
+  height: 8rem;
+  width: 8rem;
+  border-radius: 9999px;
+  background: transparent;
+}
+
+.native-chat-thread .aui-thread-welcome-root .aui-avatar-image {
+  object-fit: contain;
+}
+
+.native-chat-thread .aui-thread-welcome-message {
+  max-width: 42rem;
+  font-family: var(--font-serif);
+  font-size: 1rem;
+  font-style: italic;
+  line-height: 1.8;
+  color: hsl(var(--muted-foreground));
+}
+
+/* Scrollbars inside the native chat shell */
+.native-chat-shell *,
+.native-chat-thread * {
+  scrollbar-width: thin;
+  scrollbar-color: hsl(var(--border) / 0.6) transparent;
+}
+
+.native-chat-shell *::-webkit-scrollbar,
+.native-chat-thread *::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+.native-chat-shell *::-webkit-scrollbar-track,
+.native-chat-thread *::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.native-chat-shell *::-webkit-scrollbar-thumb,
+.native-chat-thread *::-webkit-scrollbar-thumb {
+  background-color: hsl(var(--border) / 0.55);
+  border-radius: 999px;
+  border: 3px solid transparent;
+  background-clip: content-box;
+  transition: background-color 150ms ease;
+}
+
+/* Darken thumb whenever user is interacting with the scroll container
+   (covers wheel/trackpad scrolling — cursor is over the area)
+   plus direct hover/drag on the thumb itself. */
+.native-chat-shell *:hover::-webkit-scrollbar-thumb,
+.native-chat-thread *:hover::-webkit-scrollbar-thumb,
+.native-chat-shell *::-webkit-scrollbar-thumb:hover,
+.native-chat-thread *::-webkit-scrollbar-thumb:hover,
+.native-chat-shell *::-webkit-scrollbar-thumb:active,
+.native-chat-thread *::-webkit-scrollbar-thumb:active {
+  background-color: hsl(var(--muted-foreground) / 0.55);
+}
+
+.native-chat-shell *:hover,
+.native-chat-thread *:hover {
+  scrollbar-color: hsl(var(--muted-foreground) / 0.55) transparent;
+}
+
+.native-chat-shell *::-webkit-scrollbar-corner,
+.native-chat-thread *::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
+.native-chat-thread .aui-assistant-message-content,
+.native-chat-thread .aui-user-message-content {
+  gap: 0.75rem;
+}
+
+.native-chat-thread .aui-thread-welcome-suggestions button {
+  border-radius: 999px;
+  border: 1px solid hsl(var(--border));
+  background: hsl(var(--card));
+  box-shadow: var(--shadow-card);
+  color: hsl(var(--foreground));
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.22em;
+  padding: 0.65rem 1rem;
+  text-transform: uppercase;
+  transition: background-color 180ms ease, transform 180ms ease;
+}
+
+.native-chat-thread .aui-thread-welcome-suggestions button:hover {
+  background: hsl(var(--card-elevated));
+  transform: translateY(-1px);
+}
+
+.native-chat-shell::before {
+  content: '';
+  inset: 0;
+  pointer-events: none;
+  position: fixed;
+  background:
+    radial-gradient(circle at top left, rgba(59, 110, 143, 0.09), transparent 24%),
+    radial-gradient(circle at top right, rgba(149, 58, 52, 0.08), transparent 22%);
+  z-index: 0;
+}
+
+/* ===== End Native Chat Home ===== */
 
 /* Reduced motion support for Learning Stream */
 @media (prefers-reduced-motion: reduce) {
