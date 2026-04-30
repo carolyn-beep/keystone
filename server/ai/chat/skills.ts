@@ -1,6 +1,5 @@
 import { readdir, readFile } from 'node:fs/promises';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
 
 export interface SkillSummary {
   name: string;
@@ -26,9 +25,12 @@ const FRONTMATTER_DELIMITER = '---';
 const FRONTMATTER_FIELD_PATTERN = /^([A-Za-z_][A-Za-z0-9_-]*):\s*(.*)$/;
 const ALLOWED_FRONTMATTER_FIELDS = new Set(['name', 'description']);
 
-const moduleDir = path.dirname(fileURLToPath(import.meta.url));
-
-export const DEFAULT_CHAT_SKILLS_DIR = path.resolve(moduleDir, '../../../skills');
+// Resolve `skills/` from the process working directory rather than from
+// `import.meta.url`. The bundled production build ends up at `dist/index.mjs`,
+// so a relative path from the source location overshoots the repo root and
+// fails with ENOENT on Render. Both dev (`tsx watch`) and prod
+// (`node dist/index.mjs`) start with cwd = repo root, where `skills/` lives.
+export const DEFAULT_CHAT_SKILLS_DIR = path.resolve(process.cwd(), 'skills');
 
 interface ParsedSkill {
   name: string;
