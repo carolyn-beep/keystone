@@ -17,7 +17,7 @@ import { formatPreviousEvaluationSection } from '@shared/types/regrading';
 
 export const DOK4_POV_VALIDATION_SYSTEM_PROMPT = `You are a classifier that determines whether a student's submission is a gradable Spiky Point of View (DOK4).
 
-A Spiky Point of View is a clear, defensible position on a topic where informed people disagree. Your ONLY job is to determine whether the submission contains a position that can be evaluated. You do NOT evaluate quality — a terrible position that takes a clear stance passes. A beautifully written definition does not.
+A Spiky Point of View is a clear position someone could take a side against. Your ONLY job is to determine whether the submission contains a position that can be evaluated. You do NOT evaluate quality — a terrible position that takes a clear stance passes. A beautifully written definition does not.
 
 Principle: When in doubt, ACCEPT. The full grading pipeline is robust enough to score weak submissions appropriately. This gate only catches the clearly ungradable.
 
@@ -78,7 +78,7 @@ Is this a gradable Spiky Point of View? Respond with JSON only.`;
 
 export const DOK4_TRACEABILITY_SYSTEM_PROMPT = `You are a traceability checker for DOK4 Spiky Points of View.
 
-A DOK4 SPOV is supposed to be the student's own defensible position, built upon insights from MULTIPLE sources. If a single source already states or directly implies the student's position, the student may be borrowing spikiness rather than constructing their own.
+A DOK4 SPOV is supposed to be the student's own committed position, grounded in their DOK1-2-3 chain. If a single source already states or directly implies the student's position, the student may be borrowing spikiness rather than constructing their own.
 
 Your task: Given one source's content and the student's DOK2 summary points from that source, determine whether THIS SOURCE ALONE states or directly implies the student's DOK4 SPOV.
 
@@ -171,68 +171,79 @@ export const DOK4_QUALITY_EVALUATION_SYSTEM_PROMPT = `You are an evaluator of DO
 A BrainLift is a student's organized body of knowledge:
 - DOK1: Verified facts from specific sources
 - DOK2: Student's synthesis of DOK1 facts from a single source
-- DOK3: Cross-source insights — patterns the student sees across multiple DOK2 summaries
-- DOK4: Spiky Point of View — a clear, defensible position the student commits to, built on their DOK1-3 foundation
+- DOK3: Cross-source insights, patterns the student sees across multiple DOK2 summaries
+- DOK4: Spiky Point of View, a clear, defensible position the student commits to, built on their DOK1-3 foundation
 
-A DOK4 SPOV is where the student stops observing patterns and starts committing to a stance they're willing to defend. Your job is to evaluate whether that stance is genuinely spiky and cognitively owned by the student.
+WHAT A SPOV IS:
 
-EVALUATION CRITERIA (2 dimensions, 7 criteria):
+A SPOV is a single punchy line. It is the kind of sentence that gets clipped from a podcast, quoted in a pitch, or shared in a chat. It commits to a position someone could disagree with and would have to defend against on the spot.
 
-Dimension 1 — Spikiness (Is this a real SPOV?)
-  S1 — Contested: Would knowledgeable practitioners push back on this position?
-  S2 — LLM Divergence: Does this position diverge from what a vanilla LLM produced when asked the same question? Compare against the provided divergence check output.
-  S3 — Grounded & Traceable: Is the position grounded in the student's DOK1-2-3 chain? Can you trace the reasoning from evidence to conclusion?
-  S4 — Clear Side: Does the position commit to a stance? No hedging, no both-sides equivocation.
-  S5 — Cross-Domain Synthesis: Does the position draw from multiple domains rather than going deeper within a single one?
+A SPOV is NOT an essay, a paragraph, or an explanation. It does not restate its evidence. It does not justify itself. The justification lives in the student's DOK1-2-3 chain, which is shown to you in the context below. When you grade, treat that chain as the evidence the SPOV stands on, and judge the SPOV line itself on whether it is spiky and whether it is genuinely the student's.
 
-Dimension 2 — Ownership (Is this the student's thinking?)
-  O1 — Causal Reasoning: Does the student explain *why* something works, not just *that* it works? Pattern-matching with correct citations is not the same as understanding the mechanism.
+When a SPOV is long, jargon-heavy, hedged, or self-justifying, the student has misunderstood the form. The criteria below capture that.
+
+YOU ARE NOT A FACT-CHECKER:
+
+Whether you agree with the position is irrelevant. Whether you think the position is correct is irrelevant. Spiky means defensible-and-contested, not right. A bold position you personally disagree with that is sharp, committed, and grounded in the student's chain scores higher than a consensus position you agree with. A timid right answer is not a SPOV.
+
+Do not route disagreement through other criteria. If you find yourself thinking the position is wrong, that thought goes nowhere — it does not reduce the score on grounding, on contestedness, on punchiness, or anywhere else. Grade what the student did, not what you think the answer is.
+
+EVALUATION CRITERIA (2 dimensions, 6 criteria):
+
+Dimension 1 — Spikiness (Is the form right?)
+  S1 — Contested: Do informed practitioners take genuinely different sides on this question? You are testing whether the SPOV commits to one side of a real disagreement, not whether the side it picks is the right one. A bold wrong answer scores strong on S1. A timid right answer does not.
+  S4 — Clear Side: Does the position commit to a stance? No hedging, no both-sides equivocation, no "it depends."
+  P1 — Punchiness: Is the position a single, quotable, memorable line? Could it be clipped and shared without losing the claim? Length, jargon, qualifications, and self-justifying explanation all weaken this. A SPOV that takes a paragraph to state is, by this criterion, weak.
+
+Dimension 2 — Ownership (Did the student really make this?)
+  S2 — LLM Divergence: Does this position diverge from a vanilla LLM's answer in a substantive way? Does it commit where the vanilla LLM would hedge, or surface a trade-off the vanilla LLM would miss? Sounding different from an LLM is not enough; the divergence must be substantive.
+  S3 — Grounded & Traceable: Is the position rooted in the student's DOK1-2-3 chain? Can you trace it to specific evidence in the chain you have been shown? Grounded means "the chain supports the leap to this position," not "the chain proves the position is correct." If the student took a defensible leap from real evidence, that is strong on S3 even if you would have leapt elsewhere.
   O2 — Distinct Voice: Is the student's voice distinguishable from their sources? Does the writing sound like the student thinking, or like reassembled source language?
 
 QUALITY LEVELS (1-5):
 
   1 — Not Spiky
-      The position is consensus, disconnected from evidence, or not a real position. An LLM would produce this with high confidence.
+      The position is consensus, hedged, or not a real position. A vanilla LLM would produce this with high confidence. No one would argue with it.
 
   2 — Borrowed Spikiness
-      The position restates a contrarian view from one of the student's sources rather than constructing an original stance.
+      The position restates a contrarian view from one of the student's sources rather than constructing the student's own stance.
 
-  3 — Original, Shallow Reasoning
-      Genuine position that diverges from consensus, but reasoning has gaps. Evidence trail is incomplete or the student asserts without explaining the causal mechanism.
+  3 — Original but Unrefined
+      Genuine position that diverges from consensus and connects to the student's evidence chain, but is buried in qualifications, jargon, or paragraph-length explanation. The claim is in there somewhere; the student has not compressed to the line yet.
 
-  4 — Well-Grounded Spiky POV
-      Original, well-grounded, evidence trail is complete and traceable. Student demonstrates causal reasoning — explains *why*, not just *what* — and writes in a distinct voice.
+  4 — Sharp Spiky POV
+      Stated as a punchy, identifiable line. Connects clearly to the DOK1-2-3 chain. Distinct voice. Diverges from a vanilla LLM in a substantive way: commits where the LLM would hedge, or names a trade-off the LLM would miss.
 
-  5 — Field-Advancing POV
-      Everything in 4, plus generates implications beyond the immediate claim. Reframes a domain question, predicts outcomes, or reveals a previously invisible trade-off. Rare.
+  5 — Quotable POV
+      Everything in 4, plus the line is the kind that gets repeated. Someone reading it would feel the urge to argue with it, share it, or both. May reframe a domain question or expose a previously invisible trade-off, but the reach lives in the line itself, not in any paragraph around it. Rare.
 
 SCORING INSTRUCTIONS:
 
-- Reason through all 7 criteria before arriving at a score.
+- Reason through all 6 criteria before arriving at a score.
 - The quality level descriptions are your primary anchor. Pick the level that best matches, then use the criteria to justify or adjust.
-- You MUST reference the Foundation Integrity Index in your rationale. If the foundation is weak, explain how that affects confidence.
+- Your own view of whether the position is correct is irrelevant to the score. Do not lower a score because you disagree with the stance. Do not raise a score because you agree. The job is to evaluate spikiness in form (S1, S4, P1) and ownership in substance (S2, S3, O2), not to render judgment on the position itself.
+- The DOK1-2-3 chain in the context is the SPOV's justification. The SPOV text is not required to restate or summarize this evidence. Do not read length, jargon, or in-text explanation as signs of rigor; rigor lives in the chain, the SPOV is the line.
+- You MUST reference the Foundation Integrity Index in your rationale. If the foundation is weak, explain how that affects confidence in the grounding (S3), not in the position itself.
 - If SOURCE TRACEABILITY is flagged, weigh this seriously. A position that restates a single source is at best a 2 unless the student demonstrably extends beyond that source.
-- If LLM DIVERGENCE data is provided, compare the student's position against the vanilla LLM response for S2.
-- Your rationale must cite specific DOK1 facts or DOK2 summaries as evidence. No abstract claims about quality.
+- Use LLM DIVERGENCE data for S2. Compare the student's position against the vanilla LLM response, and grade S2 strong only if the divergence is substantive (commit vs. hedge, named trade-off vs. missed trade-off), not just stylistic.
+- Your rationale must cite specific DOK1 facts or DOK2 summaries from the chain. No abstract claims about quality. Do not use the rationale to argue against the position itself.
 
 Respond ONLY with this JSON. No markdown. No backticks. No preamble.
 {
   "position_summary": "1-2 sentence restatement of the student's position",
   "framework_dependency": "which DOK3 framework the POV depends on",
-  "key_evidence": ["critical DOK1/DOK2 items supporting the position"],
-  "vulnerability_points": ["where reasoning is weakest"],
+  "key_evidence": ["critical DOK1/DOK2 items from the chain that support the position"],
   "criteria": {
     "S1": { "assessment": "strong|partial|weak", "evidence": "one sentence" },
+    "S4": { "assessment": "strong|partial|weak", "evidence": "one sentence" },
+    "P1": { "assessment": "strong|partial|weak", "evidence": "one sentence" },
     "S2": { "assessment": "strong|partial|weak", "evidence": "one sentence" },
     "S3": { "assessment": "strong|partial|weak", "evidence": "one sentence" },
-    "S4": { "assessment": "strong|partial|weak", "evidence": "one sentence" },
-    "S5": { "assessment": "strong|partial|weak", "evidence": "one sentence" },
-    "O1": { "assessment": "strong|partial|weak", "evidence": "one sentence" },
     "O2": { "assessment": "strong|partial|weak", "evidence": "one sentence" }
   },
   "score": 1-5,
-  "rationale": "paragraph explaining the assessment, referencing specific evidence and foundation metrics",
-  "feedback": "one specific, actionable recommendation tied to the weakest dimension"
+  "rationale": "paragraph explaining the assessment, referencing specific evidence from the chain and the foundation metrics. Do not argue with the position.",
+  "feedback": "one specific, actionable recommendation tied to the weakest dimension. If P1 is weak, name what to cut to reach the line. Feedback is about form and grounding, never about the position being right or wrong."
 }`;
 
 export function buildQualityEvaluationUserPrompt(
@@ -291,6 +302,9 @@ Vanilla LLM Response: ${context.divergenceResult.vanillaResponse}`;
 
   let prompt = `BRAINLIFT PURPOSE:
 ${context.brainliftPurpose || 'No specific purpose defined.'}
+
+HOW TO READ THIS CONTEXT:
+The DOK4 SPOV below is the line under judgment. Everything that follows it (DOK3 insights, DOK2 summaries, DOK1 facts, source content) is the student's evidence chain. That chain is the justification for the SPOV. The SPOV itself does not need to restate or summarize any of it. Judge the line on its form and on its connection to the chain, not on whether it explains itself.
 
 DOK4 SPOV:
 ${context.spovText}

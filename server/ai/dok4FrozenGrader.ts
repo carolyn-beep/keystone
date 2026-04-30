@@ -78,7 +78,6 @@ export async function gradeFrozenDOK4Spov(
       positionSummary: qualityResult.positionSummary,
       frameworkDependency: qualityResult.frameworkDependency,
       keyEvidence: qualityResult.keyEvidence,
-      vulnerabilityPoints: qualityResult.vulnerabilityPoints,
       criteriaBreakdown: qualityResult.criteria,
       rationale: qualityResult.rationale,
       feedback: qualityResult.feedback,

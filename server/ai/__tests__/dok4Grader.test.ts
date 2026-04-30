@@ -498,19 +498,17 @@ describe('Quality Evaluation', () => {
     position_summary: 'The student argues that standardized testing should be replaced with longitudinal skill-stack assessments.',
     framework_dependency: 'Compound Skills Measurement Gap',
     key_evidence: ['DOK1 fact about discrete knowledge', 'DOK2 synthesis about compound skills'],
-    vulnerability_points: ['Limited evidence for specific timeline claims'],
     criteria: {
       S1: { assessment: 'strong', evidence: 'Position directly challenges current testing paradigm.' },
+      S4: { assessment: 'strong', evidence: 'Commits to replacement, no hedging.' },
+      P1: { assessment: 'strong', evidence: 'Stated as a single quotable line.' },
       S2: { assessment: 'strong', evidence: 'Vanilla LLM suggested balanced approach, student takes stronger stance.' },
       S3: { assessment: 'strong', evidence: 'Clear chain from DOK1 facts through DOK2 synthesis to position.' },
-      S4: { assessment: 'strong', evidence: 'Commits to replacement, no hedging.' },
-      S5: { assessment: 'partial', evidence: 'Draws from educational measurement and skill development domains.' },
-      O1: { assessment: 'strong', evidence: 'Explains mechanism of compound skill emergence over time.' },
       O2: { assessment: 'strong', evidence: 'Voice distinct from sources, uses original framing.' },
     },
     score: 4,
     rationale: 'The student presents an original, well-grounded position that diverges from consensus.',
-    feedback: 'Strengthen the ownership dimension by explaining the causal mechanism more precisely.',
+    feedback: 'Sharpen the line further by cutting the qualifier in the second clause.',
   };
 
   it('calls callModelWithFallback with quality-tier models', async () => {
@@ -526,19 +524,19 @@ describe('Quality Evaluation', () => {
     expect(opts.temperature).toBe(0.1);
     expect(opts.timeout).toBe(60_000);
     expect(opts.retries).toBe(2);
-    expect(opts.caller).toBe('dok4Grader.qualityEvaluation');
+    expect(opts.caller).toBe('dok4Grader.qualityEvaluation.v2');
     expect(opts.responseFormat.type).toBe('json_schema');
     expect(opts.responseFormat.jsonSchema.name).toBe('quality_evaluation');
   });
 
-  it('returns all 7 criteria with strong/partial/weak assessments', async () => {
+  it('returns all 6 criteria with strong/partial/weak assessments', async () => {
     mockCallModelWithFallback.mockResolvedValueOnce(makeCallResult(JSON.stringify(qualityResponse)));
 
     const result = await evaluateDOK4Quality(FIXTURE_EVALUATION_CONTEXT);
 
-    const criteriaKeys = ['S1', 'S2', 'S3', 'S4', 'S5', 'O1', 'O2'];
+    const criteriaKeys: (keyof typeof result.criteria)[] = ['S1', 'S4', 'P1', 'S2', 'S3', 'O2'];
     for (const key of criteriaKeys) {
-      const criterion = result.criteria[key as keyof typeof result.criteria];
+      const criterion = result.criteria[key];
       expect(['strong', 'partial', 'weak']).toContain(criterion.assessment);
       expect(criterion.evidence).toBeTruthy();
     }
@@ -553,7 +551,7 @@ describe('Quality Evaluation', () => {
     expect(result.score).toBeLessThanOrEqual(5);
   });
 
-  it('returns positionSummary, frameworkDependency, keyEvidence, vulnerabilityPoints', async () => {
+  it('returns positionSummary, frameworkDependency, keyEvidence', async () => {
     mockCallModelWithFallback.mockResolvedValueOnce(makeCallResult(JSON.stringify(qualityResponse)));
 
     const result = await evaluateDOK4Quality(FIXTURE_EVALUATION_CONTEXT);
@@ -562,7 +560,6 @@ describe('Quality Evaluation', () => {
     expect(result.frameworkDependency).toBeTruthy();
     expect(result.keyEvidence).toBeInstanceOf(Array);
     expect(result.keyEvidence.length).toBeGreaterThan(0);
-    expect(result.vulnerabilityPoints).toBeInstanceOf(Array);
   });
 
   it('returns rationale and feedback strings', async () => {
