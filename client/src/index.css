@@ -1567,6 +1567,74 @@
   border-color: hsl(var(--destructive) / 0.4);
 }
 
+/* Tool fallback error card — fires when no makeAssistantToolUI matches the
+   incoming toolName. In this app that is always a bug, so the card surfaces
+   the conversation id and a UTC timestamp the user can paste into a report. */
+.native-chat-thread .tool-fallback-error {
+  display: flex;
+  flex-direction: column;
+  gap: 0.625rem;
+  padding: 0.875rem 1rem;
+  margin: 0.75rem 0;
+  background: hsl(var(--destructive-soft));
+  border: 1px solid hsl(var(--destructive) / 0.4);
+  border-radius: 0.625rem;
+  box-shadow: var(--shadow-2xs);
+}
+
+.native-chat-thread .tool-fallback-error-header {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  color: hsl(var(--destructive));
+}
+
+.native-chat-thread .tool-fallback-error-title {
+  font-family: var(--font-sans);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.25em;
+  text-transform: uppercase;
+}
+
+.native-chat-thread .tool-fallback-error-message {
+  margin: 0;
+  font-family: var(--font-sans);
+  font-size: 13px;
+  line-height: 1.5;
+  color: hsl(var(--foreground));
+}
+
+.native-chat-thread .tool-fallback-error-meta {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 0.25rem 0.625rem;
+  margin: 0;
+  font-family: var(--font-sans);
+  font-size: 12px;
+  color: hsl(var(--muted-foreground));
+}
+
+.native-chat-thread .tool-fallback-error-meta > div {
+  display: contents;
+}
+
+.native-chat-thread .tool-fallback-error-meta dt {
+  text-transform: uppercase;
+  letter-spacing: 0.18em;
+  font-size: 10px;
+  font-weight: 600;
+  align-self: center;
+}
+
+.native-chat-thread .tool-fallback-error-meta dd {
+  margin: 0;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: hsl(var(--foreground));
+  word-break: break-all;
+}
+
 /* Superseded — student moved past this question via the composer. Frozen,
    greyed, non-interactive. Stays in history as context for the agent. */
 .native-chat-thread .ask-user-card-superseded {

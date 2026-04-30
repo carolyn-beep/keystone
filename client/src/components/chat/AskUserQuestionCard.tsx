@@ -40,6 +40,16 @@ type Props = ToolCallMessagePartProps<
 export function AskUserQuestionCard(props: Props) {
   const { args, result, status } = props;
 
+  // DEV DIAG: prove the matched-render path fires. Pair with the
+  // GenericToolCallCard fallback warning in native-chat-thread-config.tsx —
+  // they should be mutually exclusive per tool call.
+  // eslint-disable-next-line no-console
+  console.info('[ask-user-question] AskUserQuestionCard render', {
+    status: status.type,
+    hasResult: !!result,
+    questionCount: Array.isArray(args?.questions) ? args.questions.length : null,
+  });
+
   // Stale-card detection: if the student typed a free-form reply in the
   // composer (or the agent moved on for any other reason), a newer message
   // exists after our parent in the thread. Use the surrounding `useMessage`

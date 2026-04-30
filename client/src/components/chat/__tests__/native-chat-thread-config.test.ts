@@ -31,7 +31,7 @@ describe('native chat thread config', () => {
     expect(config.assistantMessage.components.ToolFallback).toBe(GenericToolCallCard);
   });
 
-  it('renders a generic fallback card for unknown tools without crashing', () => {
+  it('renders an error-style fallback card with reportable details for unknown tools', () => {
     const markup = renderToStaticMarkup(
       createElement(GenericToolCallCard, {
         type: 'tool-call',
@@ -46,6 +46,13 @@ describe('native chat thread config', () => {
       }),
     );
 
+    // The fallback is a bug indicator in this app — every shipped tool has a
+    // matching makeAssistantToolUI. The card must surface "report this" framing
+    // plus the toolName, tool call id, and a UTC timestamp the user can paste.
+    expect(markup).toContain('Tool render error');
     expect(markup).toContain('Archive Plan');
+    expect(markup).toContain('archive_plan');
+    expect(markup).toContain('tc-1');
+    expect(markup).toMatch(/\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/);
   });
 });
