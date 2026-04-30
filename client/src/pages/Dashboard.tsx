@@ -33,6 +33,7 @@ import { ImportAgentModal } from '@/components/import-agent/ImportAgentModal';
 import { RedundancyPage } from '@/components/fact-grading/RedundancyPage';
 import { SprintTab, parseTaskViewId } from '@/components/sprint/SprintTab';
 import { DocumentHubTab } from '@/components/documents/DocumentHubTab';
+import { LIBRARY_ROUTE_PATH } from '@/components/chat/chat-home-helpers';
 import { usePDFExport } from '@/hooks/usePDFExport';
 import { useShareToken } from '@/hooks/useShareToken';
 import { useDOK3Insights } from '@/hooks/useDOK3Insights';
@@ -269,7 +270,7 @@ const { downloadBrainliftPDF } = usePDFExport();
 
   // Preserve admin param when navigating back
   const isAdminView = new URLSearchParams(searchString).get('admin') === 'true';
-  const backLink = isAdminView ? '/?admin=true' : '/';
+  const backLink = isAdminView ? `${LIBRARY_ROUTE_PATH}?admin=true` : LIBRARY_ROUTE_PATH;
 
   // Show loading while redeeming share token
   if (isRedeeming) {

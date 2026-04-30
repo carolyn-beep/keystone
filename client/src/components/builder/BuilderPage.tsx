@@ -6,6 +6,7 @@ import type { BrainliftData } from '@shared/schema';
 import type { NativeDetailsResponse } from '@shared/routes';
 import { useNativeDetails } from '@/hooks/useNativeDetails';
 import { useBuilderNav } from '@/hooks/useBuilderNav';
+import { LIBRARY_ROUTE_PATH } from '@/components/chat/chat-home-helpers';
 import { DashboardHeader } from '@/components/DashboardHeader';
 import { BuilderSidebar } from './BuilderSidebar';
 import { BuilderProgressTracker } from './BuilderProgressTracker';
@@ -24,7 +25,7 @@ interface BuilderPageProps {
 export function BuilderPage({ slug, brainlift, canModify }: BuilderPageProps) {
   const searchString = useSearch();
   const isAdminView = new URLSearchParams(searchString).get('admin') === 'true';
-  const backLink = isAdminView ? '/?admin=true' : '/';
+  const backLink = isAdminView ? `${LIBRARY_ROUTE_PATH}?admin=true` : LIBRARY_ROUTE_PATH;
 
   const { nativeDetails, isLoading, error, update, isUpdating } = useNativeDetails(slug);
 
