@@ -26,6 +26,7 @@ describe('native chat thread config', () => {
       'save_deliverable',
       'update_deliverable',
       'load_skill',
+      'ask_user_question',
     ]));
     expect(config.assistantMessage.components.ToolFallback).toBe(GenericToolCallCard);
   });
