@@ -103,6 +103,7 @@ describe('buildChatSystemPrompt', () => {
     expect(prompt).toContain('Founder Notes (founder-notes)');
     expect(prompt).toContain('grading tools');
     expect(prompt).toContain('load_skill');
+    expect(prompt).toContain('ask_user_question');
     expect(prompt).toContain('onboarding: Help new users get to a first BrainLift quickly.');
     expect(prompt).toContain('sprint-execution: Keep sprint work concrete and deliverable-driven.');
   });

@@ -1,4 +1,5 @@
 import type { AuthContext } from '@shared/schema';
+import { buildAskUserQuestionTool } from './ask-user';
 import { buildChatCurationTools } from './curation';
 import { buildChatGradingTools } from './grading';
 import { buildChatSkillTools } from './load-skill';
@@ -12,5 +13,6 @@ export function buildNativeChatTools(authContext: AuthContext) {
     ...buildResearchChatTools(),
     ...buildChatCurationTools(authContext),
     ...buildSprintChatTools({ authContext }),
+    ...buildAskUserQuestionTool(),
   };
 }

@@ -33,6 +33,11 @@ import {
 } from 'lucide-react';
 import remarkGfm from 'remark-gfm';
 import { cn } from '@/lib/utils';
+import type {
+  AskUserQuestionToolInput,
+  AskUserQuestionToolResult,
+} from '@shared/chat-ask-user';
+import { AskUserQuestionCard } from './AskUserQuestionCard';
 import { ChatComposer } from './ChatComposer';
 
 const MarkdownText = makeMarkdownText({ remarkPlugins: [remarkGfm] });
@@ -684,6 +689,16 @@ const LoadSkillToolUI = makeAssistantToolUI<{ name: string }, unknown>({
   ),
 });
 
+// ---------- Ask user question (client-resolved) ----------
+
+const AskUserQuestionToolUI = makeAssistantToolUI<
+  AskUserQuestionToolInput,
+  AskUserQuestionToolResult
+>({
+  toolName: 'ask_user_question',
+  render: AskUserQuestionCard,
+});
+
 /**
  * UserMessage variant that hides the AlphaX opener-prompt user message from
  * the visible thread. The message stays in the runtime state and the DB —
@@ -732,6 +747,8 @@ export const nativeChatToolUIs = [
   YoutubeTranscriptToolUI,
   // Skills
   LoadSkillToolUI,
+  // Ask user
+  AskUserQuestionToolUI,
 ];
 
 export function buildNativeChatThreadConfig() {
