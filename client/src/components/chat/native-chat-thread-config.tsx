@@ -120,6 +120,19 @@ export function GenericToolCallCard({
   status,
   isError,
 }: ToolCallMessagePartProps) {
+  // DEV DIAG: this fires when no `makeAssistantToolUI` matches the toolName.
+  // We're chasing a bug where ask_user_question falls back here intermittently
+  // even though the registration is in the bundle. Log when it happens so we
+  // can correlate with conversation/turn timing.
+  if (toolName === 'ask_user_question') {
+    // eslint-disable-next-line no-console
+    console.warn('[ask-user-question] FALLBACK fired — registration missing at runtime', {
+      status: status.type,
+      isError,
+      registeredCount: nativeChatToolUIs.length,
+      hasAskUser: nativeChatToolUIs.some((u) => u.unstable_tool.toolName === 'ask_user_question'),
+    });
+  }
   return (
     <ToolStatusLine
       icon={<StatusIcon status={status} isError={isError} fallback={<Sparkles size={13} />} />}
@@ -712,6 +725,15 @@ function FilteringUserMessage() {
   return <DefaultUserMessage />;
 }
 
+// DEV DIAG: log the tool UI registry once at module evaluation. We have a
+// production bug where the AskUserQuestionToolUI fallback fires intermittently
+// despite the bundle containing the registration. This confirms whether the
+// array is built correctly at module load.
+function logRegisteredToolNames(uis: ReadonlyArray<{ unstable_tool: { toolName: string } }>) {
+  // eslint-disable-next-line no-console
+  console.info('[ask-user-question] tool UIs registered at module load:', uis.map((u) => u.unstable_tool.toolName));
+}
+
 export const nativeChatToolUIs = [
   // Grading
   GetTemplateToolUI,
@@ -750,6 +772,8 @@ export const nativeChatToolUIs = [
   // Ask user
   AskUserQuestionToolUI,
 ];
+
+logRegisteredToolNames(nativeChatToolUIs);
 
 export function buildNativeChatThreadConfig() {
   return {
