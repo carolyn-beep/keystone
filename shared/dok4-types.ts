@@ -41,15 +41,27 @@ export interface DOK4CriterionResult {
   evidence: string;
 }
 
+/**
+ * DOK4 Criteria Breakdown (current shape, v2 rubric).
+ *
+ * Spikiness (form): S1, S4, P1
+ * Ownership (authenticity): S2, S3, O2
+ *
+ * Legacy rows graded under the v1 rubric still carry S5 (Cross-Domain Synthesis)
+ * and O1 (Causal Reasoning) instead of P1. Read-side code that surfaces historical
+ * criteria must handle both shapes; the grader and write paths only produce v2.
+ */
 export interface DOK4CriteriaBreakdown {
   S1: DOK4CriterionResult; // Contested
+  S4: DOK4CriterionResult; // Clear Side
+  P1: DOK4CriterionResult; // Punchiness
   S2: DOK4CriterionResult; // LLM Divergence
   S3: DOK4CriterionResult; // Grounded & Traceable
-  S4: DOK4CriterionResult; // Clear Side
-  S5: DOK4CriterionResult; // Cross-Domain Synthesis
-  O1: DOK4CriterionResult; // Causal Reasoning
   O2: DOK4CriterionResult; // Distinct Voice
 }
+
+export type LegacyDOK4CriterionKey = 'S5' | 'O1';
+export type DOK4CriterionKey = keyof DOK4CriteriaBreakdown | LegacyDOK4CriterionKey;
 
 
 // ─── Antimemetic Assessment ──────────────────────────────────────────────────
@@ -122,7 +134,6 @@ export interface DOK4GradeResult {
   positionSummary: string;
   frameworkDependency: string;
   keyEvidence: string[];
-  vulnerabilityPoints: string[];
   criteriaBreakdown: DOK4CriteriaBreakdown;
   rationale: string;
   feedback: string;

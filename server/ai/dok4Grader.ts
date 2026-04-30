@@ -121,22 +121,20 @@ const QUALITY_EVALUATION_JSON_SCHEMA = {
       position_summary: { type: 'string' },
       framework_dependency: { type: 'string' },
       key_evidence: { type: 'array', items: { type: 'string' } },
-      vulnerability_points: { type: 'array', items: { type: 'string' } },
       criteria: {
         type: 'object',
         properties: {
-          S1: CRITERION_SCHEMA, S2: CRITERION_SCHEMA, S3: CRITERION_SCHEMA,
-          S4: CRITERION_SCHEMA, S5: CRITERION_SCHEMA,
-          O1: CRITERION_SCHEMA, O2: CRITERION_SCHEMA,
+          S1: CRITERION_SCHEMA, S4: CRITERION_SCHEMA, P1: CRITERION_SCHEMA,
+          S2: CRITERION_SCHEMA, S3: CRITERION_SCHEMA, O2: CRITERION_SCHEMA,
         },
-        required: ['S1', 'S2', 'S3', 'S4', 'S5', 'O1', 'O2'],
+        required: ['S1', 'S4', 'P1', 'S2', 'S3', 'O2'],
         additionalProperties: false,
       },
       score: { type: 'number' },
       rationale: { type: 'string' },
       feedback: { type: 'string' },
     },
-    required: ['position_summary', 'framework_dependency', 'key_evidence', 'vulnerability_points', 'criteria', 'score', 'rationale', 'feedback'],
+    required: ['position_summary', 'framework_dependency', 'key_evidence', 'criteria', 'score', 'rationale', 'feedback'],
     additionalProperties: false,
   },
 };
@@ -187,14 +185,12 @@ const qualityEvaluationSchema = z.object({
   position_summary: z.string(),
   framework_dependency: z.string(),
   key_evidence: z.array(z.string()),
-  vulnerability_points: z.array(z.string()),
   criteria: z.object({
     S1: criterionSchema,
+    S4: criterionSchema,
+    P1: criterionSchema,
     S2: criterionSchema,
     S3: criterionSchema,
-    S4: criterionSchema,
-    S5: criterionSchema,
-    O1: criterionSchema,
     O2: criterionSchema,
   }),
   score: z.number().min(1).max(5),
@@ -242,7 +238,6 @@ export interface DOK4QualityResult {
   positionSummary: string;
   frameworkDependency: string;
   keyEvidence: string[];
-  vulnerabilityPoints: string[];
   criteria: DOK4CriteriaBreakdown;
   score: number;
   rationale: string;
@@ -442,7 +437,7 @@ export async function evaluateDOK4Quality(
       type: 'json_schema',
       jsonSchema: { name: QUALITY_EVALUATION_JSON_SCHEMA.name, strict: true, schema: QUALITY_EVALUATION_JSON_SCHEMA.schema },
     },
-    caller: 'dok4Grader.qualityEvaluation',
+    caller: 'dok4Grader.qualityEvaluation.v2',
     validate: (content) => { qualityEvaluationSchema.parse(extractJSON(content)); },
   });
   console.log(`[DOK4-Grade] Quality Evaluation: ${(performance.now() - t0).toFixed(0)}ms (model: ${result.model})`);
@@ -453,7 +448,6 @@ export async function evaluateDOK4Quality(
     positionSummary: parsed.position_summary,
     frameworkDependency: parsed.framework_dependency,
     keyEvidence: parsed.key_evidence,
-    vulnerabilityPoints: parsed.vulnerability_points,
     criteria: parsed.criteria as DOK4CriteriaBreakdown,
     score: parsed.score,
     rationale: parsed.rationale,

@@ -78,7 +78,7 @@ describe('FR2: DOK4 Grading Service - gradeDOK4Spov()', () => {
       positionSummary: 'Strong position',
       frameworkDependency: 'Low',
       keyEvidence: ['Evidence A'],
-      vulnerabilityPoints: [],
+      
       criteria: {},
       rationale: 'Well argued',
       feedback: 'Good work',
@@ -117,7 +117,7 @@ describe('FR2: DOK4 Grading Service - gradeDOK4Spov()', () => {
     vi.mocked(evaluateDOK4Quality).mockResolvedValue({
       score: 5, // Raw score higher than ceiling
       positionSummary: '', frameworkDependency: '', keyEvidence: [],
-      vulnerabilityPoints: [], criteria: {}, rationale: '', feedback: '',
+       criteria: {}, rationale: '', feedback: '',
     });
     vi.mocked(assessAntimemetic).mockResolvedValue({
       barriers: [], strategies: [],
@@ -181,7 +181,7 @@ describe('FR2: DOK4 Grading Service - gradeDOK4Spov()', () => {
     });
     vi.mocked(evaluateDOK4Quality).mockResolvedValue({
       score: 4, positionSummary: '', frameworkDependency: '', keyEvidence: [],
-      vulnerabilityPoints: [], criteria: {}, rationale: '', feedback: '',
+       criteria: {}, rationale: '', feedback: '',
     });
     vi.mocked(assessAntimemetic).mockResolvedValue({
       barriers: [], strategies: [],
@@ -213,7 +213,7 @@ describe('FR2: DOK4 Grading Service - gradeDOK4Spov()', () => {
     vi.mocked(evaluateDOK4Quality).mockResolvedValue({
       score: 2, // Low score
       positionSummary: '', frameworkDependency: '', keyEvidence: [],
-      vulnerabilityPoints: [], criteria: {}, rationale: '', feedback: '',
+       criteria: {}, rationale: '', feedback: '',
     });
 
     await gradeDOK4Spov(1, 100);
