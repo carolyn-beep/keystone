@@ -1,6 +1,6 @@
 import { useState, useCallback, useMemo } from 'react';
 import { Download, FileText, ChevronRight, ChevronDown, Link2 } from 'lucide-react';
-import type { Fact } from '@shared/schema';
+import type { Fact, Expert } from '@shared/schema';
 import type { DOK3InsightWithLinks } from '@/hooks/useDOK3Insights';
 import type { DOK4SpovWithLinks } from '@shared/dok4-types';
 
@@ -114,6 +114,7 @@ function LiveBrainliftTree({
   title,
   author,
   purpose,
+  experts,
   facts,
   dok2Summaries,
   dok3Insights,
@@ -122,6 +123,7 @@ function LiveBrainliftTree({
   title: string;
   author: string | null | undefined;
   purpose: string | null | undefined;
+  experts: Expert[];
   facts: Fact[];
   dok2Summaries: Dok2SummaryData[];
   dok3Insights: DOK3InsightWithLinks[];
@@ -194,6 +196,42 @@ function LiveBrainliftTree({
         {purpose && (
           <TreeNode label="Purpose" depth={1}>
             <TreeNode label={purpose} depth={2} muted />
+          </TreeNode>
+        )}
+
+        {/* Experts */}
+        {experts.length > 0 && (
+          <TreeNode label={`Experts - ${experts.length}`} depth={1}>
+            {experts.map(expert => {
+              const fields: Array<{ label: string; value: string }> = [];
+              if (expert.who) fields.push({ label: 'Who', value: expert.who });
+              if (expert.focus) fields.push({ label: 'Focus', value: expert.focus });
+              if (expert.why) fields.push({ label: 'Why', value: expert.why });
+              if (expert.where) fields.push({ label: 'Where', value: expert.where });
+              if (expert.twitterHandle) fields.push({ label: 'Twitter', value: expert.twitterHandle });
+              if (expert.rationale) fields.push({ label: 'Rationale', value: expert.rationale });
+              return (
+                <TreeNode
+                  key={expert.id}
+                  label={expert.name}
+                  depth={2}
+                  defaultExpanded={false}
+                >
+                  {fields.map(f => (
+                    <TreeNode
+                      key={f.label}
+                      label={
+                        <>
+                          <span className="font-medium">{f.label}:</span>{' '}
+                          <span className="text-muted-foreground">{f.value}</span>
+                        </>
+                      }
+                      depth={3}
+                    />
+                  ))}
+                </TreeNode>
+              );
+            })}
           </TreeNode>
         )}
 
@@ -348,6 +386,7 @@ interface BrainliftTabProps {
   author: string | null | undefined;
   purpose: string | null | undefined;
   slug: string;
+  experts: Expert[];
   facts: Fact[];
   dok2Summaries: Dok2SummaryData[];
   dok3Insights: DOK3InsightWithLinks[];
@@ -360,6 +399,7 @@ export const BrainliftTab = ({
   author,
   purpose,
   slug,
+  experts,
   facts,
   dok2Summaries,
   dok3Insights,
@@ -375,6 +415,19 @@ export const BrainliftTab = ({
     lines.push(`# ${title}`);
     if (author) lines.push('', '- Owner', `  - ${author}`);
     if (purpose) lines.push('', '- Purpose', `  - ${purpose}`);
+
+    if (experts.length > 0) {
+      lines.push('', '- Experts');
+      for (const expert of experts) {
+        lines.push(`  - ${expert.name}`);
+        if (expert.who) lines.push(`    - Who: ${expert.who}`);
+        if (expert.focus) lines.push(`    - Focus: ${expert.focus}`);
+        if (expert.why) lines.push(`    - Why: ${expert.why}`);
+        if (expert.where) lines.push(`    - Where: ${expert.where}`);
+        if (expert.twitterHandle) lines.push(`    - Twitter: ${expert.twitterHandle}`);
+        if (expert.rationale) lines.push(`    - Rationale: ${expert.rationale}`);
+      }
+    }
 
     // Build the same category > source buckets used by the tree
     interface DlBucket { facts: Fact[]; dok2s: Dok2SummaryData[]; url: string | null }
@@ -543,6 +596,7 @@ export const BrainliftTab = ({
             title={title}
             author={author}
             purpose={purpose}
+            experts={experts}
             facts={facts}
             dok2Summaries={dok2Summaries}
             dok3Insights={dok3Insights}
