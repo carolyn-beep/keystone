@@ -113,38 +113,84 @@ function getTone(status: ToolCallStatus, isError?: boolean): 'default' | 'error'
   return 'default';
 }
 
-// ---------- Generic fallback ----------
+// ---------- Generic fallback (= an error in our app) ----------
 
+/**
+ * Fires when the assistant emits a tool call with a `toolName` that has no
+ * registered `makeAssistantToolUI`. In our app every shipped tool has a
+ * registration, so this firing is always a bug — render a loud,
+ * report-friendly card instead of a casual status line. Includes everything
+ * a user needs to attach to a bug report: conversation id, UTC timestamp,
+ * tool name, and tool call id.
+ */
 export function GenericToolCallCard({
   toolName,
+  toolCallId,
   status,
   isError,
 }: ToolCallMessagePartProps) {
-  // DEV DIAG: this fires when no `makeAssistantToolUI` matches the toolName.
-  // We're chasing a bug where ask_user_question falls back here intermittently
-  // even though the registration is in the bundle. Log when it happens so we
-  // can correlate with conversation/turn timing.
-  if (toolName === 'ask_user_question') {
-    // eslint-disable-next-line no-console
-    console.warn('[ask-user-question] FALLBACK fired — registration missing at runtime', {
-      status: status.type,
-      isError,
-      registeredCount: nativeChatToolUIs.length,
-      hasAskUser: nativeChatToolUIs.some((u) => u.unstable_tool.toolName === 'ask_user_question'),
-    });
-  }
+  const conversationId = readConversationIdFromUrl();
+  // Timestamp captured once at first render so the same fallback card
+  // doesn't churn its time field across re-renders.
+  const renderedAt = React.useMemo(() => new Date().toISOString(), []);
+
+  // Diagnostic — always logged so devs can grep server logs by timestamp.
+  // eslint-disable-next-line no-console
+  console.warn('[tool-fallback] unregistered toolName rendered fallback card', {
+    toolName,
+    toolCallId,
+    conversationId,
+    renderedAt,
+    statusType: status.type,
+    isError: Boolean(isError),
+    registeredCount: nativeChatToolUIs.length,
+  });
+
   return (
-    <ToolStatusLine
-      icon={<StatusIcon status={status} isError={isError} fallback={<Sparkles size={13} />} />}
-      tone={getTone(status, isError)}
-    >
-      {isError
-        ? `${humanizeToolName(toolName)} failed`
-        : isRunning(status)
-          ? `Running ${humanizeToolName(toolName)}…`
-          : humanizeToolName(toolName)}
-    </ToolStatusLine>
+    <div className="tool-fallback-error" role="alert" aria-label="Tool render error">
+      <div className="tool-fallback-error-header">
+        <AlertTriangle size={14} aria-hidden />
+        <span className="tool-fallback-error-title">Tool render error</span>
+      </div>
+      <p className="tool-fallback-error-message">
+        Could not render the <strong>{humanizeToolName(toolName)}</strong> step. Send the
+        details below to your developer so they can investigate.
+      </p>
+      <dl className="tool-fallback-error-meta">
+        <div>
+          <dt>Conversation</dt>
+          <dd>
+            <code>{conversationId ?? 'unknown'}</code>
+          </dd>
+        </div>
+        <div>
+          <dt>Time (UTC)</dt>
+          <dd>
+            <code>{renderedAt}</code>
+          </dd>
+        </div>
+        <div>
+          <dt>Tool</dt>
+          <dd>
+            <code>{toolName}</code>
+          </dd>
+        </div>
+        <div>
+          <dt>Tool call id</dt>
+          <dd>
+            <code>{toolCallId}</code>
+          </dd>
+        </div>
+      </dl>
+    </div>
   );
+}
+
+function readConversationIdFromUrl(): string | null {
+  if (typeof window === 'undefined') return null;
+  const params = new URLSearchParams(window.location.search);
+  const raw = params.get('c');
+  return raw && /^\d+$/.test(raw) ? raw : null;
 }
 
 // ---------- Grading tools ----------
