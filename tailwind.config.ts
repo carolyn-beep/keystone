@@ -129,7 +129,7 @@ export default {
     require("tailwindcss-animate"),
     require("@tailwindcss/typography"),
     require("@assistant-ui/react-ui/tailwindcss")({
-      components: ["thread"],
+      components: ["thread", "markdown"],
       shadcn: true,
     }),
   ],

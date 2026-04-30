@@ -3,6 +3,7 @@ import { useLocation } from 'wouter';
 import { Upload, Plus, Shield, LogOut, BarChart3 } from 'lucide-react';
 import { tokens } from '@/lib/colors';
 import { authClient } from '@/lib/auth-client';
+import { queryClient } from '@/lib/queryClient';
 import { TactileButton } from '@/components/ui/tactile-button';
 
 interface HomeHeaderProps {
@@ -20,6 +21,7 @@ export function HomeHeader({ adminView, onImportBrainlift, onCreateBrainlift }: 
     await authClient.signOut({
       fetchOptions: {
         onSuccess: () => {
+          queryClient.clear();
           setLocation('/login');
         },
       },

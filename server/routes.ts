@@ -14,6 +14,7 @@ import { discussionRouter } from "./routes/discussion";
 import { dok3Router } from "./routes/dok3";
 import { dok4Router } from "./routes/dok4";
 import { importAgentRouter } from "./routes/import-agent";
+import { chatRouter } from "./routes/chat";
 import { knowledgeCheckRouter } from "./routes/knowledge-check";
 import { nativeBrainliftsRouter } from "./routes/native-brainlifts";
 import { purposeSuggestionsRouter } from "./routes/purpose-suggestions";
@@ -45,6 +46,7 @@ export async function registerRoutes(
   app.use(dok3Router);
   app.use(dok4Router);
   app.use(importAgentRouter);
+  app.use(chatRouter);
   app.use(knowledgeCheckRouter);
   app.use(nativeBrainliftsRouter);
   app.use(purposeSuggestionsRouter);

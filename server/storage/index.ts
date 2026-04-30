@@ -13,6 +13,7 @@ import * as dok3Storage from './dok3';
 import * as dok4Storage from './dok4';
 import * as analyticsDashboardStorage from './analytics-dashboard';
 import * as importAgentStorage from './import-agent';
+import * as chatStorage from './chat';
 import * as qaBatchesStorage from './qa-batches';
 import * as brainliftSourcesStorage from './brainlift-sources';
 import * as graderMonitoringStorage from './grader-monitoring';
@@ -39,6 +40,7 @@ export type {
   FactWithVerification, LlmFeedback, ModelAccuracyStats,
   FactRedundancyGroup, InsertFactRedundancyGroup, RedundancyStatus,
   AuthContext,
+  ChatConversation, ChatMessage, StoredChatMessage, ChatUserContext,
   NativeBrainliftDetails, InsertNativeBrainliftDetails,
   BuilderExpert, InsertBuilderExpert,
   NativePhaseProgress, BuilderPhaseStatus, BuilderSuggestionStatus,
@@ -214,6 +216,17 @@ export const storage = {
   saveImportConversation: importAgentStorage.saveImportConversation,
   deleteImportConversation: importAgentStorage.deleteImportConversation,
   updateImportStatus: importAgentStorage.updateImportStatus,
+
+  // Native chat
+  listChatConversations: chatStorage.listChatConversations,
+  createChatConversation: chatStorage.createChatConversation,
+  getChatConversation: chatStorage.getChatConversation,
+  renameChatConversation: chatStorage.renameChatConversation,
+  renameChatConversationIfTitle: chatStorage.renameChatConversationIfTitle,
+  deleteChatConversation: chatStorage.deleteChatConversation,
+  listChatMessages: chatStorage.listChatMessages,
+  syncChatMessages: chatStorage.syncChatMessages,
+  getChatUserContext: chatStorage.getChatUserContext,
 
   // Brainlift Sources
   saveBrainliftSources: brainliftSourcesStorage.saveBrainliftSources,

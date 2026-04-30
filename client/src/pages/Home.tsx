@@ -13,6 +13,7 @@ import { BrainliftCard } from '@/components/home/BrainliftCard';
 import { LoadMoreButton } from '@/components/home/LoadMoreButton';
 import { AddBrainliftModal } from '@/components/home/AddBrainliftModal';
 import { FilterTabs } from '@/components/home/FilterTabs';
+import { buildLibraryLocation } from '@/components/chat/chat-home-helpers';
 
 export default function Home() {
   const [, setLocation] = useLocation();
@@ -172,8 +173,7 @@ export default function Home() {
     } else {
       params.set('filter', newFilter);
     }
-    const newSearch = params.toString();
-    setLocation(newSearch ? `/?${newSearch}` : '/');
+    setLocation(buildLibraryLocation(params.toString()));
   }, [setLocation]);
 
   return (

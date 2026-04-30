@@ -33,6 +33,7 @@ server/
   storage/        Drizzle ORM, domain-split with facade pattern
   ai/             LLM integrations (fact verification, DOK2-4 grading, auto-linking, expert extraction, research swarm)
     client/       Unified AI client — model registry, providers, retry/timeout middleware
+    chat/         Native chat provider adapter, system prompt, tool registry, skills, telemetry
   jobs/           Graphile Worker background jobs
   events/         SSE event emitters (DOK4 grading progress)
   middleware/     Auth (Better Auth + Google OAuth), brainlift authorization, error handling
@@ -92,6 +93,26 @@ The **model registry** (`server/ai/client/registry.ts`) is the single source of 
 | Budget | Qwen 3 32B, Llama 3.1 8B | GPT-OSS 20B | Low-priority fallbacks |
 
 A provider abstraction (`AIProvider` interface) now ships with both OpenRouter and Fireworks. The unified client covers the grading pipeline, auto-linkers, preformat service, expert extraction, and other non-streaming text-generation call sites. The main exceptions are still Vercel AI SDK routes (discussion, import agent — different streaming paradigm) and the Claude Agent SDK research swarm. Image generation is handled separately in `server/ai/imageGenerator.ts`, with its own OpenAI primary + Fireworks fallback path.
+
+### Native Chat Runtime
+
+The app shell now opens into the native chat experience at `/`; the existing BrainLift library remains available at `/library`. Native chat is not a separate MCP process. It is an in-process AI SDK runtime wired through `server/routes/chat.ts`, `server/ai/chat/`, and the shared `storage` facade.
+
+Conversation state is persisted in PostgreSQL through `chat_conversations` and `chat_messages` (`migrations/0029_add_chat_tables.sql`). The storage layer owns user-scoped CRUD, pagination, message syncing, legacy message ID backfill, and title updates. The route layer streams through AI SDK `streamText`, then syncs the finalized UI messages back to the database when the turn completes.
+
+The chat model adapter in `server/ai/chat/provider.ts` implements `LanguageModelV2` against OpenRouter's chat-completions API so assistant-ui can stream text, tool calls, tool results, and usage through the same UI-message stream. The visible model picker is defined in `shared/chat-models.ts`.
+
+Tools are loaded from `buildNativeChatTools()` and grouped by domain:
+
+- **Grading tools** inspect or create BrainLift grading state (`get_template`, `grade_brainlift`, `list_brainlifts`, `get_brainlift_assessment`).
+- **Skill tools** expose repo-local skills from `skills/*/SKILL.md`; the prompt lists summaries and `load_skill` loads the full markdown only when needed.
+- **Research tools** port the Learning Stream source-discovery surface into chat: Exa search (`web_search_exa`), URL extraction through the existing content extractor (`fetch_url_content`), and YouTube transcript retrieval (`get_youtube_transcript`).
+- **Curation and expert tools** create/edit/delete/link DOK items, handle stale flags, and manage experts through `server/services/brainlift-curation.ts`.
+- **Sprint tools** generate plans, inspect tasks, and create/read/update deliverables through `server/services/sprint.ts`.
+
+The system prompt (`server/ai/chat/system-prompt.ts`) is generated per user. It includes recent BrainLifts, recent conversations, active sprint plans, available skill summaries, and strict operating rules that keep the agent coaching from the student's BrainLift instead of guessing hidden state.
+
+Chat title generation runs after a completed user+assistant exchange when the conversation is still titled `New chat`. It uses a cheap fast Gemini Flash call through the unified AI client (`caller: 'chat.title'`) and falls back to a deterministic local title if the provider call fails. The database update is guarded so an automatic title cannot overwrite a user-renamed conversation.
 
 ---
 
@@ -755,6 +776,7 @@ React 18 with TypeScript. TanStack Query for server state. Tailwind with a custo
 
 - **Virtualized lists** — fact grading panels use TanStack Virtual for rendering hundreds of facts without performance degradation
 - **Real-time streaming** — SSE connections for import progress, research swarm events, and adversary debate responses
+- **Native chat streaming** — assistant-ui renders persisted AI SDK UI messages, model/tool status, tool inputs, tool outputs, and conversation switching through `/api/chat/stream`
 - **URL state sync** — tab navigation, expanded views, filters, and share tokens all reflected in the URL for deep linking and browser history
 - **Staggered animations** — learning stream cards, swarm agent units, and stat cards animate in with spring physics and staggered delays
 - **Split-panel views** — the expanded learning stream item uses a resizable split (content left, discussion/knowledge check right with tab toggle)
@@ -795,7 +817,7 @@ docker exec -i wizardly_kalam psql -U postgres -d dok1grader_local < migrations/
 | `OPENROUTER_API_KEY` | Primary text-generation provider for the unified AI client |
 | `FIREWORKS_API_KEY` | Fireworks failover provider for the unified AI client and image fallback |
 | `OPENAI_API_KEY` | Primary image-generation provider (`gpt-image-1`) |
-| `EXA_API_KEY` | Exa search API (research swarm) |
+| `EXA_API_KEY` | Exa search API (research swarm and native chat web search) |
 | `YOUTUBE_API_KEY` | YouTube Data API (video researcher agent) |
 | `JINA_API_KEY` | Jina Reader API (article content extraction) |
 | `SWARM_AGENT_COUNT` | Research agents per swarm (default: 5) |
