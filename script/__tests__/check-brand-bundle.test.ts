@@ -70,12 +70,12 @@ describe('FR6 checkBrandBundle: throws on forbidden tokens', () => {
     await expect(checkBrandBundle('alphax', 'dist/public')).rejects.toThrow(/brain-hero/);
   });
 
-  it('alphax build with "Brainlift Central" string throws', async () => {
+  it('alphax build with brainlift-avatar class throws', async () => {
     await setupFs({
-      'main-xyz.js': 'const title = "Brainlift Central";',
+      'styles.css': '.brainlift-avatar-login { width: 4.5rem; }',
     });
     const { checkBrandBundle } = await import('../check-brand-bundle');
-    await expect(checkBrandBundle('alphax', 'dist/public')).rejects.toThrow(/Brainlift Central/);
+    await expect(checkBrandBundle('alphax', 'dist/public')).rejects.toThrow(/brainlift-avatar/);
   });
 
   it('alphax build with brainlift-wordmark CSS class throws', async () => {
@@ -155,7 +155,7 @@ describe('FR6 checkBrandBundle: ignores non-bundle file types', () => {
 describe('FR6 checkBrandBundle: error message names token + file', () => {
   it('error message includes the offending token and the file path', async () => {
     await setupFs({
-      'main-xyz.js': 'const t="Brainlift Central"',
+      'main-xyz.js': '.brainlift-wordmark-hero { font-size: 64px }',
     });
     const { checkBrandBundle } = await import('../check-brand-bundle');
     let err: unknown;
@@ -165,7 +165,7 @@ describe('FR6 checkBrandBundle: error message names token + file', () => {
       err = e;
     }
     const msg = (err as Error).message;
-    expect(msg).toContain('Brainlift Central');
+    expect(msg).toContain('brainlift-wordmark');
     expect(msg).toContain('main-xyz.js');
   });
 });
