@@ -78,6 +78,10 @@ describe('ChatConversationSidebar (reduced) source', () => {
     expect(source).toMatch(/Trash2/);
   });
 
+  it('uses the project styled scrollbar class on the conversation scroll container', () => {
+    expect(source).toMatch(/scrollbar-styled/);
+  });
+
   it('preserves the inline rename form behavior', () => {
     expect(source).toMatch(/handleRenameSubmit/);
     expect(source).toMatch(/editingConversationId/);

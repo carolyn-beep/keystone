@@ -14,7 +14,12 @@ interface AppShellContextValue {
   openDrawer: () => void;
   closeDrawer: () => void;
   toggleDrawer: () => void;
+  /** Whether the inline sidebar (lg+) is collapsed to an icon-only rail. */
+  isSidebarCollapsed: boolean;
+  toggleSidebarCollapsed: () => void;
 }
+
+const SIDEBAR_COLLAPSED_STORAGE_KEY = 'app-shell:sidebar-collapsed';
 
 const AppShellContext = createContext<AppShellContextValue | null>(null);
 
@@ -40,10 +45,29 @@ export function useAppShell(): AppShellContextValue | null {
  */
 export function AppShell({ sidebar, header, children }: AppShellProps) {
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState<boolean>(() => {
+    if (typeof window === 'undefined') return false;
+    try {
+      return window.localStorage.getItem(SIDEBAR_COLLAPSED_STORAGE_KEY) === '1';
+    } catch {
+      return false;
+    }
+  });
 
   const openDrawer = useCallback(() => setIsDrawerOpen(true), []);
   const closeDrawer = useCallback(() => setIsDrawerOpen(false), []);
   const toggleDrawer = useCallback(() => setIsDrawerOpen((open) => !open), []);
+  const toggleSidebarCollapsed = useCallback(() => {
+    setIsSidebarCollapsed((prev) => {
+      const next = !prev;
+      try {
+        window.localStorage.setItem(SIDEBAR_COLLAPSED_STORAGE_KEY, next ? '1' : '0');
+      } catch {
+        // localStorage unavailable (private mode, quota): fall back to in-memory state.
+      }
+      return next;
+    });
+  }, []);
 
   // Lock body scroll while the drawer is open.
   useEffect(() => {
@@ -60,14 +84,19 @@ export function AppShell({ sidebar, header, children }: AppShellProps) {
     openDrawer,
     closeDrawer,
     toggleDrawer,
+    isSidebarCollapsed,
+    toggleSidebarCollapsed,
   };
 
   return (
     <AppShellContext.Provider value={ctx}>
       <div className="h-screen flex bg-background text-foreground font-sans">
-        {/* Inline sidebar (lg+) */}
+        {/* Inline sidebar (lg+). Width animates between expanded (248px) and
+            icon-only rail (64px). Drawer (mobile) always uses the full width. */}
         <aside
-          className="hidden lg:flex w-[248px] shrink-0 flex-col bg-sidebar border-r border-sidebar-border overflow-hidden"
+          className={`hidden lg:flex shrink-0 flex-col bg-sidebar border-r border-sidebar-border overflow-hidden transition-[width] duration-200 ease-out ${
+            isSidebarCollapsed ? 'w-16' : 'w-[248px]'
+          }`}
           aria-label="Primary navigation"
         >
           {sidebar}
@@ -94,7 +123,7 @@ export function AppShell({ sidebar, header, children }: AppShellProps) {
         {/* Main column */}
         <div className="flex min-w-0 flex-1 flex-col">
           {header}
-          <main className="flex-1 min-h-0 overflow-y-auto">
+          <main className="flex-1 min-h-0 overflow-y-auto scrollbar-styled">
             {children}
           </main>
         </div>

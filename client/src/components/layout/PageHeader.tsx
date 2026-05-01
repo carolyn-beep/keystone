@@ -21,7 +21,7 @@ interface PageHeaderProps {
  */
 export function PageHeader({ leadingSlot, title, subtitle, actions }: PageHeaderProps) {
   return (
-    <header className="flex h-14 shrink-0 items-center gap-3 bg-card border-b border-border px-4 sm:px-6 md:px-8">
+    <header className="flex h-16 shrink-0 items-center gap-3 bg-card border-b border-border px-4 sm:px-6 md:px-8">
       {leadingSlot ? <div className="flex shrink-0 items-center">{leadingSlot}</div> : null}
 
       <div className="min-w-0 flex-1">

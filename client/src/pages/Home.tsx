@@ -263,7 +263,7 @@ export default function Home() {
   return (
     <AppShell
       sidebar={<AppSidebar contextualBody={null} />}
-      header={<PageHeader title="Library" actions={headerActions} />}
+      header={<PageHeader title="Brainlift Library" actions={headerActions} />}
     >
       <div className="px-4 sm:px-6 md:px-8 py-4 max-w-[1200px] mx-auto">
         {/* Filter Tabs */}

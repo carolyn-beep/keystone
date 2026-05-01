@@ -13,7 +13,12 @@ import {
   resolveChatConversationSelection,
   resolveNextConversationSelectionAfterDelete,
   parseSelectedConversationId,
+  sortChatConversationsByRecency,
 } from '@/hooks/useChatConversations';
+import {
+  hasBeenGreetedThisSession,
+  markGreetedThisSession,
+} from '@/lib/chat-greeting-session';
 import { useLocation, useSearch } from 'wouter';
 import { ChatConversationSidebar } from '@/components/chat/ChatConversationSidebar';
 import { NativeChatThread } from '@/components/chat/NativeChatThread';
@@ -119,14 +124,30 @@ export default function ChatHome() {
     if (selection.shouldCreateConversation) {
       if (autoCreateState !== 'idle') return;
 
+      // The user has already been greeted this session (via the AlphaX opener
+      // on first visit). Treat this landing as plain "take me to chat":
+      // route to the most recent existing conversation instead of creating a
+      // fresh one + greeting again. If they have no conversations at all,
+      // fall through to auto-create -- but skip the opener.
+      const alreadyGreeted = hasBeenGreetedThisSession();
+      if (alreadyGreeted && conversations.length > 0) {
+        const mostRecent = sortChatConversationsByRecency(conversations)[0]!;
+        setLocation(buildChatConversationLocation(mostRecent.id));
+        return;
+      }
+
       setAutoCreateState('pending');
       createConversation.mutate({}, {
         onSuccess: (conversation) => {
           setAutoCreateState('idle');
-          // This is the homepage-landing auto-create — flag it for the
-          // opener trigger. Manual New chat / post-delete fallbacks use
-          // their own create paths and do NOT set this flag.
-          setOpenerPendingForId(conversation.id);
+          // Only fire the AlphaX opener on the FIRST landing of the session.
+          // Subsequent navigations to `/` in the same tab skip it; the
+          // sign-out path in UserMenu clears the flag so the next user on
+          // the tab is greeted again.
+          if (!alreadyGreeted) {
+            setOpenerPendingForId(conversation.id);
+            markGreetedThisSession();
+          }
           setLocation(buildChatConversationLocation(conversation.id));
         },
         onError: (error) => {
@@ -264,7 +285,7 @@ export default function ChatHome() {
 
   return (
     <AppShell
-      sidebar={<AppSidebar contextualBody={sidebarBody} activeSection="chat" />}
+      sidebar={<AppSidebar contextualBody={sidebarBody} contextualLabel="Recent chats" activeSection="chat" />}
       header={
         <PageHeader
           leadingSlot={<DrawerToggle />}

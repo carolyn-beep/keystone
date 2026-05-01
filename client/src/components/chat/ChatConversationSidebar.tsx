@@ -14,6 +14,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import { useAppShell } from '@/components/layout/AppShell';
 import { cn } from '@/lib/utils';
 
 interface ChatConversationSidebarProps {
@@ -75,6 +76,13 @@ export function ChatConversationSidebar({
   const [draftTitle, setDraftTitle] = useState('');
   const [isSubmittingEdit, setIsSubmittingEdit] = useState(false);
 
+  // Conversation titles have no icon-only equivalent, so the chat contextual
+  // body is hidden entirely when the unified sidebar is collapsed to a rail.
+  // The "+ New chat" affordance remains reachable via the Cmd+K shortcut and
+  // (after expanding) via the existing button.
+  const shell = useAppShell();
+  if (shell?.isSidebarCollapsed) return null;
+
   async function handleRenameSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
@@ -117,7 +125,7 @@ export function ChatConversationSidebar({
         </button>
       </div>
 
-      <div className="flex-1 min-h-0 overflow-y-auto px-2 pb-3">
+      <div className="flex-1 min-h-0 overflow-y-auto scrollbar-styled px-2 pb-3">
         {isLoading ? (
           <div className="flex items-center gap-2 px-3 py-3 text-[13px] text-muted-foreground">
             <Loader2 size={14} className="animate-spin" />

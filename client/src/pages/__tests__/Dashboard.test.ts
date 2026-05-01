@@ -7,15 +7,12 @@ const dashboardSource = fs.readFileSync(
 );
 
 describe('Dashboard.tsx -- AppShell migration (spec 04 FR1)', () => {
-  it('imports AppShell, AppSidebar, and PageHeader from @/components/layout', () => {
+  it('imports AppShell and AppSidebar from @/components/layout', () => {
     expect(dashboardSource).toMatch(
       /import[^;]*\bAppShell\b[^;]*from\s+['"]@\/components\/layout['"]/,
     );
     expect(dashboardSource).toMatch(
       /import[^;]*\bAppSidebar\b[^;]*from\s+['"]@\/components\/layout['"]/,
-    );
-    expect(dashboardSource).toMatch(
-      /import[^;]*\bPageHeader\b[^;]*from\s+['"]@\/components\/layout['"]/,
     );
   });
 
@@ -60,30 +57,21 @@ describe('Dashboard.tsx -- AppShell migration (spec 04 FR1)', () => {
   });
 });
 
-describe('Dashboard.tsx -- Breadcrumb in PageHeader (spec 04 FR2)', () => {
-  it('renders <PageHeader title={...} />', () => {
-    expect(dashboardSource).toMatch(/<PageHeader[\s\S]*title=\{/);
+describe('Dashboard.tsx -- DashboardHeader inside chrome with collapse-on-scroll', () => {
+  it('renders DashboardHeader inside the AppShell header (chrome), not as a content block', () => {
+    // AppShell's `header={...}` slot must contain the brainlift chrome which
+    // hosts DashboardHeader. We assert the chrome wrapper variable references
+    // DashboardHeader inside the same <header> element.
+    expect(dashboardSource).toMatch(/<header[\s\S]*<DashboardHeader\b/);
   });
 
-  it('breadcrumb uses a wouter Link to backLink (preserves ?admin=true)', () => {
-    // Library link in the breadcrumb -- href should reference backLink.
-    expect(dashboardSource).toMatch(/<Link\s+href=\{backLink\}/);
-    expect(dashboardSource).toMatch(/Library/);
-  });
-
-  it('breadcrumb includes data.title as the active crumb', () => {
-    expect(dashboardSource).toMatch(/data\.title/);
-  });
-});
-
-describe('Dashboard.tsx -- DashboardHeader as content block (spec 04 FR3)', () => {
-  it('renders DashboardHeader inside AppShell children, not as the AppShell header prop', () => {
-    // The chrome `header` slot on AppShell must be a PageHeader, not DashboardHeader.
-    // Source-text check: AppShell's header prop opens with `<PageHeader`.
-    expect(dashboardSource).toMatch(/header=\{[\s\S]*<PageHeader/);
-    // And `<DashboardHeader` should not appear inside the same `header={` block --
-    // simplest assertion: PageHeader appears, DashboardHeader appears as a sibling.
-    expect(dashboardSource).toMatch(/<DashboardHeader\b/);
+  it('toggles .header-collapsed via an IntersectionObserver on a sentinel', () => {
+    // The collapse-on-scroll behavior is back: a sentinel inside <main>
+    // drives an IntersectionObserver which flips .header-collapsed on the
+    // chrome <header>. CSS in client/src/header-collapse.css does the rest.
+    expect(dashboardSource).toMatch(/IntersectionObserver/);
+    expect(dashboardSource).toMatch(/headerSentinelRef/);
+    expect(dashboardSource).toMatch(/header-collapsed/);
   });
 });
 

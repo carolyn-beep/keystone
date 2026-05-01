@@ -2,6 +2,7 @@ import { LogOut } from 'lucide-react';
 import { useLocation } from 'wouter';
 import { authClient } from '@/lib/auth-client';
 import { queryClient } from '@/lib/queryClient';
+import { clearGreetedThisSession } from '@/lib/chat-greeting-session';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -15,6 +16,8 @@ interface UserMenuProps {
    * default behavior is to navigate to `/login`.
    */
   onSignedOut?: () => void;
+  /** Render avatar-only when the parent sidebar is in icon-rail mode. */
+  isCollapsed?: boolean;
 }
 
 /**
@@ -25,7 +28,7 @@ interface UserMenuProps {
  * available, the trigger renders a generic placeholder; the dropdown is still
  * usable (Sign out is idempotent server-side).
  */
-export function UserMenu({ onSignedOut }: UserMenuProps) {
+export function UserMenu({ onSignedOut, isCollapsed = false }: UserMenuProps) {
   const [, setLocation] = useLocation();
   const { data: session } = authClient.useSession();
 
@@ -39,6 +42,9 @@ export function UserMenu({ onSignedOut }: UserMenuProps) {
         fetchOptions: {
           onSuccess: () => {
             queryClient.clear();
+            // Clear so the next user on this tab gets the AlphaX opener
+            // on their first chat landing.
+            clearGreetedThisSession();
             if (onSignedOut) {
               onSignedOut();
             } else {
@@ -57,7 +63,13 @@ export function UserMenu({ onSignedOut }: UserMenuProps) {
     <DropdownMenu>
       <DropdownMenuTrigger
         aria-label="User menu"
-        className="group flex w-full items-center gap-3 rounded-md px-2 py-2 text-left transition-colors hover:bg-sidebar-accent/60 focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        title={isCollapsed ? userName : undefined}
+        className="group flex w-full items-center rounded-md py-2 text-left transition-[background-color,padding,gap] duration-200 ease-out hover:bg-sidebar-accent/60 focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        style={{
+          paddingLeft: isCollapsed ? 6 : 8,
+          paddingRight: isCollapsed ? 6 : 8,
+          gap: isCollapsed ? 0 : 12,
+        }}
       >
         <span className="h-9 w-9 shrink-0 overflow-hidden rounded-full bg-primary text-primary-foreground flex items-center justify-center text-sm font-medium">
           {userImage ? (
@@ -71,7 +83,12 @@ export function UserMenu({ onSignedOut }: UserMenuProps) {
             initials
           )}
         </span>
-        <span className="min-w-0 flex-1 truncate text-sm font-medium text-sidebar-foreground">
+        <span
+          aria-hidden={isCollapsed}
+          className={`min-w-0 truncate text-sm font-medium text-sidebar-foreground overflow-hidden whitespace-nowrap transition-[max-width,opacity] duration-200 ease-out ${
+            isCollapsed ? 'max-w-0 opacity-0' : 'max-w-[160px] opacity-100'
+          }`}
+        >
           {userName}
         </span>
       </DropdownMenuTrigger>

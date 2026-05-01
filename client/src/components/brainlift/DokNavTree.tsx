@@ -1,5 +1,6 @@
 import { ComponentType, useState } from 'react';
 import { SidebarNavItem } from '@/components/layout/SidebarNavItem';
+import { useAppShell } from '@/components/layout/AppShell';
 
 export interface NavItem {
   id: string;
@@ -31,13 +32,19 @@ export function DokNavTree({
   activeNavId,
   onNavChange,
   isAdmin = false,
-  collapsed = false,
+  collapsed: collapsedProp,
 }: DokNavTreeProps) {
+  // When the unified app shell collapses to a rail, DokNavTree should switch
+  // to icon-only too. Reading the shell context lets the rail flip
+  // automatically without Dashboard.tsx threading the prop. The explicit
+  // `collapsed` prop wins if provided, for tests and isolated previews.
+  const shell = useAppShell();
+  const collapsed = collapsedProp ?? shell?.isSidebarCollapsed ?? false;
   const visibleNavItems = navItems.filter((item) => !item.adminOnly || isAdmin);
   const [hoveredNavId, setHoveredNavId] = useState<string | null>(null);
 
   return (
-    <nav className="flex-1 px-3 py-2 space-y-2">
+    <nav className="flex-1 min-h-0 overflow-y-auto scrollbar-styled px-3 py-2 space-y-2">
       {visibleNavItems.map((item) => {
         const childIds = item.children?.map((c) => c.id) ?? [];
         const sectionActive =
