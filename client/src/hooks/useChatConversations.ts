@@ -132,7 +132,7 @@ export function resolveChatConversationSelection({
   // explicitly opted into being greeted every time they land here, even if
   // they have prior conversations. ChatHome consumes `shouldCreateConversation`
   // and uses it as both "create a fresh conversation" and "fire the opener
-  // into it". See shared/chat-opener.ts.
+  // into it". See client/src/chat/chat-opener.ts.
   return {
     selectedConversationId: null,
     shouldCreateConversation: true,

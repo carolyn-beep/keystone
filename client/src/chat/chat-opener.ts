@@ -2,10 +2,11 @@
  * Homepage-landing opener mechanism.
  *
  * Goal: every time the user lands on the chat homepage (`/` with no `?c=`),
- * AlphaX Buddy meets them with a streamed welcome shaped by the contextual
- * system prompt (the brainlift-count heuristic in `buildBrainliftHeuristics`
- * decides what journey-stage opener to produce). The prompt text introduces
- * the platform and previews what the user can do here.
+ * the in-app coach meets them with a streamed welcome shaped by the
+ * contextual system prompt (the brainlift-count heuristic in
+ * `buildBrainliftHeuristics` decides what journey-stage opener to produce).
+ * The prompt text introduces the platform and previews what the user can do
+ * here.
  *
  * Why streaming matters: a server-pre-generated greeting injected into
  * `initialMessages` arrives as a finished block — the user sees it pop in,
@@ -79,7 +80,7 @@
  *
  * Reference sites (search `OPENER_PROMPT` and `openerPending` to find every
  * load-bearing site):
- *   - shared/chat-opener.ts                            (this file)
+ *   - client/src/chat/chat-opener.ts                   (this file)
  *   - client/src/hooks/useChatConversations.ts         (selection: bare `/`
  *                                                       always requests create)
  *   - client/src/pages/ChatHome.tsx                    (`openerPendingForId`
@@ -87,6 +88,11 @@
  *   - client/src/components/chat/NativeChatThread.tsx  (`OpenerTrigger`)
  *   - client/src/components/chat/native-chat-thread-config.tsx
  *                                                      (UserMessage filter)
+ *
+ * Branding note (Spec 01): the detection tag is `[OPENER]` -- brand-agnostic.
+ * The prompt body below is the AlphaX-flavoured prose that shipped before
+ * spec 01; spec 02 will swap it for `brand.config.chatOpenerInstruction` so
+ * each brand can own its own opener language.
  */
 
 /**
@@ -97,7 +103,7 @@
  * developer reading raw logs a clear signal of what kind of turn this is.
  */
 export const OPENER_PROMPT =
-  '[ALPHAX_OPENER] This is the user landing on the chat homepage. Open the conversation by '
+  '[OPENER] This is the user landing on the chat homepage. Open the conversation by '
   + 'briefly introducing yourself as AlphaX Buddy, then meet the student exactly where they '
   + 'are in their AlphaX journey. Follow the brainlift heuristics in your system prompt and '
   + 'use the User Context block (brainlift count, recent brainlifts, recent conversations, '
@@ -135,5 +141,5 @@ export function isOpenerPromptMessage(message: {
   const part = firstPart as { type?: unknown; text?: unknown };
   return part.type === 'text'
     && typeof part.text === 'string'
-    && part.text.startsWith('[ALPHAX_OPENER]');
+    && part.text.startsWith('[OPENER]');
 }

@@ -5,7 +5,7 @@ import {
   type ToolCallMessagePartProps,
 } from '@assistant-ui/react';
 import { makeMarkdownText, UserMessage as DefaultUserMessage } from '@assistant-ui/react-ui';
-import { isOpenerPromptMessage } from '@shared/chat-opener';
+import { isOpenerPromptMessage } from '@/chat/chat-opener';
 import alphaBuddyAvatar from '@/assets/chat/alpha-buddy.png';
 import {
   AlertTriangle,
@@ -761,7 +761,7 @@ const AskUserQuestionToolUI = makeAssistantToolUI<
 /**
  * UserMessage variant that hides the AlphaX opener-prompt user message from
  * the visible thread. The message stays in the runtime state and the DB —
- * it is purely visually filtered. See shared/chat-opener.ts for context.
+ * it is purely visually filtered. See client/src/chat/chat-opener.ts for context.
  */
 function FilteringUserMessage() {
   const message = useMessage();

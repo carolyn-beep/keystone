@@ -3,7 +3,7 @@ import { AssistantRuntimeProvider, useThread, useThreadRuntime } from '@assistan
 import { Thread } from '@assistant-ui/react-ui';
 import type { UIMessage } from 'ai';
 import type { ChatModelId } from '@shared/chat-models';
-import { OPENER_PROMPT } from '@shared/chat-opener';
+import { OPENER_PROMPT } from '@/chat/chat-opener';
 import { queryClient } from '@/lib/queryClient';
 import {
   CHAT_CONVERSATIONS_QUERY_KEY,
@@ -17,7 +17,7 @@ import { ChatComposerSettingsProvider } from './ChatComposer';
  * Module-level guard. Ensures the opener prompt fires at most once per
  * conversation across StrictMode double-mount, HMR, and parent remounts.
  * Lives at module scope on purpose — surviving unmount/remount within the
- * session is the desired behavior. See shared/chat-opener.ts.
+ * session is the desired behavior. See client/src/chat/chat-opener.ts.
  */
 const firedOpenerForConversation = new Set<number>();
 
@@ -32,7 +32,7 @@ const firedOpenerForConversation = new Set<number>();
  *      (module-level Set guard).
  *
  * Lives inside the runtime provider so it can call `useThreadRuntime()`.
- * See shared/chat-opener.ts.
+ * See client/src/chat/chat-opener.ts.
  */
 function OpenerTrigger({
   conversationId,

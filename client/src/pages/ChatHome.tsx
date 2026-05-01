@@ -101,7 +101,7 @@ export default function ChatHome() {
   // Holds the ID of the conversation auto-created by the homepage-landing
   // path. Only that conversation should be flagged `needsOpener=true`. Manual
   // "New chat" clicks, post-delete fallbacks, and direct `?c=ID` navigation
-  // do not fire the opener. See shared/chat-opener.ts.
+  // do not fire the opener. See client/src/chat/chat-opener.ts.
   const [openerPendingForId, setOpenerPendingForId] = useState<number | null>(null);
 
   const conversationsQuery = useChatConversations();
