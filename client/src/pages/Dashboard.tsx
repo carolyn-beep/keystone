@@ -41,7 +41,8 @@ import { useDOK3GradingEvents } from '@/hooks/useDOK3GradingEvents';
 import { useDOK4 } from '@/hooks/useDOK4';
 import { useDOK4GradingEvents } from '@/hooks/useDOK4GradingEvents';
 import { DOK4Tab } from '@/components/DOK4Tab';
-import { SidebarLayout, AppSidebar, type NavItem } from '@/components/layout';
+import { SidebarLayout } from '@/components/layout';
+import { DokNavTree as AppSidebar, type NavItem } from '@/components/brainlift/DokNavTree';
 import { BuilderPage } from '@/components/builder';
 import { TactileButton } from '@/components/ui/tactile-button';
 
