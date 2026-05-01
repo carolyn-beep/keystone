@@ -15,29 +15,16 @@ interface DokNavTreeProps {
   onNavChange: (id: string) => void;
   isAdmin?: boolean;
   collapsed?: boolean;
-  /**
-   * Accepted but not rendered. Held for backwards compatibility with
-   * `Dashboard.tsx` until spec 04 migrates the back-link into the unified
-   * shell's `PageHeader.subtitle` breadcrumb.
-   */
-  backLink?: { href: string; label: string };
-  /**
-   * Accepted but not rendered. Held for backwards compatibility with
-   * `Dashboard.tsx` until spec 04 removes the collapse-toggle entirely (no
-   * collapse mode in the unified shell).
-   */
-  onToggleCollapse?: () => void;
 }
 
 /**
  * Reduced DOK nav tree slotted into the unified `<AppSidebar />` for brainlift
  * detail pages.
  *
- * This is a renamed, reduced version of today's `client/src/components/layout/AppSidebar.tsx`.
- * The full component used to also render a back-link, a user-menu footer, a
- * top-row container, and a collapse-toggle button. The unified shell
- * (`AppShell` + `AppSidebar` + `UserMenu` + `SectionNav`) now owns those
- * concerns, so this component only renders the nav-item tree.
+ * Spec 01 reduced this from today's full sidebar to nav-only content. Spec 04
+ * dropped the no-longer-used `backLink` and `onToggleCollapse` props (Dashboard
+ * is the only consumer and it no longer passes them now that the unified shell
+ * owns chrome). `collapsed` remains because `SidebarNavItem` still honors it.
  */
 export function DokNavTree({
   navItems,

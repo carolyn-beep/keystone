@@ -8,5 +8,4 @@ export {
   getSectionNavItems,
   type SectionNavItem,
 } from './section-nav-helpers';
-export { SidebarLayout } from './SidebarLayout';
 export { SidebarNavItem } from './SidebarNavItem';

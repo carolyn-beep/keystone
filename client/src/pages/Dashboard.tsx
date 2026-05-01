@@ -41,8 +41,8 @@ import { useDOK3GradingEvents } from '@/hooks/useDOK3GradingEvents';
 import { useDOK4 } from '@/hooks/useDOK4';
 import { useDOK4GradingEvents } from '@/hooks/useDOK4GradingEvents';
 import { DOK4Tab } from '@/components/DOK4Tab';
-import { SidebarLayout } from '@/components/layout';
-import { DokNavTree as AppSidebar, type NavItem } from '@/components/brainlift/DokNavTree';
+import { AppShell, AppSidebar, PageHeader } from '@/components/layout';
+import { DokNavTree, type NavItem } from '@/components/brainlift/DokNavTree';
 import { BuilderPage } from '@/components/builder';
 import { TactileButton } from '@/components/ui/tactile-button';
 
@@ -86,18 +86,6 @@ const NAV_ITEMS: NavItem[] = [
 ];
 
 export default function Dashboard({ slug, isSharedView = false }: DashboardProps) {
-  // Sidebar collapse state — persisted to localStorage
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
-    try { return localStorage.getItem('sidebar-collapsed') === 'true'; } catch { return false; }
-  });
-  const toggleSidebar = useCallback(() => {
-    setSidebarCollapsed(prev => {
-      const next = !prev;
-      try { localStorage.setItem('sidebar-collapsed', String(next)); } catch {}
-      return next;
-    });
-  }, []);
-
   // Handle share token redemption if ?share=TOKEN is present
   const { isRedeeming } = useShareToken();
 
@@ -287,7 +275,7 @@ const { downloadBrainliftPDF } = usePDFExport();
     <div className="p-12 text-center">
       <h1>Brainlift not found</h1>
       <p>No brainlift exists at this URL.</p>
-      <Link href="/">← Back to home</Link>
+      <Link href={LIBRARY_ROUTE_PATH}>← Back to library</Link>
     </div>
   );
 
@@ -342,43 +330,40 @@ const { downloadBrainliftPDF } = usePDFExport();
   //   );
   // }
 
-  return (
-    <SidebarLayout
-      collapsed={sidebarCollapsed}
-      sidebar={
-        !isSharedView ? (
-          <AppSidebar
-            navItems={NAV_ITEMS}
-            activeNavId={activeTab}
-            onNavChange={setActiveTab}
-            backLink={{ href: backLink, label: 'All Brainlifts' }}
-            isAdmin={isAdmin}
-            collapsed={sidebarCollapsed}
-            onToggleCollapse={toggleSidebar}
-          />
-        ) : null
-      }
-      header={
-        <DashboardHeader
-          data={data}
-          isSharedView={isSharedView}
-          isNotBrainlift={isNotBrainlift}
-          versions={versions}
-          editingAuthor={editingAuthor}
-          setEditingAuthor={setEditingAuthor}
-          authorInput={authorInput}
-          setAuthorInput={setAuthorInput}
-          onUpdateAuthor={handleUpdateAuthor}
-          setShowUpdateModal={setShowUpdateModal}
-          setShowHistoryModal={setShowHistoryModal}
-          handleDownloadPDF={handleDownloadPDF}
-          isOwner={isOwner}
-          isAdmin={isAdmin}
-          setShowShareModal={setShowShareModal}
-          canModify={canModify}
-        />
-      }
-    >
+  // Breadcrumb for the unified PageHeader: Library / {brainlift title}.
+  // Library link uses `backLink` so `?admin=true` is preserved across navigation.
+  const breadcrumb = (
+    <span className="flex items-center gap-2">
+      <Link href={backLink} className="text-muted-foreground hover:text-foreground">
+        Library
+      </Link>
+      <span className="text-muted-foreground">/</span>
+      <span className="truncate">{data.title}</span>
+    </span>
+  );
+
+  const pageContent = (
+    <div className="px-4 py-4 sm:px-6 md:px-8">
+      {/* DashboardHeader: rich banner -- now a content block, no longer chrome. */}
+      <DashboardHeader
+        data={data}
+        isSharedView={isSharedView}
+        isNotBrainlift={isNotBrainlift}
+        versions={versions}
+        editingAuthor={editingAuthor}
+        setEditingAuthor={setEditingAuthor}
+        authorInput={authorInput}
+        setAuthorInput={setAuthorInput}
+        onUpdateAuthor={handleUpdateAuthor}
+        setShowUpdateModal={setShowUpdateModal}
+        setShowHistoryModal={setShowHistoryModal}
+        handleDownloadPDF={handleDownloadPDF}
+        isOwner={isOwner}
+        isAdmin={isAdmin}
+        setShowShareModal={setShowShareModal}
+        canModify={canModify}
+      />
+
       {/* Not a Brainlift View */}
       {isNotBrainlift && (
         <NotBrainliftView data={data} isSharedView={isSharedView} toast={toast} />
@@ -675,6 +660,35 @@ const { downloadBrainliftPDF } = usePDFExport();
           </div>
         </div>
       )}
-    </SidebarLayout>
+    </div>
+  );
+
+  // Shared view bypasses the unified shell entirely (no sidebar, no chrome).
+  if (isSharedView) {
+    return (
+      <div className="min-h-screen bg-background text-foreground font-sans">
+        {pageContent}
+      </div>
+    );
+  }
+
+  return (
+    <AppShell
+      sidebar={
+        <AppSidebar
+          contextualBody={
+            <DokNavTree
+              navItems={NAV_ITEMS}
+              activeNavId={activeTab}
+              onNavChange={setActiveTab}
+              isAdmin={isAdmin}
+            />
+          }
+        />
+      }
+      header={<PageHeader title={breadcrumb} />}
+    >
+      {pageContent}
+    </AppShell>
   );
 }
