@@ -67,7 +67,7 @@ interface NativeChatThreadProps {
   initialMessages?: UIMessage[] | null;
   modelId: ChatModelId;
   onModelIdChange: (next: ChatModelId) => void;
-  /** Server-driven flag: this conversation should be opened by AlphaX Buddy. */
+  /** Server-driven flag: this conversation should be opened by the chat opener. */
   needsOpener: boolean;
 }
 

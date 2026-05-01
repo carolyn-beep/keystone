@@ -1,8 +1,8 @@
 /**
- * Per-runtime "has the user been greeted by AlphaX yet" flag.
+ * Per-runtime "has the user been greeted yet" flag.
  *
  * The chat homepage (`/`) auto-creates a fresh conversation and fires the
- * AlphaX opener every time it's the landing surface. That's the right
+ * chat opener every time it's the landing surface. That's the right
  * behavior for "I just logged in" or "I just opened the tab" but not for
  * "I clicked Chat in the sidebar." This module gates the greeting to once
  * per JS runtime (i.e. once per page load / tab) so sidebar navigation

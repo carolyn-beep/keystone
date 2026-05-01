@@ -124,7 +124,7 @@ export default function ChatHome() {
     if (selection.shouldCreateConversation) {
       if (autoCreateState !== 'idle') return;
 
-      // The user has already been greeted this session (via the AlphaX opener
+      // The user has already been greeted this session (via the chat opener
       // on first visit). Treat this landing as plain "take me to chat":
       // route to the most recent existing conversation instead of creating a
       // fresh one + greeting again. If they have no conversations at all,
@@ -140,7 +140,7 @@ export default function ChatHome() {
       createConversation.mutate({}, {
         onSuccess: (conversation) => {
           setAutoCreateState('idle');
-          // Only fire the AlphaX opener on the FIRST landing of the session.
+          // Only fire the chat opener on the FIRST landing of the session.
           // Subsequent navigations to `/` in the same tab skip it; the
           // sign-out path in UserMenu clears the flag so the next user on
           // the tab is greeted again.
