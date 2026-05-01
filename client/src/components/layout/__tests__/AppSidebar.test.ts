@@ -22,9 +22,21 @@ describe('AppSidebar (new unified) source', () => {
     expect(source).not.toMatch(/onToggleCollapse/);
   });
 
-  it('renders BrandHeader (link to "/") with the AlphaX Buddy mark', () => {
-    expect(source).toMatch(/alpha-buddy/i);
+  it('renders BrandHeader (link to "/") sourced from the brand module', () => {
+    // Post Spec 02: AppSidebar imports Avatar / Wordmark from `@/brand` and
+    // no longer references brand assets directly.
+    expect(source).toMatch(/from\s+['"]@\/brand['"]/);
+    expect(source).toMatch(/<Avatar\s+variant=["']sidebar["']\s*\/>/);
+    expect(source).toMatch(/<Wordmark\s+variant=["']compact["']\s*\/>/);
     expect(source).toMatch(/href=['"]\/['"]/);
+  });
+
+  it('does NOT import alpha-buddy directly (uses brand module instead)', () => {
+    expect(source).not.toMatch(/@\/assets\/chat\/alpha-buddy/);
+  });
+
+  it('aria-label on the BrandHeader link reads from brand.config.productName', () => {
+    expect(source).toMatch(/aria-label=\{[^}]*brand\.config\.productName/);
   });
 
   it('renders <SectionNav /> with a resolved activeSection', () => {
