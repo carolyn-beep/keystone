@@ -1,10 +1,14 @@
 /**
  * Brainlift Central login illustration.
  *
- * Spec 01 skeleton: a `<figure>` wrapping a frame div + the brain-hero
- * image. No figcaption -- BC's plate is uncaptioned, signalled by
- * `loginPlateCaption: null` in the brand config. Final 1:1 plate framing,
- * border, and shadow are a Spec 02 design pass.
+ * Neo-editorial treatment: a 1:1 square plate (no captions, no corner
+ * ornaments, no Plate-I figcaption) framed with a hairline ink border and a
+ * soft printed shadow. AlphaX uses a 2:3 portrait plate with a Plate-I
+ * caption; BC's plate is uncaptioned -- signalled by `loginPlateCaption:
+ * null` in the brand config.
+ *
+ * All visual decisions (frame thickness, shadow falloff, image filter)
+ * live in CSS under the `brainlift-login-plate-*` namespace.
  */
 
 import brainHero from './assets/brain-hero.png';

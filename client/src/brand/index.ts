@@ -32,6 +32,17 @@ if (id !== 'alphax' && id !== 'brainlift') {
 
 const active: BrandModule = id === 'alphax' ? alphax : brainlift;
 
+/**
+ * The active brand module. Consumers can either destructure the named
+ * top-level exports below (`config`, `Wordmark`, `Avatar`, `LoginIllustration`,
+ * `chatAvatar`) or read them through the `brand` namespace (e.g.
+ * `brand.config.productName`, `brand.chatAvatar`). The namespace form is
+ * load-bearing for consumers like `chat-opener.ts` and `Login.tsx` that
+ * read multiple config strings; the destructured form keeps component
+ * imports terse.
+ */
+export const brand: BrandModule = active;
+
 export const { config, Wordmark, Avatar, LoginIllustration, chatAvatar } = active;
 export type {
   BrandId,

@@ -30,12 +30,6 @@ export interface BrandConfig {
   id: BrandId;
   /** Product name shown to users, e.g. "AlphaX Buddy" or "Brainlift Central". */
   productName: string;
-  /**
-   * Platform name. Identical for both brands today (Brainlift Central is the
-   * platform; AlphaX Buddy is a coach inside it). Typed for clarity and
-   * future-proofing.
-   */
-  platformName: string;
   /** Hero-column tagline under the wordmark. */
   tagline: string;
   /** Small-caps strap above the login plate. */

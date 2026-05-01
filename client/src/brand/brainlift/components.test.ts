@@ -80,7 +80,6 @@ describe('FR4 BC config.ts', () => {
     for (const field of [
       'id',
       'productName',
-      'platformName',
       'tagline',
       'loginEyebrow',
       'loginHeading',

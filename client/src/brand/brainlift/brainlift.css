@@ -1,0 +1,168 @@
+/* Brainlift Central-specific CSS module.
+ *
+ * Imported only from `client/src/brand/brainlift/index.ts` so Vite tree-
+ * shakes the entire block out of the inactive (AlphaX) brand bundle. The
+ * shared chrome (`brand-nameplate-*`) stays in the global `index.css`.
+ *
+ * Neo-editorial treatment: serif primary mark + uppercase letter-spaced
+ * secondary label. Square (1:1) avatar + login plate framed with hairline
+ * ink border and a soft printed shadow. No gradient text-clip, no italic
+ * glyph, no glow ring.
+ */
+
+/* ===== Wordmark ===== */
+
+.brainlift-wordmark {
+  display: flex;
+  align-items: baseline;
+  gap: 0.55rem;
+  font-family: var(--font-serif);
+  color: hsl(var(--foreground));
+  white-space: nowrap;
+  margin: 0;
+}
+
+.brainlift-wordmark-primary {
+  font-family: var(--font-serif);
+  font-weight: 500;
+  letter-spacing: -0.005em;
+  color: hsl(22 35% 14%);
+}
+
+.brainlift-wordmark-secondary {
+  font-family: var(--font-sans);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.28em;
+  color: hsl(var(--muted-foreground));
+}
+
+/* Hero -- biggest treatment, login page hero column */
+.brainlift-wordmark-hero {
+  align-items: baseline;
+  gap: 0.85rem;
+}
+
+.brainlift-wordmark-hero .brainlift-wordmark-primary {
+  font-size: clamp(40px, 5.2vw, 64px);
+  line-height: 1;
+}
+
+.brainlift-wordmark-hero .brainlift-wordmark-secondary {
+  font-size: clamp(11px, 0.95vw, 13px);
+  letter-spacing: 0.32em;
+  transform: translateY(-0.35em);
+}
+
+/* Mobile -- centered fallback shown under lg breakpoint */
+.brainlift-wordmark-mobile {
+  justify-content: center;
+  margin: 0 0 1.4rem;
+  gap: 0.5rem;
+}
+
+.brainlift-wordmark-mobile .brainlift-wordmark-primary {
+  font-size: 26px;
+  line-height: 1;
+}
+
+.brainlift-wordmark-mobile .brainlift-wordmark-secondary {
+  font-size: 10px;
+  letter-spacing: 0.3em;
+  transform: translateY(-0.2em);
+}
+
+/* Compact -- sidebar nameplate */
+.brainlift-wordmark:not(.brainlift-wordmark-hero):not(.brainlift-wordmark-mobile) {
+  gap: 0.4rem;
+}
+
+.brainlift-wordmark:not(.brainlift-wordmark-hero):not(.brainlift-wordmark-mobile)
+  .brainlift-wordmark-primary {
+  font-size: 17px;
+  line-height: 1;
+}
+
+.brainlift-wordmark:not(.brainlift-wordmark-hero):not(.brainlift-wordmark-mobile)
+  .brainlift-wordmark-secondary {
+  font-size: 9px;
+  letter-spacing: 0.28em;
+  transform: translateY(-0.15em);
+}
+
+/* ===== Avatar -- 1:1 square plate ===== */
+
+.brainlift-avatar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.brainlift-avatar-frame {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  width: 100%;
+  background: hsl(var(--card));
+  border: 1px solid hsl(var(--border) / 0.7);
+  border-radius: 6px;
+  box-shadow:
+    0 1px 0 hsl(40 30% 100% / 0.7) inset,
+    0 6px 18px -10px hsl(26 40% 18% / 0.35);
+  overflow: hidden;
+}
+
+.brainlift-avatar-image {
+  display: block;
+  width: 78%;
+  height: 78%;
+  object-fit: contain;
+  filter: sepia(0.06) contrast(1.02);
+  user-select: none;
+}
+
+/* Login variant -- sized to sit above the login card */
+.brainlift-avatar-login {
+  position: relative;
+  width: 4.5rem;
+  height: 4.5rem;
+  margin: -3.6rem auto 1.5rem;
+}
+
+/* Sidebar variant -- compact, matches AlphaX sidebar avatar footprint */
+.brainlift-avatar-sidebar {
+  height: 3rem;
+  width: 3rem;
+}
+
+/* ===== Login plate -- 1:1 square, no caption, no corner ornaments ===== */
+
+.brainlift-login-plate {
+  margin: 0 0 1.6rem;
+}
+
+.brainlift-login-plate-frame {
+  position: relative;
+  padding: 1.1rem;
+  background:
+    linear-gradient(180deg, hsl(40 50% 96% / 0.55), hsl(36 40% 88% / 0.55));
+  box-shadow:
+    inset 0 0 0 1px hsl(26 35% 28% / 0.35),
+    inset 0 0 0 7px hsl(26 35% 28% / 0.18),
+    0 18px 40px -18px hsl(26 35% 18% / 0.35);
+  border-radius: 4px;
+  aspect-ratio: 1 / 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.brainlift-login-plate-image {
+  display: block;
+  width: clamp(220px, 28vh, 320px);
+  height: auto;
+  filter: sepia(0.06) contrast(1.02);
+  user-select: none;
+}

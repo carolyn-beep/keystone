@@ -14,7 +14,6 @@ import type { BrandConfig } from '../types';
 export const config: BrandConfig = {
   id: 'brainlift',
   productName: 'Brainlift Central',
-  platformName: 'Brainlift Central',
   tagline: 'A grading and verification engine for adult researchers.',
   loginEyebrow: 'A peer-research workspace',
   loginHeading: 'Welcome back',

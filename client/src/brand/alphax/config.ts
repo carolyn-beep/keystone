@@ -12,7 +12,6 @@ import type { BrandConfig } from '../types';
 export const config: BrandConfig = {
   id: 'alphax',
   productName: 'AlphaX Buddy',
-  platformName: 'Brainlift Central',
   tagline: 'Bring the idea. Ship the business.',
   loginEyebrow: 'Your AlphaX in-app coach',
   loginHeading: 'Welcome back',
