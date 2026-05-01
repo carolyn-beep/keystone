@@ -2,8 +2,6 @@ import { useEffect, useState } from 'react';
 import { AlertTriangle, Loader2, MessageSquareText, PanelLeft } from 'lucide-react';
 import type { ChatModelId } from '@shared/chat-models';
 import type { ChatConversation } from '@shared/schema';
-import { authClient } from '@/lib/auth-client';
-import { queryClient } from '@/lib/queryClient';
 import { ConfirmationModal } from '@/components/ui/confirmation-modal';
 import { useToast } from '@/hooks/use-toast';
 import {
@@ -21,9 +19,14 @@ import { ChatConversationSidebar } from '@/components/chat/ChatConversationSideb
 import { NativeChatThread } from '@/components/chat/NativeChatThread';
 import {
   buildChatConversationLocation,
-  getChatHomeNavLinks,
   getDefaultChatHomeModelId,
 } from '@/components/chat/chat-home-helpers';
+import {
+  AppShell,
+  AppSidebar,
+  PageHeader,
+  useAppShell,
+} from '@/components/layout';
 
 function getErrorMessage(error: unknown): string {
   return error instanceof Error ? error.message : 'Unexpected error';
@@ -57,19 +60,38 @@ function CenteredState({ icon, title, description, action }: CenteredStateProps)
   );
 }
 
+/**
+ * Mobile drawer toggle rendered in `<PageHeader leadingSlot>`.
+ *
+ * Reads `useAppShell()` to call `openDrawer`. Hidden at `lg+` because the
+ * inline sidebar is visible there and the toggle would be redundant.
+ */
+function DrawerToggle() {
+  const shell = useAppShell();
+  if (!shell) return null;
+
+  return (
+    <button
+      type="button"
+      onClick={shell.openDrawer}
+      className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-card hover:text-foreground lg:hidden"
+      aria-label="Open navigation"
+    >
+      <PanelLeft size={16} />
+    </button>
+  );
+}
+
 export default function ChatHome() {
   const [, setLocation] = useLocation();
   const search = useSearch();
   const { toast } = useToast();
-  const { data: session } = authClient.useSession();
-  const isAdmin = session?.user?.role === 'admin';
 
   const [selectedModelId, setSelectedModelId] = useState<ChatModelId>(
     getDefaultChatHomeModelId(),
   );
   const [deleteTarget, setDeleteTarget] = useState<ChatConversation | null>(null);
   const [autoCreateState, setAutoCreateState] = useState<'idle' | 'pending' | 'error'>('idle');
-  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
   // Holds the ID of the conversation auto-created by the homepage-landing
   // path. Only that conversation should be flagged `needsOpener=true`. Manual
@@ -90,10 +112,6 @@ export default function ChatHome() {
   const selectedConversationId = selection.selectedConversationId;
   const requestedConversationId = parseSelectedConversationId(search);
   const selectedConversationQuery = useChatConversation(selectedConversationId);
-  const navLinks = getChatHomeNavLinks({
-    isAdmin: Boolean(isAdmin),
-    email: session?.user?.email,
-  });
 
   useEffect(() => {
     if (conversationsQuery.status !== 'success') return;
@@ -105,7 +123,6 @@ export default function ChatHome() {
       createConversation.mutate({}, {
         onSuccess: (conversation) => {
           setAutoCreateState('idle');
-          setIsSidebarOpen(false);
           // This is the homepage-landing auto-create — flag it for the
           // opener trigger. Manual New chat / post-delete fallbacks use
           // their own create paths and do NOT set this flag.
@@ -148,7 +165,6 @@ export default function ChatHome() {
   async function handleCreateConversation() {
     try {
       const conversation = await createConversation.mutateAsync({});
-      setIsSidebarOpen(false);
       setLocation(buildChatConversationLocation(conversation.id));
     } catch (error) {
       toast({
@@ -206,7 +222,6 @@ export default function ChatHome() {
 
       if (nextSelection.shouldCreateConversation) {
         const conversation = await createConversation.mutateAsync({});
-        setIsSidebarOpen(false);
         setLocation(buildChatConversationLocation(conversation.id));
         return;
       }
@@ -226,169 +241,115 @@ export default function ChatHome() {
     }
   }
 
-  async function handleSignOut() {
-    await authClient.signOut({
-      fetchOptions: {
-        onSuccess: () => {
-          queryClient.clear();
-          setLocation('/login');
-        },
-      },
-    });
-  }
-
   const selectedConversationTitle = selectedConversationQuery.data?.conversation.title
     ?? conversations.find((conversation) => conversation.id === selectedConversationId)?.title
     ?? 'New chat';
 
-  const sidebarProps = {
-    conversations,
-    selectedConversationId,
-    navLinks,
-    isLoading: conversationsQuery.isLoading,
-    isCreating: createConversation.isPending || autoCreateState === 'pending',
-    isRenaming: renameConversation.isPending,
-    isDeleting: deleteConversation.isPending,
-    user: session?.user,
-    onCreateConversation: handleCreateConversation,
-    onRenameConversation: handleRenameConversation,
-    onDeleteConversation: (conversation: ChatConversation) => setDeleteTarget(conversation),
-    onSignOut: handleSignOut,
-  };
+  const sidebarBody = (
+    <ChatConversationSidebar
+      conversations={conversations}
+      selectedConversationId={selectedConversationId}
+      isLoading={conversationsQuery.isLoading}
+      isCreating={createConversation.isPending || autoCreateState === 'pending'}
+      isRenaming={renameConversation.isPending}
+      isDeleting={deleteConversation.isPending}
+      onCreateConversation={handleCreateConversation}
+      onSelectConversation={(conversationId) => {
+        setLocation(buildChatConversationLocation(conversationId));
+      }}
+      onRenameConversation={handleRenameConversation}
+      onDeleteConversation={(conversation: ChatConversation) => setDeleteTarget(conversation)}
+    />
+  );
 
   return (
-    <div className="native-chat-shell flex h-screen w-full overflow-hidden bg-background">
-      {/* Mobile drawer */}
-      {isSidebarOpen ? (
-        <div className="fixed inset-0 z-40 xl:hidden">
-          <button
-            type="button"
-            className="absolute inset-0 bg-[rgba(34,21,13,0.42)] backdrop-blur-[2px]"
-            onClick={() => setIsSidebarOpen(false)}
-            aria-label="Close conversation drawer"
-          />
-          <div className="absolute inset-y-0 left-0 w-[84vw] max-w-[320px] border-r border-border/60 bg-sidebar shadow-2xl">
-            <ChatConversationSidebar
-              {...sidebarProps}
-              onSelectConversation={(conversationId) => {
-                setIsSidebarOpen(false);
-                setLocation(buildChatConversationLocation(conversationId));
-              }}
-              onClose={() => setIsSidebarOpen(false)}
-              className="h-full"
-            />
-          </div>
-        </div>
-      ) : null}
-
-      {/* Desktop sidebar */}
-      <aside className="hidden w-[280px] shrink-0 border-r border-border/60 xl:block">
-        <ChatConversationSidebar
-          {...sidebarProps}
-          onSelectConversation={(conversationId) => {
-            setLocation(buildChatConversationLocation(conversationId));
-          }}
-          className="h-full"
+    <AppShell
+      sidebar={<AppSidebar contextualBody={sidebarBody} activeSection="chat" />}
+      header={
+        <PageHeader
+          leadingSlot={<DrawerToggle />}
+          title={selectedConversationTitle}
         />
-      </aside>
-
-      {/* Main thread area */}
-      <main className="chat-main relative isolate flex min-w-0 flex-1 flex-col">
-        <header className="flex items-center justify-between gap-3 border-b border-border px-4 py-3 shadow-[0_1px_3px_rgba(34,21,13,0.05)] sm:px-6">
-          <div className="flex min-w-0 items-center gap-2">
-            <button
-              type="button"
-              onClick={() => setIsSidebarOpen(true)}
-              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-card hover:text-foreground xl:hidden"
-              aria-label="Open conversation list"
-            >
-              <PanelLeft size={16} />
-            </button>
-            <h1 className="truncate font-serif text-[18px] leading-tight text-foreground">
-              {selectedConversationTitle}
-            </h1>
-          </div>
-        </header>
-
-        <div className="flex-1 min-h-0 overflow-hidden">
-          {conversationsQuery.isLoading ? (
-            <CenteredState
-              icon={<Loader2 className="h-6 w-6 animate-spin" />}
-              title="Loading conversations"
-            />
-          ) : conversationsQuery.error ? (
-            <CenteredState
-              icon={<AlertTriangle className="h-6 w-6 text-warning" />}
-              title="Conversation list unavailable"
-              description={getErrorMessage(conversationsQuery.error)}
-              action={
-                <button
-                  type="button"
-                  onClick={() => conversationsQuery.refetch()}
-                  className="inline-flex items-center gap-2 rounded-md bg-primary px-4 py-2 text-[13px] font-medium text-primary-foreground transition-colors hover:opacity-90"
-                >
-                  Retry
-                </button>
-              }
-            />
-          ) : autoCreateState === 'pending' && selectedConversationId == null ? (
-            <CenteredState
-              icon={<Loader2 className="h-6 w-6 animate-spin" />}
-              title="Opening your first chat"
-            />
-          ) : autoCreateState === 'error' && selectedConversationId == null ? (
-            <CenteredState
-              icon={<AlertTriangle className="h-6 w-6 text-warning" />}
-              title="Unable to initialize chat"
-              description="We couldn't create the first conversation. Try again to continue."
-              action={
-                <button
-                  type="button"
-                  onClick={() => setAutoCreateState('idle')}
-                  className="inline-flex items-center gap-2 rounded-md bg-primary px-4 py-2 text-[13px] font-medium text-primary-foreground transition-colors hover:opacity-90"
-                >
-                  Retry
-                </button>
-              }
-            />
-          ) : selectedConversationId == null ? (
-            <CenteredState
-              icon={<MessageSquareText className="h-6 w-6" />}
-              title="Select a conversation"
-              description="Choose an existing thread or start a new one from the sidebar."
-            />
-          ) : selectedConversationQuery.isLoading ? (
-            <CenteredState
-              icon={<Loader2 className="h-6 w-6 animate-spin" />}
-              title="Loading thread"
-            />
-          ) : selectedConversationQuery.error ? (
-            <CenteredState
-              icon={<AlertTriangle className="h-6 w-6 text-warning" />}
-              title="Thread unavailable"
-              description={getErrorMessage(selectedConversationQuery.error)}
-              action={
-                <button
-                  type="button"
-                  onClick={() => selectedConversationQuery.refetch()}
-                  className="inline-flex items-center gap-2 rounded-md bg-primary px-4 py-2 text-[13px] font-medium text-primary-foreground transition-colors hover:opacity-90"
-                >
-                  Reload
-                </button>
-              }
-            />
-          ) : (
-            <NativeChatThread
-              key={selectedConversationId}
-              conversationId={selectedConversationId}
-              initialMessages={selectedConversationQuery.data?.messages}
-              modelId={selectedModelId}
-              onModelIdChange={setSelectedModelId}
-              needsOpener={openerPendingForId === selectedConversationId}
-            />
-          )}
-        </div>
-      </main>
+      }
+    >
+      <div className="flex h-full min-h-0 flex-col">
+        {conversationsQuery.isLoading ? (
+          <CenteredState
+            icon={<Loader2 className="h-6 w-6 animate-spin" />}
+            title="Loading conversations"
+          />
+        ) : conversationsQuery.error ? (
+          <CenteredState
+            icon={<AlertTriangle className="h-6 w-6 text-warning" />}
+            title="Conversation list unavailable"
+            description={getErrorMessage(conversationsQuery.error)}
+            action={
+              <button
+                type="button"
+                onClick={() => conversationsQuery.refetch()}
+                className="inline-flex items-center gap-2 rounded-md bg-primary px-4 py-2 text-[13px] font-medium text-primary-foreground transition-colors hover:opacity-90"
+              >
+                Retry
+              </button>
+            }
+          />
+        ) : autoCreateState === 'pending' && selectedConversationId == null ? (
+          <CenteredState
+            icon={<Loader2 className="h-6 w-6 animate-spin" />}
+            title="Opening your first chat"
+          />
+        ) : autoCreateState === 'error' && selectedConversationId == null ? (
+          <CenteredState
+            icon={<AlertTriangle className="h-6 w-6 text-warning" />}
+            title="Unable to initialize chat"
+            description="We couldn't create the first conversation. Try again to continue."
+            action={
+              <button
+                type="button"
+                onClick={() => setAutoCreateState('idle')}
+                className="inline-flex items-center gap-2 rounded-md bg-primary px-4 py-2 text-[13px] font-medium text-primary-foreground transition-colors hover:opacity-90"
+              >
+                Retry
+              </button>
+            }
+          />
+        ) : selectedConversationId == null ? (
+          <CenteredState
+            icon={<MessageSquareText className="h-6 w-6" />}
+            title="Select a conversation"
+            description="Choose an existing thread or start a new one from the sidebar."
+          />
+        ) : selectedConversationQuery.isLoading ? (
+          <CenteredState
+            icon={<Loader2 className="h-6 w-6 animate-spin" />}
+            title="Loading thread"
+          />
+        ) : selectedConversationQuery.error ? (
+          <CenteredState
+            icon={<AlertTriangle className="h-6 w-6 text-warning" />}
+            title="Thread unavailable"
+            description={getErrorMessage(selectedConversationQuery.error)}
+            action={
+              <button
+                type="button"
+                onClick={() => selectedConversationQuery.refetch()}
+                className="inline-flex items-center gap-2 rounded-md bg-primary px-4 py-2 text-[13px] font-medium text-primary-foreground transition-colors hover:opacity-90"
+              >
+                Reload
+              </button>
+            }
+          />
+        ) : (
+          <NativeChatThread
+            key={selectedConversationId}
+            conversationId={selectedConversationId}
+            initialMessages={selectedConversationQuery.data?.messages}
+            modelId={selectedModelId}
+            onModelIdChange={setSelectedModelId}
+            needsOpener={openerPendingForId === selectedConversationId}
+          />
+        )}
+      </div>
 
       <ConfirmationModal
         open={deleteTarget !== null}
@@ -407,6 +368,6 @@ export default function ChatHome() {
         variant="destructive"
         isLoading={deleteConversation.isPending}
       />
-    </div>
+    </AppShell>
   );
 }
