@@ -13,6 +13,39 @@ services:
         sync: false  # Set manually in Render dashboard
       - key: OPENROUTER_API_KEY
         sync: false  # Set manually in Render dashboard
+      - key: BRAND
+        value: alphax
+      - key: VITE_BRAND
+        value: alphax
+      - key: VITE_BRAND_NAME
+        value: AlphaX Buddy
       - key: PORT
         value: 10000
     healthCheckPath: /api/brainlifts
+
+  - type: web
+    name: brainlift-central
+    runtime: node
+    region: oregon
+    plan: free
+    buildCommand: npm install --include=dev && npm run build
+    startCommand: npm run start
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: DATABASE_URL
+        sync: false  # Set manually in Render dashboard (same value as dok1grader)
+      - key: OPENROUTER_API_KEY
+        sync: false  # Set manually in Render dashboard (same value as dok1grader)
+      - key: BRAND
+        value: brainlift
+      - key: VITE_BRAND
+        value: brainlift
+      - key: VITE_BRAND_NAME
+        value: Brainlift Central
+      - key: PORT
+        value: 10000
+    healthCheckPath: /api/brainlifts
+    domains:
+      - brainliftcentral.com
+      - www.brainliftcentral.com
