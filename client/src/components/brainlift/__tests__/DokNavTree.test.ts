@@ -58,6 +58,13 @@ describe('DokNavTree source (renamed/reduced from today\'s AppSidebar)', () => {
   it('keeps tree-line decorations for child items', () => {
     expect(source).toMatch(/border-primary/);
   });
+
+  it('does NOT declare backLink or onToggleCollapse props (spec 04 cleanup)', () => {
+    // Spec 04 removes these from DokNavTreeProps now that Dashboard no longer
+    // passes them. Single atomic cleanup with the consumer.
+    expect(source).not.toMatch(/backLink\?:/);
+    expect(source).not.toMatch(/onToggleCollapse\?:/);
+  });
 });
 
 describe('layout/index.ts exports', () => {
@@ -80,31 +87,33 @@ describe('layout/index.ts exports', () => {
     expect(indexSource).toMatch(/SectionNavSection/);
   });
 
-  it('keeps SidebarLayout and SidebarNavItem exports', () => {
-    expect(indexSource).toMatch(/SidebarLayout/);
+  it('keeps SidebarNavItem export (SidebarLayout removed in spec 04)', () => {
     expect(indexSource).toMatch(/SidebarNavItem/);
+  });
+
+  it('does NOT export SidebarLayout (deleted in spec 04)', () => {
+    expect(indexSource).not.toMatch(/SidebarLayout/);
   });
 });
 
-describe('Dashboard.tsx import update', () => {
-  it('imports AppSidebar (alias of DokNavTree) and NavItem from @/components/brainlift/DokNavTree', () => {
+describe('Dashboard.tsx import update (spec 04)', () => {
+  it('imports DokNavTree (no alias) and NavItem from @/components/brainlift/DokNavTree', () => {
     expect(dashboardSource).toMatch(
       /from\s+['"]@\/components\/brainlift\/DokNavTree['"]/,
     );
-    expect(dashboardSource).toMatch(
-      /import\s*\{[^}]*DokNavTree\s+as\s+AppSidebar[^}]*\}\s*from\s+['"]@\/components\/brainlift\/DokNavTree['"]/,
+    // After spec 04 the alias is dropped -- DokNavTree is consumed by name.
+    expect(dashboardSource).not.toMatch(
+      /DokNavTree\s+as\s+AppSidebar/,
     );
     expect(dashboardSource).toMatch(/type\s+NavItem/);
   });
 
-  it('still imports SidebarLayout from @/components/layout', () => {
-    expect(dashboardSource).toMatch(
-      /import\s*\{\s*SidebarLayout\s*\}\s*from\s+['"]@\/components\/layout['"]/,
-    );
+  it('does NOT import SidebarLayout (deleted in spec 04)', () => {
+    expect(dashboardSource).not.toMatch(/\bSidebarLayout\b/);
   });
 
-  it('does not import AppSidebar from @/components/layout anymore', () => {
-    expect(dashboardSource).not.toMatch(
+  it('imports the unified AppSidebar from @/components/layout', () => {
+    expect(dashboardSource).toMatch(
       /import[^;]*\bAppSidebar\b[^;]*from\s+['"]@\/components\/layout['"]/,
     );
   });
