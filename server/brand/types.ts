@@ -1,12 +1,14 @@
 /**
  * Server-side brand-module type contracts.
  *
- * Minimal shape: the server doesn't render UI, so it only needs `id`,
- * `productName`, and `platformName`. Prompt-builder shape is forward-declared
- * here for Spec 03 but not instantiated in Spec 01. See
- * `features/branding/dual-brand-deployment/specs/01-brand-module-scaffolding/spec-research.md`
- * Decision 3 for the rationale (full mirror vs minimal).
+ * Spec 03 tightens `BrandPromptBuilders` from the Spec 01 forward-declared
+ * placeholder to the concrete shape: typed against `ChatUserContext` and
+ * `SkillSummary`, plus a `formatUserContext` slot since AlphaX renders a
+ * sprint-plans block that BC omits.
  */
+
+import type { ChatUserContext } from '../storage/base';
+import type { SkillSummary } from '../ai/chat/skills';
 
 export type BrandId = 'alphax' | 'brainlift';
 
@@ -18,15 +20,13 @@ export interface ServerBrandConfig {
   platformName: string;
 }
 
-/**
- * Forward-declared in Spec 01; instantiated by per-brand modules in Spec 03.
- *
- * The `unknown` placeholder types (`ChatUserContext`, `SkillSummary`) will be
- * replaced with concrete imports from the chat surface when this contract is
- * wired up. Keeping them as `unknown` here prevents accidental coupling
- * before Spec 03 has decided the final shape.
- */
+export interface BuildSystemPromptArgs {
+  userContext: ChatUserContext;
+  skills: SkillSummary[];
+}
+
 export interface BrandPromptBuilders {
-  buildSystemPrompt: (args: { userContext: unknown; skills: unknown[] }) => string;
-  buildBrainliftHeuristics: (userContext: unknown) => string[];
+  buildSystemPrompt: (args: BuildSystemPromptArgs) => string;
+  buildBrainliftHeuristics: (userContext: ChatUserContext) => string[];
+  formatUserContext: (userContext: ChatUserContext) => string[];
 }
