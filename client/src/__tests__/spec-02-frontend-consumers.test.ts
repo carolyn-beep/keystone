@@ -16,33 +16,61 @@ import { describe, it, expect } from 'vitest';
 const repoRoot = path.resolve(__dirname, '../../..');
 const clientSrc = path.join(repoRoot, 'client/src');
 
-describe('FR7 CSS parallel brainlift-* block', () => {
-  const css = fs.readFileSync(path.join(clientSrc, 'index.css'), 'utf8');
+describe('FR7 brand-specific CSS lives in per-brand stylesheets (tree-shakable)', () => {
+  const alphaxCss = fs.readFileSync(
+    path.join(clientSrc, 'brand/alphax/alphax.css'),
+    'utf8',
+  );
+  const brainliftCss = fs.readFileSync(
+    path.join(clientSrc, 'brand/brainlift/brainlift.css'),
+    'utf8',
+  );
+  const indexCss = fs.readFileSync(path.join(clientSrc, 'index.css'), 'utf8');
 
-  it('declares brainlift-wordmark base class', () => {
-    expect(css).toMatch(/\.brainlift-wordmark\b/);
+  it('AlphaX-namespaced visual classes live in alphax.css', () => {
+    expect(alphaxCss).toMatch(/\.alphax-nameplate-wordmark\b/);
+    expect(alphaxCss).toMatch(/\.alphax-nameplate-x\b/);
+    expect(alphaxCss).toMatch(/\.alphax-wordmark-hero\b/);
+    expect(alphaxCss).toMatch(/\.alphax-wordmark-mobile\b/);
+    expect(alphaxCss).toMatch(/\.alphax-nameplate-avatar\b/);
   });
 
-  it('declares brainlift-wordmark-hero variant', () => {
-    expect(css).toMatch(/\.brainlift-wordmark-hero\b/);
+  it('AlphaX login-hero-plate / login-card-avatar classes live in alphax.css', () => {
+    expect(alphaxCss).toMatch(/\.login-hero-plate\b/);
+    expect(alphaxCss).toMatch(/\.login-card-avatar\b/);
   });
 
-  it('declares brainlift-wordmark-mobile variant', () => {
-    expect(css).toMatch(/\.brainlift-wordmark-mobile\b/);
+  it('Brainlift-namespaced classes live in brainlift.css', () => {
+    expect(brainliftCss).toMatch(/\.brainlift-wordmark\b/);
+    expect(brainliftCss).toMatch(/\.brainlift-wordmark-hero\b/);
+    expect(brainliftCss).toMatch(/\.brainlift-wordmark-mobile\b/);
+    expect(brainliftCss).toMatch(/\.brainlift-avatar\b/);
+    expect(brainliftCss).toMatch(/\.brainlift-login-plate\b/);
   });
 
-  it('declares brainlift-nameplate (sidebar avatar / chrome) classes', () => {
-    expect(css).toMatch(/\.brainlift-nameplate\b/);
+  it('global index.css has the brand-neutral nameplate chrome only', () => {
+    expect(indexCss).toMatch(/\.brand-nameplate-button\b/);
+    expect(indexCss).toMatch(/\.brand-nameplate--compact|\.brand-nameplate\b/);
   });
 
-  it('keeps the existing alphax-nameplate-* block intact', () => {
-    // Anchor strings from the existing block. If any of these disappears,
-    // a refactor accidentally clobbered the AlphaX styles.
-    expect(css).toMatch(/\.alphax-nameplate-button\b/);
-    expect(css).toMatch(/\.alphax-nameplate-wordmark\b/);
-    expect(css).toMatch(/\.alphax-nameplate-x\b/);
-    expect(css).toMatch(/\.alphax-wordmark-hero\b/);
-    expect(css).toMatch(/\.alphax-wordmark-mobile\b/);
+  it('global index.css does NOT contain alphax-* or brainlift-* visuals (tree-shake guarantee)', () => {
+    expect(indexCss).not.toMatch(/\.alphax-nameplate\b/);
+    expect(indexCss).not.toMatch(/\.alphax-wordmark/);
+    expect(indexCss).not.toMatch(/\.brainlift-nameplate/);
+    expect(indexCss).not.toMatch(/\.brainlift-wordmark/);
+  });
+
+  it('alphax.css and brainlift.css are imported as side-effects from their barrels', () => {
+    const alphaxBarrel = fs.readFileSync(
+      path.join(clientSrc, 'brand/alphax/index.ts'),
+      'utf8',
+    );
+    const brainliftBarrel = fs.readFileSync(
+      path.join(clientSrc, 'brand/brainlift/index.ts'),
+      'utf8',
+    );
+    expect(alphaxBarrel).toMatch(/import\s+['"]\.\/alphax\.css['"]/);
+    expect(brainliftBarrel).toMatch(/import\s+['"]\.\/brainlift\.css['"]/);
   });
 });
 
