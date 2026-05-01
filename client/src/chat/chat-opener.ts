@@ -89,11 +89,15 @@
  *   - client/src/components/chat/native-chat-thread-config.tsx
  *                                                      (UserMessage filter)
  *
- * Branding note (Spec 01): the detection tag is `[OPENER]` -- brand-agnostic.
- * The prompt body below is the AlphaX-flavoured prose that shipped before
- * spec 01; spec 02 will swap it for `brand.config.chatOpenerInstruction` so
- * each brand can own its own opener language.
+ * Branding note: the detection tag `[OPENER]` is brand-agnostic. The body of
+ * the prompt is sourced from `brand.config.chatOpenerInstruction`, so each
+ * brand owns its own opener language (each brand defines its own tone in
+ * its config). The brand selector at `client/src/brand/index.ts`
+ * resolves the active brand at module-import time, so this constant is set
+ * exactly once per page load.
  */
+
+import { brand } from '@/brand';
 
 /**
  * The exact text inserted into the priming user message. Doubles as the
@@ -102,17 +106,7 @@
  * the message trivially detectable by the client filter and gives a
  * developer reading raw logs a clear signal of what kind of turn this is.
  */
-export const OPENER_PROMPT =
-  '[OPENER] This is the user landing on the chat homepage. Open the conversation by '
-  + 'briefly introducing yourself as AlphaX Buddy, then meet the student exactly where they '
-  + 'are in their AlphaX journey. Follow the brainlift heuristics in your system prompt and '
-  + 'use the User Context block (brainlift count, recent brainlifts, recent conversations, '
-  + 'and `activePlans` — every active sprint plan across ALL brainlifts with today/overdue '
-  + 'tasks) to tailor the opener. If `activePlans` shows pending work, lead with that. '
-  + 'Newcomers with no brainlifts get the capability preview; returning students get a '
-  + 'personalized intro grounded in their brainlift, plan, and current tasks — straight from '
-  + 'the User Context, no extra tool calls needed for the opener. Do not give a generic '
-  + 'platform pitch to a returning student.';
+export const OPENER_PROMPT = `[OPENER] ${brand.config.chatOpenerInstruction}`;
 
 /**
  * Returns true if a message is the opener-prompt user message produced by

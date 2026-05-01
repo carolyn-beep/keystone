@@ -5,7 +5,7 @@ import { useAppShell } from './AppShell';
 import { resolveSectionNavActive, type SectionNavSection } from './section-nav-helpers';
 import { SectionNav } from './SectionNav';
 import { UserMenu } from './UserMenu';
-import alphaBuddyAvatar from '@/assets/chat/alpha-buddy.png';
+import { brand, Wordmark, Avatar } from '@/brand';
 
 export type { SectionNavSection };
 
@@ -37,7 +37,8 @@ interface AppSidebarProps {
  *
  * Three vertical zones:
  *
- *   1. BrandHeader   -- AlphaX Buddy mark, link to `/`. Always rendered.
+ *   1. BrandHeader   -- product wordmark + avatar (sourced from `@/brand`),
+ *                       linked to `/`. Always rendered.
  *   2. SectionNav    -- Chat, Library, [Analytics], [Providers]. Always rendered.
  *      ContextualBody (slot) -- page-specific (conversation list / DokNavTree / null).
  *   3. UserMenu      -- avatar + Sign out. Always rendered.
@@ -66,38 +67,23 @@ export function AppSidebar({
           out. Avatar stays anchored left; padding animates to keep the avatar
           centered in the rail. */}
       <div
-        className="alphax-nameplate--compact h-16 shrink-0 flex items-center border-b border-sidebar-border transition-[padding] duration-200 ease-out"
+        className="brand-nameplate--compact h-16 shrink-0 flex items-center border-b border-sidebar-border transition-[padding] duration-200 ease-out"
         style={{ paddingLeft: isCollapsed ? 14 : 16, paddingRight: isCollapsed ? 14 : 16 }}
       >
         <Link
           href="/"
-          aria-label="Alpha X Buddy -- back to chat"
-          className="alphax-nameplate-button group relative flex min-w-0 items-center rounded-xl px-1.5 py-1 text-left no-underline transition-[gap] duration-200 ease-out"
+          aria-label={`${brand.config.productName} -- back to chat`}
+          className="brand-nameplate-button group relative flex min-w-0 items-center rounded-xl px-1.5 py-1 text-left no-underline transition-[gap] duration-200 ease-out"
           style={{ gap: isCollapsed ? 0 : 8 }}
         >
-          <span className="alphax-nameplate-avatar relative shrink-0">
-            <span className="alphax-nameplate-glow" aria-hidden="true" />
-            <span className="alphax-nameplate-frame">
-              <img
-                src={alphaBuddyAvatar}
-                alt=""
-                aria-hidden="true"
-                draggable={false}
-                className="h-full w-full object-contain"
-              />
-            </span>
-          </span>
+          <Avatar variant="sidebar" />
           <span
             aria-hidden={isCollapsed}
             className={`min-w-0 overflow-hidden whitespace-nowrap transition-[max-width,opacity] duration-200 ease-out ${
               isCollapsed ? 'max-w-0 opacity-0' : 'max-w-[160px] opacity-100'
             }`}
           >
-            <span className="alphax-nameplate-wordmark">
-              <span className="alphax-nameplate-word">Alpha</span>
-              <span className="alphax-nameplate-x" aria-hidden="true">x</span>
-              <span className="alphax-nameplate-word">Buddy</span>
-            </span>
+            <Wordmark variant="compact" />
           </span>
         </Link>
       </div>

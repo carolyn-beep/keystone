@@ -6,7 +6,7 @@ import {
 } from '@assistant-ui/react';
 import { makeMarkdownText, UserMessage as DefaultUserMessage } from '@assistant-ui/react-ui';
 import { isOpenerPromptMessage } from '@/chat/chat-opener';
-import alphaBuddyAvatar from '@/assets/chat/alpha-buddy.png';
+import { brand } from '@/brand';
 import {
   AlertTriangle,
   BookOpenText,
@@ -759,7 +759,7 @@ const AskUserQuestionToolUI = makeAssistantToolUI<
 });
 
 /**
- * UserMessage variant that hides the AlphaX opener-prompt user message from
+ * UserMessage variant that hides the chat opener-prompt user message from
  * the visible thread. The message stays in the runtime state and the DB —
  * it is purely visually filtered. See client/src/chat/chat-opener.ts for context.
  */
@@ -823,11 +823,7 @@ logRegisteredToolNames(nativeChatToolUIs);
 
 export function buildNativeChatThreadConfig() {
   return {
-    assistantAvatar: {
-      src: alphaBuddyAvatar,
-      alt: 'Alpha Buddy',
-      fallback: 'AB',
-    },
+    assistantAvatar: brand.chatAvatar,
     welcome: {
       message: 'Ask about grading, curation, sprint execution, or the brainlifts in your workspace.',
     },

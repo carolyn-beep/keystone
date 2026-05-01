@@ -2,6 +2,7 @@ import { createContext, useContext, type ReactNode } from 'react';
 import { ArrowUp, Paperclip, Square } from 'lucide-react';
 import { ComposerPrimitive, useThread } from '@assistant-ui/react';
 import type { ChatModelId } from '@shared/chat-models';
+import { brand } from '@/brand';
 import { ChatModelPicker } from './ChatModelPicker';
 
 interface ChatComposerSettings {
@@ -41,7 +42,7 @@ export function ChatComposer() {
       <ComposerPrimitive.Input
         autoFocus
         rows={1}
-        placeholder="Ask AlphaX Buddy…"
+        placeholder={brand.config.chatPlaceholder}
         className="chat-composer-input"
       />
 

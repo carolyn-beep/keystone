@@ -2,8 +2,7 @@ import { useState } from "react";
 import { useLocation } from "wouter";
 import { authClient } from "@/lib/auth-client";
 import { Button } from "@/components/ui/button";
-import alphaBuddyAvatar from "@/assets/chat/alpha-buddy.png";
-import owlCounsel from "@/assets/login/owl-counsel.png";
+import { brand, Wordmark, Avatar, LoginIllustration } from "@/brand";
 
 export default function Login() {
   const [, setLocation] = useLocation();
@@ -69,38 +68,16 @@ export default function Login() {
         <div className="login-hero-content">
           <div className="login-hero-eyebrow">
             <span className="login-hero-eyebrow-rule" />
-            <span>Your AlphaX in-app coach</span>
+            <span>{brand.config.loginEyebrow}</span>
             <span className="login-hero-eyebrow-rule" />
           </div>
 
-          <figure className="login-hero-plate">
-            <div className="login-hero-plate-frame">
-              <img
-                src={owlCounsel}
-                alt=""
-                draggable={false}
-                className="login-hero-plate-image"
-              />
-              <span className="login-hero-plate-corner top-left" aria-hidden="true" />
-              <span className="login-hero-plate-corner top-right" aria-hidden="true" />
-              <span className="login-hero-plate-corner bottom-left" aria-hidden="true" />
-              <span className="login-hero-plate-corner bottom-right" aria-hidden="true" />
-            </div>
-            <figcaption className="login-hero-plate-caption">
-              <span className="login-hero-plate-caption-numeral">Plate I.</span>
-              <span className="login-hero-plate-caption-divider">·</span>
-              <span className="login-hero-plate-caption-title">Builds at night</span>
-            </figcaption>
-          </figure>
+          <LoginIllustration />
 
-          <h1 className="alphax-nameplate-wordmark alphax-wordmark-hero">
-            <span className="alphax-nameplate-word">Alpha</span>
-            <span className="alphax-nameplate-x">x</span>
-            <span className="alphax-nameplate-word">Buddy</span>
-          </h1>
+          <Wordmark variant="hero" />
 
           <p className="login-hero-tagline">
-            Bring the idea. Ship the business.
+            {brand.config.tagline}
           </p>
         </div>
       </aside>
@@ -110,30 +87,16 @@ export default function Login() {
         <div className="login-form-grain" aria-hidden="true" />
 
         <div className="login-card relative w-full max-w-md">
-          <div className="login-card-avatar" aria-hidden="true">
-            <span className="login-card-avatar-glow" />
-            <span className="login-card-avatar-frame">
-              <img
-                src={alphaBuddyAvatar}
-                alt=""
-                draggable={false}
-                className="h-full w-full object-contain"
-              />
-            </span>
-          </div>
+          <Avatar variant="login" />
 
           {/* Mobile-only wordmark (hero column hidden under lg) */}
-          <h1 className="alphax-nameplate-wordmark alphax-wordmark-mobile lg:hidden">
-            <span className="alphax-nameplate-word">Alpha</span>
-            <span className="alphax-nameplate-x">x</span>
-            <span className="alphax-nameplate-word">Buddy</span>
-          </h1>
+          <Wordmark variant="mobile" />
 
           <div className="login-card-heading">
-            <p className="login-card-eyebrow">Welcome back</p>
-            <h2 className="login-card-title">Let&rsquo;s get back to building</h2>
+            <p className="login-card-eyebrow">{brand.config.loginHeading}</p>
+            <h2 className="login-card-title">{brand.config.loginTitle}</h2>
             <p className="login-card-subtitle">
-              Sign in to keep building the business you&rsquo;re graduating with.
+              {brand.config.loginSubheading}
             </p>
           </div>
 
