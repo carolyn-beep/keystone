@@ -1,18 +1,12 @@
 import { useState, type FormEvent } from 'react';
 import {
-  BarChart3,
   Check,
-  FolderOpen,
   Loader2,
-  LogOut,
   MessageSquarePlus,
   MoreHorizontal,
   Pencil,
-  Shield,
   Trash2,
-  X,
 } from 'lucide-react';
-import { useLocation } from 'wouter';
 import type { ChatConversation } from '@shared/schema';
 import {
   DropdownMenu,
@@ -20,37 +14,21 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import { useAppShell } from '@/components/layout/AppShell';
 import { cn } from '@/lib/utils';
-import type { ChatHomeNavLink } from './chat-home-helpers';
-import alphaBuddyAvatar from '@/assets/chat/alpha-buddy.png';
-
-interface SidebarUser {
-  name?: string | null;
-  image?: string | null;
-}
 
 interface ChatConversationSidebarProps {
   conversations: ChatConversation[];
   selectedConversationId: number | null;
-  navLinks: ChatHomeNavLink[];
   isLoading: boolean;
   isCreating: boolean;
   isRenaming: boolean;
   isDeleting: boolean;
-  user?: SidebarUser;
   onCreateConversation: () => Promise<void> | void;
   onSelectConversation: (conversationId: number) => void;
   onRenameConversation: (conversationId: number, title: string) => Promise<void>;
   onDeleteConversation: (conversation: ChatConversation) => void;
-  onSignOut: () => Promise<void> | void;
   className?: string;
-  onClose?: () => void;
-}
-
-function getNavIcon(label: string) {
-  if (label === 'Analytics') return BarChart3;
-  if (label === 'Providers') return Shield;
-  return FolderOpen;
 }
 
 function formatConversationTimestamp(updatedAt: Date) {
@@ -73,29 +51,37 @@ function formatConversationTimestamp(updatedAt: Date) {
   });
 }
 
+/**
+ * Body-only conversation list for the chat section.
+ *
+ * Slotted as `AppSidebar.contextualBody` on the chat page. Renders the New
+ * chat button + conversation rows (with rename / delete affordances). Brand
+ * header, cross-section nav, and user menu live in the unified `AppSidebar`,
+ * not here.
+ */
 export function ChatConversationSidebar({
   conversations,
   selectedConversationId,
-  navLinks,
   isLoading,
   isCreating,
   isRenaming,
   isDeleting,
-  user,
   onCreateConversation,
   onSelectConversation,
   onRenameConversation,
   onDeleteConversation,
-  onSignOut,
   className,
-  onClose,
 }: ChatConversationSidebarProps) {
-  const [, setLocation] = useLocation();
   const [editingConversationId, setEditingConversationId] = useState<number | null>(null);
   const [draftTitle, setDraftTitle] = useState('');
   const [isSubmittingEdit, setIsSubmittingEdit] = useState(false);
 
-  const initials = user?.name?.charAt(0).toUpperCase() || 'U';
+  // Conversation titles have no icon-only equivalent, so the chat contextual
+  // body is hidden entirely when the unified sidebar is collapsed to a rail.
+  // The "+ New chat" affordance remains reachable via the Cmd+K shortcut and
+  // (after expanding) via the existing button.
+  const shell = useAppShell();
+  if (shell?.isSidebarCollapsed) return null;
 
   async function handleRenameSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -117,54 +103,8 @@ export function ChatConversationSidebar({
   }
 
   return (
-    <aside
-      className={cn(
-        'chat-sidebar relative isolate flex h-full min-h-0 flex-col bg-sidebar/60 backdrop-blur-sm',
-        className,
-      )}
-    >
-      <div className="alphax-nameplate flex items-center justify-between gap-2 px-4 pt-5 pb-4">
-        <button
-          type="button"
-          onClick={() => setLocation('/')}
-          aria-label="Alpha X Buddy — back to Brainlift Central"
-          className="alphax-nameplate-button group relative flex min-w-0 items-center gap-3 rounded-xl px-1.5 py-1 text-left"
-        >
-          <span className="alphax-nameplate-avatar relative shrink-0">
-            <span className="alphax-nameplate-glow" aria-hidden="true" />
-            <span className="alphax-nameplate-frame">
-              <img
-                src={alphaBuddyAvatar}
-                alt=""
-                aria-hidden="true"
-                draggable={false}
-                className="h-full w-full object-contain"
-              />
-            </span>
-          </span>
-
-          <span className="min-w-0 flex-1">
-            <span className="alphax-nameplate-wordmark">
-              <span className="alphax-nameplate-word">Alpha</span>
-              <span className="alphax-nameplate-x" aria-hidden="true">x</span>
-              <span className="alphax-nameplate-word">Buddy</span>
-            </span>
-          </span>
-        </button>
-
-        {onClose ? (
-          <button
-            type="button"
-            className="flex h-8 w-8 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-card hover:text-foreground xl:hidden"
-            onClick={onClose}
-            aria-label="Close conversation drawer"
-          >
-            <X size={16} />
-          </button>
-        ) : null}
-      </div>
-
-      <div className="px-3 pb-3">
+    <div className={cn('flex h-full min-h-0 flex-col', className)}>
+      <div className="px-3 pt-3 pb-3">
         <button
           type="button"
           onClick={() => void onCreateConversation()}
@@ -185,7 +125,7 @@ export function ChatConversationSidebar({
         </button>
       </div>
 
-      <div className="flex-1 overflow-y-auto px-2 pb-3">
+      <div className="flex-1 min-h-0 overflow-y-auto scrollbar-styled px-2 pb-3">
         {isLoading ? (
           <div className="flex items-center gap-2 px-3 py-3 text-[13px] text-muted-foreground">
             <Loader2 size={14} className="animate-spin" />
@@ -243,7 +183,6 @@ export function ChatConversationSidebar({
                         }}
                         className="inline-flex items-center gap-1.5 rounded-md px-2.5 py-1 text-[12px] font-medium text-muted-foreground transition-colors hover:bg-card-elevated hover:text-foreground"
                       >
-                        <X size={12} />
                         Cancel
                       </button>
                     </div>
@@ -329,71 +268,6 @@ export function ChatConversationSidebar({
           </div>
         )}
       </div>
-
-      {navLinks.length > 0 ? (
-        <div className="border-t border-border/60 px-2 py-2">
-          {navLinks.map((link) => {
-            const Icon = getNavIcon(link.label);
-            return (
-              <button
-                key={link.href}
-                type="button"
-                onClick={() => {
-                  setLocation(link.href);
-                  onClose?.();
-                }}
-                className="flex w-full items-center gap-2.5 rounded-md px-3 py-2 text-[13px] text-muted-foreground transition-colors hover:bg-card hover:text-foreground"
-              >
-                <Icon size={14} />
-                {link.label}
-              </button>
-            );
-          })}
-        </div>
-      ) : null}
-
-      <div className="border-t border-border/60 px-2 py-2">
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <button
-              type="button"
-              className="flex w-full items-center gap-2.5 rounded-md px-2 py-1.5 text-left transition-colors hover:bg-card"
-            >
-              <div className="flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-full bg-primary text-[13px] font-medium text-primary-foreground">
-                {user?.image ? (
-                  <img
-                    src={user.image}
-                    alt={user.name || 'User'}
-                    className="h-full w-full object-cover"
-                    referrerPolicy="no-referrer"
-                  />
-                ) : (
-                  initials
-                )}
-              </div>
-              <div className="min-w-0 flex-1">
-                <p className="truncate text-[13px] font-medium text-foreground">
-                  {user?.name || 'Workspace user'}
-                </p>
-              </div>
-              <MoreHorizontal size={14} className="text-muted-foreground" />
-            </button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent
-            align="start"
-            side="top"
-            className="w-44 rounded-xl border-border/60 bg-card-elevated p-1 shadow-card"
-          >
-            <DropdownMenuItem
-              onClick={() => void onSignOut()}
-              className="gap-2 rounded-md px-2.5 py-2 text-[13px] cursor-pointer"
-            >
-              <LogOut size={13} />
-              Sign out
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
-      </div>
-    </aside>
+    </div>
   );
 }

@@ -1393,6 +1393,30 @@
   opacity: 0.7;
 }
 
+/* Compact nameplate variant -- used in the unified app sidebar where 248px
+   is too narrow for the default 48px avatar + 22/28px wordmark. */
+.alphax-nameplate--compact .alphax-nameplate-avatar {
+  height: 2.25rem;
+  width: 2.25rem;
+}
+.alphax-nameplate--compact .alphax-nameplate-word {
+  font-size: 17px;
+}
+.alphax-nameplate--compact .alphax-nameplate-x {
+  font-size: 22px;
+}
+.alphax-nameplate--compact .alphax-nameplate-x::after {
+  bottom: -3px;
+  width: 3px;
+  height: 3px;
+}
+
+.native-chat-thread {
+  /* Column width for messages, composer, and welcome screen.
+     Assistant-ui defaults this to 42rem (672px); we widen it here. */
+  --aui-thread-max-width: 754px;
+}
+
 .native-chat-thread .aui-thread-root {
   min-height: 100%;
   background: transparent;
