@@ -29,21 +29,23 @@ describe('formatRecentBrainlifts', () => {
     expect(formatRecentBrainlifts([])).toEqual(['- none']);
   });
 
-  it('formats one brainlift with title, slug, and updated date', () => {
+  it('formats one brainlift with title, slug, updated date, and permission tag', () => {
     const out = formatRecentBrainlifts([
-      { slug: 'foo', title: 'Foo', updatedAt: new Date('2026-04-28T12:00:00.000Z') },
+      { slug: 'foo', title: 'Foo', updatedAt: new Date('2026-04-28T12:00:00.000Z'), permission: 'owner' },
     ]);
-    expect(out).toEqual(['- Foo (foo) updated 2026-04-28']);
+    expect(out).toEqual(['- Foo (foo) updated 2026-04-28 [owner]']);
   });
 
-  it('formats multiple brainlifts in order', () => {
+  it('formats multiple brainlifts in order with their respective permissions', () => {
     const out = formatRecentBrainlifts([
-      { slug: 'a', title: 'A', updatedAt: new Date('2026-04-27T00:00:00.000Z') },
-      { slug: 'b', title: 'B', updatedAt: new Date('2026-04-26T00:00:00.000Z') },
+      { slug: 'a', title: 'A', updatedAt: new Date('2026-04-27T00:00:00.000Z'), permission: 'owner' },
+      { slug: 'b', title: 'B', updatedAt: new Date('2026-04-26T00:00:00.000Z'), permission: 'editor' },
+      { slug: 'c', title: 'C', updatedAt: new Date('2026-04-25T00:00:00.000Z'), permission: 'viewer' },
     ]);
     expect(out).toEqual([
-      '- A (a) updated 2026-04-27',
-      '- B (b) updated 2026-04-26',
+      '- A (a) updated 2026-04-27 [owner]',
+      '- B (b) updated 2026-04-26 [editor]',
+      '- C (c) updated 2026-04-25 [viewer]',
     ]);
   });
 });

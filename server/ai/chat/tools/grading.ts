@@ -123,7 +123,7 @@ export function buildChatGradingTools(userId: string): ToolSet {
     }),
 
     list_brainlifts: tool({
-      description: 'List the current user’s Brainlifts with status, score, slug, and pagination metadata.',
+      description: 'List Brainlifts the current user can access — both owned and shared with them. Each entry includes a `permission` field: `owner` (full access, created by user), `editor` (full access via share, can read + edit/create/delete DOK items), or `viewer` (read-only via share, cannot mutate). Respect the permission when picking next actions: only `owner` and `editor` may call edit/create/delete tools on a brainlift.',
       inputSchema: listBrainliftsInputSchema,
       execute: async ({ page, pageSize }) =>
         listBrainliftsForAuthContext(authContext, { page, pageSize }),

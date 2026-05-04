@@ -201,6 +201,10 @@ export async function listBrainliftsForAuthContext(
       status: deriveBrainliftListStatus(brainlift.importStatus ?? 'pending'),
       score: extractBrainliftScore(brainlift.summary),
       createdAt: brainlift.createdAt.toISOString(),
+      // Access level for this user. 'owner' = full access (created by user).
+      // 'editor' = full access via share (read + edit/create/delete DOK items).
+      // 'viewer' = read-only via share (no mutations allowed).
+      permission: deriveBrainliftPermission(brainlift, authContext.userId),
     })),
     pagination: {
       page,
@@ -209,6 +213,15 @@ export async function listBrainliftsForAuthContext(
       totalPages: Math.ceil(total / pageSize),
     },
   };
+}
+
+function deriveBrainliftPermission(
+  brainlift: { createdByUserId: string | null; sharePermission?: 'editor' | 'viewer' | null },
+  userId: string,
+): 'owner' | 'editor' | 'viewer' {
+  if (brainlift.createdByUserId === userId) return 'owner';
+  if (brainlift.sharePermission === 'editor') return 'editor';
+  return 'viewer';
 }
 
 export async function getBrainliftStatusForAuthContext(
