@@ -45,9 +45,21 @@
 
 /* ─── Collapsed state ─── */
 
+/* Collapsed chrome locks to exactly h-16 (64px) so its bottom border lines up
+   with the sidebar brand block's bottom border across the column boundary. */
+.header-collapsed {
+  transition: height 300ms ease;
+}
 .header-collapsed .header-content {
-  padding-top: 8px;
-  padding-bottom: 8px;
+  height: 64px;
+  padding-top: 0;
+  padding-bottom: 0;
+  display: flex;
+  align-items: center;
+  box-sizing: border-box;
+}
+.header-collapsed .header-row {
+  width: 100%;
 }
 
 .header-collapsed .header-image {

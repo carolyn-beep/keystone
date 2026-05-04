@@ -33,6 +33,7 @@ server/
   storage/        Drizzle ORM, domain-split with facade pattern
   ai/             LLM integrations (fact verification, DOK2-4 grading, auto-linking, expert extraction, research swarm)
     client/       Unified AI client — model registry, providers, retry/timeout middleware
+    chat/         Native chat provider adapter, system prompt, tool registry, skills, telemetry
   jobs/           Graphile Worker background jobs
   events/         SSE event emitters (DOK4 grading progress)
   middleware/     Auth (Better Auth + Google OAuth), brainlift authorization, error handling
@@ -92,6 +93,31 @@ The **model registry** (`server/ai/client/registry.ts`) is the single source of 
 | Budget | Qwen 3 32B, Llama 3.1 8B | GPT-OSS 20B | Low-priority fallbacks |
 
 A provider abstraction (`AIProvider` interface) now ships with both OpenRouter and Fireworks. The unified client covers the grading pipeline, auto-linkers, preformat service, expert extraction, and other non-streaming text-generation call sites. The main exceptions are still Vercel AI SDK routes (discussion, import agent — different streaming paradigm) and the Claude Agent SDK research swarm. Image generation is handled separately in `server/ai/imageGenerator.ts`, with its own OpenAI primary + Fireworks fallback path.
+
+### Native Chat Runtime
+
+The app shell now opens into the native chat experience at `/`; the existing BrainLift library remains available at `/library`. Native chat is not a separate MCP process. It is an in-process AI SDK runtime wired through `server/routes/chat.ts`, `server/ai/chat/`, and the shared `storage` facade.
+
+Conversation state is persisted in PostgreSQL through `chat_conversations` and `chat_messages` (`migrations/0029_add_chat_tables.sql`). The storage layer owns user-scoped CRUD, pagination, message syncing, legacy message ID backfill, and title updates. The route layer streams through AI SDK `streamText`, then syncs the finalized UI messages back to the database when the turn completes.
+
+The chat model adapter in `server/ai/chat/provider.ts` implements `LanguageModelV2` against OpenRouter's chat-completions API so assistant-ui can stream text, tool calls, tool results, and usage through the same UI-message stream. The visible model picker is defined in `shared/chat-models.ts`.
+
+Tools are loaded from `buildNativeChatTools()` and grouped by domain:
+
+- **Grading tools** inspect or create BrainLift grading state (`get_template`, `grade_brainlift`, `list_brainlifts`, `get_brainlift_assessment`).
+- **Skill tools** expose repo-local skills from `skills/*/SKILL.md`; the prompt lists summaries and `load_skill` loads the full markdown only when needed.
+- **Research tools** port the Learning Stream source-discovery surface into chat: Exa search (`web_search_exa`), URL extraction through the existing content extractor (`fetch_url_content`), and YouTube transcript retrieval (`get_youtube_transcript`).
+- **Curation and expert tools** create/edit/delete/link DOK items, handle stale flags, and manage experts through `server/services/brainlift-curation.ts`.
+- **Sprint tools** generate plans, inspect tasks, and create/read/update deliverables through `server/services/sprint.ts`.
+- **Ask-user tool** (`ask_user_question`) — a client-resolved tool that renders a structured question card in-thread (preset options, multi-select, free text) so the agent can collect choices and short structured intake without rendering markdown bullet lists. It has no server `execute`: the LLM emits the call, the React UI collects the answer and writes it back via `addResult`, and the runtime auto-resumes the conversation through the AI SDK's `lastAssistantMessageIsCompleteWithToolCalls` hook. Stale cards (the student replied via the composer instead) freeze into a non-interactive "skipped" state.
+
+#### First-message opener
+
+When the student lands on the homepage (`/` with no `?c=`), `ChatHome` always creates a fresh conversation and arms the new conversation with a transient `needsOpener` flag (pure client state — no DB column). `NativeChatThread`'s `OpenerTrigger` fires exactly one priming user message containing the `OPENER_PROMPT` from `shared/chat-opener.ts`, guarded by a module-level `Set` so StrictMode/HMR cannot double-fire. The prompt itself is the directive — the LLM follows it and streams a contextual welcome shaped by the brainlift-count heuristic and active sprint plans. The priming message is hidden from the visible thread by a custom `UserMessage` component that filters on `isOpenerPromptMessage`. Manual "New chat" clicks, sidebar selection, and direct `/?c=ID` navigation deliberately do not arm the flag, so the opener only fires on homepage landings.
+
+The system prompt (`server/ai/chat/system-prompt.ts`) is generated per user. It includes recent BrainLifts, recent conversations, active sprint plans, available skill summaries, and strict operating rules that keep the agent coaching from the student's BrainLift instead of guessing hidden state.
+
+Chat title generation runs after a completed user+assistant exchange when the conversation is still titled `New chat`. It uses a cheap fast Gemini Flash call through the unified AI client (`caller: 'chat.title'`) and falls back to a deterministic local title if the provider call fails. The database update is guarded so an automatic title cannot overwrite a user-renamed conversation.
 
 ---
 
@@ -755,6 +781,7 @@ React 18 with TypeScript. TanStack Query for server state. Tailwind with a custo
 
 - **Virtualized lists** — fact grading panels use TanStack Virtual for rendering hundreds of facts without performance degradation
 - **Real-time streaming** — SSE connections for import progress, research swarm events, and adversary debate responses
+- **Native chat streaming** — assistant-ui renders persisted AI SDK UI messages, model/tool status, tool inputs, tool outputs, and conversation switching through `/api/chat/stream`
 - **URL state sync** — tab navigation, expanded views, filters, and share tokens all reflected in the URL for deep linking and browser history
 - **Staggered animations** — learning stream cards, swarm agent units, and stat cards animate in with spring physics and staggered delays
 - **Split-panel views** — the expanded learning stream item uses a resizable split (content left, discussion/knowledge check right with tab toggle)
@@ -766,6 +793,76 @@ React 18 with TypeScript. TanStack Query for server state. Tailwind with a custo
 ### Design Language
 
 Neo-editorial aesthetic with warm parchment surfaces, earth-tone ink colors, serif typography for content, small-caps sans-serif for labels. Dark mode support throughout. Custom tactile buttons with raised/inset variants. SVG text effects on score displays.
+
+---
+
+## Dual-Brand Deployment
+
+The same codebase ships as two distinct products on two domains, off one Neon database:
+
+| Brand | Domain | Audience | Posture |
+|-------|--------|----------|---------|
+| **AlphaX Buddy** | existing AlphaX deploy | high-school students in the AlphaX program | pedagogical gatekeeping, refuses to draft substantive content, pulls passive students back in |
+| **Brainlift Central** | `brainliftcentral.com` | adult researchers, analysts, professionals | permissive peer-researcher posture, drafting and analysis are fair game, engagement enforced downstream by the grader |
+
+One env var picks the brand at build time on the client (`VITE_BRAND`) and at boot on the server (`BRAND`). Two Render services share `DATABASE_URL` and the Google OAuth client; cookie scopes per domain mean separate sign-ins on each.
+
+### Brand Module
+
+```
+client/src/brand/
+  index.ts                 selector, throws on missing/unknown VITE_BRAND
+  types.ts                 BrandConfig + component prop types
+  alphax/                  AlphaX wordmark, avatar, login illustration, CSS, assets
+  brainlift/               Brainlift Central wordmark, avatar, login illustration, CSS, assets
+
+server/brand/
+  index.ts                 server selector, throws on missing/unknown BRAND
+  alphax.ts                buildAlphaXSystemPrompt + buildAlphaXBrainliftHeuristics
+  brainlift.ts             buildBrainliftSystemPrompt + buildBrainliftBrainliftHeuristics
+  shared/prompt-helpers.ts shared prose blocks (Tone helpers, Tools Protocol, formatters)
+```
+
+The `@/brand` Vite alias resolves directly to the active brand barrel at config time. The inactive barrel is never reachable, so its CSS, assets, and JSX are tree-shaken out of the build. Static imports + literal alias = zero runtime brand dispatch on the client.
+
+### Frontend
+
+Each brand exposes the same surface (`config`, `Wordmark`, `Avatar`, `LoginIllustration`, `chatAvatar`, plus a side-effect CSS import). Consumers (`Login.tsx`, `AppSidebar.tsx`, `ChatComposer.tsx`, `native-chat-thread-config.tsx`) read from `@/brand` and never know which brand they are rendering. CSS classes use parallel namespaces (`alphax-*`, `brainlift-*`) plus a small set of brand-neutral chrome classes (`brand-nameplate-*`).
+
+Brand-specific CSS lives in `client/src/brand/{brand}/{brand}.css`, imported as a side-effect from the brand barrel. The global `client/src/index.css` only carries shared tokens, brand-neutral chrome, and shared component overrides. The favicon is swapped at runtime on barrel load by setting `<link rel='icon'>.href`.
+
+### Backend Prompts
+
+Two prompt builders, not one templated builder. `buildAlphaXSystemPrompt` is byte-identical to the original AlphaX prompt; `buildBrainliftSystemPrompt` is a permissive peer-researcher prompt with a `MAIN OPERATIONAL POSTURE`, a `PROACTIVE RESEARCH OFFER` section that mandates one brainlift-grounded `web_search_exa` suggestion per session, and a Brainlift Central variant of the operating-protocols block (no AlphaX language, no "student"). Shared transferable blocks (Tone helpers, Tools Protocol, formatters) live in `server/brand/shared/prompt-helpers.ts`. The dispatcher at `server/ai/chat/system-prompt.ts` reads `BRAND` once at boot and delegates to the matching builder.
+
+The brand-aware chat opener (`client/src/chat/chat-opener.ts`) emits the `[OPENER]` priming message; the body comes from `brand.config.chatOpenerInstruction`, which for Brainlift Central directs the agent to land the proactive `web_search_exa` offer in the opener itself.
+
+### Build-Step Bundle Grep
+
+`script/check-brand-bundle.ts` runs after each Vite build and walks `dist/public`, throwing on the first occurrence of any inactive-brand token. Forbidden tokens per brand:
+
+| Build | Forbidden tokens |
+|-------|------------------|
+| `BRAND=alphax` | `Brainlift Central`, `brain-hero`, `brainlift-nameplate`, `brainlift-wordmark`, `brainlift-avatar`, `brainlift-login-plate` |
+| `BRAND=brainlift` | `AlphaX`, `Alpha X Buddy`, `alpha-buddy`, `owl-counsel`, `alphax-nameplate`, `alphax-wordmark`, `Builds at night`, `Plate I.` |
+
+This is the post-build proof that tree-shaking eliminated the inactive subtree.
+
+### Building Each Brand
+
+```bash
+# AlphaX Buddy (existing deploy)
+BRAND=alphax VITE_BRAND=alphax VITE_BRAND_NAME="AlphaX Buddy" npm run build
+
+# Brainlift Central
+BRAND=brainlift VITE_BRAND=brainlift VITE_BRAND_NAME="Brainlift Central" npm run build
+```
+
+Both builds emit clean bundle-grep results and produce the same application code with different brand surfaces.
+
+### Render Blueprint
+
+`render.yaml` declares both services with shared infra (region, plan, runtime, health-check path, build/start commands) and brand-specific env vars. The Brainlift Central service binds the `brainliftcentral.com` and `www.brainliftcentral.com` custom domains. `DATABASE_URL` and `OPENROUTER_API_KEY` use `sync: false` so each service holds the same secret values without Blueprint coupling. See `features/branding/dual-brand-deployment/specs/04-second-deploy/CUTOVER.md` for the operator checklist (env var ordering, OAuth callback URLs, DNS, smoke tests).
 
 ---
 
@@ -795,8 +892,11 @@ docker exec -i wizardly_kalam psql -U postgres -d dok1grader_local < migrations/
 | `OPENROUTER_API_KEY` | Primary text-generation provider for the unified AI client |
 | `FIREWORKS_API_KEY` | Fireworks failover provider for the unified AI client and image fallback |
 | `OPENAI_API_KEY` | Primary image-generation provider (`gpt-image-1`) |
-| `EXA_API_KEY` | Exa search API (research swarm) |
+| `EXA_API_KEY` | Exa search API (research swarm and native chat web search) |
 | `YOUTUBE_API_KEY` | YouTube Data API (video researcher agent) |
 | `JINA_API_KEY` | Jina Reader API (article content extraction) |
 | `SWARM_AGENT_COUNT` | Research agents per swarm (default: 5) |
 | `WORKER_CONCURRENCY` | Background job concurrency (default: 3) |
+| `BRAND` | Server brand selector. `alphax` or `brainlift`. Throws at boot if missing or unknown. |
+| `VITE_BRAND` | Client brand selector. `alphax` or `brainlift`. Read at Vite config time to alias `@/brand`. Must match `BRAND`. |
+| `VITE_BRAND_NAME` | Display name shown in the browser tab and HTML meta description (e.g. `AlphaX Buddy` or `Brainlift Central`). |

@@ -1,12 +1,17 @@
+import { useState } from "react";
 import { useLocation } from "wouter";
 import { authClient } from "@/lib/auth-client";
 import { Button } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
+import { brand, Wordmark, Avatar, LoginIllustration } from "@/brand";
 
 export default function Login() {
   const [, setLocation] = useLocation();
+  const [devEmail, setDevEmail] = useState("");
+  const [devPassword, setDevPassword] = useState("devpassword123");
+  const [devError, setDevError] = useState<string | null>(null);
+  const [devLoading, setDevLoading] = useState(false);
+  const [devOpen, setDevOpen] = useState(false);
 
-  // Get redirect URL from query params
   const searchParams = new URLSearchParams(window.location.search);
   const redirectTo = searchParams.get('redirect') || '/';
 
@@ -17,104 +22,155 @@ export default function Login() {
     });
   };
 
-  // Check if already logged in
+  const handleDevLogin = async () => {
+    if (!devEmail) return;
+    setDevError(null);
+    setDevLoading(true);
+    try {
+      const signIn = await authClient.signIn.email({ email: devEmail, password: devPassword });
+      if (signIn.error) {
+        const signUp = await authClient.signUp.email({
+          email: devEmail,
+          password: devPassword,
+          name: devEmail.split("@")[0],
+        });
+        if (signUp.error) {
+          setDevError(signUp.error.message ?? "Failed to create account");
+          return;
+        }
+      }
+      setLocation(redirectTo);
+    } finally {
+      setDevLoading(false);
+    }
+  };
+
   const { data: session, isPending } = authClient.useSession();
 
-  // Redirect to intended destination if already authenticated
   if (session && !isPending) {
     setLocation(redirectTo);
     return null;
   }
 
   return (
-    <div className="min-h-screen flex">
-      {/* Left side - Graphic */}
-      <div className="hidden lg:flex lg:w-1/2 bg-gradient-to-br from-primary/90 via-primary to-primary/80 relative overflow-hidden">
-        {/* Abstract shapes */}
-        <div className="absolute inset-0">
-          <div className="absolute top-20 left-20 w-72 h-72 bg-white/10 rounded-full blur-3xl" />
-          <div className="absolute bottom-20 right-20 w-96 h-96 bg-white/5 rounded-full blur-3xl" />
-          <div className="absolute top-1/2 left-1/3 w-64 h-64 bg-white/10 rounded-full blur-2xl" />
+    <div className="login-page min-h-screen flex">
+      {/* Hero column */}
+      <aside
+        className="login-hero relative hidden overflow-hidden lg:flex lg:w-[58%]"
+        aria-hidden="true"
+      >
+        <div className="login-hero-bg" />
+        <div className="login-hero-grain" />
+        <div className="login-hero-vignette" />
+        <div className="login-hero-rule login-hero-rule-top" />
+        <div className="login-hero-rule login-hero-rule-bottom" />
+
+        <div className="login-hero-content">
+          <div className="login-hero-eyebrow">
+            <span className="login-hero-eyebrow-rule" />
+            <span>{brand.config.loginEyebrow}</span>
+            <span className="login-hero-eyebrow-rule" />
+          </div>
+
+          <LoginIllustration />
+
+          <Wordmark variant="hero" />
+
+          <p className="login-hero-tagline">
+            {brand.config.tagline}
+            {brand.config.taglineEmphasis ? (
+              <>
+                <br />
+                <span className="login-hero-tagline-emphasis">
+                  {brand.config.taglineEmphasis}
+                </span>
+              </>
+            ) : null}
+          </p>
         </div>
+      </aside>
 
-        {/* Content */}
-        <div className="relative z-10 flex flex-col justify-center px-12 text-white">
-          <div className="mb-8">
-            <h1 className="text-5xl font-bold mb-4">Brainlift Central</h1>
-            <p className="text-xl text-white/80 leading-relaxed max-w-md">
-              Validate your knowledge. Grade your DOKs. Build better BrainLifts.
+      {/* Login column */}
+      <main className="login-form-col relative flex w-full flex-1 items-center justify-center bg-background p-8">
+        <div className="login-form-grain" aria-hidden="true" />
+
+        <div className="login-card relative w-full max-w-md">
+          <Avatar variant="login" />
+
+          {/* Mobile-only wordmark (hero column hidden under lg) */}
+          <Wordmark variant="mobile" />
+
+          <div className="login-card-heading">
+            <p className="login-card-eyebrow">{brand.config.loginHeading}</p>
+            <h2 className="login-card-title">{brand.config.loginTitle}</h2>
+            <p className="login-card-subtitle">
+              {brand.config.loginSubheading}
             </p>
           </div>
 
-          <div className="space-y-4 text-white/70">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-lg bg-white/20 flex items-center justify-center">
-                <CheckIcon />
-              </div>
-              <span>AI-powered fact verification</span>
-            </div>
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-lg bg-white/20 flex items-center justify-center">
-                <ChartIcon />
-              </div>
-              <span>Detailed grading analytics</span>
-            </div>
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-lg bg-white/20 flex items-center justify-center">
-                <BookIcon />
-              </div>
-              <span>Expert recommendations</span>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Right side - Login form */}
-      <div className="w-full lg:w-1/2 flex items-center justify-center p-8 bg-background">
-        <Card className="w-full max-w-md p-8 space-y-8">
-          {/* Mobile logo */}
-          <div className="lg:hidden text-center mb-8">
-            <h1 className="text-3xl font-bold text-foreground">Brainlift Central</h1>
-            <p className="text-muted-foreground mt-2">
-              Validate your knowledge
-            </p>
-          </div>
-
-          <div className="text-center space-y-2">
-            <h2 className="text-2xl font-semibold text-foreground">
-              Welcome back
-            </h2>
-            <p className="text-muted-foreground">
-              Sign in to access your BrainLifts
-            </p>
-          </div>
-
-          <div className="space-y-4">
+          <div className="login-card-actions">
             <Button
               onClick={handleGoogleSignIn}
               disabled={isPending}
-              className="w-full h-12 text-base font-medium"
+              className="login-google-btn"
               variant="outline"
             >
               <GoogleIcon className="mr-3 h-5 w-5" />
               Continue with Google
             </Button>
+
+            <div className="login-dev-divider">
+              <span className="login-dev-divider-rule" />
+              <button
+                type="button"
+                onClick={() => setDevOpen((v) => !v)}
+                className="login-dev-toggle"
+                aria-expanded={devOpen}
+              >
+                {devOpen ? "Hide dev login" : "Dev quick login"}
+              </button>
+              <span className="login-dev-divider-rule" />
+            </div>
+
+            {devOpen ? (
+              <div className="login-dev-fields">
+                <input
+                  type="email"
+                  placeholder="email (creates if missing)"
+                  value={devEmail}
+                  onChange={(e) => setDevEmail(e.target.value)}
+                  className="login-dev-input"
+                />
+                <input
+                  type="password"
+                  placeholder="password"
+                  value={devPassword}
+                  onChange={(e) => setDevPassword(e.target.value)}
+                  className="login-dev-input"
+                />
+                {devError ? (
+                  <p className="text-xs text-destructive">{devError}</p>
+                ) : null}
+                <Button
+                  onClick={handleDevLogin}
+                  disabled={devLoading || !devEmail || devPassword.length < 8}
+                  className="w-full"
+                  variant="secondary"
+                >
+                  {devLoading ? "Signing in..." : "Sign in / sign up"}
+                </Button>
+              </div>
+            ) : null}
           </div>
 
-          <div className="text-center text-sm text-muted-foreground">
-            <p>
-              By continuing, you agree to our{" "}
-              <span className="underline cursor-pointer hover:text-foreground">
-                Terms of Service
-              </span>{" "}
-              and{" "}
-              <span className="underline cursor-pointer hover:text-foreground">
-                Privacy Policy
-              </span>
-            </p>
-          </div>
-        </Card>
-      </div>
+          <p className="login-card-fineprint">
+            By continuing, you agree to our{" "}
+            <span className="login-card-link">Terms of Service</span>{" "}
+            and{" "}
+            <span className="login-card-link">Privacy Policy</span>.
+          </p>
+        </div>
+      </main>
     </div>
   );
 }
@@ -138,30 +194,6 @@ function GoogleIcon({ className }: { className?: string }) {
         fill="#EA4335"
         d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"
       />
-    </svg>
-  );
-}
-
-function CheckIcon() {
-  return (
-    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-    </svg>
-  );
-}
-
-function ChartIcon() {
-  return (
-    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
-    </svg>
-  );
-}
-
-function BookIcon() {
-  return (
-    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
     </svg>
   );
 }

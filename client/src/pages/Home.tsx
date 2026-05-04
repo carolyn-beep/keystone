@@ -4,15 +4,18 @@ import { useLocation, useSearch } from 'wouter';
 import { Brainlift } from '@shared/schema';
 import { queryClient } from '@/lib/queryClient';
 import { authClient } from '@/lib/auth-client';
-import { Loader2 } from 'lucide-react';
+import { Loader2, Upload, Plus, Shield } from 'lucide-react';
+import { tokens } from '@/lib/colors';
+import { AppShell, AppSidebar, PageHeader } from '@/components/layout';
+import { TactileButton } from '@/components/ui/tactile-button';
 import { ConfirmationModal } from '@/components/ui/confirmation-modal';
 import { useToast } from '@/hooks/use-toast';
-import { HomeHeader } from '@/components/home/HomeHeader';
 import { EmptyState } from '@/components/home/EmptyState';
 import { BrainliftCard } from '@/components/home/BrainliftCard';
 import { LoadMoreButton } from '@/components/home/LoadMoreButton';
 import { AddBrainliftModal } from '@/components/home/AddBrainliftModal';
 import { FilterTabs } from '@/components/home/FilterTabs';
+import { buildLibraryLocation } from '@/components/chat/chat-home-helpers';
 
 export default function Home() {
   const [, setLocation] = useLocation();
@@ -172,22 +175,97 @@ export default function Home() {
     } else {
       params.set('filter', newFilter);
     }
-    const newSearch = params.toString();
-    setLocation(newSearch ? `/?${newSearch}` : '/');
+    setLocation(buildLibraryLocation(params.toString()));
   }, [setLocation]);
 
+  // Toggle ?admin=true on the current URL while preserving other query params.
+  // Writes through history and dispatches popstate so wouter's useSearch
+  // picks up the change without a full re-render cycle.
+  const handleAdminViewToggle = useCallback(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (adminView) {
+      params.delete('admin');
+    } else {
+      params.set('admin', 'true');
+    }
+    const newSearch = params.toString();
+    const newUrl = newSearch ? `?${newSearch}` : window.location.pathname;
+    window.history.replaceState(null, '', newUrl);
+    window.dispatchEvent(new PopStateEvent('popstate'));
+  }, [adminView]);
+
+  const headerActions = (
+    <div className="flex items-center gap-3 flex-wrap">
+      {isAdmin && (
+        <button
+          onClick={handleAdminViewToggle}
+          className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium cursor-pointer transition-all duration-150"
+          style={{
+            backgroundColor: adminView ? tokens.primarySoft : 'transparent',
+            border: `1px solid ${adminView ? tokens.primary : tokens.border}`,
+            color: adminView ? tokens.primary : tokens.textSecondary,
+          }}
+          onMouseEnter={(e) => {
+            if (!adminView) {
+              e.currentTarget.style.borderColor = tokens.primary;
+              e.currentTarget.style.color = tokens.primary;
+            }
+          }}
+          onMouseLeave={(e) => {
+            if (!adminView) {
+              e.currentTarget.style.borderColor = tokens.border;
+              e.currentTarget.style.color = tokens.textSecondary;
+            }
+          }}
+        >
+          <Shield size={16} />
+          Admin View
+          <span
+            className="relative inline-flex items-center w-9 h-5 rounded-full transition-colors duration-200"
+            style={{
+              backgroundColor: adminView ? tokens.primary : tokens.border,
+            }}
+          >
+            <span
+              className="absolute w-4 h-4 bg-white rounded-full shadow transition-transform duration-200"
+              style={{
+                transform: adminView ? 'translateX(18px)' : 'translateX(2px)',
+              }}
+            />
+          </span>
+        </button>
+      )}
+
+      <TactileButton
+        variant={process.env.NODE_ENV === 'production' ? 'raised' : 'inset'}
+        data-testid="button-import-brainlift"
+        onClick={() => setModalMode('import')}
+        className="flex items-center gap-2"
+      >
+        <Upload size={16} />
+        Import Brainlift
+      </TactileButton>
+
+      {process.env.NODE_ENV !== 'production' && (
+        <TactileButton
+          variant="raised"
+          data-testid="button-create-brainlift"
+          onClick={() => setModalMode('create')}
+          className="flex items-center gap-2"
+        >
+          <Plus size={18} />
+          Create Brainlift
+        </TactileButton>
+      )}
+    </div>
+  );
+
   return (
-    <div className="min-h-screen bg-background font-sans">
-      <HomeHeader
-        adminView={adminView}
-        onImportBrainlift={() => setModalMode('import')}
-        onCreateBrainlift={() => setModalMode('create')}
-      />
-
-      {/* Thin primary indicator line */}
-      <div className="h-0.5 bg-primary" />
-
-      <main className="px-4 sm:px-6 md:px-8 py-4 max-w-[1200px] mx-auto">
+    <AppShell
+      sidebar={<AppSidebar contextualBody={null} />}
+      header={<PageHeader title="Brainlift Library" actions={headerActions} />}
+    >
+      <div className="px-4 sm:px-6 md:px-8 py-4 max-w-[1200px] mx-auto">
         {/* Filter Tabs */}
         <FilterTabs
           activeFilter={filter}
@@ -234,7 +312,7 @@ export default function Home() {
             )}
           </>
         )}
-      </main>
+      </div>
 
       <AddBrainliftModal
         show={modalMode !== null}
@@ -257,6 +335,6 @@ export default function Home() {
         variant="destructive"
         isLoading={deleteMutation.isPending}
       />
-    </div>
+    </AppShell>
   );
 }

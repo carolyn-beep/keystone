@@ -1,6 +1,8 @@
 import { build as esbuild } from "esbuild";
-import { build as viteBuild } from "vite";
+import { build as viteBuild, loadEnv } from "vite";
 import { copyFile, readFile, rm } from "fs/promises";
+import path from "path";
+import { checkBrandBundle, type BrandId } from "./check-brand-bundle";
 
 // server deps to bundle to reduce openat(2) syscalls
 // which helps cold start times
@@ -35,8 +37,23 @@ const allowlist = [
 async function buildAll() {
   await rm("dist", { recursive: true, force: true });
 
-  console.log("building client...");
+  // Validate brand selection BEFORE building. Vite reads `VITE_BRAND` from
+  // process.env or `.env`; we mirror that resolution here so the error is
+  // clear and consistent regardless of how the var was provided.
+  const env = loadEnv("production", path.resolve(process.cwd()), "");
+  const brand = process.env.VITE_BRAND ?? env.VITE_BRAND;
+  if (brand !== "alphax" && brand !== "brainlift") {
+    throw new Error(
+      `[build] VITE_BRAND must be 'alphax' or 'brainlift'; got: ${JSON.stringify(brand)}. `
+        + "Set VITE_BRAND in your .env / Render env vars.",
+    );
+  }
+
+  console.log(`building client (brand=${brand})...`);
   await viteBuild();
+
+  console.log(`checking client bundle for brand=${brand} leaks...`);
+  await checkBrandBundle(brand as BrandId, "dist/public");
 
   console.log("building server...");
   const pkg = JSON.parse(await readFile("package.json", "utf-8"));

@@ -1,186 +1,170 @@
-import { ComponentType, useState } from 'react';
+import { ReactNode } from 'react';
+import { PanelLeftClose, PanelLeftOpen } from 'lucide-react';
 import { Link, useLocation } from 'wouter';
-import { LogOut, Home, PanelLeftClose, PanelLeftOpen } from 'lucide-react';
-import { authClient } from '@/lib/auth-client';
-import { SidebarNavItem } from './SidebarNavItem';
+import { useAppShell } from './AppShell';
+import { resolveSectionNavActive, type SectionNavSection } from './section-nav-helpers';
+import { SectionNav } from './SectionNav';
+import { UserMenu } from './UserMenu';
+import { brand, Wordmark, Avatar } from '@/brand';
 
-export interface NavItem {
-  id: string;
-  label: string;
-  icon?: ComponentType<{ size?: number; className?: string }>;
-  adminOnly?: boolean;
-  children?: NavItem[];
-}
+export type { SectionNavSection };
 
 interface AppSidebarProps {
-  navItems: NavItem[];
-  activeNavId: string;
-  onNavChange: (id: string) => void;
-  backLink?: { href: string; label: string };
-  isAdmin?: boolean;
-  collapsed?: boolean;
-  onToggleCollapse?: () => void;
+  /**
+   * Optional contextual content rendered between SectionNav and UserMenu.
+   *
+   * - Chat: conversation list (reduced)
+   * - Brainlift detail: `<DokNavTree />`
+   * - Library / Analytics / Providers: `null` (middle zone empty)
+   */
+  contextualBody?: ReactNode;
+  /**
+   * Optional small-caps label rendered above `contextualBody`. Used to give
+   * the contextual zone its own identity (e.g. "Chats", "Brainlift") so that
+   * the global SectionNav and the page-specific list read as separate
+   * hierarchies, not one long flat menu.
+   */
+  contextualLabel?: string;
+  /**
+   * Override the active section. When omitted, the active section is derived
+   * from the current pathname via `resolveSectionNavActive`.
+   */
+  activeSection?: SectionNavSection;
 }
 
-/** Reusable classes for text that reveals L→R on expand, clips R→L on collapse */
-const textReveal = (collapsed: boolean) =>
-  `overflow-hidden whitespace-nowrap transition-[max-width,opacity,margin] duration-300 ease-in-out ${
-    collapsed ? 'max-w-0 opacity-0 ml-0' : 'max-w-[160px] opacity-100 ml-1.5'
-  }`;
-
+/**
+ * The unified app sidebar.
+ *
+ * Three vertical zones:
+ *
+ *   1. BrandHeader   -- product wordmark + avatar (sourced from `@/brand`),
+ *                       linked to `/`. Always rendered.
+ *   2. SectionNav    -- Chat, Library, [Analytics], [Providers]. Always rendered.
+ *      ContextualBody (slot) -- page-specific (conversation list / DokNavTree / null).
+ *   3. UserMenu      -- avatar + Sign out. Always rendered.
+ *
+ * No collapse mode in this iteration (decision 7). The mobile drawer behavior
+ * is owned by `<AppShell />`.
+ */
 export function AppSidebar({
-  navItems,
-  activeNavId,
-  onNavChange,
-  backLink,
-  isAdmin = false,
-  collapsed = false,
-  onToggleCollapse,
+  contextualBody,
+  contextualLabel,
+  activeSection,
 }: AppSidebarProps) {
-  const [, setLocation] = useLocation();
-  const { data: session } = authClient.useSession();
-
-  const handleSignOut = async () => {
-    await authClient.signOut({
-      fetchOptions: {
-        onSuccess: () => {
-          setLocation('/login');
-        },
-      },
-    });
-  };
-
-  const visibleNavItems = navItems.filter(item => !item.adminOnly || isAdmin);
-  const [hoveredNavId, setHoveredNavId] = useState<string | null>(null);
-  const initials = session?.user?.name?.charAt(0).toUpperCase() || 'U';
+  const [pathname] = useLocation();
+  const resolvedActive = activeSection ?? resolveSectionNavActive(pathname);
+  const shell = useAppShell();
+  const isCollapsed = shell?.isSidebarCollapsed ?? false;
 
   return (
-    <div className="flex flex-col h-full">
-      {/* Top bar: Back link + collapse toggle */}
-      <div className="flex items-center justify-between px-3 pt-4 pb-2">
-        {backLink && (
-          <Link
-            href={backLink.href}
-            title={backLink.label}
-            className="flex items-center text-muted-foreground hover:text-foreground text-sm transition-colors no-underline"
+    <div
+      className="flex h-full min-h-0 flex-col bg-sidebar border-sidebar-border"
+      role="navigation"
+      aria-label="App sidebar"
+    >
+      {/* Zone 1: BrandHeader. Wordmark animates its max-width and opacity to 0
+          on collapse so it shrinks alongside the aside instead of popping
+          out. Avatar stays anchored left; padding animates to keep the avatar
+          centered in the rail. */}
+      <div
+        className="brand-nameplate--compact h-16 shrink-0 flex items-center border-b border-sidebar-border transition-[padding] duration-200 ease-out"
+        style={{ paddingLeft: isCollapsed ? 14 : 16, paddingRight: isCollapsed ? 14 : 16 }}
+      >
+        <Link
+          href="/"
+          aria-label={`${brand.config.productName} -- back to chat`}
+          className="brand-nameplate-button group relative flex min-w-0 items-center rounded-xl px-1.5 py-1 text-left no-underline transition-[gap] duration-200 ease-out"
+          style={{ gap: isCollapsed ? 0 : 8 }}
+        >
+          <Avatar variant="sidebar" />
+          <span
+            aria-hidden={isCollapsed}
+            className={`min-w-0 overflow-hidden whitespace-nowrap transition-[max-width,opacity] duration-200 ease-out ${
+              isCollapsed ? 'max-w-0 opacity-0' : 'max-w-[160px] opacity-100'
+            }`}
           >
-            <Home size={14} className="shrink-0" />
-            <span className={textReveal(collapsed)}>{backLink.label}</span>
-          </Link>
-        )}
-        {!backLink && <div />}
-        {onToggleCollapse && (
-          <button
-            onClick={onToggleCollapse}
-            title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
-            className="h-8 w-8 shrink-0 rounded-md flex items-center justify-center transition-colors hover:bg-sidebar-accent text-muted-foreground hover:text-sidebar-foreground"
-          >
-            {collapsed ? <PanelLeftOpen size={16} /> : <PanelLeftClose size={16} />}
-          </button>
-        )}
+            <Wordmark variant="compact" />
+          </span>
+        </Link>
       </div>
 
-      {/* Navigation Items */}
-      <nav className="flex-1 px-3 py-2 space-y-2">
-        {visibleNavItems.map(item => {
-          const childIds = item.children?.map(c => c.id) ?? [];
-          const sectionActive = activeNavId === item.id || childIds.includes(activeNavId) || hoveredNavId === item.id;
-
-          return (
-            <div
-              key={item.id}
-              onMouseEnter={item.children ? () => setHoveredNavId(item.id) : undefined}
-              onMouseLeave={item.children ? () => setHoveredNavId(null) : undefined}
-            >
-              <SidebarNavItem
-                icon={item.icon}
-                label={item.label}
-                isActive={activeNavId === item.id || childIds.includes(activeNavId)}
-                onClick={() => onNavChange(item.id)}
-                collapsed={collapsed}
-              />
-              {item.children && (() => {
-                const filtered = item.children.filter(child => !child.adminOnly || isAdmin);
-                return (
-                  <div className={`sidebar-children-wrap mt-0.5 ${sectionActive && !collapsed ? 'is-open' : ''}`}>
-                    <div>
-                    {filtered.map((child, i) => {
-                      const isLast = i === filtered.length - 1;
-                      const ChildIcon = child.icon;
-                      return (
-                        <div
-                          key={child.id}
-                          className="relative sidebar-child-item"
-                          style={{ transitionDelay: sectionActive && !collapsed ? `${i * 60 + 80}ms` : '0ms' }}
-                        >
-                          {!isLast && (
-                            <div className="absolute left-[21px] top-0 bottom-0 border-l-2 border-primary" />
-                          )}
-                          <div className="absolute left-[21px] top-0 h-1/2 w-3.5 border-l-2 border-b-2 border-primary rounded-bl-lg" />
-
-                          <button
-                            onClick={() => onNavChange(child.id)}
-                            className="group w-full text-left pl-[42px] pr-3 py-1.5 flex items-center"
-                          >
-                            <span className={`flex items-center gap-2 px-2.5 py-1 rounded-md text-[11px] font-medium tracking-wide transition-colors duration-300 ${
-                              activeNavId === child.id
-                                ? 'text-sidebar-accent-foreground bg-sidebar-primary/15'
-                                : 'text-muted-foreground hover:text-sidebar-foreground hover:bg-sidebar-accent/50'
-                            }`}>
-                              {ChildIcon && <ChildIcon size={14} className="shrink-0" />}
-                              <span>{child.label}</span>
-                            </span>
-                          </button>
-                        </div>
-                      );
-                    })}
-                    </div>
-                  </div>
-                );
-              })()}
-            </div>
-          );
-        })}
-      </nav>
-
-      {/* Footer: User Menu */}
-      {session && (
-        <div className="px-3 py-4 border-t border-sidebar-border">
-          <div className="flex items-center">
-            {/* Avatar */}
-            <div className="h-9 w-9 rounded-full bg-primary flex-shrink-0 flex items-center justify-center text-primary-foreground text-sm font-medium overflow-hidden">
-              {session.user.image ? (
-                <img
-                  src={session.user.image}
-                  alt={session.user.name || 'User'}
-                  className="h-full w-full object-cover"
-                  referrerPolicy="no-referrer"
-                />
-              ) : (
-                initials
-              )}
-            </div>
-
-            {/* Name — reveals/clips with same animation */}
-            <span className={`flex-1 text-sm font-medium text-sidebar-foreground truncate overflow-hidden whitespace-nowrap transition-[max-width,opacity,margin] duration-300 ease-in-out ${
-              collapsed ? 'max-w-0 opacity-0 ml-0' : 'max-w-[120px] opacity-100 ml-3'
-            }`}>
-              {session.user.name}
-            </span>
-
-            {/* Sign Out */}
+      {/* Zone 2a: SectionNav. The "SECTIONS" label animates its max-width and
+          opacity to 0 on collapse; the toggle button uses `ml-auto` so it
+          glides toward the rail centerline as the label shrinks. Symmetric
+          padding (18px) when collapsed parks the button on the same x-axis
+          as the nav icons below. */}
+      <div
+        className={`shrink-0 pt-3 pb-3 transition-[border-color] duration-200 ease-out ${
+          contextualBody && !isCollapsed
+            ? 'border-b border-sidebar-border'
+            : 'border-b border-transparent'
+        }`}
+      >
+        <div className="flex items-center pb-2 transition-[padding] duration-200 ease-out"
+          style={{ paddingLeft: isCollapsed ? 18 : 20, paddingRight: isCollapsed ? 18 : 20 }}
+        >
+          <span
+            aria-hidden={isCollapsed}
+            className={`overflow-hidden whitespace-nowrap text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground/80 transition-[max-width,opacity] duration-200 ease-out ${
+              isCollapsed ? 'max-w-0 opacity-0' : 'max-w-[160px] opacity-100'
+            }`}
+          >
+            Sections
+          </span>
+          {shell ? (
             <button
-              onClick={handleSignOut}
-              className={`h-8 w-8 shrink-0 rounded-md flex items-center justify-center transition-[colors,margin] duration-300 hover:bg-sidebar-accent ${
-                collapsed ? 'ml-0' : 'ml-auto'
-              }`}
-              title="Sign out"
+              type="button"
+              onClick={shell.toggleSidebarCollapsed}
+              aria-label={isCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+              aria-pressed={isCollapsed}
+              title={isCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+              className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-sidebar-accent/60 hover:text-sidebar-foreground ml-auto"
             >
-              <LogOut size={16} className="text-muted-foreground" />
+              {isCollapsed ? <PanelLeftOpen size={18} /> : <PanelLeftClose size={18} />}
             </button>
+          ) : null}
+        </div>
+        <SectionNav activeSection={resolvedActive} isCollapsed={isCollapsed} />
+      </div>
+
+      {/* Zone 2b: ContextualBody slot. Always claims `flex-1` so UserMenu
+          stays anchored to the bottom. The wrapper itself stays visible in
+          collapsed (rail) mode -- consumers that have an icon-only layout
+          (e.g. DokNavTree) render their icons there; consumers that don't
+          (e.g. ChatConversationSidebar -- conversation titles have no icons)
+          read the shell context and return null. The contextualLabel
+          collapses its max-height to 0 in rail mode so it doesn't leave a
+          blank strip above the icon list. */}
+      {contextualBody ? (
+        <div className="min-h-0 flex-1 flex flex-col overflow-hidden">
+          {contextualLabel ? (
+            <div
+              aria-hidden={isCollapsed}
+              className={`shrink-0 overflow-hidden whitespace-nowrap text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground/80 transition-[max-height,padding,opacity] duration-200 ease-out ${
+                isCollapsed
+                  ? 'max-h-0 px-5 py-0 opacity-0'
+                  : 'max-h-8 px-5 pt-3 pb-2 opacity-100'
+              }`}
+            >
+              {contextualLabel}
+            </div>
+          ) : null}
+          <div className="min-h-0 flex-1 flex flex-col overflow-hidden">
+            {contextualBody}
           </div>
         </div>
+      ) : (
+        <div className="flex-1" />
       )}
+
+      {/* Zone 3: UserMenu (fixed, bottom). Padding animates so the avatar
+          centers smoothly in the rail. */}
+      <div
+        className="shrink-0 border-t border-sidebar-border py-3 transition-[padding] duration-200 ease-out"
+        style={{ paddingLeft: isCollapsed ? 4 : 12, paddingRight: isCollapsed ? 4 : 12 }}
+      >
+        <UserMenu isCollapsed={isCollapsed} />
+      </div>
     </div>
   );
 }

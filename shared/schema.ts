@@ -1350,6 +1350,93 @@ export const brainliftSourcesRelations = relations(brainliftSources, ({ one }) =
   }),
 }));
 
+// === NATIVE CHAT TABLES ===
+
+export interface StoredChatMessage {
+  id: string;
+  role: string;
+  parts: unknown[];
+  metadata?: unknown;
+}
+
+export interface ChatActivePlanTask {
+  id: number;
+  title: string;
+  weekNumber: number;
+  isFlagship: boolean;
+  scheduledDate: string;
+}
+
+export interface ChatActivePlanSnapshot {
+  brainliftSlug: string;
+  brainliftTitle: string;
+  planId: number;
+  todayTasks: ChatActivePlanTask[];
+  overdueTasks: ChatActivePlanTask[];
+}
+
+export interface ChatUserContext {
+  userId: string;
+  userName: string | null;
+  isAdmin: boolean;
+  brainliftCount: number;
+  recentBrainlifts: Array<{
+    slug: string;
+    title: string;
+    updatedAt: Date;
+  }>;
+  recentConversations: Array<{
+    id: number;
+    title: string;
+    lastActivityAt: Date;
+  }>;
+  activePlans: ChatActivePlanSnapshot[];
+}
+
+export const chatConversations = pgTable("chat_conversations", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id")
+    .notNull()
+    .references(() => user.id, { onDelete: "cascade" }),
+  title: text("title").notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().$onUpdate(() => new Date()).notNull(),
+  lastMessageAt: timestamp("last_message_at"),
+}, (table) => [
+  index("chat_conversations_user_updated_idx").on(table.userId, table.updatedAt),
+]);
+
+export const chatMessages = pgTable("chat_messages", {
+  id: serial("id").primaryKey(),
+  conversationId: integer("conversation_id")
+    .notNull()
+    .references(() => chatConversations.id, { onDelete: "cascade" }),
+  messageId: text("message_id").notNull(),
+  role: text("role").notNull(),
+  parts: jsonb("parts").$type<StoredChatMessage["parts"]>().notNull(),
+  metadata: jsonb("metadata"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().$onUpdate(() => new Date()).notNull(),
+}, (table) => [
+  unique("chat_messages_conversation_message_unique").on(table.conversationId, table.messageId),
+  index("chat_messages_conversation_id_idx").on(table.conversationId, table.id),
+]);
+
+export const chatConversationsRelations = relations(chatConversations, ({ one, many }) => ({
+  user: one(user, {
+    fields: [chatConversations.userId],
+    references: [user.id],
+  }),
+  messages: many(chatMessages),
+}));
+
+export const chatMessagesRelations = relations(chatMessages, ({ one }) => ({
+  conversation: one(chatConversations, {
+    fields: [chatMessages.conversationId],
+    references: [chatConversations.id],
+  }),
+}));
+
 export const graderMonitoringSetsRelations = relations(graderMonitoringSets, ({ one, many }) => ({
   createdBy: one(user, {
     fields: [graderMonitoringSets.createdByUserId],
@@ -1487,6 +1574,8 @@ export type ImportAgentConversation = typeof importAgentConversations.$inferSele
 export type InsertImportAgentConversation = z.infer<typeof insertImportAgentConversationSchema>;
 export type BrainliftSource = typeof brainliftSources.$inferSelect;
 export type InsertBrainliftSource = z.infer<typeof insertBrainliftSourceSchema>;
+export type ChatConversation = typeof chatConversations.$inferSelect;
+export type ChatMessage = typeof chatMessages.$inferSelect;
 export type DOK4Spov = typeof dok4Spovs.$inferSelect;
 export type InsertDOK4Spov = z.infer<typeof insertDok4SpovSchema>;
 export type DOK4Dok3Link = typeof dok4Dok3Links.$inferSelect;

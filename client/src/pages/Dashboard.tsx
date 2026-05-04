@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback } from 'react';
+import { useMemo, useRef, useState, useCallback } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Link, useSearch } from 'wouter';
 import { authClient } from '@/lib/auth-client';
@@ -33,6 +33,7 @@ import { ImportAgentModal } from '@/components/import-agent/ImportAgentModal';
 import { RedundancyPage } from '@/components/fact-grading/RedundancyPage';
 import { SprintTab, parseTaskViewId } from '@/components/sprint/SprintTab';
 import { DocumentHubTab } from '@/components/documents/DocumentHubTab';
+import { LIBRARY_ROUTE_PATH } from '@/components/chat/chat-home-helpers';
 import { usePDFExport } from '@/hooks/usePDFExport';
 import { useShareToken } from '@/hooks/useShareToken';
 import { useDOK3Insights } from '@/hooks/useDOK3Insights';
@@ -40,9 +41,9 @@ import { useDOK3GradingEvents } from '@/hooks/useDOK3GradingEvents';
 import { useDOK4 } from '@/hooks/useDOK4';
 import { useDOK4GradingEvents } from '@/hooks/useDOK4GradingEvents';
 import { DOK4Tab } from '@/components/DOK4Tab';
-import { SidebarLayout, AppSidebar, type NavItem } from '@/components/layout';
+import { AppShell, AppSidebar } from '@/components/layout';
+import { DokNavTree, type NavItem } from '@/components/brainlift/DokNavTree';
 import { BuilderPage } from '@/components/builder';
-import { TactileButton } from '@/components/ui/tactile-button';
 
 interface DashboardProps {
   slug: string;
@@ -84,18 +85,6 @@ const NAV_ITEMS: NavItem[] = [
 ];
 
 export default function Dashboard({ slug, isSharedView = false }: DashboardProps) {
-  // Sidebar collapse state — persisted to localStorage
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
-    try { return localStorage.getItem('sidebar-collapsed') === 'true'; } catch { return false; }
-  });
-  const toggleSidebar = useCallback(() => {
-    setSidebarCollapsed(prev => {
-      const next = !prev;
-      try { localStorage.setItem('sidebar-collapsed', String(next)); } catch {}
-      return next;
-    });
-  }, []);
-
   // Handle share token redemption if ?share=TOKEN is present
   const { isRedeeming } = useShareToken();
 
@@ -167,6 +156,31 @@ export default function Dashboard({ slug, isSharedView = false }: DashboardProps
   const [showUpdateModal, setShowUpdateModal] = useState(false);
   const [showHistoryModal, setShowHistoryModal] = useState(false);
   const [showShareModal, setShowShareModal] = useState(false);
+
+  // Header collapse-on-scroll. A sentinel sits at the top of pageContent;
+  // when it scrolls above the viewport, the <header> chrome gets
+  // .header-collapsed (CSS in client/src/header-collapse.css drives the
+  // banner shrink animation, padding tightening, etc).
+  //
+  // Using a callback ref instead of useRef + useEffect because the sentinel
+  // is rendered inside `pageContent`, which only appears after the
+  // loading / error / native-source early-returns above. A useEffect with
+  // empty deps would fire on mount when the sentinel doesn't exist yet, and
+  // never re-attach. The callback fires whenever the sentinel element is
+  // attached or detached, so the observer always tracks the live DOM node.
+  const [isHeaderCollapsed, setIsHeaderCollapsed] = useState(false);
+  const headerObserverRef = useRef<IntersectionObserver | null>(null);
+  const headerSentinelRef = useCallback((el: HTMLDivElement | null) => {
+    headerObserverRef.current?.disconnect();
+    headerObserverRef.current = null;
+    if (!el) return;
+    const observer = new IntersectionObserver(
+      ([entry]) => setIsHeaderCollapsed(!entry.isIntersecting),
+      { threshold: 0 },
+    );
+    observer.observe(el);
+    headerObserverRef.current = observer;
+  }, []);
   const [updateSourceType, setUpdateSourceType] = useState<'html' | 'workflowy' | 'googledocs'>('workflowy');
   const [updateFile, setUpdateFile] = useState<File | null>(null);
   const [updateUrl, setUpdateUrl] = useState('');
@@ -267,9 +281,7 @@ const { downloadBrainliftPDF } = usePDFExport();
     downloadBrainliftPDF(data);
   };
 
-  // Preserve admin param when navigating back
   const isAdminView = new URLSearchParams(searchString).get('admin') === 'true';
-  const backLink = isAdminView ? '/?admin=true' : '/';
 
   // Show loading while redeeming share token
   if (isRedeeming) {
@@ -285,7 +297,7 @@ const { downloadBrainliftPDF } = usePDFExport();
     <div className="p-12 text-center">
       <h1>Brainlift not found</h1>
       <p>No brainlift exists at this URL.</p>
-      <Link href="/">← Back to home</Link>
+      <Link href={LIBRARY_ROUTE_PATH}>← Back to library</Link>
     </div>
   );
 
@@ -340,43 +352,44 @@ const { downloadBrainliftPDF } = usePDFExport();
   //   );
   // }
 
-  return (
-    <SidebarLayout
-      collapsed={sidebarCollapsed}
-      sidebar={
-        !isSharedView ? (
-          <AppSidebar
-            navItems={NAV_ITEMS}
-            activeNavId={activeTab}
-            onNavChange={setActiveTab}
-            backLink={{ href: backLink, label: 'All Brainlifts' }}
-            isAdmin={isAdmin}
-            collapsed={sidebarCollapsed}
-            onToggleCollapse={toggleSidebar}
-          />
-        ) : null
-      }
-      header={
-        <DashboardHeader
-          data={data}
-          isSharedView={isSharedView}
-          isNotBrainlift={isNotBrainlift}
-          versions={versions}
-          editingAuthor={editingAuthor}
-          setEditingAuthor={setEditingAuthor}
-          authorInput={authorInput}
-          setAuthorInput={setAuthorInput}
-          onUpdateAuthor={handleUpdateAuthor}
-          setShowUpdateModal={setShowUpdateModal}
-          setShowHistoryModal={setShowHistoryModal}
-          handleDownloadPDF={handleDownloadPDF}
-          isOwner={isOwner}
-          isAdmin={isAdmin}
-          setShowShareModal={setShowShareModal}
-          canModify={canModify}
-        />
-      }
+  // Brainlift chrome: DashboardHeader rich banner is the entire <header>.
+  // Cross-section navigation (back to Library) lives in the sidebar SectionNav,
+  // so no breadcrumb strip is needed. Update / PDF / Share / History stay in
+  // DashboardHeader's own action cluster (bottom-right of the rich row,
+  // aligned with the author byline). The banner collapses on scroll via
+  // .header-collapsed (header-collapse.css) toggled by an IntersectionObserver
+  // watching a sentinel placed at the top of <main>.
+  const brainliftHeader = (
+    <header
+      className={`bg-card border-b border-border transition-shadow ${isHeaderCollapsed ? 'header-collapsed shadow-sm' : ''}`}
     >
+      <DashboardHeader
+        data={data}
+        isSharedView={isSharedView}
+        isNotBrainlift={isNotBrainlift}
+        versions={versions}
+        editingAuthor={editingAuthor}
+        setEditingAuthor={setEditingAuthor}
+        authorInput={authorInput}
+        setAuthorInput={setAuthorInput}
+        onUpdateAuthor={handleUpdateAuthor}
+        setShowUpdateModal={setShowUpdateModal}
+        setShowHistoryModal={setShowHistoryModal}
+        handleDownloadPDF={handleDownloadPDF}
+        isOwner={isOwner}
+        isAdmin={isAdmin}
+        setShowShareModal={setShowShareModal}
+        canModify={canModify}
+      />
+    </header>
+  );
+
+  const pageContent = (
+    <div className="px-4 py-4 sm:px-6 md:px-8">
+      {/* Sentinel for header-collapse IntersectionObserver. When it scrolls
+          above the viewport, the chrome <header> shrinks to a thin strip. */}
+      <div ref={headerSentinelRef} aria-hidden="true" className="h-px" />
+
       {/* Not a Brainlift View */}
       {isNotBrainlift && (
         <NotBrainliftView data={data} isSharedView={isSharedView} toast={toast} />
@@ -673,6 +686,36 @@ const { downloadBrainliftPDF } = usePDFExport();
           </div>
         </div>
       )}
-    </SidebarLayout>
+    </div>
+  );
+
+  // Shared view bypasses the unified shell entirely (no sidebar, no chrome).
+  if (isSharedView) {
+    return (
+      <div className="min-h-screen bg-background text-foreground font-sans">
+        {pageContent}
+      </div>
+    );
+  }
+
+  return (
+    <AppShell
+      sidebar={
+        <AppSidebar
+          contextualLabel="Brainlift"
+          contextualBody={
+            <DokNavTree
+              navItems={NAV_ITEMS}
+              activeNavId={activeTab}
+              onNavChange={setActiveTab}
+              isAdmin={isAdmin}
+            />
+          }
+        />
+      }
+      header={brainliftHeader}
+    >
+      {pageContent}
+    </AppShell>
   );
 }

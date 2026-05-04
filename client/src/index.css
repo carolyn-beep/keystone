@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Libre+Baskerville:ital,wght@0,400;0,700;1,400&display=swap');
 
 @tailwind base;
 @tailwind components;
@@ -687,14 +687,14 @@
   background: hsl(var(--card-elevated));
 }
 
-/* User message — warm muted bubble */
+/* User message — warmer accent bubble (slightly more amber than assistant) */
 .aui-user-message-content {
-  background: hsl(var(--sidebar));
+  background: hsl(var(--accent));
   color: hsl(var(--foreground));
   border-radius: 0.75rem;
 }
 
-/* Assistant message — fill available width, readable body */
+/* Assistant message — same warm bubble as user, fills available width */
 .aui-assistant-message-content {
   color: hsl(var(--foreground));
   font-size: 14px;
@@ -783,6 +783,907 @@
 }
 
 /* ===== End Import Agent overrides ===== */
+
+/* ===== Native Chat Home ===== */
+
+/* Warm parchment wash behind the entire chat column,
+   sitting under the engraving image. */
+.chat-main {
+  container-type: inline-size;
+  background:
+    /* warm tan wash, bottom-left */
+    radial-gradient(circle at bottom left, hsla(35, 50%, 72%, 0.12), transparent 28%),
+    /* deeper sand wash, top-right */
+    radial-gradient(circle at top right, hsla(28, 45%, 62%, 0.10), transparent 30%),
+    linear-gradient(180deg, rgba(249, 245, 237, 0.2), rgba(249, 245, 237, 0.3));
+}
+
+/* Engraving anchored to the chat main column so it fills the whole panel
+   (including behind the header) while the message viewport scrolls.
+   Image's central area is empty by design. */
+.chat-main::before {
+  content: "";
+  position: absolute;
+  right: 1.5rem;
+  bottom: 2rem;
+  /* Size to the whitespace right of the centered message thread.
+     Thread max-width is ~48rem, so half is ~24rem; we leave another ~4rem
+     buffer. Clamped to never overlap and never balloon past 330px. */
+  width: clamp(0px, calc(50cqw - 28rem), 330px);
+  height: clamp(0px, calc(50cqw - 28rem), 330px);
+  background-image: url('/ink-quill.webp');
+  background-position: bottom right;
+  background-repeat: no-repeat;
+  background-size: contain;
+  opacity: 0.22;
+  pointer-events: none;
+  z-index: 0;
+}
+
+.chat-main > * {
+  position: relative;
+  z-index: 1;
+}
+
+/* ===== Login page — neo-editorial atelier ===== */
+
+.login-page {
+  background: hsl(var(--background));
+}
+
+.login-hero {
+  position: relative;
+  isolation: isolate;
+  color: hsl(0 0% 18%);
+}
+
+.login-hero-bg {
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(
+      120% 80% at 30% 18%,
+      hsl(40 60% 96%) 0%,
+      hsl(38 48% 92%) 35%,
+      hsl(32 38% 84%) 75%,
+      hsl(26 32% 72%) 100%
+    );
+}
+
+.login-hero-grain {
+  position: absolute;
+  inset: 0;
+  background-image: url('./assets/textures/paper-grain.webp');
+  background-size: 480px 480px;
+  background-repeat: repeat;
+  opacity: 0.32;
+  mix-blend-mode: multiply;
+  pointer-events: none;
+}
+
+.login-hero-vignette {
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(
+      90% 70% at 50% 45%,
+      transparent 35%,
+      hsl(26 35% 30% / 0.18) 80%,
+      hsl(22 38% 18% / 0.32) 100%
+    );
+  pointer-events: none;
+}
+
+.login-hero-rule {
+  position: absolute;
+  left: 8%;
+  right: 8%;
+  height: 1px;
+  background: linear-gradient(
+    to right,
+    transparent,
+    hsl(26 35% 28% / 0.5) 18%,
+    hsl(26 35% 28% / 0.5) 82%,
+    transparent
+  );
+  pointer-events: none;
+}
+
+.login-hero-rule-top { top: 5.2rem; }
+.login-hero-rule-bottom { bottom: 5.2rem; }
+
+.login-hero-content {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  margin: auto;
+  padding: 6rem 4rem;
+  max-width: 720px;
+  text-align: center;
+}
+
+.login-hero-eyebrow {
+  display: flex;
+  align-items: center;
+  gap: 0.85rem;
+  font-family: var(--font-sans);
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.4em;
+  color: hsl(26 30% 26% / 0.78);
+  margin-bottom: 2.2rem;
+}
+
+.login-hero-eyebrow-rule {
+  display: inline-block;
+  width: 2.2rem;
+  height: 1px;
+  background: hsl(26 30% 26% / 0.5);
+}
+
+.login-hero-tagline {
+  margin-top: 1.15rem;
+  font-family: var(--font-serif);
+  font-style: italic;
+  font-size: clamp(15px, 1.25vw, 18px);
+  line-height: 1.7;
+  color: hsl(22 30% 22% / 0.78);
+  max-width: 30rem;
+}
+
+.login-form-col {
+  position: relative;
+  isolation: isolate;
+}
+
+.login-form-grain {
+  position: absolute;
+  inset: 0;
+  background-image: url('./assets/textures/paper-grain.webp');
+  background-size: 520px 520px;
+  opacity: 0.18;
+  mix-blend-mode: multiply;
+  pointer-events: none;
+  z-index: 0;
+}
+
+.login-card {
+  z-index: 1;
+  padding: 2.6rem 2.4rem 2.2rem;
+  background: hsl(var(--card));
+  border: 1px solid hsl(var(--border) / 0.7);
+  border-radius: 14px;
+  box-shadow:
+    0 1px 0 hsl(40 30% 100% / 0.7) inset,
+    0 22px 60px -28px hsl(26 40% 18% / 0.35),
+    0 4px 14px -8px hsl(26 40% 18% / 0.18);
+  position: relative;
+}
+
+.login-card::before {
+  content: "";
+  position: absolute;
+  inset: 6px;
+  border: 1px solid hsl(var(--border) / 0.45);
+  border-radius: 10px;
+  pointer-events: none;
+}
+
+.login-card-heading {
+  text-align: center;
+  margin-bottom: 1.6rem;
+}
+
+.login-card-eyebrow {
+  font-family: var(--font-sans);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.32em;
+  text-transform: uppercase;
+  color: hsl(var(--muted-foreground));
+  margin-bottom: 0.5rem;
+}
+
+.login-card-title {
+  font-family: var(--font-serif);
+  font-size: 26px;
+  font-weight: 500;
+  letter-spacing: -0.005em;
+  color: hsl(var(--foreground));
+  margin: 0 0 0.4rem;
+}
+
+.login-card-subtitle {
+  font-family: var(--font-serif);
+  font-style: italic;
+  font-size: 14px;
+  color: hsl(var(--muted-foreground));
+}
+
+.login-card-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.login-google-btn {
+  width: 100%;
+  height: 48px;
+  font-size: 14.5px;
+  font-weight: 500;
+  border: 1px solid hsl(var(--border));
+  background: hsl(var(--card));
+  transition: transform 160ms ease, box-shadow 200ms ease, background-color 160ms ease;
+}
+
+.login-google-btn:hover {
+  background: hsl(var(--card-elevated));
+  box-shadow: 0 6px 18px -10px hsl(26 40% 18% / 0.4);
+  transform: translateY(-0.5px);
+}
+
+.login-dev-divider {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  margin: 0.4rem 0 0;
+}
+
+.login-dev-divider-rule {
+  flex: 1;
+  height: 1px;
+  background: linear-gradient(
+    to right,
+    transparent,
+    hsl(var(--border)) 30%,
+    hsl(var(--border)) 70%,
+    transparent
+  );
+}
+
+.login-dev-toggle {
+  font-family: var(--font-sans);
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.28em;
+  text-transform: uppercase;
+  color: hsl(var(--muted-foreground));
+  transition: color 160ms ease;
+}
+
+.login-dev-toggle:hover {
+  color: hsl(var(--foreground));
+}
+
+.login-dev-fields {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  padding: 0.8rem 0.9rem 1rem;
+  background: hsl(var(--sidebar) / 0.5);
+  border: 1px dashed hsl(var(--border));
+  border-radius: 10px;
+}
+
+.login-dev-input {
+  width: 100%;
+  height: 36px;
+  padding: 0 0.75rem;
+  font-size: 13px;
+  background: hsl(var(--background));
+  border: 1px solid hsl(var(--input));
+  border-radius: 6px;
+  color: hsl(var(--foreground));
+  outline: none;
+  transition: border-color 160ms ease, box-shadow 160ms ease;
+}
+
+.login-dev-input:focus {
+  border-color: hsl(var(--ring) / 0.55);
+  box-shadow: 0 0 0 3px hsl(var(--ring) / 0.18);
+}
+
+.login-card-fineprint {
+  margin-top: 1.5rem;
+  text-align: center;
+  font-size: 11.5px;
+  color: hsl(var(--muted-foreground));
+  line-height: 1.6;
+}
+
+.login-card-link {
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  transition: color 160ms ease;
+}
+
+.login-card-link:hover {
+  color: hsl(var(--foreground));
+}
+
+/* ===== Shared brand-nameplate chrome (sidebar) =====
+   Brand-neutral wrapper / button / focus styles for the sidebar BrandHeader.
+   Brand-specific avatar / wordmark visuals live in each brand's own
+   stylesheet (`client/src/brand/{alphax,brainlift}/*.css`) so the inactive
+   brand's CSS is tree-shaken from the active build. */
+
+.brand-nameplate {
+  position: relative;
+}
+
+.brand-nameplate::after {
+  content: "";
+  position: absolute;
+  left: 1rem;
+  right: 1rem;
+  bottom: 0;
+  height: 1px;
+  background: linear-gradient(
+    to right,
+    transparent,
+    hsl(var(--border) / 0.9) 18%,
+    hsl(var(--border) / 0.9) 82%,
+    transparent
+  );
+  pointer-events: none;
+}
+
+.brand-nameplate-button {
+  transition: transform 220ms ease, background-color 200ms ease;
+}
+
+.brand-nameplate-button:hover {
+  background-color: hsl(var(--card) / 0.45);
+}
+
+.brand-nameplate-button:active {
+  transform: translateY(0.5px);
+}
+
+.brand-nameplate-button:focus-visible {
+  outline: none;
+  box-shadow:
+    0 0 0 1.5px hsl(var(--ring) / 0.55),
+    0 0 0 4px hsl(var(--ring) / 0.18);
+}
+
+.native-chat-thread {
+  /* Column width for messages, composer, and welcome screen.
+     Assistant-ui defaults this to 42rem (672px); we widen it here. */
+  --aui-thread-max-width: 754px;
+}
+
+.native-chat-thread .aui-thread-root {
+  min-height: 100%;
+  background: transparent;
+}
+
+.native-chat-thread .aui-thread-viewport {
+  background: transparent;
+}
+
+
+.native-chat-thread .aui-thread-viewport-footer {
+  background: linear-gradient(to top, hsl(var(--card-elevated)) 76%, transparent);
+}
+
+.native-chat-thread .aui-composer-root {
+  background: transparent;
+  border: none;
+  padding: 0;
+  box-shadow: none;
+  padding-bottom: max(0.75rem, env(safe-area-inset-bottom));
+}
+
+/* Custom Claude-style composer card */
+.native-chat-thread .chat-composer-root {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  width: 100%;
+  margin: 0 auto;
+  padding: 0.75rem 0.875rem 0.625rem;
+  background: hsl(var(--card));
+  border: 1px solid hsl(var(--border));
+  border-radius: 1.25rem;
+  box-shadow: var(--shadow-card);
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.native-chat-thread .chat-composer-root:focus-within {
+  border-color: hsl(var(--primary) / 0.45);
+  box-shadow:
+    var(--shadow-card),
+    0 0 0 3px hsl(var(--primary) / 0.12);
+}
+
+.native-chat-thread .chat-composer-input {
+  width: 100%;
+  min-height: 2.25rem;
+  max-height: 12rem;
+  padding: 0.25rem 0.25rem 0;
+  background: transparent;
+  border: none;
+  outline: none;
+  resize: none;
+  font-family: inherit;
+  font-size: 14px;
+  line-height: 1.55;
+  color: hsl(var(--foreground));
+}
+
+.native-chat-thread .chat-composer-input::placeholder {
+  color: hsl(var(--muted-foreground));
+  font-style: italic;
+}
+
+.native-chat-thread .chat-composer-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.native-chat-thread .chat-composer-toolbar-left,
+.native-chat-thread .chat-composer-toolbar-right {
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+}
+
+.native-chat-thread .chat-composer-icon-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2rem;
+  height: 2rem;
+  border-radius: 0.625rem;
+  border: 1px solid hsl(var(--border));
+  background: transparent;
+  color: hsl(var(--muted-foreground));
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+}
+
+.native-chat-thread .chat-composer-icon-button:hover {
+  background: hsl(var(--sidebar));
+  color: hsl(var(--foreground));
+  border-color: hsl(var(--input));
+}
+
+.native-chat-thread .chat-composer-icon-button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.native-chat-thread .chat-composer-send {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2rem;
+  height: 2rem;
+  border-radius: 9999px;
+  border: none;
+  background: hsl(var(--warning));
+  color: hsl(var(--warning-foreground));
+  cursor: pointer;
+  transition: opacity 0.15s ease, transform 0.15s ease;
+  box-shadow: var(--shadow-xs);
+}
+
+.native-chat-thread .chat-composer-send:hover {
+  opacity: 0.92;
+}
+
+.native-chat-thread .chat-composer-send:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.native-chat-thread .chat-composer-send-stop {
+  display: inline-block;
+  width: 0.625rem;
+  height: 0.625rem;
+  border-radius: 0.125rem;
+  background: currentColor;
+}
+
+/* ===== Ask user question card (neo-editorial) ===== */
+
+.native-chat-thread .ask-user-card {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  padding: 1.25rem 1.25rem 1rem;
+  margin: 0.75rem 0;
+  background: hsl(var(--card-elevated));
+  border: 1px solid hsl(var(--border));
+  border-radius: 1rem;
+  box-shadow: var(--shadow-card);
+}
+
+.native-chat-thread .ask-user-card-answered {
+  background: hsl(var(--card));
+  box-shadow: var(--shadow-2xs);
+}
+
+.native-chat-thread .ask-user-card-skeleton {
+  flex-direction: row;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.625rem 0.875rem;
+  font-family: var(--font-sans);
+  font-size: 12px;
+  color: hsl(var(--muted-foreground));
+  font-style: italic;
+}
+
+.native-chat-thread .ask-user-card-error {
+  padding: 0.75rem 1rem;
+  font-family: var(--font-sans);
+  font-size: 13px;
+  color: hsl(var(--destructive));
+  background: hsl(var(--destructive-soft));
+  border-color: hsl(var(--destructive) / 0.4);
+}
+
+/* Tool fallback error card — fires when no makeAssistantToolUI matches the
+   incoming toolName. In this app that is always a bug, so the card surfaces
+   the conversation id and a UTC timestamp the user can paste into a report. */
+.native-chat-thread .tool-fallback-error {
+  display: flex;
+  flex-direction: column;
+  gap: 0.625rem;
+  padding: 0.875rem 1rem;
+  margin: 0.75rem 0;
+  background: hsl(var(--destructive-soft));
+  border: 1px solid hsl(var(--destructive) / 0.4);
+  border-radius: 0.625rem;
+  box-shadow: var(--shadow-2xs);
+}
+
+.native-chat-thread .tool-fallback-error-header {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  color: hsl(var(--destructive));
+}
+
+.native-chat-thread .tool-fallback-error-title {
+  font-family: var(--font-sans);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.25em;
+  text-transform: uppercase;
+}
+
+.native-chat-thread .tool-fallback-error-message {
+  margin: 0;
+  font-family: var(--font-sans);
+  font-size: 13px;
+  line-height: 1.5;
+  color: hsl(var(--foreground));
+}
+
+.native-chat-thread .tool-fallback-error-meta {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 0.25rem 0.625rem;
+  margin: 0;
+  font-family: var(--font-sans);
+  font-size: 12px;
+  color: hsl(var(--muted-foreground));
+}
+
+.native-chat-thread .tool-fallback-error-meta > div {
+  display: contents;
+}
+
+.native-chat-thread .tool-fallback-error-meta dt {
+  text-transform: uppercase;
+  letter-spacing: 0.18em;
+  font-size: 10px;
+  font-weight: 600;
+  align-self: center;
+}
+
+.native-chat-thread .tool-fallback-error-meta dd {
+  margin: 0;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: hsl(var(--foreground));
+  word-break: break-all;
+}
+
+/* Superseded — student moved past this question via the composer. Frozen,
+   greyed, non-interactive. Stays in history as context for the agent. */
+.native-chat-thread .ask-user-card-superseded {
+  opacity: 0.6;
+  background: hsl(var(--card));
+  box-shadow: var(--shadow-2xs);
+  pointer-events: none;
+  user-select: none;
+}
+
+.native-chat-thread .ask-user-superseded-label {
+  font-family: var(--font-sans);
+  font-size: 10px;
+  letter-spacing: 0.35em;
+  text-transform: uppercase;
+  font-weight: 600;
+  color: hsl(var(--muted-foreground));
+}
+
+.native-chat-thread .ask-user-option-disabled {
+  cursor: default;
+  background: hsl(var(--card));
+  border-color: hsl(var(--border));
+  color: hsl(var(--muted-foreground));
+  box-shadow: none;
+}
+
+.native-chat-thread .ask-user-question {
+  display: flex;
+  flex-direction: column;
+  gap: 0.625rem;
+}
+
+.native-chat-thread .ask-user-question-label {
+  font-family: var(--font-sans);
+  font-size: 10px;
+  letter-spacing: 0.35em;
+  text-transform: uppercase;
+  font-weight: 600;
+  color: hsl(var(--muted-foreground));
+}
+
+.native-chat-thread .ask-user-question-prompt {
+  margin: 0;
+  font-family: var(--font-serif);
+  font-size: 15px;
+  line-height: 1.55;
+  color: hsl(var(--foreground));
+}
+
+.native-chat-thread .ask-user-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.native-chat-thread .ask-user-option {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  padding: 0.4rem 0.875rem;
+  background: hsl(var(--card));
+  border: 1px solid hsl(var(--border));
+  border-radius: 9999px;
+  font-family: var(--font-sans);
+  font-size: 13px;
+  line-height: 1.3;
+  color: hsl(var(--foreground));
+  cursor: pointer;
+  transition: background 0.12s ease, border-color 0.12s ease, box-shadow 0.12s ease;
+  box-shadow: var(--shadow-2xs);
+}
+
+.native-chat-thread .ask-user-option:hover {
+  background: hsl(var(--sidebar));
+  border-color: hsl(var(--input));
+}
+
+.native-chat-thread .ask-user-option-selected,
+.native-chat-thread .ask-user-option-selected:hover {
+  background: hsl(var(--warning) / 0.12);
+  border-color: hsl(var(--warning) / 0.55);
+  color: hsl(var(--foreground));
+  box-shadow: var(--shadow-xs);
+}
+
+.native-chat-thread .ask-user-option-check {
+  color: hsl(var(--warning));
+}
+
+.native-chat-thread .ask-user-free-text {
+  width: 100%;
+  padding: 0.625rem 0.75rem;
+  background: hsl(var(--card));
+  border: 1px solid hsl(var(--border));
+  border-radius: 0.625rem;
+  font-family: var(--font-sans);
+  font-size: 13px;
+  line-height: 1.5;
+  color: hsl(var(--foreground));
+  resize: vertical;
+  outline: none;
+  transition: border-color 0.12s ease, box-shadow 0.12s ease;
+}
+
+.native-chat-thread .ask-user-free-text::placeholder {
+  color: hsl(var(--muted-foreground));
+  font-style: italic;
+}
+
+.native-chat-thread .ask-user-free-text:focus {
+  border-color: hsl(var(--warning) / 0.55);
+  box-shadow: 0 0 0 3px hsl(var(--warning) / 0.12);
+}
+
+.native-chat-thread .ask-user-actions {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.native-chat-thread .ask-user-submit {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.4rem 0.875rem;
+  border-radius: 9999px;
+  border: none;
+  background: hsl(var(--warning));
+  color: hsl(var(--warning-foreground));
+  font-family: var(--font-sans);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: opacity 0.12s ease;
+  box-shadow: var(--shadow-xs);
+}
+
+.native-chat-thread .ask-user-submit:hover {
+  opacity: 0.92;
+}
+
+.native-chat-thread .ask-user-submit:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.native-chat-thread .ask-user-answered-row {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.native-chat-thread .ask-user-answered-label {
+  color: hsl(var(--muted-foreground));
+}
+
+.native-chat-thread .ask-user-answered-prompt {
+  margin: 0;
+  font-family: var(--font-serif);
+  font-size: 13px;
+  font-style: italic;
+  color: hsl(var(--muted-foreground));
+}
+
+.native-chat-thread .ask-user-answered-value {
+  margin: 0;
+  font-family: var(--font-serif);
+  font-size: 14px;
+  line-height: 1.5;
+  color: hsl(var(--foreground));
+}
+
+/* ===== End ask user question card ===== */
+
+.native-chat-thread .aui-thread-welcome-suggestions {
+  justify-content: flex-start;
+  padding: 0;
+}
+
+.native-chat-thread .aui-thread-welcome-root .aui-avatar-root {
+  height: 8rem;
+  width: 8rem;
+  border-radius: 9999px;
+  background: transparent;
+}
+
+.native-chat-thread .aui-thread-welcome-root .aui-avatar-image {
+  object-fit: contain;
+}
+
+.native-chat-thread .aui-thread-welcome-message {
+  max-width: 42rem;
+  font-family: var(--font-serif);
+  font-size: 1rem;
+  font-style: italic;
+  line-height: 1.8;
+  color: hsl(var(--muted-foreground));
+}
+
+/* Scrollbars inside the native chat shell */
+.native-chat-shell *,
+.native-chat-thread * {
+  scrollbar-width: thin;
+  scrollbar-color: hsl(var(--border) / 0.6) transparent;
+}
+
+.native-chat-shell *::-webkit-scrollbar,
+.native-chat-thread *::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+.native-chat-shell *::-webkit-scrollbar-track,
+.native-chat-thread *::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.native-chat-shell *::-webkit-scrollbar-thumb,
+.native-chat-thread *::-webkit-scrollbar-thumb {
+  background-color: hsl(var(--border) / 0.55);
+  border-radius: 999px;
+  border: 3px solid transparent;
+  background-clip: content-box;
+  transition: background-color 150ms ease;
+}
+
+/* Darken thumb whenever user is interacting with the scroll container
+   (covers wheel/trackpad scrolling — cursor is over the area)
+   plus direct hover/drag on the thumb itself. */
+.native-chat-shell *:hover::-webkit-scrollbar-thumb,
+.native-chat-thread *:hover::-webkit-scrollbar-thumb,
+.native-chat-shell *::-webkit-scrollbar-thumb:hover,
+.native-chat-thread *::-webkit-scrollbar-thumb:hover,
+.native-chat-shell *::-webkit-scrollbar-thumb:active,
+.native-chat-thread *::-webkit-scrollbar-thumb:active {
+  background-color: hsl(var(--muted-foreground) / 0.55);
+}
+
+.native-chat-shell *:hover,
+.native-chat-thread *:hover {
+  scrollbar-color: hsl(var(--muted-foreground) / 0.55) transparent;
+}
+
+.native-chat-shell *::-webkit-scrollbar-corner,
+.native-chat-thread *::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
+.native-chat-thread .aui-assistant-message-content,
+.native-chat-thread .aui-user-message-content {
+  gap: 0.75rem;
+}
+
+.native-chat-thread .aui-thread-welcome-suggestions button {
+  border-radius: 999px;
+  border: 1px solid hsl(var(--border));
+  background: hsl(var(--card));
+  box-shadow: var(--shadow-card);
+  color: hsl(var(--foreground));
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.22em;
+  padding: 0.65rem 1rem;
+  text-transform: uppercase;
+  transition: background-color 180ms ease, transform 180ms ease;
+}
+
+.native-chat-thread .aui-thread-welcome-suggestions button:hover {
+  background: hsl(var(--card-elevated));
+  transform: translateY(-1px);
+}
+
+.native-chat-shell::before {
+  content: '';
+  inset: 0;
+  pointer-events: none;
+  position: fixed;
+  background:
+    radial-gradient(circle at top left, rgba(59, 110, 143, 0.09), transparent 24%),
+    radial-gradient(circle at top right, rgba(149, 58, 52, 0.08), transparent 22%);
+  z-index: 0;
+}
+
+/* ===== End Native Chat Home ===== */
 
 /* Reduced motion support for Learning Stream */
 @media (prefers-reduced-motion: reduce) {

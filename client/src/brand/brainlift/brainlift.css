@@ -1,0 +1,186 @@
+/* Brainlift Central-specific CSS module.
+ *
+ * Imported only from `client/src/brand/brainlift/index.ts` so Vite tree-
+ * shakes the entire block out of the inactive (AlphaX) brand bundle. The
+ * shared chrome (`brand-nameplate-*`) stays in the global `index.css`.
+ *
+ * Treatment: single-piece serif wordmark in Libre Baskerville (matching the
+ * landing-page hero/nav). Brain mark renders transparent with a multiply
+ * blend and an inside-out radial halo -- bright centre inside the brain,
+ * softening outward into a low-opacity outer glow.
+ */
+
+/* ===== Wordmark -- single-piece serif ===== */
+
+.brainlift-wordmark {
+  font-family: var(--font-serif);
+  font-weight: 400;
+  letter-spacing: -0.005em;
+  color: hsl(var(--foreground));
+  white-space: nowrap;
+  margin: 0;
+}
+
+.brainlift-wordmark-hero {
+  display: block;
+  font-size: clamp(44px, 5.6vw, 64px);
+  line-height: 1.08;
+  font-weight: 400;
+  text-align: center;
+}
+
+.brainlift-wordmark-mobile {
+  display: block;
+  margin: 0 0 1.4rem;
+  font-size: 26px;
+  line-height: 1.1;
+  text-align: center;
+  font-weight: 700;
+}
+
+.brainlift-wordmark-compact {
+  display: inline-block;
+  font-size: 18px;
+  line-height: 1;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+
+/* ===== Avatar -- circular frame + glow halo (mirrors AlphaX treatment) ===== */
+
+/* Login variant -- 4.5rem circle that overlaps the top of the login card,
+   matching AlphaX positioning byte-for-byte. */
+.brainlift-avatar-login {
+  position: relative;
+  width: 4.5rem;
+  height: 4.5rem;
+  margin: -3.6rem auto 1.5rem;
+}
+
+/* Sidebar variant -- compact circle for the sidebar nameplate. */
+.brainlift-avatar-sidebar {
+  display: inline-flex;
+  height: 3rem;
+  width: 3rem;
+}
+
+.brand-nameplate--compact .brainlift-avatar-sidebar {
+  height: 2.25rem;
+  width: 2.25rem;
+}
+
+/* Glow halo behind the circular frame. Warm gold-tinted radial that picks
+   up the BC mark's tone, fading through parchment into a soft outer halo. */
+.brainlift-avatar-glow {
+  position: absolute;
+  inset: -6px;
+  border-radius: 9999px;
+  background: radial-gradient(
+    closest-side,
+    hsl(38 70% 56% / 0.32),
+    hsl(34 60% 64% / 0.18) 55%,
+    transparent 78%
+  );
+  filter: blur(7px);
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* Sidebar variant tightens the glow inset so it tracks the smaller frame. */
+.brainlift-avatar-sidebar .brainlift-avatar-glow {
+  inset: -4px;
+  filter: blur(5px);
+  opacity: 0.6;
+  transition: opacity 260ms ease, filter 260ms ease;
+}
+
+.brand-nameplate-button:hover .brainlift-avatar-glow {
+  opacity: 0.95;
+  filter: blur(6px);
+}
+
+/* Circular frame -- white card surface with a double-ring border that
+   reads as a printed plate. Image is clipped to the circle. */
+.brainlift-avatar-frame {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  border-radius: 9999px;
+  background: hsl(var(--card));
+  box-shadow:
+    0 0 0 1px hsl(var(--border) / 0.65),
+    0 0 0 5px hsl(var(--card)),
+    0 0 0 6px hsl(var(--border) / 0.35);
+  overflow: hidden;
+}
+
+.brainlift-avatar-sidebar .brainlift-avatar-frame {
+  background: transparent;
+  box-shadow: none;
+}
+
+/* ===== Login illustration -- frameless brain with inside-out glow ===== */
+
+.brainlift-login-plate {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0 0 1.6rem;
+  width: clamp(240px, 32vh, 360px);
+  aspect-ratio: 1 / 1;
+}
+
+.brainlift-login-plate-glow {
+  position: absolute;
+  inset: -8%;
+  border-radius: 9999px;
+  /* Inside-out: a hot inner core that sits *inside* the brain silhouette,
+     fading through warm parchment tones into a barely-there outer halo. */
+  background: radial-gradient(
+    closest-side,
+    hsl(42 90% 84% / 0.7) 0%,
+    hsl(38 78% 72% / 0.42) 24%,
+    hsl(32 60% 60% / 0.22) 52%,
+    hsl(26 45% 48% / 0.08) 76%,
+    transparent 92%
+  );
+  filter: blur(14px);
+  pointer-events: none;
+  z-index: 0;
+}
+
+.brainlift-login-plate-image {
+  position: relative;
+  z-index: 1;
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  mix-blend-mode: multiply;
+  filter: drop-shadow(0 8px 28px hsl(26 40% 18% / 0.22));
+  user-select: none;
+}
+
+/* ===== Hero tagline override =====
+   Global `.login-hero-tagline` is italic (AlphaX backcompat). For brainlift,
+   the lead reads regular weight (matches the landing-page hero) and the
+   italic stays on the `taglineEmphasis` tail. Sibling-scoped so AlphaX is
+   untouched. */
+.brainlift-wordmark-hero ~ .login-hero-tagline {
+  font-style: normal;
+  font-size: clamp(17px, 1.4vw, 20px);
+  line-height: 1.65;
+  color: hsl(var(--foreground));
+  margin-top: 1.4rem;
+  max-width: 32rem;
+}
+
+.brainlift-wordmark-hero ~ .login-hero-tagline .login-hero-tagline-emphasis {
+  font-style: italic;
+  color: hsl(var(--muted-foreground));
+}

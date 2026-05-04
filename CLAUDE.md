@@ -213,11 +213,11 @@ Deploying code that expects schema changes before the DB has them = broken prod.
 - Migrations dir: `migrations/`
 
 **Neon staging config:**
-- Branch: `staging` (ID: `br-misty-tooth-af0usm43`)
+- Branch: `staging` (ID: `br-shiny-bar-afaonda6`)
 - Database: `neondb`
 - Apply migrations to staging with:
   ```
-  mcp__Neon__run_sql(projectId: "restless-pine-13558418", branchId: "br-misty-tooth-af0usm43", databaseName: "neondb", sql: "<migration SQL>")
+  mcp__Neon__run_sql(projectId: "restless-pine-13558418", branchId: "br-shiny-bar-afaonda6", databaseName: "neondb", sql: "<migration SQL>")
   ```
 - **Apply to staging before merging to staging branch.** Apply to prod (main branch) before merging to main.
 
