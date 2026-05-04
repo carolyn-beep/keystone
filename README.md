@@ -796,6 +796,76 @@ Neo-editorial aesthetic with warm parchment surfaces, earth-tone ink colors, ser
 
 ---
 
+## Dual-Brand Deployment
+
+The same codebase ships as two distinct products on two domains, off one Neon database:
+
+| Brand | Domain | Audience | Posture |
+|-------|--------|----------|---------|
+| **AlphaX Buddy** | existing AlphaX deploy | high-school students in the AlphaX program | pedagogical gatekeeping, refuses to draft substantive content, pulls passive students back in |
+| **Brainlift Central** | `brainliftcentral.com` | adult researchers, analysts, professionals | permissive peer-researcher posture, drafting and analysis are fair game, engagement enforced downstream by the grader |
+
+One env var picks the brand at build time on the client (`VITE_BRAND`) and at boot on the server (`BRAND`). Two Render services share `DATABASE_URL` and the Google OAuth client; cookie scopes per domain mean separate sign-ins on each.
+
+### Brand Module
+
+```
+client/src/brand/
+  index.ts                 selector, throws on missing/unknown VITE_BRAND
+  types.ts                 BrandConfig + component prop types
+  alphax/                  AlphaX wordmark, avatar, login illustration, CSS, assets
+  brainlift/               Brainlift Central wordmark, avatar, login illustration, CSS, assets
+
+server/brand/
+  index.ts                 server selector, throws on missing/unknown BRAND
+  alphax.ts                buildAlphaXSystemPrompt + buildAlphaXBrainliftHeuristics
+  brainlift.ts             buildBrainliftSystemPrompt + buildBrainliftBrainliftHeuristics
+  shared/prompt-helpers.ts shared prose blocks (Tone helpers, Tools Protocol, formatters)
+```
+
+The `@/brand` Vite alias resolves directly to the active brand barrel at config time. The inactive barrel is never reachable, so its CSS, assets, and JSX are tree-shaken out of the build. Static imports + literal alias = zero runtime brand dispatch on the client.
+
+### Frontend
+
+Each brand exposes the same surface (`config`, `Wordmark`, `Avatar`, `LoginIllustration`, `chatAvatar`, plus a side-effect CSS import). Consumers (`Login.tsx`, `AppSidebar.tsx`, `ChatComposer.tsx`, `native-chat-thread-config.tsx`) read from `@/brand` and never know which brand they are rendering. CSS classes use parallel namespaces (`alphax-*`, `brainlift-*`) plus a small set of brand-neutral chrome classes (`brand-nameplate-*`).
+
+Brand-specific CSS lives in `client/src/brand/{brand}/{brand}.css`, imported as a side-effect from the brand barrel. The global `client/src/index.css` only carries shared tokens, brand-neutral chrome, and shared component overrides. The favicon is swapped at runtime on barrel load by setting `<link rel='icon'>.href`.
+
+### Backend Prompts
+
+Two prompt builders, not one templated builder. `buildAlphaXSystemPrompt` is byte-identical to the original AlphaX prompt; `buildBrainliftSystemPrompt` is a permissive peer-researcher prompt with a `MAIN OPERATIONAL POSTURE`, a `PROACTIVE RESEARCH OFFER` section that mandates one brainlift-grounded `web_search_exa` suggestion per session, and a Brainlift Central variant of the operating-protocols block (no AlphaX language, no "student"). Shared transferable blocks (Tone helpers, Tools Protocol, formatters) live in `server/brand/shared/prompt-helpers.ts`. The dispatcher at `server/ai/chat/system-prompt.ts` reads `BRAND` once at boot and delegates to the matching builder.
+
+The brand-aware chat opener (`client/src/chat/chat-opener.ts`) emits the `[OPENER]` priming message; the body comes from `brand.config.chatOpenerInstruction`, which for Brainlift Central directs the agent to land the proactive `web_search_exa` offer in the opener itself.
+
+### Build-Step Bundle Grep
+
+`script/check-brand-bundle.ts` runs after each Vite build and walks `dist/public`, throwing on the first occurrence of any inactive-brand token. Forbidden tokens per brand:
+
+| Build | Forbidden tokens |
+|-------|------------------|
+| `BRAND=alphax` | `Brainlift Central`, `brain-hero`, `brainlift-nameplate`, `brainlift-wordmark`, `brainlift-avatar`, `brainlift-login-plate` |
+| `BRAND=brainlift` | `AlphaX`, `Alpha X Buddy`, `alpha-buddy`, `owl-counsel`, `alphax-nameplate`, `alphax-wordmark`, `Builds at night`, `Plate I.` |
+
+This is the post-build proof that tree-shaking eliminated the inactive subtree.
+
+### Building Each Brand
+
+```bash
+# AlphaX Buddy (existing deploy)
+BRAND=alphax VITE_BRAND=alphax VITE_BRAND_NAME="AlphaX Buddy" npm run build
+
+# Brainlift Central
+BRAND=brainlift VITE_BRAND=brainlift VITE_BRAND_NAME="Brainlift Central" npm run build
+```
+
+Both builds emit clean bundle-grep results and produce the same application code with different brand surfaces.
+
+### Render Blueprint
+
+`render.yaml` declares both services with shared infra (region, plan, runtime, health-check path, build/start commands) and brand-specific env vars. The Brainlift Central service binds the `brainliftcentral.com` and `www.brainliftcentral.com` custom domains. `DATABASE_URL` and `OPENROUTER_API_KEY` use `sync: false` so each service holds the same secret values without Blueprint coupling. See `features/branding/dual-brand-deployment/specs/04-second-deploy/CUTOVER.md` for the operator checklist (env var ordering, OAuth callback URLs, DNS, smoke tests).
+
+---
+
 ## Development
 
 ```bash
@@ -827,3 +897,6 @@ docker exec -i wizardly_kalam psql -U postgres -d dok1grader_local < migrations/
 | `JINA_API_KEY` | Jina Reader API (article content extraction) |
 | `SWARM_AGENT_COUNT` | Research agents per swarm (default: 5) |
 | `WORKER_CONCURRENCY` | Background job concurrency (default: 3) |
+| `BRAND` | Server brand selector. `alphax` or `brainlift`. Throws at boot if missing or unknown. |
+| `VITE_BRAND` | Client brand selector. `alphax` or `brainlift`. Read at Vite config time to alias `@/brand`. Must match `BRAND`. |
+| `VITE_BRAND_NAME` | Display name shown in the browser tab and HTML meta description (e.g. `AlphaX Buddy` or `Brainlift Central`). |
