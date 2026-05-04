@@ -30,7 +30,14 @@ vi.mock('../../storage', () => ({
 }));
 
 vi.mock('../../ai/evidenceFetcher', () => ({
-  fetchEvidenceForFact: vi.fn().mockResolvedValue({ content: 'evidence', error: null }),
+  fetchEvidenceForFact: vi.fn().mockResolvedValue({
+    url: null,
+    content: 'evidence',
+    error: null,
+    fetchedAt: new Date('2026-05-04T00:00:00.000Z'),
+    mode: 'direct_source',
+    originalSourceUrl: null,
+  }),
 }));
 
 vi.mock('../../ai/factVerifier', () => ({
@@ -128,11 +135,17 @@ describe('dok1RegradeJob', () => {
     expect(verifyFactWithAllModels).toHaveBeenCalledWith(
       'New text',
       'Source',
-      expect.any(String),
-      expect.any(Boolean),
+      expect.objectContaining({
+        content: 'evidence',
+        mode: 'direct_source',
+      }),
+      false,
       testPrevEval,
     );
-    expect(recomputeBrainliftScore).toHaveBeenCalledWith(10);
+    expect(recomputeBrainliftScore).toHaveBeenCalledWith(
+      10,
+      expect.objectContaining({ dokLevel: 1, itemId: 1 }),
+    );
   });
 
   it('exits gracefully when fact is missing (deleted between queue and execution)', async () => {
@@ -178,7 +191,10 @@ describe('dok2RegradeJob', () => {
       undefined,
       testPrevEval,
     );
-    expect(recomputeBrainliftScore).toHaveBeenCalledWith(10);
+    expect(recomputeBrainliftScore).toHaveBeenCalledWith(
+      10,
+      expect.objectContaining({ dokLevel: 2, itemId: 1 }),
+    );
   });
 
   it('exits gracefully when summary is missing', async () => {

@@ -13,7 +13,7 @@ import { buildImportAgentTools } from '../ai/import-agent/tools';
 import { importLog, importError } from '../ai/import-agent/logger';
 import { createSSEResponse } from '../utils/sse';
 import { summarizeFact } from '../ai/factSummarizer';
-import { fetchEvidenceForFact } from '../ai/evidenceFetcher';
+import { fetchEvidenceForFact, type EvidenceResult } from '../ai/evidenceFetcher';
 import { resolveYouTubeTranscript } from '../utils/resolve-youtube-transcript';
 import { verifyFactWithAllModels } from '../ai/factVerifier';
 import { gradeDOK2Summary } from '../ai/dok2Grader';
@@ -312,11 +312,13 @@ importAgentRouter.post(
               }
             }
 
-            let evidence = {
+            let evidence: EvidenceResult = {
               url: sourceUrl,
               content: null as string | null,
               error: null as string | null,
               fetchedAt: new Date(),
+              mode: 'none',
+              originalSourceUrl: sourceUrl,
             };
             let linkFailed = false;
 
@@ -324,12 +326,7 @@ importAgentRouter.post(
               try {
                 const cachedTranscript = await resolveYouTubeTranscript(sourceUrl, transcriptCache);
                 const evidenceResult = await fetchEvidenceForFact(fact.fact, sourceUrl, failedUrlCache, cachedTranscript);
-                evidence = {
-                  url: evidenceResult.url ?? sourceUrl,
-                  content: evidenceResult.content || null,
-                  error: evidenceResult.error || null,
-                  fetchedAt: evidenceResult.fetchedAt ? new Date(evidenceResult.fetchedAt) : new Date(),
-                };
+                evidence = evidenceResult;
                 if (!evidence.content) linkFailed = true;
               } catch {
                 evidence = {
@@ -337,6 +334,8 @@ importAgentRouter.post(
                   content: null,
                   error: 'Evidence fetch failed',
                   fetchedAt: new Date(),
+                  mode: 'none',
+                  originalSourceUrl: sourceUrl,
                 };
                 linkFailed = true;
               }
@@ -345,7 +344,7 @@ importAgentRouter.post(
             const verification = await verifyFactWithAllModels(
               fact.fact,
               fact.source || '',
-              evidence.content || '',
+              evidence,
               linkFailed
             );
 

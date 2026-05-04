@@ -2,7 +2,7 @@ import { storage } from "../storage";
 import { generateUniqueSlug } from "../utils/slug";
 import { summarizeFact } from "../ai/factSummarizer";
 import { verifyFactWithAllModels } from "../ai/factVerifier";
-import { fetchEvidenceForFact } from "../ai/evidenceFetcher";
+import { fetchEvidenceForFact, type EvidenceResult } from "../ai/evidenceFetcher";
 import { resolveYouTubeTranscript } from "../utils/resolve-youtube-transcript";
 import { extractAndRankExperts, diagnoseExpertFormat } from "../ai/experts";
 import { analyzeFactRedundancy } from "../ai/redundancyAnalyzer";
@@ -230,11 +230,13 @@ export async function saveBrainliftFromAI(
           const summary = await summarizeFact(fact.fact);
 
           // Auto-grading logic
-          let evidence = {
+          let evidence: EvidenceResult = {
             url: fact.source || null,
             content: null as string | null,
             error: null as string | null,
             fetchedAt: new Date(),
+            mode: 'none',
+            originalSourceUrl: fact.source || null,
           };
 
           // If source exists, fetch evidence
@@ -247,12 +249,7 @@ export async function saveBrainliftFromAI(
               try {
                 const cachedTranscript = await resolveYouTubeTranscript(sourceUrl, transcriptCache);
                 const evidenceResult = await fetchEvidenceForFact(fact.fact, sourceUrl, failedUrlCache, cachedTranscript);
-                evidence = {
-                  url: evidenceResult.url ?? sourceUrl,
-                  content: evidenceResult.content || null,
-                  error: evidenceResult.error || null,
-                  fetchedAt: evidenceResult.fetchedAt ? new Date(evidenceResult.fetchedAt) : new Date(),
-                };
+                evidence = evidenceResult;
                 if (!evidence.content) linkFailed = true;
               } catch {
                 evidence = {
@@ -260,13 +257,15 @@ export async function saveBrainliftFromAI(
                   content: null,
                   error: 'Evidence fetch failed',
                   fetchedAt: new Date(),
+                  mode: 'none',
+                  originalSourceUrl: sourceUrl,
                 };
                 linkFailed = true;
               }
             }
           }
 
-          const verification = await verifyFactWithAllModels(fact.fact, fact.source || "", evidence.content || "", linkFailed);
+          const verification = await verifyFactWithAllModels(fact.fact, fact.source || "", evidence, linkFailed);
           let finalScore = verification.consensus.consensusScore;
           let rationale = verification.consensus.verificationNotes;
           let isGradeable = true;

@@ -7,7 +7,63 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { summarizeCriteria } from '../internal';
+import { formatDOK1AssessmentItem, summarizeCriteria } from '../internal';
+
+describe('formatDOK1AssessmentItem', () => {
+  it('does not expose internal score 0 as a real score for non-gradeable facts', () => {
+    expect(formatDOK1AssessmentItem({
+      id: 26855,
+      fact: 'Unsupported claim',
+      source: 'Source',
+      category: 'Architecture',
+      score: 0,
+      note: 'Non-gradeable from available evidence',
+      isGradeable: false,
+      gradingStatus: 'graded',
+    })).toEqual(expect.objectContaining({
+      score: null,
+      rawScore: 0,
+      isGradeable: false,
+      scoreState: 'non_gradeable',
+    }));
+  });
+
+  it('represents gradeable score-0 facts as pending instead of failed', () => {
+    expect(formatDOK1AssessmentItem({
+      id: 99,
+      fact: 'Pending claim',
+      source: null,
+      category: null,
+      score: 0,
+      note: null,
+      isGradeable: true,
+      gradingStatus: 'grading',
+    })).toEqual(expect.objectContaining({
+      score: null,
+      rawScore: 0,
+      isGradeable: true,
+      scoreState: 'pending',
+    }));
+  });
+
+  it('preserves normal 1-5 scores as scored DOK1 results', () => {
+    expect(formatDOK1AssessmentItem({
+      id: 100,
+      fact: 'Verified claim',
+      source: 'Source',
+      category: 'Architecture',
+      score: 5,
+      note: 'Verified',
+      isGradeable: true,
+      gradingStatus: 'graded',
+    })).toEqual(expect.objectContaining({
+      score: 5,
+      rawScore: 5,
+      isGradeable: true,
+      scoreState: 'scored',
+    }));
+  });
+});
 
 describe('summarizeCriteria', () => {
   describe('DOK4 labeled output', () => {

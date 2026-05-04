@@ -134,6 +134,33 @@ export async function getBrainliftScores(brainliftId: number): Promise<Brainlift
 
 // ── Assessment queries ──
 
+type DOK1AssessmentRow = {
+  id: number;
+  fact: string;
+  source: string | null;
+  category: string | null;
+  score: number;
+  note: string | null;
+  isGradeable: boolean;
+  gradingStatus: string;
+};
+
+export function formatDOK1AssessmentItem(r: DOK1AssessmentRow) {
+  return {
+    id: r.id,
+    fact: r.fact,
+    source: r.source,
+    sourceUrl: null,
+    category: r.category,
+    score: r.isGradeable && r.score > 0 ? r.score : null,
+    rawScore: r.score,
+    isGradeable: r.isGradeable,
+    scoreState: !r.isGradeable ? 'non_gradeable' : r.score > 0 ? 'scored' : 'pending',
+    note: r.note,
+    gradingStatus: r.gradingStatus,
+  };
+}
+
 /**
  * Get paginated DOK1 assessment items.
  */
@@ -175,16 +202,7 @@ export async function getAssessmentDOK1(
     .offset(offset);
 
   return {
-    items: rows.map(r => ({
-      id: r.id,
-      fact: r.fact,
-      source: r.source,
-      sourceUrl: null,
-      category: r.category,
-      score: r.score,
-      note: r.note,
-      gradingStatus: r.gradingStatus,
-    })),
+    items: rows.map(formatDOK1AssessmentItem),
     total: Number(countResult.count),
   };
 }
