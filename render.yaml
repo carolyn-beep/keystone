@@ -1,28 +1,18 @@
-services:
-  - type: web
-    name: dok1grader
-    runtime: node
-    region: oregon
-    plan: free
-    buildCommand: npm install --include=dev && npm run build
-    startCommand: npm run start
-    envVars:
-      - key: NODE_ENV
-        value: production
-      - key: DATABASE_URL
-        sync: false  # Set manually in Render dashboard
-      - key: OPENROUTER_API_KEY
-        sync: false  # Set manually in Render dashboard
-      - key: BRAND
-        value: alphax
-      - key: VITE_BRAND
-        value: alphax
-      - key: VITE_BRAND_NAME
-        value: AlphaX Buddy
-      - key: PORT
-        value: 10000
-    healthCheckPath: /api/brainlifts
+# Two services from one repo, brand selected by env var.
+#
+#   brainlift-central -> serves Brainlift Central. Maps to the existing
+#                        prod service in the Render dashboard (display
+#                        name "DOK1GraderV3", service ID
+#                        srv-d5fu0p4hg0os73e072ng), which was repurposed
+#                        for BC. AlphaX moved to its own service below.
+#
+#   alphax-buddy      -> serves AlphaX Buddy. New service to be created
+#                        on cutover.
+#
+# Custom domains (brainliftcentral.com, alphaxbuddy.com) are attached
+# manually in the Render dashboard — not declared here.
 
+services:
   - type: web
     name: brainlift-central
     runtime: node
@@ -34,9 +24,9 @@ services:
       - key: NODE_ENV
         value: production
       - key: DATABASE_URL
-        sync: false  # Set manually in Render dashboard (same value as dok1grader)
+        sync: false  # Set manually in Render dashboard
       - key: OPENROUTER_API_KEY
-        sync: false  # Set manually in Render dashboard (same value as dok1grader)
+        sync: false  # Set manually in Render dashboard
       - key: BRAND
         value: brainlift
       - key: VITE_BRAND
@@ -46,6 +36,27 @@ services:
       - key: PORT
         value: 10000
     healthCheckPath: /api/brainlifts
-    domains:
-      - brainliftcentral.com
-      - www.brainliftcentral.com
+
+  - type: web
+    name: alphax-buddy
+    runtime: node
+    region: oregon
+    plan: free
+    buildCommand: npm install --include=dev && npm run build
+    startCommand: npm run start
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: DATABASE_URL
+        sync: false  # Set manually in Render dashboard (same value as brainlift-central)
+      - key: OPENROUTER_API_KEY
+        sync: false  # Set manually in Render dashboard (same value as brainlift-central)
+      - key: BRAND
+        value: alphax
+      - key: VITE_BRAND
+        value: alphax
+      - key: VITE_BRAND_NAME
+        value: AlphaX Buddy
+      - key: PORT
+        value: 10000
+    healthCheckPath: /api/brainlifts
