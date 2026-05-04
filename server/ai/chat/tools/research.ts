@@ -1,45 +1,17 @@
 import { tool } from 'ai';
 import { z } from 'zod';
 import { extractContent } from '../../../services/content-extractor';
+import {
+  DEFAULT_SEARCH_RESULT_COUNT,
+  MAX_SEARCH_RESULT_COUNT,
+  normalizeUrl,
+  searchWeb,
+  truncateText,
+} from '../../../services/web-research';
 import { fetchYouTubeTranscript } from '../../../services/youtube-transcript';
 
-const EXA_SEARCH_URL = 'https://api.exa.ai/search';
-const DEFAULT_SEARCH_RESULT_COUNT = 5;
-const MAX_SEARCH_RESULT_COUNT = 10;
 const MAX_FETCH_MARKDOWN_CHARS = 20_000;
 const MAX_TRANSCRIPT_CHARS = 40_000;
-
-type ExaResult = {
-  id?: string;
-  title?: string;
-  url?: string;
-  publishedDate?: string;
-  author?: string;
-  score?: number;
-  text?: string;
-  highlights?: string[];
-};
-
-function requireExaApiKey(): string {
-  const apiKey = process.env.EXA_API_KEY;
-  if (!apiKey) {
-    throw new Error('EXA_API_KEY environment variable is not set');
-  }
-  return apiKey;
-}
-
-function truncateText(value: string, maxChars: number): string {
-  if (value.length <= maxChars) {
-    return value;
-  }
-  return `${value.slice(0, maxChars).trimEnd()}\n\n[truncated to ${maxChars} characters]`;
-}
-
-function normalizeUrl(value: string): string {
-  const trimmed = value.trim();
-  const url = new URL(trimmed);
-  return url.toString();
-}
 
 export function extractYouTubeVideoId(input: string): string | null {
   const trimmed = input.trim();
@@ -107,37 +79,22 @@ export function buildResearchChatTools() {
         'Search the web using Exa. Use this for fresh research, source discovery, experts, articles, papers, videos, and market context. Fetch promising URLs before relying on them.',
       inputSchema: webSearchInputSchema,
       execute: async ({ query, numResults, includeDomains, excludeDomains }) => {
-        const response = await fetch(EXA_SEARCH_URL, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'x-api-key': requireExaApiKey(),
-          },
-          body: JSON.stringify({
-            query,
-            numResults: numResults ?? DEFAULT_SEARCH_RESULT_COUNT,
-            ...(includeDomains?.length ? { includeDomains } : {}),
-            ...(excludeDomains?.length ? { excludeDomains } : {}),
-          }),
-          signal: AbortSignal.timeout(15_000),
+        const results = await searchWeb(query, {
+          numResults: numResults ?? DEFAULT_SEARCH_RESULT_COUNT,
+          includeDomains,
+          excludeDomains,
         });
 
-        if (!response.ok) {
-          const body = await response.text();
-          throw new Error(`Exa search failed (${response.status}): ${body}`);
-        }
-
-        const payload = await response.json() as { results?: ExaResult[] };
         return {
           query,
-          results: (payload.results ?? []).map((result) => ({
+          results: results.map((result) => ({
             id: result.id,
             title: result.title ?? null,
-            url: result.url ?? null,
+            url: result.url,
             publishedDate: result.publishedDate ?? null,
             author: result.author ?? null,
             score: result.score ?? null,
-            text: result.text ? truncateText(result.text, 1_000) : undefined,
+            text: result.text ?? undefined,
             highlights: result.highlights,
           })),
         };

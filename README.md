@@ -183,9 +183,11 @@ Every fact in a BrainLift is verified through a single logical verifier chain ma
 
 Before grading, the system gathers evidence for each fact:
 
-1. **Direct source fetch** — extracts URLs from source citations, fetches the page with a 10-second timeout, strips navigation and boilerplate, and returns up to 8,000 characters of clean text. PDFs are detected and skipped. A shared URL cache prevents re-attempting failed URLs across the batch — important when many facts cite the same source.
+1. **Direct source fetch** — extracts URLs from source citations, fetches the page with a 10-second timeout, strips navigation and boilerplate, and returns clean text. PDFs are detected and skipped. A shared URL cache prevents re-attempting failed URLs across the batch — important when many facts cite the same source.
 
-2. **AI-powered evidence search** — when the direct fetch fails or no URL is present, a language model searches its knowledge base for the cited work. The prompt grounds the search in specific educational research literature (Willingham, Rosenshine, Sweller, Hattie, Hirsch, Christodoulou) so evidence retrieval is domain-aware rather than generic.
+2. **Web-search fallback** — when the direct fetch fails or no URL is present, the system generates a concise search query with `qwen/qwen-plus`, falling back to `google/gemini-2.0-flash-001` if needed. The query is passed to Exa, and the returned pages are fetched as readable source evidence for the verifier. A deterministic query builder remains as the last backup so tests can pin query behavior and make future query-generation swaps straightforward.
+
+Fallback evidence retrieval is intentionally conservative. Known arXiv PDF URLs are normalized to arXiv HTML pages before extraction, and readable sources are rejected when they look like blocker or error pages (`Just a moment...`, captcha/browser-check pages, access denied, not found) or when the extracted text is too short to support grading. Fallback logs include the reason fallback started, the generated query, returned result metadata, skipped-source reasons, readable source metadata, and the verifier score, without dumping page content into logs.
 
 ### Tiered Verifier Chain
 

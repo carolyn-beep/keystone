@@ -2,6 +2,8 @@ import { z } from 'zod';
 import { type VerificationStatus } from '@shared/schema';
 import { callModelWithFallback } from './client/index';
 import { type PreviousEvaluation, formatPreviousEvaluationSection, formatRegradingRules } from '@shared/types/regrading';
+import type { EvidenceResult, WebEvidenceMode } from './evidenceFetcher';
+import type { ReadableWebSource } from '../services/web-research';
 
 const modelGradeSchema = z.object({
   score: z.number().min(1).max(5),
@@ -28,30 +30,36 @@ export interface VerificationResult {
   consensus: ConsensusResult;
 }
 
-const GRADING_SYSTEM_PROMPT = `You are an expert fact-checker. You rigorously evaluate claims against provided evidence, or against your domain knowledge when evidence is unavailable.
+export interface VerificationEvidenceInput {
+  content: string;
+  mode: WebEvidenceMode;
+  originalSourceUrl: string | null;
+  evidenceError: string | null;
+  fallbackSources?: ReadableWebSource[];
+}
+
+type VerificationEvidenceArg = string | VerificationEvidenceInput | EvidenceResult;
+
+const GRADING_SYSTEM_PROMPT = `You are an expert fact-checker. You rigorously evaluate claims against supplied evidence only.
 
 GRADING SCALE (1-5):
-5 = VERIFIED: Claim is well-supported by evidence or established research
-4 = MOSTLY VERIFIED: Claim is largely supported with minor caveats
-3 = PLAUSIBLE: Reasonable claim but evidence is limited or mixed
-2 = QUESTIONABLE: Claim is oversimplified, misleading, or poorly supported
-1 = LIKELY FALSE: Claim contradicts established evidence
+5 = VERIFIED: Claim is well-supported by the supplied evidence
+4 = MOSTLY VERIFIED: Claim is largely supported by the supplied evidence with minor caveats
+3 = PARTIALLY SUPPORTED: Supplied evidence is limited, mixed, or supports only part of the claim
+2 = QUESTIONABLE: Claim is oversimplified, misleading, or poorly supported by the supplied evidence
+1 = LIKELY FALSE: Claim contradicts the supplied evidence
 
 INSTRUCTIONS:
-1. If SOURCE EVIDENCE is provided, use it to verify the claim.
-2. If SOURCE_LINK_FAILED is true OR no evidence available:
-   - Use your knowledge of the relevant domain to evaluate the claim
-   - Reference relevant studies, authorities, or established findings you know about
-   - Be specific: cite sources or experts where possible
-   - Grade based on how well the claim aligns with established knowledge in its domain
-3. Your rationale should be substantive and educational - explain WHY the claim is or isn't supported.
-4. Only set "isNonGradeable": true for highly obscure claims about specific unpublished data that cannot be evaluated.
+1. Use only the supplied evidence in the user message.
+2. Do not add outside facts, references, citations, or assumptions that are not present in the supplied evidence.
+3. If no accessible evidence is supplied, set "isNonGradeable": true.
+4. Your rationale should explain how the supplied evidence supports, weakens, contradicts, or fails to address the claim.
 
 Output Format:
 {
   "score": <1-5>,
-  "rationale": "<Substantive explanation referencing research/evidence>",
-  "isNonGradeable": <boolean - rarely true>
+  "rationale": "<Substantive explanation referencing supplied evidence>",
+  "isNonGradeable": <boolean>
 }`;
 
 const FACT_VERIFICATION_SCHEMA = {
@@ -114,7 +122,7 @@ function parseVerificationResponse(content: string): {
     });
 
     const scoreMatch = cleanContent.match(/"score"\s*:\s*(\d)/);
-    const rationaleMatch = cleanContent.match(/"rationale"\s*:\s*"((?:[^"\\]|\\.)*)"/s);
+    const rationaleMatch = cleanContent.match(/"rationale"\s*:\s*"((?:[^"\\]|\\.)*)"/);
     const nonGradeableMatch = cleanContent.match(/"isNonGradeable"\s*:\s*(true|false)/i);
 
     if (scoreMatch) {
@@ -144,22 +152,52 @@ function parseVerificationResponse(content: string): {
 async function callVerificationModel(
   fact: string,
   source: string,
-  evidence: string,
-  linkFailed: boolean = false,
+  evidence: VerificationEvidenceInput,
   previousEvaluation?: PreviousEvaluation
 ): Promise<ModelGradeResult & { isNonGradeable?: boolean }> {
+  const provenanceInstructions = (() => {
+    if (evidence.mode === 'fallback_search') {
+      const fallbackSourceList = (evidence.fallbackSources ?? [])
+        .map((fallbackSource, index) => `${index + 1}. ${fallbackSource.title ?? 'Untitled source'} - ${fallbackSource.url}`)
+        .join('\n');
+
+      return `EVIDENCE PROVENANCE:
+The original source could not be retrieved${evidence.evidenceError ? ` (${evidence.evidenceError})` : ''}.
+The evidence below comes from alternate accessible web sources found during fallback search.
+In the rationale, state that the original source could not be retrieved and that the assessment is based on alternate accessible web sources.
+${fallbackSourceList ? `\nFallback sources:\n${fallbackSourceList}` : ''}`;
+    }
+
+    if (evidence.mode === 'none') {
+      return `EVIDENCE PROVENANCE:
+No accessible evidence was available${evidence.evidenceError ? ` (${evidence.evidenceError})` : ''}.
+Set "isNonGradeable": true. Do not assign a plausibility score.`;
+    }
+
+    if (evidence.mode === 'cached_transcript') {
+      return `EVIDENCE PROVENANCE:
+Use only the supplied transcript evidence from the submitted source.`;
+    }
+
+    return `EVIDENCE PROVENANCE:
+Use only the supplied submitted source evidence.`;
+  })();
+
   let userPrompt = `CLAIM TO VERIFY:
 "${fact}"
 
 CITED SOURCE:
 ${source || 'No source citation provided'}
 
-SOURCE EVIDENCE:
-${evidence || 'No direct evidence available - use your knowledge of the relevant domain to evaluate this claim'}
+${provenanceInstructions}
 
-SOURCE_LINK_FAILED: ${linkFailed}
+ORIGINAL SOURCE URL:
+${evidence.originalSourceUrl ?? 'Not provided'}
 
-Grade this claim based on available evidence OR your knowledge of the relevant domain. Provide a substantive rationale explaining your assessment.`;
+SUPPLIED EVIDENCE:
+${evidence.content || 'No accessible evidence supplied.'}
+
+Grade this claim using only the supplied evidence. Provide a substantive rationale explaining your assessment.`;
 
   let systemPrompt = GRADING_SYSTEM_PROMPT;
 
@@ -168,7 +206,7 @@ Grade this claim based on available evidence OR your knowledge of the relevant d
     userPrompt += '\n\n' + formatPreviousEvaluationSection(previousEvaluation);
   }
 
-  const mode: 'EVIDENCE' | 'DOMAIN_KNOWLEDGE' = linkFailed || !evidence ? 'DOMAIN_KNOWLEDGE' : 'EVIDENCE';
+  const mode = evidence.mode;
   const sourcePreview = source.length > 100 ? `${source.slice(0, 100)}...` : source;
   const factPreview = fact.length > 100 ? `${fact.slice(0, 100)}...` : fact;
 
@@ -188,11 +226,8 @@ Grade this claim based on available evidence OR your knowledge of the relevant d
 
     const parsed = parseVerificationResponse(result.content);
 
-    const modeExtras = mode === 'EVIDENCE'
-      ? ` evidenceChars=${evidence.length}`
-      : (linkFailed ? ' linkFailed=true' : '');
     const scoreStr = parsed.isNonGradeable ? 'NG' : String(parsed.score);
-    console.log(`[FactVerifier] mode=${mode} score=${scoreStr} model=${result.model}${modeExtras} source="${sourcePreview}" fact="${factPreview}"`);
+    console.log(`[FactVerifier] mode=${mode} score=${scoreStr} model=${result.model} evidenceChars=${evidence.content.length} source="${sourcePreview}" fact="${factPreview}"`);
 
     return {
       model: result.model,
@@ -217,6 +252,43 @@ Grade this claim based on available evidence OR your knowledge of the relevant d
 }
 
 type ModelWeights = Record<string, number>;
+
+function normalizeEvidenceInput(
+  evidence: VerificationEvidenceArg,
+  linkFailed: boolean
+): VerificationEvidenceInput {
+  if (typeof evidence === 'string') {
+    const content = evidence || '';
+    return {
+      content,
+      mode: content && !linkFailed ? 'direct_source' : 'none',
+      originalSourceUrl: null,
+      evidenceError: linkFailed ? 'Source evidence unavailable' : null,
+    };
+  }
+
+  const fallbackSources = (evidence as VerificationEvidenceInput).fallbackSources
+    ?? (evidence as EvidenceResult).fallbackSearch?.sources;
+
+  const normalized: VerificationEvidenceInput = {
+    content: evidence.content ?? '',
+    mode: evidence.mode ?? ((evidence.content && !linkFailed) ? 'direct_source' : 'none'),
+    originalSourceUrl: evidence.originalSourceUrl ?? null,
+    evidenceError: 'evidenceError' in evidence ? evidence.evidenceError : (evidence.error ?? null),
+    fallbackSources,
+  };
+
+  if (normalized.mode === 'fallback_search' && (!normalized.fallbackSources || normalized.fallbackSources.length === 0)) {
+    return {
+      ...normalized,
+      content: '',
+      mode: 'none',
+      evidenceError: normalized.evidenceError ?? 'Fallback search evidence missing readable sources',
+    };
+  }
+
+  return normalized;
+}
 
 function calculateWeightedMedian(scores: number[], weights: number[]): number {
   if (scores.length === 0) return 0;
@@ -273,15 +345,23 @@ export function calculateConsensus(
 export async function verifyFactWithAllModels(
   fact: string,
   source: string,
-  evidence: string,
+  evidence: VerificationEvidenceArg,
   linkFailed: boolean = false,
   previousEvaluation?: PreviousEvaluation,
   modelWeights?: ModelWeights
 ): Promise<VerificationResult & { consensus: ConsensusResult & { isNonGradeable?: boolean } }> {
-  const result = await callVerificationModel(fact, source, evidence, linkFailed, previousEvaluation);
+  const evidenceInput = normalizeEvidenceInput(evidence, linkFailed);
+  const result = await callVerificationModel(fact, source, evidenceInput, previousEvaluation);
 
   const modelResults = [result];
   const consensus = calculateConsensus(modelResults, modelWeights);
+
+  if (evidenceInput.mode === 'fallback_search') {
+    const fallbackSourceCount = evidenceInput.fallbackSources?.length ?? 0;
+    console.log(
+      `[FactVerifier] FALLBACK_SEARCH_SCORE score=${consensus.isNonGradeable ? 'NG' : consensus.consensusScore} confidence=${consensus.confidenceLevel} needsReview=${consensus.needsReview} fallbackSources=${fallbackSourceCount}`
+    );
+  }
 
   return { modelResults, consensus };
 }

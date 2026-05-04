@@ -202,9 +202,11 @@ export function FactRow({
 
   const hasContradiction = fact.contradicts !== null && fact.contradicts !== '';
   const scoreChip = getScoreChipColors(fact.score);
-  const isGradeable = fact.score > 0;
+  const isGradeable = fact.isGradeable !== false;
+  const hasScore = isGradeable && fact.score > 0;
   const scoreLabel = !isGradeable
-    ? 'N/A'
+    ? 'Non-gradeable'
+    : fact.score === 0 ? 'Pending'
     : fact.score === 5 ? 'Verified'
     : fact.score === 4 ? 'Strong'
     : fact.score === 3 ? 'Partial'
@@ -338,16 +340,16 @@ export function FactRow({
                 className="flex items-center justify-center w-12 h-12 rounded-full font-serif text-[24px] font-normal"
                 style={{
                   backgroundColor: 'transparent',
-                  color: isGradeable ? scoreChip.text : tokens.textMuted,
+                  color: hasScore ? scoreChip.text : tokens.textMuted,
                   border: `1px solid ${tokens.border}`,
                 }}
               >
-                {isGradeable ? fact.score : '—'}
+                {hasScore ? fact.score : '—'}
               </div>
               <span
                 className="text-[8px]  uppercase tracking-[0.25em]"
                 style={{
-                  color: isGradeable ? scoreChip.text : tokens.textMuted,
+                  color: hasScore ? scoreChip.text : tokens.textMuted,
                 }}
               >{scoreLabel}</span>
             </div>
