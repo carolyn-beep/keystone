@@ -130,7 +130,7 @@ export function buildChatGradingTools(userId: string): ToolSet {
     }),
 
     get_brainlift_assessment: tool({
-      description: 'Read grading progress or paginated assessment results for a Brainlift.',
+      description: 'Read grading progress or paginated assessment results for a Brainlift. For DOK1, score is 1-5 when scoreState="scored"; scoreState="non_gradeable" means the fact could not be graded from available evidence and should not be treated as a zero score or automatically rewritten for score improvement.',
       inputSchema: getBrainliftAssessmentInputSchema,
       execute: async ({ statusOnly, ...options }) => {
         if (statusOnly) {
