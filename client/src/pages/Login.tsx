@@ -119,48 +119,52 @@ export default function Login() {
               Continue with Google
             </Button>
 
-            <div className="login-dev-divider">
-              <span className="login-dev-divider-rule" />
-              <button
-                type="button"
-                onClick={() => setDevOpen((v) => !v)}
-                className="login-dev-toggle"
-                aria-expanded={devOpen}
-              >
-                {devOpen ? "Hide dev login" : "Dev quick login"}
-              </button>
-              <span className="login-dev-divider-rule" />
-            </div>
+            {process.env.NODE_ENV !== 'production' && (
+              <>
+                <div className="login-dev-divider">
+                  <span className="login-dev-divider-rule" />
+                  <button
+                    type="button"
+                    onClick={() => setDevOpen((v) => !v)}
+                    className="login-dev-toggle"
+                    aria-expanded={devOpen}
+                  >
+                    {devOpen ? "Hide dev login" : "Dev quick login"}
+                  </button>
+                  <span className="login-dev-divider-rule" />
+                </div>
 
-            {devOpen ? (
-              <div className="login-dev-fields">
-                <input
-                  type="email"
-                  placeholder="email (creates if missing)"
-                  value={devEmail}
-                  onChange={(e) => setDevEmail(e.target.value)}
-                  className="login-dev-input"
-                />
-                <input
-                  type="password"
-                  placeholder="password"
-                  value={devPassword}
-                  onChange={(e) => setDevPassword(e.target.value)}
-                  className="login-dev-input"
-                />
-                {devError ? (
-                  <p className="text-xs text-destructive">{devError}</p>
+                {devOpen ? (
+                  <div className="login-dev-fields">
+                    <input
+                      type="email"
+                      placeholder="email (creates if missing)"
+                      value={devEmail}
+                      onChange={(e) => setDevEmail(e.target.value)}
+                      className="login-dev-input"
+                    />
+                    <input
+                      type="password"
+                      placeholder="password"
+                      value={devPassword}
+                      onChange={(e) => setDevPassword(e.target.value)}
+                      className="login-dev-input"
+                    />
+                    {devError ? (
+                      <p className="text-xs text-destructive">{devError}</p>
+                    ) : null}
+                    <Button
+                      onClick={handleDevLogin}
+                      disabled={devLoading || !devEmail || devPassword.length < 8}
+                      className="w-full"
+                      variant="secondary"
+                    >
+                      {devLoading ? "Signing in..." : "Sign in / sign up"}
+                    </Button>
+                  </div>
                 ) : null}
-                <Button
-                  onClick={handleDevLogin}
-                  disabled={devLoading || !devEmail || devPassword.length < 8}
-                  className="w-full"
-                  variant="secondary"
-                >
-                  {devLoading ? "Signing in..." : "Sign in / sign up"}
-                </Button>
-              </div>
-            ) : null}
+              </>
+            )}
           </div>
 
           <p className="login-card-fineprint">
