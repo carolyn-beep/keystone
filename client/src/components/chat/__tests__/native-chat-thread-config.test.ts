@@ -1,3 +1,4 @@
+import fs from 'node:fs';
 import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
@@ -6,6 +7,25 @@ import {
   buildNativeChatThreadConfig,
   nativeChatToolUIs,
 } from '../native-chat-thread-config';
+
+const source = fs.readFileSync(
+  new URL('../native-chat-thread-config.tsx', import.meta.url),
+  'utf8',
+);
+
+describe('FR4 native-chat-thread-config brand consumption', () => {
+  it('imports brand from @/brand', () => {
+    expect(source).toMatch(/from\s+['"]@\/brand['"]/);
+  });
+
+  it('does NOT import the alpha-buddy asset directly', () => {
+    expect(source).not.toMatch(/@\/assets\/chat\/alpha-buddy/);
+  });
+
+  it('assistantAvatar is sourced from brand.chatAvatar', () => {
+    expect(source).toMatch(/assistantAvatar:\s*brand\.chatAvatar/);
+  });
+});
 
 describe('native chat thread config', () => {
   it('registers named tool cards and a generic fallback', () => {
