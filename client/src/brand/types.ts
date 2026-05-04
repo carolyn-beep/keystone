@@ -32,6 +32,13 @@ export interface BrandConfig {
   productName: string;
   /** Hero-column tagline under the wordmark. */
   tagline: string;
+  /**
+   * Optional italicised tail rendered after `tagline`. When present the hero
+   * tagline reads "{tagline} {italic taglineEmphasis}" with a soft line break
+   * between them on hero variants. Kept optional so brands without a split
+   * tagline (e.g. AlphaX) don't have to define it.
+   */
+  taglineEmphasis?: string;
   /** Small-caps strap above the login plate. */
   loginEyebrow: string;
   /** Eyebrow line above the login title (e.g. "Welcome back"). */

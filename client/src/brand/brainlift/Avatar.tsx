@@ -1,35 +1,31 @@
 /**
  * Brainlift Central avatar.
  *
- * Neo-editorial treatment: a 1:1 square plate (vs AlphaX's circular avatar
- * with glow) framed with a hairline ink border and a soft printed shadow.
- * The image is the favicon brain mark shipped at `/favicon.png`.
+ * Renders the Brainlift Central mark (the gold brain-with-arrow logo).
+ * Mirrors the AlphaX avatar treatment: glow + circular frame + image
+ * triplet on the login card and sidebar; bare img for runtime chat avatars.
  *
- * Three variants:
- *   - login   -- larger plate sized to sit centred above the login card.
- *   - sidebar -- compact plate matching the AlphaX sidebar avatar footprint.
- *   - chat    -- bare img used by chat consumers that don't need the frame
- *                wrapper. (The primary chat consumer reads `chatAvatar`
- *                from `./index.ts`; this variant exists for symmetry.)
- *
- * Final framing / shadow / spacing decisions live in CSS
- * (`client/src/index.css`) under the `brainlift-avatar-*` namespace.
+ * Variants:
+ *   - login   -- glow + circular frame + mark, overlapping the login card top.
+ *   - sidebar -- compact glow + circular frame + mark for the sidebar nameplate.
+ *   - chat    -- bare img used by chat consumers (the primary chat consumer
+ *                reads `chatAvatar` from `./index.ts`; this exists for symmetry).
  */
 
 import type { AvatarProps } from '../types';
-
-const FAVICON_PATH = '/favicon.png';
+import logoMark from './assets/logo.webp';
 
 export function Avatar({ variant }: AvatarProps) {
   if (variant === 'login') {
     return (
-      <div className="brainlift-avatar brainlift-avatar-login" aria-hidden="true">
+      <div className="brainlift-avatar-login" aria-hidden="true">
+        <span className="brainlift-avatar-glow" />
         <span className="brainlift-avatar-frame">
           <img
-            src={FAVICON_PATH}
+            src={logoMark}
             alt=""
             draggable={false}
-            className="brainlift-avatar-image"
+            className="h-full w-full object-contain"
           />
         </span>
       </div>
@@ -38,24 +34,24 @@ export function Avatar({ variant }: AvatarProps) {
 
   if (variant === 'sidebar') {
     return (
-      <span className="brainlift-avatar brainlift-avatar-sidebar relative shrink-0">
+      <span className="brainlift-avatar-sidebar relative shrink-0">
+        <span className="brainlift-avatar-glow" aria-hidden="true" />
         <span className="brainlift-avatar-frame">
           <img
-            src={FAVICON_PATH}
+            src={logoMark}
             alt=""
             aria-hidden="true"
             draggable={false}
-            className="brainlift-avatar-image"
+            className="h-full w-full object-contain"
           />
         </span>
       </span>
     );
   }
 
-  // 'chat' -- bare img for runtime-rendered chat avatars.
   return (
     <img
-      src={FAVICON_PATH}
+      src={logoMark}
       alt="Brainlift Central"
       draggable={false}
       className="h-full w-full object-contain"

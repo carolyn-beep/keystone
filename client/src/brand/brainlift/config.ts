@@ -14,10 +14,11 @@ import type { BrandConfig } from '../types';
 export const config: BrandConfig = {
   id: 'brainlift',
   productName: 'Brainlift Central',
-  tagline: 'A grading and verification engine for adult researchers.',
+  tagline: 'Build knowledge',
+  taglineEmphasis: "that's actually yours",
   loginEyebrow: 'A peer-research workspace',
   loginHeading: 'Welcome back',
-  loginTitle: 'Sign in to keep working',
+  loginTitle: 'Sign in to your workspace',
   loginSubheading:
     'Pick up where you left off across your brainlifts, drafts, and reviews.',
   chatPlaceholder:
@@ -29,8 +30,9 @@ export const config: BrandConfig = {
     'This is the user landing on the chat homepage. Greet them as a capable peer-research '
     + 'assistant: introduce yourself briefly as Brainlift Central, then meet them where they '
     + 'are. Use the User Context block (brainlift count, recent brainlifts, recent '
-    + 'conversations, and `activePlans`) to tailor the opener. Returning users with active '
-    + 'work get a focused, no-fluff continuation prompt grounded in their current work; new '
-    + 'users get a short, candid capability preview. Keep the tone neutral and adult; do not '
-    + 'use coaching or pedagogical-gatekeeping language.',
+    + 'conversations) to tailor the opener. Returning users with active work get a focused, '
+    + 'no-fluff continuation prompt grounded in their current work; new users get a short, '
+    + 'candid capability preview. If the user has at least one brainlift, land the proactive '
+    + '`web_search_exa` offer here per the PROACTIVE RESEARCH OFFER section of the system '
+    + 'prompt. Keep the tone neutral and adult.',
 };

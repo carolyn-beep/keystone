@@ -78,6 +78,14 @@ export default function Login() {
 
           <p className="login-hero-tagline">
             {brand.config.tagline}
+            {brand.config.taglineEmphasis ? (
+              <>
+                <br />
+                <span className="login-hero-tagline-emphasis">
+                  {brand.config.taglineEmphasis}
+                </span>
+              </>
+            ) : null}
           </p>
         </div>
       </aside>

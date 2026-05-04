@@ -34,13 +34,12 @@ describe('FR4 BC Wordmark.tsx', () => {
 describe('FR4 BC Avatar.tsx', () => {
   const source = readSource('./Avatar.tsx');
 
-  it('uses the public favicon path (no Vite asset import)', () => {
-    expect(source).toContain('/favicon.png');
+  it('uses the BC logo mark asset (logo.webp)', () => {
+    expect(source).toMatch(/['"]\.\/assets\/logo\.webp['"]/);
   });
 
-  it('does not import a brand asset (favicon is in /public)', () => {
-    // No `import x from './assets/...'` for the favicon.
-    expect(source).not.toMatch(/import\s+\w+\s+from\s+['"]\.\/assets\/favicon/);
+  it('renders an inside-out glow halo (brainlift-avatar-glow class is present)', () => {
+    expect(source).toContain('brainlift-avatar-glow');
   });
 });
 
@@ -56,8 +55,8 @@ describe('FR4 BC LoginIllustration.tsx', () => {
     expect(source).not.toMatch(/<figcaption/);
   });
 
-  it('renders a figure (square plate)', () => {
-    expect(source).toMatch(/<figure/);
+  it('renders an inside-out glow on the brain mark', () => {
+    expect(source).toContain('brainlift-login-plate-glow');
   });
 });
 
@@ -114,7 +113,15 @@ describe('FR4 BC index.ts barrel', () => {
     expect(source).toMatch(/chatAvatar/);
   });
 
-  it('chatAvatar config-object source uses the favicon path', () => {
-    expect(source).toContain('/favicon.png');
+  it('chatAvatar config-object source references the BC logo asset', () => {
+    expect(source).toMatch(/['"]\.\/assets\/logo\.webp['"]/);
+  });
+});
+
+describe('FR4 BC logo asset', () => {
+  it('logo.webp is present and non-empty', () => {
+    const url = new URL('./assets/logo.webp', import.meta.url);
+    const stat = fs.statSync(url);
+    expect(stat.size).toBeGreaterThan(0);
   });
 });

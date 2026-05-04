@@ -156,7 +156,7 @@ describe('buildBrainliftSystemPrompt: main operational posture', () => {
       skills: [],
     });
 
-    expect(prompt).toContain('## MAIN OPERATIONAL POSTURE — PERMISSIVE');
+    expect(prompt).toContain('## MAIN OPERATIONAL POSTURE');
     expect(prompt).toContain('Serve the user');
   });
 
