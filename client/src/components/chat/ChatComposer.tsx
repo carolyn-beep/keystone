@@ -1,5 +1,5 @@
 import { createContext, useContext, type ReactNode } from 'react';
-import { ArrowUp, Paperclip, Square } from 'lucide-react';
+import { ArrowUp, Square } from 'lucide-react';
 import { ComposerPrimitive, useThread } from '@assistant-ui/react';
 import type { ChatModelId } from '@shared/chat-models';
 import { brand } from '@/brand';
@@ -35,7 +35,6 @@ function useChatComposerSettings(): ChatComposerSettings {
 export function ChatComposer() {
   const { modelId, onModelIdChange } = useChatComposerSettings();
   const isRunning = useThread((t) => t.isRunning);
-  const allowAttachments = useThread((t) => t.capabilities.attachments);
 
   return (
     <ComposerPrimitive.Root className="chat-composer-root">
@@ -47,16 +46,7 @@ export function ChatComposer() {
       />
 
       <div className="chat-composer-toolbar">
-        <div className="chat-composer-toolbar-left">
-          {allowAttachments ? (
-            <ComposerPrimitive.AddAttachment
-              aria-label="Attach file"
-              className="chat-composer-icon-button"
-            >
-              <Paperclip size={16} strokeWidth={2} />
-            </ComposerPrimitive.AddAttachment>
-          ) : null}
-        </div>
+        <div className="chat-composer-toolbar-left" />
 
         <div className="chat-composer-toolbar-right">
           <ChatModelPicker value={modelId} onValueChange={onModelIdChange} />

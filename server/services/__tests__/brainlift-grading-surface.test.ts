@@ -90,6 +90,7 @@ describe('brainlift grading surface', () => {
           importStatus: 'pending',
           summary: { meanScore: '3.75' },
           createdAt: new Date('2026-04-01T10:00:00.000Z'),
+          createdByUserId: 'user-1', // owned by current user
         },
         {
           id: 2,
@@ -98,6 +99,8 @@ describe('brainlift grading surface', () => {
           importStatus: 'complete',
           summary: null,
           createdAt: new Date('2026-04-02T11:00:00.000Z'),
+          createdByUserId: 'user-other',
+          sharePermission: 'editor', // shared with current user as editor
         },
       ],
       total: 11,
@@ -126,6 +129,7 @@ describe('brainlift grading surface', () => {
           status: 'grading',
           score: 3.75,
           createdAt: '2026-04-01T10:00:00.000Z',
+          permission: 'owner',
         },
         {
           slug: 'beta',
@@ -133,6 +137,7 @@ describe('brainlift grading surface', () => {
           status: 'complete',
           score: null,
           createdAt: '2026-04-02T11:00:00.000Z',
+          permission: 'editor',
         },
       ],
       pagination: {

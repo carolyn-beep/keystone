@@ -1384,6 +1384,7 @@ export interface ChatUserContext {
     slug: string;
     title: string;
     updatedAt: Date;
+    permission: 'owner' | 'editor' | 'viewer';
   }>;
   recentConversations: Array<{
     id: number;

@@ -29,7 +29,7 @@ export function formatRecentBrainlifts(
   }
 
   return recentBrainlifts.map((brainlift) => (
-    `- ${brainlift.title} (${brainlift.slug}) updated ${formatDate(brainlift.updatedAt)}`
+    `- ${brainlift.title} (${brainlift.slug}) updated ${formatDate(brainlift.updatedAt)} [${brainlift.permission}]`
   ));
 }
 
