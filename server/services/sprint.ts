@@ -1,7 +1,10 @@
 import type { BrainliftData, DeliverableSourceSurface, SprintTaskMilestone } from '@shared/schema';
 import type {
   DeliverableListResponse,
+  DeliverableWriteResponse,
+  DocumentListResponse,
   ListDeliverablesQuery,
+  ListDocumentsQuery,
   ListTasksQuery,
   PlanHistoryItem,
   ReadDeliverableResponse,
@@ -9,7 +12,7 @@ import type {
   TaskListItem,
   GeneratedPlanResponse,
 } from '@shared/routes';
-import { NotFoundError } from '../middleware/error-handler';
+import { BadRequestError, NotFoundError } from '../middleware/error-handler';
 import { storage } from '../storage';
 import {
   SprintStorageConflictError,
@@ -216,15 +219,10 @@ async function getPlanForTaskOrThrow(brainliftId: number, planId: number) {
   return plan;
 }
 
-async function ensurePlanDriveFolder(input: {
+async function ensureBrainliftRootFolder(input: {
   brainlift: Pick<BrainliftData, 'id' | 'title' | 'gdriveRootFolderId'>;
-  plan: {
-    id: number;
-    startDate: string;
-    gdriveFolderId?: string | null;
-  };
   drive?: GoogleDriveService;
-}): Promise<{ drive: GoogleDriveService; planFolderId: string }> {
+}): Promise<{ drive: GoogleDriveService; rootFolderId: string }> {
   const drive = input.drive ?? getGoogleDriveService();
   const audience = await storage.getSprintSharingAudience(input.brainlift.id);
 
@@ -245,11 +243,31 @@ async function ensurePlanDriveFolder(input: {
     ...audience.guideEmails,
   ]);
 
+  return {
+    drive,
+    rootFolderId: rootFolder.folderId,
+  };
+}
+
+async function ensurePlanDriveFolder(input: {
+  brainlift: Pick<BrainliftData, 'id' | 'title' | 'gdriveRootFolderId'>;
+  plan: {
+    id: number;
+    startDate: string;
+    gdriveFolderId?: string | null;
+  };
+  drive?: GoogleDriveService;
+}): Promise<{ drive: GoogleDriveService; planFolderId: string }> {
+  const { drive, rootFolderId } = await ensureBrainliftRootFolder({
+    brainlift: input.brainlift,
+    drive: input.drive,
+  });
+
   const planFolder = await drive.ensurePlanFolder({
     planId: input.plan.id,
     startDate: input.plan.startDate,
     existingFolderId: input.plan.gdriveFolderId ?? null,
-    rootFolderId: rootFolder.folderId,
+    rootFolderId,
   });
 
   if (!input.plan.gdriveFolderId || input.plan.gdriveFolderId !== planFolder.folderId) {
@@ -260,6 +278,34 @@ async function ensurePlanDriveFolder(input: {
     drive,
     planFolderId: planFolder.folderId,
   };
+}
+
+async function resolveDeliverableOrThrow(input: {
+  brainliftId: number;
+  taskId?: number;
+  deliverableId?: number;
+}) {
+  const hasTaskId = input.taskId != null;
+  const hasDeliverableId = input.deliverableId != null;
+
+  if (hasTaskId === hasDeliverableId) {
+    throw new BadRequestError('Provide exactly one of taskId or deliverableId');
+  }
+
+  if (hasTaskId) {
+    await getTaskRowOrThrow(input.brainliftId, input.taskId!);
+    const deliverable = await storage.getDeliverableByTaskId(input.taskId!, input.brainliftId);
+    if (!deliverable) {
+      throw new NotFoundError('Deliverable not found');
+    }
+    return deliverable;
+  }
+
+  const deliverable = await storage.getDeliverableByIdForBrainlift(input.deliverableId!, input.brainliftId);
+  if (!deliverable) {
+    throw new NotFoundError('Deliverable not found');
+  }
+  return deliverable;
 }
 
 export async function listSprintPlansWithCounts(brainliftId: number): Promise<PlanHistoryItem[]> {
@@ -410,35 +456,50 @@ export async function generateSprintPlanNow(input: {
 export async function createSprintDeliverable(input: {
   brainlift: Pick<BrainliftData, 'id' | 'title' | 'gdriveRootFolderId'>;
   userId: string;
-  taskId: number;
+  taskId?: number;
   title: string;
   markdown: string;
   sourceSurface: DeliverableSourceSurface;
   drive?: GoogleDriveService;
-}): Promise<{ docUrl: string }> {
-  const task = await getTaskRowOrThrow(input.brainlift.id, input.taskId);
-  const existingDeliverable = await storage.getDeliverableByTaskId(input.taskId, input.brainlift.id);
+}): Promise<DeliverableWriteResponse> {
+  let task: SprintTaskDetailRow | null = null;
+  let parentFolderId: string;
+  let drive: GoogleDriveService;
 
-  if (existingDeliverable) {
-    throw new SprintStorageConflictError('A deliverable already exists for this task');
+  if (input.taskId != null) {
+    task = await getTaskRowOrThrow(input.brainlift.id, input.taskId);
+    const existingDeliverable = await storage.getDeliverableByTaskId(input.taskId, input.brainlift.id);
+
+    if (existingDeliverable) {
+      throw new SprintStorageConflictError('A deliverable already exists for this task');
+    }
+
+    const plan = await getPlanForTaskOrThrow(input.brainlift.id, task.plan.id);
+    const folderResult = await ensurePlanDriveFolder({
+      brainlift: input.brainlift,
+      plan,
+      drive: input.drive,
+    });
+    drive = folderResult.drive;
+    parentFolderId = folderResult.planFolderId;
+  } else {
+    const folderResult = await ensureBrainliftRootFolder({
+      brainlift: input.brainlift,
+      drive: input.drive,
+    });
+    drive = folderResult.drive;
+    parentFolderId = folderResult.rootFolderId;
   }
 
-  const plan = await getPlanForTaskOrThrow(input.brainlift.id, task.plan.id);
-  const { drive, planFolderId } = await ensurePlanDriveFolder({
-    brainlift: input.brainlift,
-    plan,
-    drive: input.drive,
-  });
-
   const createdDoc = await drive.createGoogleDocFromMarkdown({
-    parentFolderId: planFolderId,
+    parentFolderId,
     title: input.title,
     markdown: input.markdown,
   });
 
   try {
     const deliverable = await storage.createDeliverable({
-      taskId: input.taskId,
+      taskId: input.taskId ?? null,
       brainliftId: input.brainlift.id,
       title: input.title,
       docFileId: createdDoc.fileId,
@@ -447,9 +508,11 @@ export async function createSprintDeliverable(input: {
       createdByUserId: input.userId,
     });
 
-    await storage.markPlanCompleteIfAllDelivered(task.plan.id);
+    if (task) {
+      await storage.markPlanCompleteIfAllDelivered(task.plan.id);
+    }
 
-    return { docUrl: deliverable.docUrl };
+    return { id: deliverable.id, docUrl: deliverable.docUrl };
   } catch (error) {
     try {
       await drive.deleteGoogleDoc(createdDoc.fileId);
@@ -463,15 +526,11 @@ export async function createSprintDeliverable(input: {
 
 export async function readSprintDeliverable(input: {
   brainliftId: number;
-  taskId: number;
+  taskId?: number;
+  deliverableId?: number;
   drive?: GoogleDriveService;
 }): Promise<ReadDeliverableResponse> {
-  await getTaskRowOrThrow(input.brainliftId, input.taskId);
-
-  const deliverable = await storage.getDeliverableByTaskId(input.taskId, input.brainliftId);
-  if (!deliverable) {
-    throw new NotFoundError('Deliverable not found');
-  }
+  const deliverable = await resolveDeliverableOrThrow(input);
 
   const drive = input.drive ?? getGoogleDriveService();
   const doc = await drive.exportGoogleDocAsMarkdown(deliverable.docFileId);
@@ -485,17 +544,13 @@ export async function readSprintDeliverable(input: {
 
 export async function updateSprintDeliverable(input: {
   brainliftId: number;
-  taskId: number;
+  taskId?: number;
+  deliverableId?: number;
   markdown: string;
   sourceSurface?: DeliverableSourceSurface;
   drive?: GoogleDriveService;
-}): Promise<{ docUrl: string }> {
-  await getTaskRowOrThrow(input.brainliftId, input.taskId);
-
-  const deliverable = await storage.getDeliverableByTaskId(input.taskId, input.brainliftId);
-  if (!deliverable) {
-    throw new NotFoundError('Deliverable not found');
-  }
+}): Promise<DeliverableWriteResponse> {
+  const deliverable = await resolveDeliverableOrThrow(input);
 
   const drive = input.drive ?? getGoogleDriveService();
   await drive.replaceGoogleDocFromMarkdown(deliverable.docFileId, input.markdown);
@@ -504,7 +559,7 @@ export async function updateSprintDeliverable(input: {
     await setDeliverableSourceSurface(deliverable.id, input.brainliftId, input.sourceSurface);
   }
 
-  return { docUrl: deliverable.docUrl };
+  return { id: deliverable.id, docUrl: deliverable.docUrl };
 }
 
 export async function listSprintDeliverables(
@@ -513,8 +568,26 @@ export async function listSprintDeliverables(
 ): Promise<DeliverableListResponse> {
   const [plans, deliverables] = await Promise.all([
     listSprintPlansWithCounts(brainliftId),
-    storage.listDeliverablesForBrainlift(brainliftId, { planId: query.planId }),
+    storage.listDeliverablesForBrainlift(brainliftId, { planId: query.planId, scope: query.scope }),
   ]);
 
   return { plans, deliverables };
+}
+
+export async function listDocumentsForUser(
+  userId: string,
+  isAdmin: boolean,
+  query: ListDocumentsQuery,
+): Promise<DocumentListResponse> {
+  return storage.listDocuments({
+    userId,
+    isAdmin,
+    brainliftId: query.brainliftId,
+    brainliftSlug: query.brainliftSlug,
+    taskId: query.taskId,
+    q: query.q,
+    sort: query.sort,
+    order: query.order,
+    page: query.page,
+  });
 }

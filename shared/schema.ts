@@ -354,7 +354,7 @@ export const tasks = pgTable("tasks", {
 
 export const deliverables = pgTable("deliverables", {
   id: serial("id").primaryKey(),
-  taskId: integer("task_id").notNull().references(() => tasks.id, { onDelete: "cascade" }).unique(),
+  taskId: integer("task_id").references(() => tasks.id, { onDelete: "cascade" }).unique(),
   brainliftId: integer("brainlift_id").notNull().references(() => brainlifts.id, { onDelete: "cascade" }),
   title: text("title").notNull(),
   docFileId: text("doc_file_id").notNull(),

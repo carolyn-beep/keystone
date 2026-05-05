@@ -16,7 +16,7 @@ interface ContradictionsTabProps {
 
 export function ContradictionsTab({ contradictionClusters, setActiveTab }: ContradictionsTabProps) {
   return (
-    <div className="max-w-[1200px] mx-auto">
+    <div className="max-w-[1420px] mx-auto">
       {/* Page Header with icon */}
       <div className="flex items-start gap-4 mb-8 pb-6 border-b border-border">
         <div className="text-[32px] leading-none shrink-0">

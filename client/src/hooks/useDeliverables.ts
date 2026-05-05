@@ -1,8 +1,8 @@
 import { useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import type { DeliverableListItem, DeliverableListResponse, PlanHistoryItem } from '@shared/routes';
 
-export type PlanFilterValue = number | 'all';
+export type PlanFilterValue = number | 'all' | 'plan' | 'standalone';
 
 export function sortDeliverablesNewestFirst(items: DeliverableListItem[]): DeliverableListItem[] {
   return [...items].sort((a, b) => {
@@ -10,6 +10,22 @@ export function sortDeliverablesNewestFirst(items: DeliverableListItem[]): Deliv
     if (createdAtDiff !== 0) return createdAtDiff;
     return b.id - a.id;
   });
+}
+
+export function buildDeliverablesUrl(slug: string, selectedPlanId: PlanFilterValue): string {
+  const search = new URLSearchParams();
+  if (selectedPlanId === 'plan') {
+    search.set('scope', 'plan');
+  } else if (selectedPlanId === 'standalone') {
+    search.set('scope', 'hub');
+  } else if (selectedPlanId !== 'all') {
+    search.set('planId', String(selectedPlanId));
+  }
+
+  const queryString = search.toString();
+  return queryString
+    ? `/api/brainlifts/${slug}/deliverables?${queryString}`
+    : `/api/brainlifts/${slug}/deliverables`;
 }
 
 export interface UseDeliverablesResult {
@@ -41,15 +57,7 @@ export function useDeliverables(slug: string): UseDeliverablesResult {
   const deliverablesQuery = useQuery<DeliverableListItem[]>({
     queryKey: ['sprint', slug, 'deliverables', selectedPlanId],
     queryFn: async () => {
-      const search = new URLSearchParams();
-      if (selectedPlanId !== 'all') {
-        search.set('planId', String(selectedPlanId));
-      }
-
-      const queryString = search.toString();
-      const url = queryString
-        ? `/api/brainlifts/${slug}/deliverables?${queryString}`
-        : `/api/brainlifts/${slug}/deliverables`;
+      const url = buildDeliverablesUrl(slug, selectedPlanId);
 
       const res = await fetch(url, {
         credentials: 'include',
@@ -63,6 +71,9 @@ export function useDeliverables(slug: string): UseDeliverablesResult {
       return sortDeliverablesNewestFirst(payload.deliverables);
     },
     enabled: !!slug,
+    // Keep the previous list visible while a new filter refetches so the
+    // tab does not unmount and the dropdown stays open.
+    placeholderData: keepPreviousData,
   });
 
   return {
@@ -70,7 +81,7 @@ export function useDeliverables(slug: string): UseDeliverablesResult {
     deliverables: deliverablesQuery.data ?? [],
     selectedPlanId,
     setSelectedPlanId,
-    isLoading: plansQuery.isLoading || deliverablesQuery.isLoading,
+    isLoading: plansQuery.isPending || deliverablesQuery.isPending,
     error: (plansQuery.error as Error | null) ?? (deliverablesQuery.error as Error | null),
   };
 }

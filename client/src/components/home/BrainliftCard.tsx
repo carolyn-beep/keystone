@@ -84,7 +84,7 @@ interface BrainliftCardProps {
 export function BrainliftCard({ brainlift, adminView, canDelete, onDelete }: BrainliftCardProps) {
   const summary = brainlift.summary || { meanScore: '0', totalFacts: 0, score5Count: 0, contradictionCount: 0 };
   const meanScore = parseFloat(summary.meanScore || '0');
-  const ownerName = brainlift.author || 'Unknown Owner';
+  const projectName = brainlift.title || 'Untitled Project';
   const profileImage = getProfileImage(brainlift.id, brainlift.coverImageUrl);
   const deleteButton = (
     <button
@@ -158,12 +158,12 @@ export function BrainliftCard({ brainlift, adminView, canDelete, onDelete }: Bra
 
       {/* Right Side - Content */}
       <div className="flex flex-col justify-between p-5 flex-1 min-w-0">
-        {/* Owner Name - Bold, Big */}
+        {/* Project Name - Bold, Big */}
         <h3
           className="text-xl font-bold m-0 leading-tight truncate pr-8"
           style={{ color: tokens.textPrimary }}
         >
-          {ownerName}
+          {projectName}
         </h3>
 
         {/* Date - Regular, Non-bold */}

@@ -104,7 +104,7 @@ export function RedundancyPage({
   const totalRedundant = redundancyData?.stats?.redundantFactCount ?? 0;
 
   return (
-    <div className="max-w-[1200px] mx-auto">
+    <div className="max-w-[1420px] mx-auto">
       {/* Page Header */}
       <div className="flex flex-col gap-4 mb-8 pb-6 border-b border-border">
         <div className="flex items-center gap-3">

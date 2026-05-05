@@ -391,6 +391,24 @@ brainliftsRouter.patch(
   })
 );
 
+// Update project (brainlift) title
+brainliftsRouter.patch(
+  '/api/brainlifts/:slug/title',
+  requireAuth,
+  requireBrainliftModify,
+  asyncHandler(async (req, res) => {
+    const rawTitle = typeof req.body?.title === 'string' ? req.body.title.trim() : '';
+    if (!rawTitle) {
+      throw new BadRequestError('Title is required');
+    }
+    if (rawTitle.length > 200) {
+      throw new BadRequestError('Title is too long (max 200 characters)');
+    }
+    await storage.updateBrainliftFields(req.brainlift!.id, { title: rawTitle });
+    res.json({ success: true, title: rawTitle });
+  })
+);
+
 // Get version history for a brainlift
 brainliftsRouter.get(
   '/api/brainlifts/:slug/versions',

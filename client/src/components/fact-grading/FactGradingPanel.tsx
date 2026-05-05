@@ -189,7 +189,7 @@ export function FactGradingPanel({
   const redundantFactCount = redundancyData?.stats?.redundantFactCount ?? 0;
 
   return (
-    <div className="max-w-[1200px] mx-auto min-h-[200vh]">
+    <div className="max-w-[1420px] mx-auto min-h-[200vh]">
       {/* Panel Header */}
       <div className="flex flex-col gap-4 mb-6 pb-4">
         <div className="flex items-start justify-between gap-6">

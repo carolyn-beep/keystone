@@ -1,5 +1,5 @@
 import { ReactNode } from 'react';
-import { RefreshCw, Download, Users, History } from 'lucide-react';
+import { RefreshCw, Download, Users, History, Pencil } from 'lucide-react';
 import { BrainliftData, BrainliftVersion } from '@shared/schema';
 import { TactileButton } from '@/components/ui/tactile-button';
 
@@ -86,6 +86,11 @@ interface DashboardHeaderProps {
   authorInput: string;
   setAuthorInput: (input: string) => void;
   onUpdateAuthor: (author: string) => void;
+  editingTitle?: boolean;
+  setEditingTitle?: (editing: boolean) => void;
+  titleInput?: string;
+  setTitleInput?: (input: string) => void;
+  onUpdateTitle?: (title: string) => void;
   setShowUpdateModal: (show: boolean) => void;
   setShowHistoryModal: (show: boolean) => void;
   handleDownloadPDF: () => void;
@@ -107,6 +112,11 @@ export function DashboardHeader({
   authorInput,
   setAuthorInput,
   onUpdateAuthor,
+  editingTitle = false,
+  setEditingTitle,
+  titleInput = '',
+  setTitleInput,
+  onUpdateTitle,
   setShowUpdateModal,
   setShowHistoryModal,
   handleDownloadPDF,
@@ -118,6 +128,23 @@ export function DashboardHeader({
   hideDefaultActions = false,
 }: DashboardHeaderProps) {
   const { title, description, displayPurpose } = data;
+  const canEditTitle = canModify && !!setEditingTitle && !!setTitleInput && !!onUpdateTitle;
+
+  const beginTitleEdit = () => {
+    if (!canEditTitle) return;
+    setTitleInput!(title);
+    setEditingTitle!(true);
+  };
+
+  const commitTitle = () => {
+    if (!onUpdateTitle) return;
+    const next = titleInput.trim();
+    if (!next || next === title) {
+      setEditingTitle?.(false);
+      return;
+    }
+    onUpdateTitle(next);
+  };
 
   return (
     <div className="header-content pt-4 pb-4 px-4">
@@ -137,7 +164,45 @@ export function DashboardHeader({
 
         {/* Title, Subtitle, Author */}
         <div className="header-text-col flex-1 min-w-0 flex flex-col gap-1.5">
-          <h1 className="header-title text-[30px] font-bold mt-2 text-foreground tracking-tight leading-[1.3]">{title}</h1>
+          {editingTitle && canEditTitle ? (
+            <div className="header-title mt-2 flex items-center gap-2">
+              <input
+                type="text"
+                value={titleInput}
+                onChange={(e) => setTitleInput!(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') commitTitle();
+                  if (e.key === 'Escape') setEditingTitle!(false);
+                }}
+                onBlur={commitTitle}
+                autoFocus
+                maxLength={200}
+                placeholder="Project name..."
+                className="flex-1 min-w-0 bg-transparent outline-none border-0 border-b border-border focus:border-primary text-[30px] font-bold text-foreground tracking-tight leading-[1.3] py-0.5 px-0"
+                aria-label="Edit project name"
+              />
+            </div>
+          ) : (
+            <div className="header-title mt-2 flex items-center gap-2 group">
+              <h1
+                className={`text-[30px] font-bold text-foreground tracking-tight leading-[1.3] m-0 ${canEditTitle ? 'cursor-pointer' : ''}`}
+                onClick={canEditTitle ? beginTitleEdit : undefined}
+                title={canEditTitle ? 'Click to rename project' : undefined}
+              >
+                {title}
+              </h1>
+              {canEditTitle && (
+                <button
+                  type="button"
+                  onClick={beginTitleEdit}
+                  aria-label="Rename project"
+                  className="shrink-0 inline-flex items-center justify-center w-7 h-7 rounded-md text-muted-light hover:text-foreground hover:bg-card border-0 bg-transparent cursor-pointer transition-colors duration-150 opacity-0 group-hover:opacity-100 focus-visible:opacity-100"
+                >
+                  <Pencil size={14} />
+                </button>
+              )}
+            </div>
+          )}
 
           {/* Subtitle */}
           <p className="header-description text-muted-foreground text-base m-0">

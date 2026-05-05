@@ -18,6 +18,7 @@ const {
     readSprintDeliverable: vi.fn(),
     updateSprintDeliverable: vi.fn(),
     listSprintDeliverables: vi.fn(),
+    listDocumentsForUser: vi.fn(),
   },
 }));
 
@@ -59,7 +60,7 @@ describe('buildSprintChatTools', () => {
       'save_deliverable',
       'read_deliverable',
       'update_deliverable',
-      'list_deliverables',
+      'list_documents',
     ]);
   });
 
@@ -123,10 +124,11 @@ describe('buildSprintChatTools', () => {
     expect(result).toEqual([{ id: 42, isPastDue: true }]);
   });
 
-  it('creates deliverables through the shared sprint service using ui source semantics', async () => {
+  it('creates task deliverables through the shared sprint service using ui source semantics', async () => {
     const { buildSprintChatTools } = await import('../sprint');
     const tools = buildSprintChatTools({ authContext });
     mockSprintService.createSprintDeliverable.mockResolvedValue({
+      id: 12,
       docUrl: 'https://docs.google.com/document/d/doc-1/edit',
     });
 
@@ -152,7 +154,153 @@ describe('buildSprintChatTools', () => {
       sourceSurface: 'ui',
     });
     expect(result).toEqual({
+      id: 12,
       docUrl: 'https://docs.google.com/document/d/doc-1/edit',
+    });
+  });
+
+  it('creates hub documents when save_deliverable omits taskId', async () => {
+    const { buildSprintChatTools } = await import('../sprint');
+    const tools = buildSprintChatTools({ authContext });
+    mockSprintService.createSprintDeliverable.mockResolvedValue({
+      id: 44,
+      docUrl: 'https://docs.google.com/document/d/hub-doc/edit',
+    });
+
+    const result = await tools.save_deliverable.execute(
+      {
+        brainliftSlug: 'scope-breaker',
+        title: 'Hub note',
+        markdown: '',
+      },
+      { toolCallId: 'tc-save-hub', messages: [], abortSignal: new AbortController().signal },
+    );
+
+    expect(mockSprintService.createSprintDeliverable).toHaveBeenCalledWith({
+      brainlift: expect.objectContaining({
+        id: 7,
+        title: 'Scope Breaker',
+      }),
+      userId: 'user-1',
+      taskId: undefined,
+      title: 'Hub note',
+      markdown: '',
+      sourceSurface: 'ui',
+    });
+    expect(result).toEqual({
+      id: 44,
+      docUrl: 'https://docs.google.com/document/d/hub-doc/edit',
+    });
+  });
+
+  it('validates save_deliverable title while allowing empty markdown', async () => {
+    const { buildSprintChatTools } = await import('../sprint');
+    const tools = buildSprintChatTools({ authContext });
+    const schema = tools.save_deliverable.inputSchema as {
+      safeParse: (input: unknown) => { success: boolean };
+    };
+
+    expect(schema.safeParse({
+      brainliftSlug: 'scope-breaker',
+      title: '',
+      markdown: '',
+    }).success).toBe(false);
+    expect(schema.safeParse({
+      brainliftSlug: 'scope-breaker',
+      title: 'Hub note',
+      markdown: '',
+    }).success).toBe(true);
+  });
+
+  it('reads and updates deliverables by deliverableId selector', async () => {
+    const { buildSprintChatTools } = await import('../sprint');
+    const tools = buildSprintChatTools({ authContext });
+    mockSprintService.readSprintDeliverable.mockResolvedValue({
+      title: 'Hub note',
+      contentMarkdown: '# Body',
+      docUrl: 'https://docs.google.com/document/d/hub-doc/edit',
+    });
+    mockSprintService.updateSprintDeliverable.mockResolvedValue({
+      id: 44,
+      docUrl: 'https://docs.google.com/document/d/hub-doc/edit',
+    });
+
+    await tools.read_deliverable.execute(
+      { brainliftSlug: 'scope-breaker', deliverableId: 44 },
+      { toolCallId: 'tc-read-id', messages: [], abortSignal: new AbortController().signal },
+    );
+    const updateResult = await tools.update_deliverable.execute(
+      { brainliftSlug: 'scope-breaker', deliverableId: 44, markdown: '# Revised' },
+      { toolCallId: 'tc-update-id', messages: [], abortSignal: new AbortController().signal },
+    );
+
+    expect(mockSprintService.readSprintDeliverable).toHaveBeenCalledWith({
+      brainliftId: 7,
+      deliverableId: 44,
+    });
+    expect(mockSprintService.updateSprintDeliverable).toHaveBeenCalledWith({
+      brainliftId: 7,
+      deliverableId: 44,
+      markdown: '# Revised',
+      sourceSurface: 'ui',
+    });
+    expect(updateResult).toEqual({
+      id: 44,
+      docUrl: 'https://docs.google.com/document/d/hub-doc/edit',
+    });
+  });
+
+  it('rejects ambiguous deliverable selectors before service calls', async () => {
+    const { buildSprintChatTools } = await import('../sprint');
+    const tools = buildSprintChatTools({ authContext });
+
+    await expect(tools.read_deliverable.execute(
+      { brainliftSlug: 'scope-breaker', taskId: 5, deliverableId: 44 },
+      { toolCallId: 'tc-read-both', messages: [], abortSignal: new AbortController().signal },
+    )).rejects.toThrow('Provide exactly one of taskId or deliverableId');
+
+    await expect(tools.update_deliverable.execute(
+      { brainliftSlug: 'scope-breaker', markdown: '# Revised' },
+      { toolCallId: 'tc-update-neither', messages: [], abortSignal: new AbortController().signal },
+    )).rejects.toThrow('Provide exactly one of taskId or deliverableId');
+
+    expect(mockSprintService.readSprintDeliverable).not.toHaveBeenCalled();
+    expect(mockSprintService.updateSprintDeliverable).not.toHaveBeenCalled();
+  });
+
+  it('lists accessible documents with document filters', async () => {
+    const { buildSprintChatTools } = await import('../sprint');
+    const tools = buildSprintChatTools({ authContext });
+    mockSprintService.listDocumentsForUser.mockResolvedValue({
+      documents: [],
+      page: 2,
+      pageSize: 30,
+      total: 0,
+    });
+
+    const result = await tools.list_documents.execute(
+      {
+        brainliftSlug: 'scope-breaker',
+        q: 'draft',
+        sort: 'title',
+        order: 'asc',
+        page: 2,
+      },
+      { toolCallId: 'tc-docs', messages: [], abortSignal: new AbortController().signal },
+    );
+
+    expect(mockSprintService.listDocumentsForUser).toHaveBeenCalledWith('user-1', false, {
+      brainliftSlug: 'scope-breaker',
+      q: 'draft',
+      sort: 'title',
+      order: 'asc',
+      page: 2,
+    });
+    expect(result).toEqual({
+      documents: [],
+      page: 2,
+      pageSize: 30,
+      total: 0,
     });
   });
 

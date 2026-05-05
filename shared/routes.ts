@@ -240,11 +240,23 @@ export const taskIdParamsSchema = z.object({
 export type TaskIdParams = z.infer<typeof taskIdParamsSchema>;
 
 export const createDeliverableRequestSchema = z.object({
+  taskId: queryIntegerSchema.optional(),
   title: z.string().trim().min(1),
   markdown: z.string(),
 });
 
 export type CreateDeliverableRequest = z.infer<typeof createDeliverableRequestSchema>;
+
+export interface DeliverableWriteResponse {
+  id: number;
+  docUrl: string;
+}
+
+export const deliverableIdParamsSchema = z.object({
+  id: queryIntegerSchema,
+});
+
+export type DeliverableIdParams = z.infer<typeof deliverableIdParamsSchema>;
 
 export interface ReadDeliverableResponse {
   title: string;
@@ -260,11 +272,11 @@ export type UpdateDeliverableRequest = z.infer<typeof updateDeliverableRequestSc
 
 export interface DeliverableListItem {
   id: number;
-  taskId: number;
-  planId: number;
+  taskId: number | null;
+  planId: number | null;
   title: string;
-  taskTitle: string;
-  scheduledDate: string;
+  taskTitle: string | null;
+  scheduledDate: string | null;
   createdAt: string;
   docUrl: string;
 }
@@ -276,6 +288,32 @@ export interface DeliverableListResponse {
 
 export const listDeliverablesQuerySchema = z.object({
   planId: queryIntegerSchema.optional(),
+  scope: z.enum(['plan', 'hub']).optional(),
 });
 
 export type ListDeliverablesQuery = z.infer<typeof listDeliverablesQuerySchema>;
+
+export const listDocumentsQuerySchema = z.object({
+  brainliftId: queryIntegerSchema.optional(),
+  brainliftSlug: z.string().trim().min(1).optional(),
+  taskId: queryIntegerSchema.optional(),
+  q: z.string().trim().min(1).optional(),
+  sort: z.enum(['createdAt', 'title']).optional(),
+  order: z.enum(['asc', 'desc']).optional(),
+  page: queryIntegerSchema.optional(),
+});
+
+export type ListDocumentsQuery = z.infer<typeof listDocumentsQuerySchema>;
+
+export interface DocumentListItem extends DeliverableListItem {
+  brainliftId: number;
+  brainliftSlug: string;
+  brainliftTitle: string;
+}
+
+export interface DocumentListResponse {
+  documents: DocumentListItem[];
+  page: number;
+  pageSize: 30;
+  total: number;
+}

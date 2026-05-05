@@ -30,6 +30,26 @@ export function useBrainlift(slug: string, isSharedView = false) {
     },
   });
 
+  // Update project title mutation
+  const updateTitleMutation = useMutation({
+    mutationFn: async (title: string) => {
+      const res = await fetch(`/api/brainlifts/${slug}/title`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.message || 'Failed to update title');
+      }
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['brainlift', slug] });
+      queryClient.invalidateQueries({ queryKey: ['brainlifts'] });
+    },
+  });
+
   // Update brainlift file mutation
   const updateMutation = useMutation({
     mutationFn: async (formData: FormData) => {
@@ -61,6 +81,11 @@ export function useBrainlift(slug: string, isSharedView = false) {
     updateAuthor: updateAuthorMutation.mutateAsync,
     isUpdatingAuthor: updateAuthorMutation.isPending,
     updateAuthorError: updateAuthorMutation.error,
+
+    // Update title
+    updateTitle: updateTitleMutation.mutateAsync,
+    isUpdatingTitle: updateTitleMutation.isPending,
+    updateTitleError: updateTitleMutation.error,
 
     // Update brainlift
     update: updateMutation.mutate,

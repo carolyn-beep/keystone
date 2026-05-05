@@ -13,7 +13,9 @@ const { mockStorage, mockGenerateSprintPlan, mockDriveService, mockCreateGoogleD
     listTasksForBrainlift: vi.fn(),
     getTaskForBrainlift: vi.fn(),
     getDeliverableByTaskId: vi.fn(),
+    getDeliverableByIdForBrainlift: vi.fn(),
     listDeliverablesForBrainlift: vi.fn(),
+    listDocuments: vi.fn(),
     getSprintSharingAudience: vi.fn(),
     setBrainliftGdriveRootFolder: vi.fn(),
     setPlanGdriveFolder: vi.fn(),
@@ -256,6 +258,7 @@ describe('sprints route handlers', () => {
 
     expect(res.status).toHaveBeenCalledWith(201);
     expect(res.json).toHaveBeenCalledWith({
+      id: 900,
       docUrl: 'https://docs.google.com/document/d/doc-1/edit',
     });
     expect(mockDriveService.syncRootFolderEditors).toHaveBeenCalled();
@@ -383,6 +386,7 @@ describe('sprints route handlers', () => {
 
     expect(mockDriveService.replaceGoogleDocFromMarkdown).toHaveBeenCalledWith('doc-123', '# Updated');
     expect(res.json).toHaveBeenCalledWith({
+      id: 7,
       docUrl: 'https://docs.google.com/document/d/doc-123/edit',
     });
   });

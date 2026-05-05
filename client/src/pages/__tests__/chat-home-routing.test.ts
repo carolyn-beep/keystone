@@ -30,24 +30,24 @@ describe('chat home routing contracts', () => {
 
   it('exposes only the library link to non-admins', () => {
     expect(getChatHomeNavLinks({ isAdmin: false })).toEqual([
-      { href: '/library', label: 'Brainlift Library' },
+      { href: '/library', label: 'Projects' },
     ]);
   });
 
   it('exposes analytics to admins but gates providers behind a specific email', () => {
     expect(getChatHomeNavLinks({ isAdmin: true })).toEqual([
-      { href: '/library', label: 'Brainlift Library' },
+      { href: '/library', label: 'Projects' },
       { href: '/analytics', label: 'Analytics' },
     ]);
 
     expect(getChatHomeNavLinks({ isAdmin: true, email: 'caina.barbosa@trilogy.com' })).toEqual([
-      { href: '/library', label: 'Brainlift Library' },
+      { href: '/library', label: 'Projects' },
       { href: '/analytics', label: 'Analytics' },
       { href: '/admin/providers', label: 'Providers' },
     ]);
 
     expect(getChatHomeNavLinks({ isAdmin: false, email: 'caina.barbosa@trilogy.com' })).toEqual([
-      { href: '/library', label: 'Brainlift Library' },
+      { href: '/library', label: 'Projects' },
       { href: '/admin/providers', label: 'Providers' },
     ]);
   });

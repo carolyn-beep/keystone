@@ -5,6 +5,8 @@ import {
   desc,
   eq,
   inArray,
+  isNotNull,
+  isNull,
   sql,
   brainlifts,
   brainliftShares,
@@ -45,13 +47,19 @@ export interface SprintTaskDetailRow extends SprintTaskListRow {
 
 export interface SprintDeliverableListRow {
   id: number;
-  taskId: number;
-  planId: number;
+  taskId: number | null;
+  planId: number | null;
   title: string;
-  taskTitle: string;
-  scheduledDate: string;
+  taskTitle: string | null;
+  scheduledDate: string | null;
   createdAt: string;
   docUrl: string;
+}
+
+export interface SprintDocumentListRow extends SprintDeliverableListRow {
+  brainliftId: number;
+  brainliftSlug: string;
+  brainliftTitle: string;
 }
 
 export class SprintStorageConflictError extends Error {
@@ -655,8 +663,18 @@ export async function getDeliverableByTaskId(taskId: number, brainliftId: number
   return record ?? null;
 }
 
+export async function getDeliverableByIdForBrainlift(deliverableId: number, brainliftId: number): Promise<Deliverable | null> {
+  const [record] = await db
+    .select()
+    .from(deliverables)
+    .where(and(eq(deliverables.id, deliverableId), eq(deliverables.brainliftId, brainliftId)))
+    .limit(1);
+
+  return record ?? null;
+}
+
 export async function createDeliverable(input: {
-  taskId: number;
+  taskId?: number | null;
   brainliftId: number;
   title: string;
   docFileId: string;
@@ -704,12 +722,17 @@ export async function setDeliverableSourceSurface(
 
 export async function listDeliverablesForBrainlift(
   brainliftId: number,
-  opts: { planId?: number } = {},
+  opts: { planId?: number; scope?: 'plan' | 'hub' } = {},
 ): Promise<SprintDeliverableListRow[]> {
   const conditions = [eq(deliverables.brainliftId, brainliftId)];
 
   if (opts.planId != null) {
     conditions.push(eq(tasks.planId, opts.planId));
+  }
+  if (opts.scope === 'plan') {
+    conditions.push(isNotNull(deliverables.taskId));
+  } else if (opts.scope === 'hub') {
+    conditions.push(isNull(deliverables.taskId));
   }
 
   const rows = await db
@@ -724,20 +747,118 @@ export async function listDeliverablesForBrainlift(
       docUrl: deliverables.docUrl,
     })
     .from(deliverables)
-    .innerJoin(tasks, eq(deliverables.taskId, tasks.id))
+    .leftJoin(tasks, eq(deliverables.taskId, tasks.id))
     .where(and(...conditions))
     .orderBy(desc(deliverables.createdAt), desc(deliverables.id));
 
   return rows.map((row) => ({
     id: row.id,
     taskId: row.taskId,
-    planId: row.planId,
+    planId: row.planId ?? null,
     title: row.title,
-    taskTitle: row.taskTitle,
-    scheduledDate: row.scheduledDate,
+    taskTitle: row.taskTitle ?? null,
+    scheduledDate: row.scheduledDate ?? null,
     createdAt: row.createdAt.toISOString(),
     docUrl: row.docUrl,
   }));
+}
+
+const DOCUMENTS_PAGE_SIZE = 30;
+
+function buildDocumentAccessCondition(userId: string, isAdmin: boolean | undefined) {
+  if (isAdmin) return sql`TRUE`;
+
+  return sql`(
+    ${brainlifts.createdByUserId} = ${userId}
+    OR EXISTS (
+      SELECT 1 FROM ${brainliftShares}
+      WHERE ${brainliftShares.brainliftId} = ${brainlifts.id}
+        AND ${brainliftShares.userId} = ${userId}
+        AND ${brainliftShares.type} = 'user'
+    )
+  )`;
+}
+
+export async function listDocuments(input: {
+  userId: string;
+  isAdmin?: boolean;
+  brainliftId?: number;
+  brainliftSlug?: string;
+  taskId?: number;
+  q?: string;
+  sort?: 'createdAt' | 'title';
+  order?: 'asc' | 'desc';
+  page?: number;
+}): Promise<{ documents: SprintDocumentListRow[]; page: number; pageSize: 30; total: number }> {
+  const page = Math.max(1, input.page ?? 1);
+  const order = input.order ?? 'desc';
+  const sort = input.sort ?? 'createdAt';
+  const conditions = [buildDocumentAccessCondition(input.userId, input.isAdmin)];
+
+  if (input.brainliftId != null) {
+    conditions.push(eq(deliverables.brainliftId, input.brainliftId));
+  }
+  if (input.brainliftSlug) {
+    conditions.push(eq(brainlifts.slug, input.brainliftSlug));
+  }
+  if (input.taskId != null) {
+    conditions.push(eq(deliverables.taskId, input.taskId));
+  }
+  if (input.q) {
+    conditions.push(sql`lower(${deliverables.title}) LIKE ${`%${input.q.toLowerCase()}%`}`);
+  }
+
+  const direction = order === 'asc' ? asc : desc;
+  const sortColumn = sort === 'title' ? deliverables.title : deliverables.createdAt;
+  const tieBreaker = order === 'asc' ? asc(deliverables.id) : desc(deliverables.id);
+
+  const [totalRow] = await db
+    .select({ total: sql<number>`count(*)` })
+    .from(deliverables)
+    .innerJoin(brainlifts, eq(brainlifts.id, deliverables.brainliftId))
+    .leftJoin(tasks, eq(deliverables.taskId, tasks.id))
+    .where(and(...conditions));
+
+  const rows = await db
+    .select({
+      id: deliverables.id,
+      brainliftId: deliverables.brainliftId,
+      brainliftSlug: brainlifts.slug,
+      brainliftTitle: brainlifts.title,
+      taskId: deliverables.taskId,
+      planId: tasks.planId,
+      title: deliverables.title,
+      taskTitle: tasks.title,
+      scheduledDate: tasks.scheduledDate,
+      createdAt: deliverables.createdAt,
+      docUrl: deliverables.docUrl,
+    })
+    .from(deliverables)
+    .innerJoin(brainlifts, eq(brainlifts.id, deliverables.brainliftId))
+    .leftJoin(tasks, eq(deliverables.taskId, tasks.id))
+    .where(and(...conditions))
+    .orderBy(direction(sortColumn), tieBreaker)
+    .limit(DOCUMENTS_PAGE_SIZE)
+    .offset((page - 1) * DOCUMENTS_PAGE_SIZE);
+
+  return {
+    documents: rows.map((row) => ({
+      id: row.id,
+      brainliftId: row.brainliftId,
+      brainliftSlug: row.brainliftSlug,
+      brainliftTitle: row.brainliftTitle,
+      taskId: row.taskId,
+      planId: row.planId ?? null,
+      title: row.title,
+      taskTitle: row.taskTitle ?? null,
+      scheduledDate: row.scheduledDate ?? null,
+      createdAt: row.createdAt.toISOString(),
+      docUrl: row.docUrl,
+    })),
+    page,
+    pageSize: DOCUMENTS_PAGE_SIZE,
+    total: Number(totalRow?.total ?? 0),
+  };
 }
 
 export async function markPlanCompleteIfAllDelivered(planId: number): Promise<SprintPlanStatus> {
