@@ -1,5 +1,6 @@
 import { ComponentType } from 'react';
-import { MessageSquare, FolderOpen, BarChart3, Shield } from 'lucide-react';
+import { MessageSquare, FolderOpen, BarChart3, Shield, NotebookPen, Trash2 } from 'lucide-react';
+import { SkillsIcon } from '@/assets/icons/SkillsIcon';
 
 // Lucide icons are typed as `ForwardRefExoticComponent`, which TypeScript
 // considers structurally incompatible with `ComponentType<{...}>`. The same
@@ -17,20 +18,39 @@ import {
  *
  * - 'chat'      -- `/`
  * - 'library'   -- `/library` and child routes (`/grading/...`, `/brainlifts/...`)
+ * - 'skills'    -- `/skills`
  * - 'analytics' -- `/analytics` (admin only)
  * - 'providers' -- `/admin/providers` (allow-listed email only)
  */
-export type SectionNavSection = 'chat' | 'library' | 'analytics' | 'providers';
+export type SectionNavSection = 'chat' | 'library' | 'skills' | 'analytics' | 'providers';
+
+export interface SectionNavChild {
+  /** Stable id used for active-child resolution (e.g., 'library', 'create'). */
+  id: string;
+  label: string;
+  href: string;
+  icon: IconComponent;
+  /** When true, this child is hidden unless the viewer is admin. */
+  adminOnly?: boolean;
+}
 
 export interface SectionNavItem {
   section: SectionNavSection;
   label: string;
   href: string;
   icon: IconComponent;
+  /**
+   * Optional nested children. Rendered inline below the section item with
+   * L-bracket connectors when the parent section is active. Mirrors the
+   * DokNavTree pattern (DOK1 Facts > Redundancy/Contradictions) but inside
+   * the global SectionNav so users see one unified hierarchy.
+   */
+  children?: SectionNavChild[];
 }
 
 const ANALYTICS_HREF = '/analytics';
 const PROVIDERS_HREF = '/admin/providers';
+const SKILLS_HREF = '/skills';
 
 /**
  * Pure path -> section resolver for the unified SectionNav.
@@ -47,6 +67,8 @@ export function resolveSectionNavActive(pathname: string): SectionNavSection | n
   if (pathname.startsWith('/grading/')) return 'library';
   if (pathname.startsWith('/brainlifts/')) return 'library';
 
+  if (pathname === '/skills' || pathname === '/skills/') return 'skills';
+
   if (pathname === '/analytics') return 'analytics';
   if (pathname === '/admin/providers') return 'providers';
 
@@ -56,7 +78,7 @@ export function resolveSectionNavActive(pathname: string): SectionNavSection | n
 /**
  * Build the ordered list of SectionNav items for the current viewer.
  *
- * - [Chat, Library] are always included, in that order.
+ * - [Chat, Library, Skills] are always included, in that order.
  * - Analytics is appended when the viewer is an admin.
  * - Providers is appended when the viewer's email is on the allow list. The
  *   allow-list check is delegated to `getChatHomeNavLinks` so the
@@ -81,6 +103,28 @@ export function getSectionNavItems(opts: {
       label: 'Projects',
       href: LIBRARY_ROUTE_PATH,
       icon: FolderOpen as IconComponent,
+    },
+    {
+      section: 'skills',
+      label: 'Skills',
+      href: SKILLS_HREF,
+      icon: SkillsIcon as IconComponent,
+      children: [
+        {
+          id: 'create',
+          label: 'Create Skill',
+          href: `${SKILLS_HREF}?view=create`,
+          icon: NotebookPen as IconComponent,
+          adminOnly: true,
+        },
+        {
+          id: 'trash',
+          label: 'Trash',
+          href: `${SKILLS_HREF}?view=trash`,
+          icon: Trash2 as IconComponent,
+          adminOnly: true,
+        },
+      ],
     },
   ];
 

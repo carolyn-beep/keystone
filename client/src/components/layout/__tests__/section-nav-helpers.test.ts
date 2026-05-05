@@ -32,6 +32,11 @@ describe('resolveSectionNavActive', () => {
     expect(resolveSectionNavActive('/analytics')).toBe<SectionNavSection>('analytics');
   });
 
+  it('maps "/skills" to "skills"', () => {
+    expect(resolveSectionNavActive('/skills')).toBe<SectionNavSection>('skills');
+    expect(resolveSectionNavActive('/skills/')).toBe<SectionNavSection>('skills');
+  });
+
   it('maps "/admin/providers" to "providers"', () => {
     expect(resolveSectionNavActive('/admin/providers')).toBe<SectionNavSection>('providers');
   });
@@ -53,34 +58,34 @@ describe('resolveSectionNavActive', () => {
 });
 
 describe('getSectionNavItems', () => {
-  it('returns [Chat, Library] for non-admin, non-allowlisted', () => {
+  it('returns [Chat, Library, Skills] for non-admin, non-allowlisted', () => {
     const items = getSectionNavItems({ isAdmin: false, email: 'someone@example.com' });
-    expect(items.map((i) => i.section)).toEqual(['chat', 'library']);
+    expect(items.map((i) => i.section)).toEqual(['chat', 'library', 'skills']);
   });
 
-  it('returns [Chat, Library] when email is null', () => {
+  it('returns [Chat, Library, Skills] when email is null', () => {
     const items = getSectionNavItems({ isAdmin: false, email: null });
-    expect(items.map((i) => i.section)).toEqual(['chat', 'library']);
+    expect(items.map((i) => i.section)).toEqual(['chat', 'library', 'skills']);
   });
 
-  it('returns [Chat, Library] when email is undefined', () => {
+  it('returns [Chat, Library, Skills] when email is undefined', () => {
     const items = getSectionNavItems({ isAdmin: false });
-    expect(items.map((i) => i.section)).toEqual(['chat', 'library']);
+    expect(items.map((i) => i.section)).toEqual(['chat', 'library', 'skills']);
   });
 
   it('appends Analytics when isAdmin is true', () => {
     const items = getSectionNavItems({ isAdmin: true, email: 'someone@example.com' });
-    expect(items.map((i) => i.section)).toEqual(['chat', 'library', 'analytics']);
+    expect(items.map((i) => i.section)).toEqual(['chat', 'library', 'skills', 'analytics']);
   });
 
   it('appends Providers when allowlisted email is provided (non-admin)', () => {
     const items = getSectionNavItems({ isAdmin: false, email: 'caina.barbosa@trilogy.com' });
-    expect(items.map((i) => i.section)).toEqual(['chat', 'library', 'providers']);
+    expect(items.map((i) => i.section)).toEqual(['chat', 'library', 'skills', 'providers']);
   });
 
   it('appends Analytics then Providers when admin AND allowlisted', () => {
     const items = getSectionNavItems({ isAdmin: true, email: 'caina.barbosa@trilogy.com' });
-    expect(items.map((i) => i.section)).toEqual(['chat', 'library', 'analytics', 'providers']);
+    expect(items.map((i) => i.section)).toEqual(['chat', 'library', 'skills', 'analytics', 'providers']);
   });
 
   it('matches email case-insensitively', () => {
@@ -100,11 +105,13 @@ describe('getSectionNavItems', () => {
     }
   });
 
-  it('Chat href is "/" and Library href is "/library"', () => {
+  it('Chat href is "/", Library href is "/library", and Skills href is "/skills"', () => {
     const items = getSectionNavItems({ isAdmin: false });
     const chat = items.find((i) => i.section === 'chat');
     const library = items.find((i) => i.section === 'library');
+    const skills = items.find((i) => i.section === 'skills');
     expect(chat?.href).toBe('/');
     expect(library?.href).toBe('/library');
+    expect(skills?.href).toBe('/skills');
   });
 });
