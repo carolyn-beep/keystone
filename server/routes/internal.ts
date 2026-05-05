@@ -19,6 +19,8 @@ import { Router, type Request, type Response } from 'express';
 import { z } from 'zod';
 import {
   createDeliverableRequestSchema,
+  deliverableIdParamsSchema,
+  listDocumentsQuerySchema,
   listTasksQuerySchema,
   taskIdParamsSchema,
   updateDeliverableRequestSchema,
@@ -35,7 +37,12 @@ import {
   getBrainliftTemplatePayload,
   listBrainliftsForAuthContext,
 } from '../services/brainlift-grading-surface';
-import { createSprintDeliverable, updateSprintDeliverable } from '../services/sprint';
+import {
+  createSprintDeliverable,
+  listDocumentsForUser,
+  readSprintDeliverable,
+  updateSprintDeliverable,
+} from '../services/sprint';
 import { createVersion, pruneVersions } from '../storage/versions';
 import { propagateStaleFlags, dismissStaleFlag, getStaleItems } from '../storage/stale';
 import { recomputeBrainliftScore } from '../services/brainlift';
@@ -375,8 +382,12 @@ export async function internalListDeliverablesHandler(req: Request, res: Respons
 export async function internalCreateDeliverableHandler(req: Request, res: Response): Promise<void> {
   const brainlift = req.brainlift!;
   const authContext = req.authContext!;
-  const { taskId } = taskIdParamsSchema.parse(req.params);
+  const routeTaskId = req.params.taskId != null ? taskIdParamsSchema.parse(req.params).taskId : undefined;
   const body = createDeliverableRequestSchema.parse(req.body);
+  if (routeTaskId != null && body.taskId != null && routeTaskId !== body.taskId) {
+    throw new BadRequestError('Route taskId and body taskId must match');
+  }
+  const taskId = routeTaskId ?? body.taskId;
 
   try {
     const result = await createSprintDeliverable({
@@ -386,7 +397,7 @@ export async function internalCreateDeliverableHandler(req: Request, res: Respon
         gdriveRootFolderId: brainlift.gdriveRootFolderId ?? null,
       },
       userId: authContext.userId,
-      taskId,
+      ...(taskId != null ? { taskId } : {}),
       title: body.title,
       markdown: body.markdown,
       sourceSurface: 'mcp',
@@ -415,6 +426,33 @@ export async function internalUpdateDeliverableHandler(req: Request, res: Respon
   }));
 }
 
+export async function internalReadDeliverableByIdHandler(req: Request, res: Response): Promise<void> {
+  const brainlift = req.brainlift!;
+  const { id } = deliverableIdParamsSchema.parse(req.params);
+  res.json(await readSprintDeliverable({
+    brainliftId: brainlift.id,
+    deliverableId: id,
+  }));
+}
+
+export async function internalPatchDeliverableByIdHandler(req: Request, res: Response): Promise<void> {
+  const brainlift = req.brainlift!;
+  const { id } = deliverableIdParamsSchema.parse(req.params);
+  const body = updateDeliverableRequestSchema.parse(req.body);
+  res.json(await updateSprintDeliverable({
+    brainliftId: brainlift.id,
+    deliverableId: id,
+    markdown: body.markdown,
+    sourceSurface: 'mcp',
+  }));
+}
+
+export async function internalListDocumentsHandler(req: Request, res: Response): Promise<void> {
+  const authContext = req.authContext!;
+  const query = listDocumentsQuerySchema.parse(req.query);
+  res.json(await listDocumentsForUser(authContext.userId, authContext.isAdmin, query));
+}
+
 internalRouter.post(
   '/api/internal/brainlifts/:slug/plans',
   requireServiceAuth,
@@ -440,6 +478,12 @@ internalRouter.get(
   '/api/internal/tasks',
   requireServiceAuth,
   asyncHandler(internalListAllTasksForUserHandler),
+);
+
+internalRouter.get(
+  '/api/internal/documents',
+  requireServiceAuth,
+  asyncHandler(internalListDocumentsHandler),
 );
 
 internalRouter.get(
@@ -477,11 +521,32 @@ internalRouter.put(
   asyncHandler(internalUpdateDeliverableHandler),
 );
 
+internalRouter.post(
+  '/api/internal/brainlifts/:slug/deliverables',
+  requireServiceAuth,
+  requireBrainliftModify,
+  asyncHandler(internalCreateDeliverableHandler),
+);
+
 internalRouter.get(
   '/api/internal/brainlifts/:slug/deliverables',
   requireServiceAuth,
   requireBrainliftAccess,
   asyncHandler(internalListDeliverablesHandler),
+);
+
+internalRouter.get(
+  '/api/internal/brainlifts/:slug/deliverables/:id',
+  requireServiceAuth,
+  requireBrainliftAccess,
+  asyncHandler(internalReadDeliverableByIdHandler),
+);
+
+internalRouter.patch(
+  '/api/internal/brainlifts/:slug/deliverables/:id',
+  requireServiceAuth,
+  requireBrainliftModify,
+  asyncHandler(internalPatchDeliverableByIdHandler),
 );
 
 // ── Helpers ──

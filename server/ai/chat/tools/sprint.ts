@@ -11,7 +11,7 @@ import {
   generateSprintPlanNow,
   getCurrentSprintPlan,
   getSprintTaskOrThrow,
-  listSprintDeliverables,
+  listDocumentsForUser,
   listSprintTasks,
   readSprintDeliverable,
   updateSprintDeliverable,
@@ -56,18 +56,44 @@ const getTaskInputSchema = brainliftSlugSchema.extend({
 });
 
 const createDeliverableInputSchema = brainliftSlugSchema.extend({
-  taskId: positiveIntSchema,
+  taskId: positiveIntSchema.optional(),
   title: z.string().trim().min(1),
   markdown: z.string(),
 });
 
-const updateDeliverableInputSchema = brainliftSlugSchema.extend({
-  taskId: positiveIntSchema,
-  markdown: z.string(),
-});
+function requireExactlyOneDeliverableSelector(
+  value: { taskId?: number; deliverableId?: number },
+  ctx: z.RefinementCtx,
+) {
+  const selectorCount = Number(value.taskId != null) + Number(value.deliverableId != null);
+  if (selectorCount !== 1) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ['taskId'],
+      message: 'Provide exactly one of taskId or deliverableId',
+    });
+  }
+}
 
-const listDeliverablesInputSchema = brainliftSlugSchema.extend({
-  planId: positiveIntSchema.optional(),
+const deliverableSelectorSchema = brainliftSlugSchema.extend({
+  taskId: positiveIntSchema.optional(),
+  deliverableId: positiveIntSchema.optional(),
+}).superRefine(requireExactlyOneDeliverableSelector);
+
+const updateDeliverableInputSchema = brainliftSlugSchema.extend({
+  taskId: positiveIntSchema.optional(),
+  deliverableId: positiveIntSchema.optional(),
+  markdown: z.string(),
+}).superRefine(requireExactlyOneDeliverableSelector);
+
+const listDocumentsInputSchema = z.object({
+  brainliftSlug: z.string().trim().min(1).optional(),
+  brainliftId: positiveIntSchema.optional(),
+  taskId: positiveIntSchema.optional(),
+  q: z.string().trim().min(1).optional(),
+  sort: z.enum(['createdAt', 'title']).optional(),
+  order: z.enum(['asc', 'desc']).optional(),
+  page: positiveIntSchema.optional(),
 });
 
 async function resolveScopedBrainlift(
@@ -97,6 +123,17 @@ function pickDeliverableBrainlift(brainlift: BrainliftData) {
     title: brainlift.title,
     gdriveRootFolderId: brainlift.gdriveRootFolderId ?? null,
   };
+}
+
+function pickDeliverableSelector(input: { taskId?: number; deliverableId?: number }) {
+  const selectorCount = Number(input.taskId != null) + Number(input.deliverableId != null);
+  if (selectorCount !== 1) {
+    throw new Error('Provide exactly one of taskId or deliverableId');
+  }
+
+  return input.taskId != null
+    ? { taskId: input.taskId }
+    : { deliverableId: input.deliverableId };
 }
 
 export function buildSprintChatTools({ authContext }: SprintChatToolContext) {
@@ -154,7 +191,7 @@ export function buildSprintChatTools({ authContext }: SprintChatToolContext) {
     }),
 
     save_deliverable: tool({
-      description: 'Create a deliverable for a sprint task and return the stable Google Doc URL.',
+      description: 'Create a sprint task deliverable when taskId is provided, or save a standalone Document Hub document when taskId is omitted. Returns the deliverable id and stable Google Doc URL.',
       inputSchema: createDeliverableInputSchema,
       execute: async ({ brainliftSlug, taskId, title, markdown }) => {
         const brainlift = await resolveScopedBrainlift(authContext, brainliftSlug, 'modify');
@@ -170,36 +207,38 @@ export function buildSprintChatTools({ authContext }: SprintChatToolContext) {
     }),
 
     read_deliverable: tool({
-      description: 'Read the current markdown body and document URL for a sprint deliverable.',
-      inputSchema: getTaskInputSchema,
-      execute: async ({ brainliftSlug, taskId }) => {
+      description: 'Read the current markdown body and document URL for a deliverable by taskId or deliverableId.',
+      inputSchema: deliverableSelectorSchema,
+      execute: async ({ brainliftSlug, taskId, deliverableId }) => {
         const brainlift = await resolveScopedBrainlift(authContext, brainliftSlug, 'access');
+        const selector = pickDeliverableSelector({ taskId, deliverableId });
         return readSprintDeliverable({
           brainliftId: brainlift.id,
-          taskId,
+          ...selector,
         });
       },
     }),
 
     update_deliverable: tool({
-      description: 'Replace the markdown content of an existing sprint deliverable and return the stable Google Doc URL.',
+      description: 'Replace the markdown content of an existing deliverable by taskId or deliverableId and return its id plus stable Google Doc URL.',
       inputSchema: updateDeliverableInputSchema,
-      execute: async ({ brainliftSlug, taskId, markdown }) => {
+      execute: async ({ brainliftSlug, taskId, deliverableId, markdown }) => {
         const brainlift = await resolveScopedBrainlift(authContext, brainliftSlug, 'modify');
+        const selector = pickDeliverableSelector({ taskId, deliverableId });
         return updateSprintDeliverable({
           brainliftId: brainlift.id,
-          taskId,
+          ...selector,
           markdown,
+          sourceSurface: 'ui',
         });
       },
     }),
 
-    list_deliverables: tool({
-      description: 'List deliverables for a brainlift, optionally filtered to one plan id.',
-      inputSchema: listDeliverablesInputSchema,
-      execute: async ({ brainliftSlug, planId }) => {
-        const brainlift = await resolveScopedBrainlift(authContext, brainliftSlug, 'access');
-        return listSprintDeliverables(brainlift.id, { planId });
+    list_documents: tool({
+      description: 'List accessible Document Hub documents and sprint deliverables with optional Brainlift, task, search, sort, order, and page filters.',
+      inputSchema: listDocumentsInputSchema,
+      execute: async (query) => {
+        return listDocumentsForUser(authContext.userId, authContext.isAdmin, query);
       },
     }),
   };

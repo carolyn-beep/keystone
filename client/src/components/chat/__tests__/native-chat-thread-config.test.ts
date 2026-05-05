@@ -45,9 +45,12 @@ describe('native chat thread config', () => {
       'list_tasks',
       'save_deliverable',
       'update_deliverable',
+      'read_deliverable',
+      'list_documents',
       'load_skill',
       'ask_user_question',
     ]));
+    expect(toolNames).not.toContain('list_deliverables');
     expect(config.assistantMessage.components.ToolFallback).toBe(GenericToolCallCard);
   });
 

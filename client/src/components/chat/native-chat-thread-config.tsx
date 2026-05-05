@@ -578,8 +578,8 @@ const GetTaskToolUI = makeAssistantToolUI<{ taskId: number }, unknown>({
   ),
 });
 
-type DeliverableArgs = { brainliftSlug: string; taskId: number; title?: string };
-type DeliverableResult = { docUrl: string };
+type DeliverableArgs = { brainliftSlug: string; taskId?: number; deliverableId?: number; title?: string };
+type DeliverableResult = { id?: number; docUrl: string };
 
 function DeliverableToolStatus({
   args,
@@ -595,7 +595,10 @@ function DeliverableToolStatus({
   verb: 'Saving' | 'Updating';
 }) {
   const past = verb === 'Saving' ? 'Saved' : 'Updated';
-  const target = args.title || `task #${args.taskId}`;
+  const target = args.title
+    || (args.deliverableId != null ? `document #${args.deliverableId}` : undefined)
+    || (args.taskId != null ? `task #${args.taskId}` : undefined)
+    || args.brainliftSlug;
 
   return (
     <ToolStatusLine
@@ -634,38 +637,45 @@ const UpdateDeliverableToolUI = makeAssistantToolUI<DeliverableArgs, Deliverable
   render: (props) => <DeliverableToolStatus {...props} verb="Updating" />,
 });
 
-const ReadDeliverableToolUI = makeAssistantToolUI<{ taskId: number }, unknown>({
+const ReadDeliverableToolUI = makeAssistantToolUI<{ taskId?: number; deliverableId?: number; brainliftSlug?: string }, unknown>({
   toolName: 'read_deliverable',
-  render: ({ args, status, isError }) => (
-    <ToolStatusLine
-      icon={<StatusIcon status={status} isError={isError} fallback={<FileText size={13} />} />}
-      tone={getTone(status, isError)}
-    >
-      {isError
-        ? `Failed to read deliverable for task #${args.taskId}`
-        : isRunning(status)
-          ? `Reading deliverable for task #${args.taskId}…`
-          : `Read deliverable for task #${args.taskId}`}
-    </ToolStatusLine>
-  ),
+  render: ({ args, status, isError }) => {
+    const target = args.deliverableId != null
+      ? `document #${args.deliverableId}`
+      : args.taskId != null
+        ? `task #${args.taskId}`
+        : args.brainliftSlug || 'document';
+    return (
+      <ToolStatusLine
+        icon={<StatusIcon status={status} isError={isError} fallback={<FileText size={13} />} />}
+        tone={getTone(status, isError)}
+      >
+        {isError
+          ? `Failed to read deliverable for ${target}`
+          : isRunning(status)
+            ? `Reading deliverable for ${target}…`
+            : `Read deliverable for ${target}`}
+      </ToolStatusLine>
+    );
+  },
 });
 
-const ListDeliverablesToolUI = makeAssistantToolUI<{ brainliftSlug: string }, { deliverables?: unknown[] }>({
-  toolName: 'list_deliverables',
+const ListDocumentsToolUI = makeAssistantToolUI<{ brainliftSlug?: string }, { documents?: unknown[] }>({
+  toolName: 'list_documents',
   render: ({ result, status, isError }) => {
-    const count = result?.deliverables?.length;
+    const count = result?.documents?.length;
     return (
       <ToolStatusLine
         icon={<StatusIcon status={status} isError={isError} fallback={<FileStack size={13} />} />}
         tone={getTone(status, isError)}
       >
         {isError
-          ? 'Failed to list deliverables'
+          ? 'Failed to list documents'
           : isRunning(status)
-            ? 'Listing deliverables…'
+            ? 'Listing documents…'
             : count != null
-              ? `Listed ${count} deliverable${count === 1 ? '' : 's'}`
-              : 'Listed deliverables'}
+              ? `Listed ${count} document${count === 1 ? '' : 's'}`
+              : 'Listed documents'}
       </ToolStatusLine>
     );
   },
@@ -808,7 +818,7 @@ export const nativeChatToolUIs = [
   SaveDeliverableToolUI,
   UpdateDeliverableToolUI,
   ReadDeliverableToolUI,
-  ListDeliverablesToolUI,
+  ListDocumentsToolUI,
   // Research
   WebSearchExaToolUI,
   FetchUrlContentToolUI,
