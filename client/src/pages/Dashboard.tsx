@@ -187,6 +187,8 @@ export default function Dashboard({ slug, isSharedView = false }: DashboardProps
   const [selectedFactForModal, setSelectedFactForModal] = useState<Fact | null>(null);
   const [editingAuthor, setEditingAuthor] = useState(false);
   const [authorInput, setAuthorInput] = useState('');
+  const [editingTitle, setEditingTitle] = useState(false);
+  const [titleInput, setTitleInput] = useState('');
   const [showLinkingModal, setShowLinkingModal] = useState(false);
   const [showDok4LinkingModal, setShowDok4LinkingModal] = useState(false);
   const [showAgentModal, setShowAgentModal] = useState(false);
@@ -198,6 +200,7 @@ const { toast } = useToast();
     isLoading,
     error,
     updateAuthor,
+    updateTitle,
     update: updateBrainlift,
     isUpdating,
     updateError,
@@ -216,6 +219,23 @@ const { downloadBrainliftPDF } = usePDFExport();
 
   const handleUpdateAuthor = (author: string) => {
     updateAuthor(author).then(() => setEditingAuthor(false));
+  };
+
+  const handleUpdateTitle = (title: string) => {
+    const trimmed = title.trim();
+    if (!trimmed) {
+      setEditingTitle(false);
+      return;
+    }
+    if (trimmed === data?.title) {
+      setEditingTitle(false);
+      return;
+    }
+    updateTitle(trimmed)
+      .then(() => setEditingTitle(false))
+      .catch((err: Error) => {
+        toast({ title: 'Could not update project name', description: err.message, variant: 'destructive' });
+      });
   };
 
   const isNotBrainlift = data?.classification === 'not_brainlift';
@@ -373,6 +393,11 @@ const { downloadBrainliftPDF } = usePDFExport();
         authorInput={authorInput}
         setAuthorInput={setAuthorInput}
         onUpdateAuthor={handleUpdateAuthor}
+        editingTitle={editingTitle}
+        setEditingTitle={setEditingTitle}
+        titleInput={titleInput}
+        setTitleInput={setTitleInput}
+        onUpdateTitle={handleUpdateTitle}
         setShowUpdateModal={setShowUpdateModal}
         setShowHistoryModal={setShowHistoryModal}
         handleDownloadPDF={handleDownloadPDF}

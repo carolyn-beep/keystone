@@ -239,6 +239,7 @@ export async function deleteBrainlift(id: number): Promise<void> {
 }
 
 export async function updateBrainliftFields(id: number, fields: {
+  title?: string;
   originalContent?: string | null;
   sourceType?: string | null;
   author?: string | null;
