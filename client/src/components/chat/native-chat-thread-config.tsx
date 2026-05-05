@@ -758,6 +758,121 @@ const LoadSkillToolUI = makeAssistantToolUI<{ name: string }, unknown>({
   ),
 });
 
+const LoadSkillReferenceToolUI = makeAssistantToolUI<{ skillName: string; path: string }, unknown>({
+  toolName: 'load_skill_reference',
+  render: ({ args, status, isError }) => (
+    <ToolStatusLine
+      icon={<StatusIcon status={status} isError={isError} fallback={<FileText size={13} />} />}
+      tone={getTone(status, isError)}
+    >
+      {isError
+        ? `Failed to load reference: ${args.path}`
+        : isRunning(status)
+          ? `Loading reference: ${args.path}…`
+          : `Loaded reference: ${args.path}`}
+    </ToolStatusLine>
+  ),
+});
+
+const CreateSkillToolUI = makeAssistantToolUI<{ name: string }, unknown>({
+  toolName: 'create_skill',
+  render: ({ args, status, isError }) => (
+    <ToolStatusLine
+      icon={<StatusIcon status={status} isError={isError} fallback={<BookOpenText size={13} />} />}
+      tone={getTone(status, isError)}
+    >
+      {isError
+        ? `Failed to create skill: ${args.name}`
+        : isRunning(status)
+          ? `Creating skill: ${args.name}…`
+          : `Created skill: ${args.name}`}
+    </ToolStatusLine>
+  ),
+});
+
+const UpdateSkillToolUI = makeAssistantToolUI<{ skillName: string; name?: string }, unknown>({
+  toolName: 'update_skill',
+  render: ({ args, status, isError }) => {
+    const name = args.name ?? args.skillName;
+    return (
+      <ToolStatusLine
+        icon={<StatusIcon status={status} isError={isError} fallback={<Pencil size={13} />} />}
+        tone={getTone(status, isError)}
+      >
+        {isError
+          ? `Failed to update skill: ${args.skillName}`
+          : isRunning(status)
+            ? `Updating skill: ${args.skillName}…`
+            : `Updated skill: ${name}`}
+      </ToolStatusLine>
+    );
+  },
+});
+
+const AddSkillReferenceToolUI = makeAssistantToolUI<{ skillName: string; path: string }, unknown>({
+  toolName: 'add_skill_reference',
+  render: ({ args, status, isError }) => (
+    <ToolStatusLine
+      icon={<StatusIcon status={status} isError={isError} fallback={<FileStack size={13} />} />}
+      tone={getTone(status, isError)}
+    >
+      {isError
+        ? `Failed to add reference: ${args.path}`
+        : isRunning(status)
+          ? `Adding reference: ${args.path}…`
+          : `Added reference: ${args.path}`}
+    </ToolStatusLine>
+  ),
+});
+
+const UpdateSkillReferenceToolUI = makeAssistantToolUI<{ skillName: string; path: string }, unknown>({
+  toolName: 'update_skill_reference',
+  render: ({ args, status, isError }) => (
+    <ToolStatusLine
+      icon={<StatusIcon status={status} isError={isError} fallback={<Pencil size={13} />} />}
+      tone={getTone(status, isError)}
+    >
+      {isError
+        ? `Failed to update reference: ${args.path}`
+        : isRunning(status)
+          ? `Updating reference: ${args.path}…`
+          : `Updated reference: ${args.path}`}
+    </ToolStatusLine>
+  ),
+});
+
+const DeleteSkillReferenceToolUI = makeAssistantToolUI<{ skillName: string; path: string }, unknown>({
+  toolName: 'delete_skill_reference',
+  render: ({ args, status, isError }) => (
+    <ToolStatusLine
+      icon={<StatusIcon status={status} isError={isError} fallback={<Trash2 size={13} />} />}
+      tone={getTone(status, isError)}
+    >
+      {isError
+        ? `Failed to delete reference: ${args.path}`
+        : isRunning(status)
+          ? `Deleting reference: ${args.path}…`
+          : `Deleted reference: ${args.path}`}
+    </ToolStatusLine>
+  ),
+});
+
+const DeleteSkillToolUI = makeAssistantToolUI<{ skillName: string }, unknown>({
+  toolName: 'delete_skill',
+  render: ({ args, status, isError }) => (
+    <ToolStatusLine
+      icon={<StatusIcon status={status} isError={isError} fallback={<Trash2 size={13} />} />}
+      tone={getTone(status, isError)}
+    >
+      {isError
+        ? `Failed to delete skill: ${args.skillName}`
+        : isRunning(status)
+          ? `Deleting skill: ${args.skillName}…`
+          : `Deleted skill: ${args.skillName}`}
+    </ToolStatusLine>
+  ),
+});
+
 // ---------- Ask user question (client-resolved) ----------
 
 const AskUserQuestionToolUI = makeAssistantToolUI<
@@ -825,6 +940,13 @@ export const nativeChatToolUIs = [
   YoutubeTranscriptToolUI,
   // Skills
   LoadSkillToolUI,
+  LoadSkillReferenceToolUI,
+  CreateSkillToolUI,
+  UpdateSkillToolUI,
+  AddSkillReferenceToolUI,
+  UpdateSkillReferenceToolUI,
+  DeleteSkillReferenceToolUI,
+  DeleteSkillToolUI,
   // Ask user
   AskUserQuestionToolUI,
 ];

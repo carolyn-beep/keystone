@@ -155,7 +155,10 @@ export async function streamChatHandler(req: Request, res: Response): Promise<vo
 
   const messages = body.messages as UIMessage[];
   const userContext = await storage.getChatUserContext(userId);
-  const systemPrompt = await buildChatSystemPromptFromRegistry({ userContext });
+  const systemPrompt = await buildChatSystemPromptFromRegistry({
+    userContext,
+    authContext: req.authContext!,
+  });
   const tools = buildNativeChatTools(req.authContext!);
   const traceContext = {
     userId,

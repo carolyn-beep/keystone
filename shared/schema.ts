@@ -291,6 +291,70 @@ export const brainliftShares = pgTable("brainlift_shares", {
   `),
 ]);
 
+export const SKILL_VISIBILITY = {
+  PUBLIC: 'public',
+  PRIVATE: 'private',
+} as const;
+
+export type SkillVisibility = typeof SKILL_VISIBILITY[keyof typeof SKILL_VISIBILITY];
+
+export const skills = pgTable("skills", {
+  id: serial("id").primaryKey(),
+  name: text("name").notNull(),
+  description: text("description").notNull(),
+  body: text("body").notNull(),
+  visibility: text("visibility").$type<SkillVisibility>().default('public').notNull(),
+  createdByUserId: text("created_by_user_id").notNull().references(() => user.id),
+  lastEditedByUserId: text("last_edited_by_user_id").references(() => user.id, { onDelete: "set null" }),
+  lastEditedAt: timestamp("last_edited_at"),
+  deletedAt: timestamp("deleted_at"),
+  deletedByUserId: text("deleted_by_user_id").references(() => user.id, { onDelete: "set null" }),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().$onUpdate(() => new Date()).notNull(),
+}, (table) => [
+  unique("skills_name_unique").on(table.name),
+  index("skills_created_by_user_id_idx").on(table.createdByUserId),
+  index("skills_deleted_at_idx").on(table.deletedAt),
+  check("skills_visibility_valid", sql`${table.visibility} IN ('public', 'private')`),
+  check("skills_description_length", sql`char_length(${table.description}) <= 500`),
+  check("skills_body_length", sql`char_length(${table.body}) <= 102400`),
+]);
+
+export const skillResources = pgTable("skill_resources", {
+  id: serial("id").primaryKey(),
+  skillId: integer("skill_id").notNull().references(() => skills.id, { onDelete: "cascade" }),
+  path: text("path").notNull(),
+  content: text("content").notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().$onUpdate(() => new Date()).notNull(),
+}, (table) => [
+  unique("skill_resources_skill_path_unique").on(table.skillId, table.path),
+  index("skill_resources_skill_id_idx").on(table.skillId),
+  check("skill_resources_content_length", sql`char_length(${table.content}) <= 51200`),
+]);
+
+export const skillShares = pgTable("skill_shares", {
+  id: serial("id").primaryKey(),
+  skillId: integer("skill_id").notNull().references(() => skills.id, { onDelete: "cascade" }),
+  userId: text("user_id").notNull().references(() => user.id, { onDelete: "cascade" }),
+  createdByUserId: text("created_by_user_id").notNull().references(() => user.id, { onDelete: "cascade" }),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+}, (table) => [
+  unique("skill_shares_skill_user_unique").on(table.skillId, table.userId),
+  index("skill_shares_skill_id_idx").on(table.skillId),
+  index("skill_shares_user_id_idx").on(table.userId),
+]);
+
+export const skillUserDisabled = pgTable("skill_user_disabled", {
+  userId: text("user_id").notNull().references(() => user.id, { onDelete: "cascade" }),
+  skillId: integer("skill_id").notNull().references(() => skills.id, { onDelete: "cascade" }),
+  disabledAt: timestamp("disabled_at").defaultNow().notNull(),
+}, (table) => [
+  unique("skill_user_disabled_user_skill_unique").on(table.userId, table.skillId),
+  index("skill_user_disabled_user_id_idx").on(table.userId),
+  index("skill_user_disabled_skill_id_idx").on(table.skillId),
+]);
+
 export const SPRINT_PLAN_STATUS = {
   ACTIVE: 'active',
   COMPLETE: 'complete',
@@ -541,6 +605,12 @@ export const userRelations = relations(user, ({ many }) => ({
   brainlifts: many(brainlifts),
   sprintPlansCreated: many(plans),
   deliverablesCreated: many(deliverables),
+  skillsCreated: many(skills, { relationName: 'skillsCreatedBy' }),
+  skillsLastEdited: many(skills, { relationName: 'skillsLastEditedBy' }),
+  skillsDeleted: many(skills, { relationName: 'skillsDeletedBy' }),
+  skillShares: many(skillShares, { relationName: 'skillShareUser' }),
+  skillSharesCreated: many(skillShares, { relationName: 'skillShareCreatedBy' }),
+  disabledSkills: many(skillUserDisabled),
 }));
 
 export const sessionRelations = relations(session, ({ one }) => ({
@@ -589,6 +659,62 @@ export const brainliftSharesRelations = relations(brainliftShares, ({ one }) => 
   }),
   createdBy: one(user, {
     fields: [brainliftShares.createdByUserId],
+    references: [user.id],
+  }),
+}));
+
+export const skillsRelations = relations(skills, ({ one, many }) => ({
+  createdBy: one(user, {
+    fields: [skills.createdByUserId],
+    references: [user.id],
+    relationName: 'skillsCreatedBy',
+  }),
+  lastEditedBy: one(user, {
+    fields: [skills.lastEditedByUserId],
+    references: [user.id],
+    relationName: 'skillsLastEditedBy',
+  }),
+  deletedBy: one(user, {
+    fields: [skills.deletedByUserId],
+    references: [user.id],
+    relationName: 'skillsDeletedBy',
+  }),
+  resources: many(skillResources),
+  shares: many(skillShares),
+  disabledUsers: many(skillUserDisabled),
+}));
+
+export const skillResourcesRelations = relations(skillResources, ({ one }) => ({
+  skill: one(skills, {
+    fields: [skillResources.skillId],
+    references: [skills.id],
+  }),
+}));
+
+export const skillSharesRelations = relations(skillShares, ({ one }) => ({
+  skill: one(skills, {
+    fields: [skillShares.skillId],
+    references: [skills.id],
+  }),
+  user: one(user, {
+    fields: [skillShares.userId],
+    references: [user.id],
+    relationName: 'skillShareUser',
+  }),
+  createdBy: one(user, {
+    fields: [skillShares.createdByUserId],
+    references: [user.id],
+    relationName: 'skillShareCreatedBy',
+  }),
+}));
+
+export const skillUserDisabledRelations = relations(skillUserDisabled, ({ one }) => ({
+  skill: one(skills, {
+    fields: [skillUserDisabled.skillId],
+    references: [skills.id],
+  }),
+  user: one(user, {
+    fields: [skillUserDisabled.userId],
     references: [user.id],
   }),
 }));
@@ -1491,6 +1617,16 @@ export const insertDok2FactRelationSchema = createInsertSchema(dok2FactRelations
 export const insertDok3InsightSchema = createInsertSchema(dok3Insights).omit({ id: true, createdAt: true });
 export const insertDok3InsightLinkSchema = createInsertSchema(dok3InsightLinks).omit({ id: true });
 export const insertBrainliftShareSchema = createInsertSchema(brainliftShares).omit({ id: true, createdAt: true });
+export const insertSkillSchema = createInsertSchema(skills).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+  lastEditedAt: true,
+  deletedAt: true,
+});
+export const insertSkillResourceSchema = createInsertSchema(skillResources).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertSkillShareSchema = createInsertSchema(skillShares).omit({ id: true, createdAt: true });
+export const insertSkillUserDisabledSchema = createInsertSchema(skillUserDisabled).omit({ disabledAt: true });
 export const insertPlanSchema = createInsertSchema(plans).omit({ id: true, createdAt: true });
 export const insertTaskSchema = createInsertSchema(tasks).omit({ id: true });
 export const insertDeliverableSchema = createInsertSchema(deliverables).omit({ id: true, createdAt: true });
@@ -1560,6 +1696,14 @@ export type DOK3InsightLink = typeof dok3InsightLinks.$inferSelect;
 export type InsertDOK3InsightLink = z.infer<typeof insertDok3InsightLinkSchema>;
 export type BrainliftShare = typeof brainliftShares.$inferSelect;
 export type InsertBrainliftShare = z.infer<typeof insertBrainliftShareSchema>;
+export type Skill = typeof skills.$inferSelect;
+export type InsertSkill = z.infer<typeof insertSkillSchema>;
+export type SkillResource = typeof skillResources.$inferSelect;
+export type InsertSkillResource = z.infer<typeof insertSkillResourceSchema>;
+export type SkillShare = typeof skillShares.$inferSelect;
+export type InsertSkillShare = z.infer<typeof insertSkillShareSchema>;
+export type SkillUserDisabled = typeof skillUserDisabled.$inferSelect;
+export type InsertSkillUserDisabled = z.infer<typeof insertSkillUserDisabledSchema>;
 export type SprintPlan = typeof plans.$inferSelect;
 export type InsertSprintPlan = z.infer<typeof insertPlanSchema>;
 export type SprintTask = typeof tasks.$inferSelect;

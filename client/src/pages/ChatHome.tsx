@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { AlertTriangle, Loader2, MessageSquareText, PanelLeft } from 'lucide-react';
 import type { ChatModelId } from '@shared/chat-models';
 import type { ChatConversation } from '@shared/schema';
@@ -117,6 +117,12 @@ export default function ChatHome() {
   const selectedConversationId = selection.selectedConversationId;
   const requestedConversationId = parseSelectedConversationId(search);
   const selectedConversationQuery = useChatConversation(selectedConversationId);
+  const initialUserMessage = useMemo(() => {
+    if (selectedConversationId == null) return null;
+    const params = new URLSearchParams(search);
+    const send = params.get('send');
+    return send && send.trim().length > 0 ? send : null;
+  }, [search, selectedConversationId]);
 
   useEffect(() => {
     if (conversationsQuery.status !== 'success') return;
@@ -367,7 +373,8 @@ export default function ChatHome() {
             initialMessages={selectedConversationQuery.data?.messages}
             modelId={selectedModelId}
             onModelIdChange={setSelectedModelId}
-            needsOpener={openerPendingForId === selectedConversationId}
+            needsOpener={openerPendingForId === selectedConversationId && !initialUserMessage}
+            initialUserMessage={initialUserMessage}
           />
         )}
       </div>

@@ -24,6 +24,7 @@ import { internalRouter } from "./routes/internal";
 import { dok1CrudRouter } from "./routes/dok1-crud";
 import { dok2CrudRouter } from "./routes/dok2-crud";
 import { sprintsRouter } from "./routes/sprints";
+import { skillsRouter } from "./routes/skills";
 import { errorHandler } from "./middleware/error-handler";
 import { seedDatabase, backfillOriginalContent } from "./seed";
 
@@ -56,6 +57,7 @@ export async function registerRoutes(
   app.use(dok1CrudRouter);
   app.use(dok2CrudRouter);
   app.use(sprintsRouter);
+  app.use(skillsRouter);
 
   // Global error handler - must be after all routes
   app.use(errorHandler);

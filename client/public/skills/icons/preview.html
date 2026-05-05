@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Skills Icons — Preview</title>
+<style>
+  body { background:#FBF7F0; color:#2D2D2D; font-family: Inter, system-ui, sans-serif; margin:0; padding:48px; }
+  h1 { font-family: Georgia, "Libre Baskerville", serif; font-weight:400; font-size:36px; margin:0 0 8px; }
+  p.lede { font-style:italic; color:#5A5A5A; margin:0 0 32px; max-width:60ch; }
+  h2 { font-family: Inter, sans-serif; font-size:11px; letter-spacing:0.32em; text-transform:uppercase; color:#5A5A5A; margin:48px 0 16px; }
+  .grid { display:grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap:16px; }
+  .card { background:#fff; border-radius:12px; padding:20px; box-shadow:0 2px 6px rgba(0,0,0,0.06); display:flex; flex-direction:column; align-items:center; gap:12px; }
+  .card img { width:96px; height:96px; object-fit:contain; }
+  .card .name { font-size:11px; letter-spacing:0.18em; text-transform:uppercase; color:#5A5A5A; font-weight:600; }
+  .tints { display:flex; gap:6px; }
+  .tints .swatch { width:48px; height:48px; border-radius:8px; display:flex; align-items:center; justify-content:center; }
+  .tints .swatch img { width:32px; height:32px; }
+  .swatch.info { background: rgba(59,110,143,0.35); }
+  .swatch.success { background: rgba(86,100,63,0.40); }
+  .swatch.warning { background: rgba(217,119,6,0.35); }
+  .swatch.danger { background: rgba(149,58,52,0.30); }
+  .swatch.primary { background: rgba(34,21,13,0.20); }
+</style>
+</head>
+<body>
+  <h1>Skills Icon Set — Batch 1 / 3</h1>
+  <p class="lede">15 icons across three house-style directions: manuscript marginalia, illuminated drop caps, and wax seals. Each card shows the raw silhouette plus a row of preview tints (info / success / warning / danger / primary).</p>
+
+  <h2>Manuscript Marginalia</h2>
+  <div class="grid" id="marginalia"></div>
+
+  <h2>Illuminated Drop Caps (B C G O S — letters from current skill names)</h2>
+  <div class="grid" id="dropcaps"></div>
+
+  <h2>Wax Seals</h2>
+  <div class="grid" id="seals"></div>
+
+  <script>
+    const data = {
+      marginalia: ['manicule', 'pilcrow', 'section', 'asterism', 'fleuron'],
+      dropcaps: ['B', 'C', 'G', 'O', 'S'],
+      seals: ['seal-star', 'seal-quills', 'seal-crescent', 'seal-eye', 'seal-monogram'],
+    };
+    const tints = ['info', 'success', 'warning', 'danger', 'primary'];
+    for (const folder of Object.keys(data)) {
+      const grid = document.getElementById(folder);
+      for (const name of data[folder]) {
+        const card = document.createElement('div');
+        card.className = 'card';
+        const url = `/skills/icons/${folder}/${name}.webp`;
+        card.innerHTML = `
+          <img src="${url}" alt="${name}" />
+          <div class="name">${name}</div>
+          <div class="tints">
+            ${tints.map(t => `<div class="swatch ${t}"><img src="${url}" alt="" /></div>`).join('')}
+          </div>
+        `;
+        grid.appendChild(card);
+      }
+    }
+  </script>
+</body>
+</html>

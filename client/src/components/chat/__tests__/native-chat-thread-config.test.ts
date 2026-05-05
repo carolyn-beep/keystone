@@ -48,6 +48,13 @@ describe('native chat thread config', () => {
       'read_deliverable',
       'list_documents',
       'load_skill',
+      'load_skill_reference',
+      'create_skill',
+      'update_skill',
+      'add_skill_reference',
+      'update_skill_reference',
+      'delete_skill_reference',
+      'delete_skill',
       'ask_user_question',
     ]));
     expect(toolNames).not.toContain('list_deliverables');

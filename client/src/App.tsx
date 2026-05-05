@@ -10,6 +10,7 @@ import { CHAT_HOME_ROUTE_PATH, LIBRARY_ROUTE_PATH } from "@/components/chat/chat
 // Lazy load pages for code splitting
 const ChatHome = lazy(() => import("@/pages/ChatHome"));
 const Home = lazy(() => import("@/pages/Home"));
+const Skills = lazy(() => import("@/pages/Skills"));
 const Dashboard = lazy(() => import("@/pages/Dashboard"));
 const Analytics = lazy(() => import("@/pages/Analytics"));
 const AdminProviders = lazy(() => import("@/pages/AdminProviders"));
@@ -55,6 +56,11 @@ function Router() {
       <Route path="/analytics">
         <ProtectedRoute>
           <Analytics />
+        </ProtectedRoute>
+      </Route>
+      <Route path="/skills">
+        <ProtectedRoute>
+          <Skills />
         </ProtectedRoute>
       </Route>
       <Route path="/admin/providers">
