@@ -9,14 +9,14 @@ interface ScratchpadTabProps {
 export function ScratchpadTab({ items, isLoading }: ScratchpadTabProps) {
   if (isLoading) {
     return (
-      <div className="max-w-[1200px] mx-auto p-12 text-center text-muted-foreground">
+      <div className="max-w-[1420px] mx-auto p-12 text-center text-muted-foreground">
         Loading scratchpad...
       </div>
     );
   }
 
   return (
-    <div className="max-w-[1200px] mx-auto">
+    <div className="max-w-[1420px] mx-auto">
       {/* Page Header */}
       <div className="flex flex-col gap-4 mb-6 pb-4">
         <h2 className="text-[30px] font-bold text-foreground tracking-tight leading-[1.1] m-0">

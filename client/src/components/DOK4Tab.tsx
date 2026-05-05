@@ -232,7 +232,7 @@ export function DOK4Tab({
 
   if (isLoading) {
     return (
-      <div className="max-w-[1200px] mx-auto p-12 text-center text-muted-foreground">
+      <div className="max-w-[1420px] mx-auto p-12 text-center text-muted-foreground">
         Loading SPOVs...
       </div>
     );
@@ -241,7 +241,7 @@ export function DOK4Tab({
   // Empty state (should rarely appear since tab is hidden when no SPOVs)
   if (spovs.length === 0) {
     return (
-      <div className="max-w-[1200px] mx-auto">
+      <div className="max-w-[1420px] mx-auto">
         <div className="flex flex-col gap-4 mb-6 pb-4">
           <h2 className="text-[30px] font-bold text-foreground tracking-tight leading-[1.1] m-0">
             DOK4 Spiky Points of View
@@ -267,7 +267,7 @@ export function DOK4Tab({
   }
 
   return (
-    <div className="max-w-[1200px] mx-auto min-h-[200vh]">
+    <div className="max-w-[1420px] mx-auto min-h-[200vh]">
       {/* Page Header */}
       <div className="flex flex-col gap-4 mb-6 pb-4">
         <div className="flex items-start justify-between gap-6">
