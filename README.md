@@ -105,7 +105,7 @@ The chat model adapter in `server/ai/chat/provider.ts` implements `LanguageModel
 Tools are loaded from `buildNativeChatTools()` and grouped by domain:
 
 - **Grading tools** inspect or create BrainLift grading state (`get_template`, `grade_brainlift`, `list_brainlifts`, `get_brainlift_assessment`).
-- **Skill tools** expose repo-local skills from `skills/*/SKILL.md`; the prompt lists summaries and `load_skill` loads the full markdown only when needed.
+- **Skill tools** expose runtime skills from the database (see [Runtime Skills Library](#runtime-skills-library) below). The prompt lists summaries and `load_skill` loads one body on demand; reference files are loaded individually via `load_skill_reference`. Admins additionally see `create_skill`, `update_skill`, `add_skill_reference`, `update_skill_reference`, `delete_skill_reference`, and `delete_skill`.
 - **Research tools** port the Learning Stream source-discovery surface into chat: Exa search (`web_search_exa`), URL extraction through the existing content extractor (`fetch_url_content`), and YouTube transcript retrieval (`get_youtube_transcript`).
 - **Curation and expert tools** create/edit/delete/link DOK items, handle stale flags, and manage experts through `server/services/brainlift-curation.ts`.
 - **Sprint tools** generate plans, inspect tasks, and create/read/update deliverables through `server/services/sprint.ts`.
@@ -118,6 +118,26 @@ When the student lands on the homepage (`/` with no `?c=`), `ChatHome` always cr
 The system prompt (`server/ai/chat/system-prompt.ts`) is generated per user. It includes recent BrainLifts, recent conversations, active sprint plans, available skill summaries, and strict operating rules that keep the agent coaching from the student's BrainLift instead of guessing hidden state.
 
 Chat title generation runs after a completed user+assistant exchange when the conversation is still titled `New chat`. It uses a cheap fast Gemini Flash call through the unified AI client (`caller: 'chat.title'`) and falls back to a deterministic local title if the provider call fails. The database update is guarded so an automatic title cannot overwrite a user-renamed conversation.
+
+### Runtime Skills Library
+
+Skills moved from filesystem `skills/*/SKILL.md` files into Postgres tables (`skills`, `skill_resources`, `skill_shares`, `skill_user_disabled` — see `migrations/0031_runtime_skills_library.sql`). Authentication-aware: every list, load, and reference-load enforces the same authorization boundary so private skill names cannot be enumerated. Unauthorized, disabled, deleted, and unknown skills all collapse to the same not-found-shaped error.
+
+**Progressive disclosure**, three levels:
+
+1. **Catalogue** (`name` + `description`) is always in the system prompt. Description is the single signal that decides whether the model triggers the skill, so it is written as a list of concrete user-vocabulary triggers, not a topic blurb.
+2. **Body** loads into context only when the model calls `load_skill`. The response is the body plus a manifest of reference *paths*, never the contents.
+3. **References** load one at a time only when the model calls `load_skill_reference`. They are never inlined eagerly.
+
+**Authorization model.** Public skills are visible to all authenticated users. Private skills are visible to admins, the creator, and users in `skill_shares`. Every viewer can disable a skill they are authorized to see (`skill_user_disabled`); disabled skills drop out of the prompt and out of `load_skill`. Admins always see every non-deleted skill regardless of visibility or shares.
+
+**Soft delete with 30-day Trash.** `delete_skill` (admin only, UI or chat) sets `deletedAt`; deleted skills disappear from runtime surfaces but remain restorable from the admin Trash tab. `server/jobs/purgeDeletedSkillsJob.ts` runs daily at 03:30 (`server/jobs/crontab`) and hard-deletes rows whose `deletedAt` is older than 30 days.
+
+**`/skills` page** (`client/src/pages/Skills.tsx`, hook `client/src/hooks/useSkills.ts`) is the user catalogue and admin management surface. Users browse authorized skills, toggle enabled state, filter to skills they created, and click "Try it out" to start a new chat with `Use the {skill-name} skill.` pre-filled in the composer. Admin mode adds creation, editing, share grant/revoke, soft delete, restore, and the Trash tab. The same atomic save path validates name regex, body and description size, reference path and size limits, and visibility in `server/storage/skills.ts`.
+
+**Admin chat tools** (`create_skill`, `update_skill`, `add_skill_reference`, `update_skill_reference`, `delete_skill_reference`, `delete_skill`) are gated by `AuthContext.isAdmin` in `server/ai/chat/tools/index.ts` and let admins create or maintain skills from chat. `create_skill` requires `visibility` to be set explicitly — there is no default — so the model has to confirm public vs private with the admin before saving.
+
+**First-boot seed.** `seedRuntimeSkillsIfEmpty()` in `server/runtimeSkillsSeed.ts` runs on boot and seeds existing skills (plus the `create-skill` admin bootstrap and `gap-analyzer` references) when the `skills` table is empty. It reads `INSERT` statements directly from `migrations/0031_runtime_skills_library.sql` so the migration file is the single source of truth for seeded content. The seeded `create-skill` skill is auto-shared with every admin user on seed, walks the model through draft → review → save, and links to three references (`tool-catalogue.md`, `skill-template.md`, `description-patterns.md`) that ground new skills in real tool names instead of hallucinated ones.
 
 ---
 
