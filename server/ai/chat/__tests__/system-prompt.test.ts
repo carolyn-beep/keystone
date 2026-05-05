@@ -25,6 +25,12 @@ const baseContext: ChatUserContext = {
   activePlans: [],
 };
 
+const authContext = {
+  userId: 'user-0',
+  role: 'user',
+  isAdmin: false,
+} as const;
+
 beforeEach(() => {
   vi.resetModules();
 });
@@ -60,7 +66,7 @@ describe('dispatcher: BRAND=brainlift', () => {
 });
 
 describe('buildChatSystemPromptFromRegistry', () => {
-  it('builds the prompt from skill summaries without loading full markdown bodies', async () => {
+  it('builds the prompt from authorized skill summaries without loading bodies or references', async () => {
     vi.stubEnv('BRAND', 'alphax');
     const mod = await import('../system-prompt');
 
@@ -72,15 +78,18 @@ describe('buildChatSystemPromptFromRegistry', () => {
         },
       ]),
       loadSkill: vi.fn(),
+      loadSkillReference: vi.fn(),
     };
 
     const prompt = await mod.buildChatSystemPromptFromRegistry({
       userContext: baseContext,
+      authContext,
       skillRegistry: registry,
     });
 
-    expect(registry.listSkills).toHaveBeenCalledTimes(1);
+    expect(registry.listSkills).toHaveBeenCalledWith(authContext);
     expect(registry.loadSkill).not.toHaveBeenCalled();
+    expect(registry.loadSkillReference).not.toHaveBeenCalled();
     expect(prompt).toContain('Help first-time users orient quickly.');
   });
 });

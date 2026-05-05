@@ -1,250 +1,121 @@
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { mkdtemp, mkdir, rm, writeFile } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
-import path from 'node:path';
-import { createFileSystemSkillRegistry } from '../skills';
+import { describe, expect, it, vi } from 'vitest';
+import { readFileSync } from 'node:fs';
+import type { AuthContext } from '@shared/schema';
+import {
+  UNKNOWN_SKILL_ERROR_MESSAGE,
+  createDatabaseSkillRegistry,
+} from '../skills';
 
-const VALID_SKILL = `---
-name: test-skill
-description: Use when the prompt-aware tests need a fixture to load.
----
+const authContext: AuthContext = {
+  userId: 'user-1',
+  role: 'user',
+  isAdmin: false,
+};
 
-# Test Skill
+describe('database chat skill registry', () => {
+  it('does not expose runtime filesystem fallback helpers', () => {
+    const source = readFileSync(new URL('../skills.ts', import.meta.url), 'utf8');
 
-Body content the model only sees after invocation.
-`;
-
-async function writeSkill(rootDir: string, name: string, contents: string): Promise<void> {
-  await mkdir(path.join(rootDir, name), { recursive: true });
-  await writeFile(path.join(rootDir, name, 'SKILL.md'), contents, 'utf8');
-}
-
-describe('chat skill registry', () => {
-  let tempDir: string;
-
-  beforeEach(async () => {
-    tempDir = await mkdtemp(path.join(tmpdir(), 'chat-skills-'));
+    expect(source).not.toMatch(/DEFAULT_CHAT_SKILLS_DIR|createFileSystemSkillRegistry/);
+    expect(source).not.toMatch(/readFile|readdir|SKILL\.md/);
   });
 
-  afterEach(async () => {
-    await rm(tempDir, { recursive: true, force: true });
-  });
+  it('lists authorized enabled skill summaries through storage', async () => {
+    const storage = {
+      listSkillsForUser: vi.fn().mockResolvedValue([
+        {
+          id: 1,
+          name: 'onboarding',
+          description: 'Help new users orient quickly.',
+          body: 'not surfaced in summary',
+        },
+      ]),
+      getSkillForUserByName: vi.fn(),
+    };
 
-  it('lists the curated repo-local skills shipped with the app', async () => {
-    const registry = createFileSystemSkillRegistry();
-    const skills = await registry.listSkills();
+    const registry = createDatabaseSkillRegistry({ storage });
 
-    expect(skills.map((skill) => skill.name)).toEqual([
-      'build-a-brainlift',
-      'onboarding',
-      'sprint-execution',
-    ]);
-    expect(skills.every((skill) => skill.description.length > 0)).toBe(true);
-  });
-
-  it('parses YAML frontmatter for name and description and exposes the body separately', async () => {
-    await writeSkill(tempDir, 'test-skill', VALID_SKILL);
-
-    const registry = createFileSystemSkillRegistry({ rootDir: tempDir });
-
-    await expect(registry.listSkills()).resolves.toEqual([
+    await expect(registry.listSkills(authContext)).resolves.toEqual([
       {
-        name: 'test-skill',
-        description: 'Use when the prompt-aware tests need a fixture to load.',
+        name: 'onboarding',
+        description: 'Help new users orient quickly.',
       },
     ]);
-
-    const loaded = await registry.loadSkill('test-skill');
-    expect(loaded.name).toBe('test-skill');
-    expect(loaded.description).toBe('Use when the prompt-aware tests need a fixture to load.');
-    expect(loaded.markdown.startsWith('# Test Skill')).toBe(true);
-    expect(loaded.markdown).not.toContain('---');
-    expect(loaded.markdown).not.toContain('name: test-skill');
+    expect(storage.listSkillsForUser).toHaveBeenCalledWith(authContext);
   });
 
-  it('strips surrounding quotes from frontmatter values', async () => {
-    await writeSkill(
-      tempDir,
-      'quoted-skill',
-      `---
-name: "quoted-skill"
-description: 'Quoted description value.'
----
+  it('loads a skill body and reference path manifest without reference content', async () => {
+    const storage = {
+      listSkillsForUser: vi.fn(),
+      getSkillForUserByName: vi.fn().mockResolvedValue({
+        name: 'onboarding',
+        description: 'Help new users orient quickly.',
+        body: '# Onboarding\n\nGuide the first session.\n',
+        references: [
+          { id: 7, path: 'references/examples.md', content: 'secret examples' },
+        ],
+      }),
+    };
 
-# Body
-`,
-    );
+    const registry = createDatabaseSkillRegistry({ storage });
 
-    const registry = createFileSystemSkillRegistry({ rootDir: tempDir });
-    const [skill] = await registry.listSkills();
+    await expect(registry.loadSkill(authContext, 'onboarding')).resolves.toEqual({
+      name: 'onboarding',
+      description: 'Help new users orient quickly.',
+      body: '# Onboarding\n\nGuide the first session.\n',
+      references: [{ path: 'references/examples.md' }],
+    });
+    expect(storage.getSkillForUserByName).toHaveBeenCalledWith(authContext, 'onboarding');
+  });
 
-    expect(skill).toEqual({
-      name: 'quoted-skill',
-      description: 'Quoted description value.',
+  it('loads one authorized reference content payload', async () => {
+    const storage = {
+      listSkillsForUser: vi.fn(),
+      getSkillForUserByName: vi.fn().mockResolvedValue({
+        name: 'onboarding',
+        description: 'Help new users orient quickly.',
+        body: '# Onboarding',
+        references: [
+          { id: 7, path: 'references/examples.md', content: 'Example content.' },
+        ],
+      }),
+    };
+
+    const registry = createDatabaseSkillRegistry({ storage });
+
+    await expect(
+      registry.loadSkillReference(authContext, 'onboarding', 'references/examples.md'),
+    ).resolves.toEqual({
+      skillName: 'onboarding',
+      path: 'references/examples.md',
+      content: 'Example content.',
     });
   });
 
-  it('ignores blank lines and # comments inside frontmatter', async () => {
-    await writeSkill(
-      tempDir,
-      'commented-skill',
-      `---
-# this is a yaml comment
-name: commented-skill
+  it('uses the same generic error for unknown, unauthorized, disabled, and bad reference cases', async () => {
+    const storage = {
+      listSkillsForUser: vi.fn(),
+      getSkillForUserByName: vi.fn().mockResolvedValue(null),
+    };
 
-description: Real description that should land in metadata.
----
+    const registry = createDatabaseSkillRegistry({ storage });
 
-Body.
-`,
+    await expect(registry.loadSkill(authContext, 'missing')).rejects.toThrow(
+      UNKNOWN_SKILL_ERROR_MESSAGE,
     );
+    await expect(
+      registry.loadSkillReference(authContext, 'missing', 'references/nope.md'),
+    ).rejects.toThrow(UNKNOWN_SKILL_ERROR_MESSAGE);
 
-    const registry = createFileSystemSkillRegistry({ rootDir: tempDir });
-    const [skill] = await registry.listSkills();
-
-    expect(skill).toEqual({
-      name: 'commented-skill',
-      description: 'Real description that should land in metadata.',
+    storage.getSkillForUserByName.mockResolvedValueOnce({
+      name: 'onboarding',
+      description: 'Help new users orient quickly.',
+      body: '# Onboarding',
+      references: [],
     });
-  });
 
-  it('throws when the file is missing the opening frontmatter delimiter', async () => {
-    await writeSkill(tempDir, 'no-frontmatter', '# Body Only\n\nNo frontmatter here.\n');
-    const registry = createFileSystemSkillRegistry({ rootDir: tempDir });
-
-    await expect(registry.listSkills()).rejects.toThrow(
-      /missing YAML frontmatter/,
-    );
-    await expect(registry.loadSkill('no-frontmatter')).rejects.toThrow(
-      /missing YAML frontmatter/,
-    );
-  });
-
-  it('throws when the frontmatter delimiter is unterminated', async () => {
-    await writeSkill(
-      tempDir,
-      'unterminated',
-      `---
-name: unterminated
-description: never closed.
-
-# Still in the frontmatter here
-`,
-    );
-    const registry = createFileSystemSkillRegistry({ rootDir: tempDir });
-
-    await expect(registry.listSkills()).rejects.toThrow(/unterminated/);
-  });
-
-  it('throws when name field is missing', async () => {
-    await writeSkill(
-      tempDir,
-      'missing-name',
-      `---
-description: description without a name.
----
-Body.
-`,
-    );
-    const registry = createFileSystemSkillRegistry({ rootDir: tempDir });
-
-    await expect(registry.listSkills()).rejects.toThrow(/missing required "name" field/);
-  });
-
-  it('throws when description field is missing', async () => {
-    await writeSkill(
-      tempDir,
-      'missing-description',
-      `---
-name: missing-description
----
-Body.
-`,
-    );
-    const registry = createFileSystemSkillRegistry({ rootDir: tempDir });
-
-    await expect(registry.listSkills()).rejects.toThrow(/missing required "description" field/);
-  });
-
-  it('throws when the frontmatter name does not match the directory name', async () => {
-    await writeSkill(
-      tempDir,
-      'on-disk',
-      `---
-name: in-frontmatter
-description: name mismatch should fail.
----
-Body.
-`,
-    );
-    const registry = createFileSystemSkillRegistry({ rootDir: tempDir });
-
-    await expect(registry.listSkills()).rejects.toThrow(
-      /does not match its directory name/,
-    );
-  });
-
-  it('rejects unsupported frontmatter fields', async () => {
-    await writeSkill(
-      tempDir,
-      'extra-field',
-      `---
-name: extra-field
-description: has an extra field.
-version: 1.0
----
-Body.
-`,
-    );
-    const registry = createFileSystemSkillRegistry({ rootDir: tempDir });
-
-    await expect(registry.listSkills()).rejects.toThrow(
-      /unsupported field "version"/,
-    );
-  });
-
-  it('rejects duplicate frontmatter fields', async () => {
-    await writeSkill(
-      tempDir,
-      'duplicate-field',
-      `---
-name: duplicate-field
-description: first value
-description: second value
----
-Body.
-`,
-    );
-    const registry = createFileSystemSkillRegistry({ rootDir: tempDir });
-
-    await expect(registry.listSkills()).rejects.toThrow(/declares "description" more than once/);
-  });
-
-  it('rejects malformed frontmatter lines', async () => {
-    await writeSkill(
-      tempDir,
-      'malformed',
-      `---
-name: malformed
-this is not a key value pair
-description: ok.
----
-Body.
-`,
-    );
-    const registry = createFileSystemSkillRegistry({ rootDir: tempDir });
-
-    await expect(registry.listSkills()).rejects.toThrow(/invalid frontmatter line/);
-  });
-
-  it('rejects invalid and unknown skill names with readable errors', async () => {
-    await writeSkill(tempDir, 'valid-skill', VALID_SKILL.replace('test-skill', 'valid-skill'));
-
-    const registry = createFileSystemSkillRegistry({ rootDir: tempDir });
-
-    await expect(registry.loadSkill('../secrets')).rejects.toThrow('Invalid skill name');
-    await expect(registry.loadSkill('missing-skill')).rejects.toThrow(
-      'Unknown skill "missing-skill"',
-    );
+    await expect(
+      registry.loadSkillReference(authContext, 'onboarding', 'references/nope.md'),
+    ).rejects.toThrow(UNKNOWN_SKILL_ERROR_MESSAGE);
   });
 });
