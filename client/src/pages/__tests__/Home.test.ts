@@ -34,8 +34,8 @@ describe('Home page (Library) -- unified shell migration', () => {
       expect(homeSource).toMatch(/<AppSidebar[^>]*contextualBody=\{\s*null\s*\}/);
     });
 
-    it('passes title="Brainlift Library" to PageHeader', () => {
-      expect(homeSource).toMatch(/<PageHeader[\s\S]*?title=(["']Brainlift Library["']|\{\s*['"]Brainlift Library['"]\s*\})/);
+    it('passes title="Projects" to PageHeader', () => {
+      expect(homeSource).toMatch(/<PageHeader[\s\S]*?title=(["']Projects["']|\{\s*['"]Projects['"]\s*\})/);
     });
 
     it('does not wrap content in <div className="min-h-screen ...">', () => {

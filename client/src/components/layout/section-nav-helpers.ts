@@ -78,7 +78,7 @@ export function getSectionNavItems(opts: {
     },
     {
       section: 'library',
-      label: 'Brainlift Library',
+      label: 'Projects',
       href: LIBRARY_ROUTE_PATH,
       icon: FolderOpen as IconComponent,
     },
