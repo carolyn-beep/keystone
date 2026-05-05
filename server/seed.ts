@@ -1,9 +1,11 @@
 import { storage } from "./storage";
 import { brainliftsData } from "./seedData";
+import { seedRuntimeSkillsIfEmpty } from "./runtimeSkillsSeed";
 import fs from "fs";
 
 export async function seedDatabase() {
   console.log("Checking seed data...");
+  await seedRuntimeSkillsIfEmpty();
 
   const seedFiles = [
     { slug: 'alpha-schools', file: 'attached_assets/alpha-schools_1767269704970.json' },

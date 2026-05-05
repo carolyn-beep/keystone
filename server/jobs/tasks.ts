@@ -19,6 +19,7 @@ import { runVerificationBatchJob } from './run-verification-batch';
 import { runWeeklyGraderConsistencyJob } from './run-weekly-grader-consistency';
 import { sprintGenerateJob } from './sprintGenerateJob';
 import { rerankExpertsJob } from './rerankExpertsJob';
+import { purgeDeletedSkillsJob } from './purgeDeletedSkillsJob';
 
 /**
  * Central registry of all background jobs.
@@ -51,6 +52,7 @@ const tasks = {
   'analytics:run-verification-batch': runVerificationBatchJob,
   'analytics:run-weekly-grader-consistency': runWeeklyGraderConsistencyJob,
   'sprint:generate': sprintGenerateJob,
+  'skills:purge-deleted': purgeDeletedSkillsJob,
 } as const;
 
 export default tasks;

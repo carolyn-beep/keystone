@@ -30,6 +30,7 @@ import * as dok2CrudStorage from './dok2-crud';
 import * as dok3CrudStorage from './dok3-crud';
 import * as dok4CrudStorage from './dok4-crud';
 import * as sprintsStorage from './sprints';
+import * as skillsStorage from './skills';
 
 // Re-export types from base
 export type {
@@ -45,11 +46,26 @@ export type {
   BuilderExpert, InsertBuilderExpert,
   NativePhaseProgress, BuilderPhaseStatus, BuilderSuggestionStatus,
   Category, InsertCategory, CategorySuggestionState,
+  Skill, InsertSkill,
+  SkillResource, InsertSkillResource,
+  SkillShare, InsertSkillShare,
+  SkillUserDisabled, InsertSkillUserDisabled,
+  SkillVisibility,
   SprintPlan, InsertSprintPlan,
   SprintTask, InsertSprintTask,
   Deliverable, InsertDeliverable,
   PlatformConfig, InsertPlatformConfig,
 } from './base';
+
+export type {
+  DeletedSkillListItem,
+  SaveSkillInput,
+  SkillDetail,
+  SkillListItem,
+  SkillReferenceInput,
+  SkillReferenceItem,
+  SkillShareListItem,
+} from './skills';
 
 /**
  * Unified storage object that combines all domain-specific storage functions.
@@ -87,6 +103,19 @@ export const storage = {
   getUserByEmailOrUsername: sharesStorage.getUserByEmailOrUsername,
   getSharedBrainlifts: sharesStorage.getSharedBrainlifts,
   transferOwnershipToFirstEditor: sharesStorage.transferOwnershipToFirstEditor,
+
+  // Runtime Skills
+  listSkillsForUser: skillsStorage.listSkillsForUser,
+  getSkillForUserByName: skillsStorage.getSkillForUserByName,
+  createSkill: skillsStorage.createSkill,
+  updateSkill: skillsStorage.updateSkill,
+  softDeleteSkill: skillsStorage.softDeleteSkill,
+  restoreSkill: skillsStorage.restoreSkill,
+  listDeletedSkills: skillsStorage.listDeletedSkills,
+  setSkillEnabledForUser: skillsStorage.setSkillEnabledForUser,
+  grantSkillShare: skillsStorage.grantSkillShare,
+  revokeSkillShare: skillsStorage.revokeSkillShare,
+  hardDeleteExpiredDeletedSkills: skillsStorage.hardDeleteExpiredDeletedSkills,
 
   // Experts
   getExpertsByBrainliftId: expertsStorage.getExpertsByBrainliftId,
