@@ -116,17 +116,18 @@ export function isAskUserDraftComplete(
 }
 
 /**
- * Progress counter for required questions. Optional questions are excluded
- * from both the numerator and denominator so the counter always reads as
- * "X of N required answered" where N = required question count.
+ * Progress counter for the form. Required questions drive the X/N "answered"
+ * fraction (the submit gate). Optional questions are reported separately so
+ * the user sees they exist without the counter implying they're required.
  */
 export function countAskUserRequiredAnswered(
   questions: readonly AskUserQuestion[],
   draft: AskUserDraftAnswers,
-): { answered: number; required: number } {
+): { answered: number; required: number; optional: number } {
   const required = questions.filter((question) => !question.optional);
+  const optional = questions.filter((question) => question.optional);
   const answered = required.filter((question) => isAskUserQuestionAnswered(question, draft)).length;
-  return { answered, required: required.length };
+  return { answered, required: required.length, optional: optional.length };
 }
 
 /**

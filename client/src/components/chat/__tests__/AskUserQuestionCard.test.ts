@@ -200,20 +200,48 @@ describe('AskUserQuestionCard — form rendering', () => {
       status: { type: 'complete' },
     });
     expect(markup).toContain('0 of 2 answered');
+    expect(markup).toContain('1 optional');
   });
 
-  it('omits the counter when there is only one required question', () => {
+  it('shows the counter (with optional segment) when one required + one optional', () => {
     const markup = render({
       args: {
         questions: [
-          { id: 'q1', prompt: 'Only required?' },
+          { id: 'r', prompt: 'Required?' },
           { id: 'opt', prompt: 'Optional?', optional: true },
         ],
       },
       result: undefined,
       status: { type: 'complete' },
     });
+    expect(markup).toContain('0 of 1 answered');
+    expect(markup).toContain('1 optional');
+  });
+
+  it('omits the counter when the form has a single required question and no optionals', () => {
+    const markup = render({
+      args: {
+        questions: [{ id: 'q1', prompt: 'Only required?' }],
+      },
+      result: undefined,
+      status: { type: 'complete' },
+    });
     expect(markup).not.toContain(' answered');
+  });
+
+  it('omits the optional segment when there are no optional questions', () => {
+    const markup = render({
+      args: {
+        questions: [
+          { id: 'q1', prompt: 'First?' },
+          { id: 'q2', prompt: 'Second?' },
+        ],
+      },
+      result: undefined,
+      status: { type: 'complete' },
+    });
+    expect(markup).toContain('0 of 2 answered');
+    expect(markup).not.toContain('optional');
   });
 
   it('does not disable the submit button when the form is incomplete', () => {

@@ -274,11 +274,11 @@ function AskUserForm({
     addResult(buildAskUserResult(questions, draftSnapshot));
   }
 
-  const { answered, required } = countAskUserRequiredAnswered(
+  const { answered, required, optional: optionalCount } = countAskUserRequiredAnswered(
     questions,
     draft as AskUserDraftAnswers,
   );
-  const showCounter = required > 1;
+  const showCounter = required > 1 || (required >= 1 && optionalCount > 0);
   const showQuestionLabels = questions.length > 1;
 
   return (
@@ -365,6 +365,7 @@ function AskUserForm({
         {showCounter ? (
           <span className="ask-user-counter" aria-live="polite">
             {answered} of {required} answered
+            {optionalCount > 0 ? ` · ${optionalCount} optional` : ''}
           </span>
         ) : null}
         <button

@@ -103,7 +103,7 @@ describe('isAskUserDraftComplete', () => {
 });
 
 describe('countAskUserRequiredAnswered', () => {
-  it('counts only required questions in numerator and denominator', () => {
+  it('counts required answered separately from optional total', () => {
     const r1: AskUserQuestion = { id: 'r1', prompt: 'R1?' };
     const r2: AskUserQuestion = { id: 'r2', prompt: 'R2?' };
     const opt: AskUserQuestion = { id: 'o1', prompt: 'O?', optional: true };
@@ -114,14 +114,15 @@ describe('countAskUserRequiredAnswered', () => {
         o1: { freeText: 'also answered, but optional' },
       }),
     );
-    expect(result).toEqual({ answered: 1, required: 2 });
+    expect(result).toEqual({ answered: 1, required: 2, optional: 1 });
   });
 
-  it('returns required: 0 when every question is optional', () => {
+  it('returns required: 0 and counts every question as optional when none are required', () => {
     const opt: AskUserQuestion = { id: 'o1', prompt: 'O?', optional: true };
     expect(countAskUserRequiredAnswered([opt], draft({}))).toEqual({
       answered: 0,
       required: 0,
+      optional: 1,
     });
   });
 });
