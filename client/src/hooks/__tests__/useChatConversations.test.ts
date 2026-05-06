@@ -74,7 +74,10 @@ describe('native chat conversation selection', () => {
     });
   });
 
-  it('also requests creation when the requested conversation is missing', () => {
+  it('still selects the requested conversation when not yet in the cache', () => {
+    // The conversations list cache may be mid-refetch (e.g. right after a
+    // mutation that creates a conversation server-side). We trust the URL and
+    // let the detail query 404 if the ID is genuinely invalid.
     expect(
       resolveChatConversationSelection({
         search: '?c=999',
@@ -83,8 +86,8 @@ describe('native chat conversation selection', () => {
         ],
       }),
     ).toEqual({
-      selectedConversationId: null,
-      shouldCreateConversation: true,
+      selectedConversationId: 999,
+      shouldCreateConversation: false,
     });
   });
 

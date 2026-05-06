@@ -115,13 +115,15 @@ export function resolveChatConversationSelection({
   search: string;
   conversations: readonly ChatConversation[];
 }): ChatConversationSelection {
-  const sortedConversations = sortChatConversationsByRecency(conversations);
   const requestedConversationId = parseSelectedConversationId(search);
 
-  if (
-    requestedConversationId != null
-    && sortedConversations.some((conversation) => conversation.id === requestedConversationId)
-  ) {
+  // Trust the URL: if `?c=ID` is present, select it. The detail query handles
+  // 404s for invalid IDs via the existing "Thread unavailable" error state.
+  // Checking against the cached conversations list here caused a race with
+  // mutations that create the conversation server-side (e.g. skills "Try it
+  // out") — the cache hadn't refetched yet, so we'd auto-create a second
+  // conversation and drop other query params like `&send=`.
+  if (requestedConversationId != null) {
     return {
       selectedConversationId: requestedConversationId,
       shouldCreateConversation: false,
