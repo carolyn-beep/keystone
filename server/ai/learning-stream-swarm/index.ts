@@ -371,6 +371,14 @@ export async function runLearningStreamSwarm(
         });
       }
 
+      if (message.type === 'system' && message.subtype === 'task_notification') {
+        const toolUseId = 'tool_use_id' in message ? message.tool_use_id : undefined;
+        if (typeof toolUseId === 'string' && logger.getAgent(toolUseId)) {
+          const parsedResult = parseAgentCompletionNotification(message);
+          logger.completeAgent(toolUseId, parsedResult);
+        }
+      }
+
       // Handle assistant messages (tool calls and reasoning)
       if (message.type === 'assistant' && 'message' in message) {
         const content = message.message?.content;
@@ -495,9 +503,13 @@ export async function runLearningStreamSwarm(
                 // Check if this is a Task tool result (agent completion)
                 const agent = logger.getAgent(toolUseId);
                 if (agent) {
-                  // Parse the agent's result
-                  const parsedResult = parseAgentResult(result);
-                  logger.completeAgent(toolUseId, parsedResult);
+                  const resultText = extractResultText(result);
+                  if (isAgentLaunchAcknowledgement(resultText)) {
+                    logger.recordActivity(toolUseId, 'result', { status: 'launched' });
+                  } else {
+                    const parsedResult = parseAgentResult(result);
+                    logger.completeAgent(toolUseId, parsedResult);
+                  }
                 }
 
                 logger.toolResult(source, `tool_use_${toolUseId}`, result);
@@ -757,12 +769,94 @@ function parseAgentResult(content: unknown): {
       }
     }
 
-    return { found: false, reason: 'Could not parse result' };
+    return parseAgentSummaryResult(jsonStr) || { found: false, reason: 'Could not parse result' };
   } catch {
     return { found: false, reason: 'Parse error' };
+  }
+}
+
+function parseAgentCompletionNotification(message: {
+  status: 'completed' | 'failed' | 'stopped';
+  summary?: string;
+  output_file?: string;
+}): {
+  found: boolean;
+  url?: string;
+  topic?: string;
+  reason?: string;
+} {
+  if (message.status !== 'completed') {
+    return { found: false, reason: message.summary || `Agent ${message.status}` };
+  }
+
+  const outputText = readNonEmptyFile(message.output_file);
+  if (outputText) {
+    const parsedFromOutput = parseAgentResult(outputText);
+    if (parsedFromOutput.found || parsedFromOutput.reason !== 'Could not parse result') {
+      return parsedFromOutput;
+    }
+  }
+
+  return parseAgentSummaryResult(message.summary || '') || {
+    found: true,
+    topic: message.summary?.trim() || 'Completed research task',
+  };
+}
+
+function isAgentLaunchAcknowledgement(text: string | null): boolean {
+  return Boolean(
+    text &&
+      text.includes('Async agent launched successfully') &&
+      text.includes('agentId:') &&
+      text.includes('output_file:')
+  );
+}
+
+function parseAgentSummaryResult(text: string): {
+  found: boolean;
+  topic?: string;
+  reason?: string;
+} | null {
+  const normalized = text.trim();
+  if (!normalized) {
+    return null;
+  }
+
+  if (/found\s*&\s*saved/i.test(normalized) || /found and saved/i.test(normalized)) {
+    const quotedTitle = normalized.match(/[“"]([^”"]+)[”"]/)?.[1];
+    const italicTitle = normalized.match(/\*([^*\n]+)\*/)?.[1]?.replace(/^["“]|["”]$/g, '');
+    return {
+      found: true,
+      topic: (quotedTitle || italicTitle || normalized.split('\n')[0]).trim(),
+    };
+  }
+
+  if (/not found|no resource|could not find|failed/i.test(normalized)) {
+    return { found: false, reason: normalized.split('\n')[0] };
+  }
+
+  return null;
+}
+
+function readNonEmptyFile(filePath: string | undefined): string | null {
+  if (!filePath) {
+    return null;
+  }
+
+  try {
+    const text = fs.readFileSync(filePath, 'utf8').trim();
+    return text || null;
+  } catch {
+    return null;
   }
 }
 
 // Re-export types and event emitter functions for external use
 export type { SwarmResult, SwarmEvent, AgentInfo };
 export { swarmEmitter };
+export const __learningStreamSwarmTestInternals = {
+  isAgentLaunchAcknowledgement,
+  parseAgentCompletionNotification,
+  parseAgentResult,
+  parseAgentSummaryResult,
+};
