@@ -516,7 +516,7 @@ Every learning stream item goes through a tiered content extraction pipeline tha
 
 2. **HEAD request (5s timeout)** — detects content type. PDFs get a direct viewer. If the server blocks HEAD requests, it falls through to step 3 anyway.
 
-3. **Jina Reader API (15s timeout)** — converts HTML articles to clean markdown with title and site name metadata. Articles shorter than 50 characters are treated as extraction failures.
+3. **Exa Contents API (15s timeout)** — fetches HTML/text articles into readable article text with title and site metadata. Articles shorter than 50 characters are treated as extraction failures.
 
 4. **Fallback** — stores the failure reason so the item doesn't stay in "pending" state forever. The original URL remains clickable.
 
@@ -914,9 +914,8 @@ docker exec -i wizardly_kalam psql -U postgres -d dok1grader_local < migrations/
 | `OPENROUTER_API_KEY` | Primary text-generation provider for the unified AI client |
 | `FIREWORKS_API_KEY` | Fireworks failover provider for the unified AI client and image fallback |
 | `OPENAI_API_KEY` | Primary image-generation provider (`gpt-image-1`) |
-| `EXA_API_KEY` | Exa search API (research swarm and native chat web search) |
+| `EXA_API_KEY` | Exa search and Contents APIs (research swarm, native chat web search, article content extraction) |
 | `YOUTUBE_API_KEY` | YouTube Data API (video researcher agent) |
-| `JINA_API_KEY` | Jina Reader API (article content extraction) |
 | `SWARM_AGENT_COUNT` | Research agents per swarm (default: 5) |
 | `WORKER_CONCURRENCY` | Background job concurrency (default: 3) |
 | `BRAND` | Server brand selector. `alphax` or `brainlift`. Throws at boot if missing or unknown. |

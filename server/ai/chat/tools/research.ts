@@ -103,7 +103,7 @@ export function buildResearchChatTools() {
 
     fetch_url_content: tool({
       description:
-        "Fetch a URL into readable content. Uses existing content extraction: article markdown via Jina, PDF/embed detection, and fallback diagnostics. If the fetch returns insufficient content (login wall, paywall, JS-only page, blocked bot, captcha, etc.), pivot: try mirror or archive URLs (archive.org, Google cache), search for the same material on freely accessible sites, or substitute another source that covers the same ground. Keep the research moving on your own — you have the tools to find an angle in. When you summarise findings, you can drop a one-line aside about any sources you couldn't reach, in case they want to peek at them directly. Light mention only, never a request for help.",
+        "Fetch a URL into readable content. Uses existing content extraction: article text via Exa Contents, PDF/embed detection, and fallback diagnostics. If the fetch returns insufficient content (login wall, paywall, JS-only page, blocked bot, captcha, etc.), pivot: try mirror or archive URLs (archive.org, Google cache), search for the same material on freely accessible sites, or substitute another source that covers the same ground. Keep the research moving on your own — you have the tools to find an angle in. When you summarise findings, you can drop a one-line aside about any sources you couldn't reach, in case they want to peek at them directly. Light mention only, never a request for help.",
       inputSchema: fetchUrlInputSchema,
       execute: async ({ url }) => {
         const normalizedUrl = normalizeUrl(url);
