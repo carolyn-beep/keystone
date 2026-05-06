@@ -38,6 +38,8 @@ export interface AskUserQuestion {
   multiSelect?: boolean;
   /** Whether to render a free-text input alongside any options. Default true. */
   allowFreeText?: boolean;
+  /** Optional questions don't gate the submit button. Default false. */
+  optional?: boolean;
 }
 
 /**
@@ -79,8 +81,22 @@ export interface AskUserDraftAnswer {
 export type AskUserDraftAnswers = Readonly<Record<string, AskUserDraftAnswer>>;
 
 /**
- * Returns true iff every question is satisfied by the draft — i.e. has at
- * least one selected option OR a non-empty free-text answer (after trim).
+ * True iff this question has any answer in the draft — at least one selected
+ * option OR non-empty trimmed free text.
+ */
+export function isAskUserQuestionAnswered(
+  question: AskUserQuestion,
+  draft: AskUserDraftAnswers,
+): boolean {
+  const answer = draft[question.id];
+  if (!answer) return false;
+  if (answer.selectedOptions.size > 0) return true;
+  return answer.freeText.trim().length > 0;
+}
+
+/**
+ * Returns true iff every REQUIRED question is satisfied by the draft.
+ * Optional questions never block submission; users can submit them blank.
  *
  * Used to gate the submit button so the student cannot send a partial
  * response. See spec FR3.
@@ -94,15 +110,39 @@ export function isAskUserDraftComplete(
   }
 
   return questions.every((question) => {
-    const answer = draft[question.id];
-    if (!answer) {
-      return false;
-    }
-    if (answer.selectedOptions.size > 0) {
-      return true;
-    }
-    return answer.freeText.trim().length > 0;
+    if (question.optional) return true;
+    return isAskUserQuestionAnswered(question, draft);
   });
+}
+
+/**
+ * Progress counter for required questions. Optional questions are excluded
+ * from both the numerator and denominator so the counter always reads as
+ * "X of N required answered" where N = required question count.
+ */
+export function countAskUserRequiredAnswered(
+  questions: readonly AskUserQuestion[],
+  draft: AskUserDraftAnswers,
+): { answered: number; required: number } {
+  const required = questions.filter((question) => !question.optional);
+  const answered = required.filter((question) => isAskUserQuestionAnswered(question, draft)).length;
+  return { answered, required: required.length };
+}
+
+/**
+ * Returns the first required question that is not yet answered, or null if
+ * every required question has an answer. Used by the submit click handler
+ * to scroll/focus the user to the gap when they try to submit early.
+ */
+export function findFirstUnansweredRequired(
+  questions: readonly AskUserQuestion[],
+  draft: AskUserDraftAnswers,
+): AskUserQuestion | null {
+  for (const question of questions) {
+    if (question.optional) continue;
+    if (!isAskUserQuestionAnswered(question, draft)) return question;
+  }
+  return null;
 }
 
 /**

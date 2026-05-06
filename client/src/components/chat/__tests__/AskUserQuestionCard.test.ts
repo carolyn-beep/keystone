@@ -172,6 +172,63 @@ describe('AskUserQuestionCard — form rendering', () => {
     });
     expect(markup).not.toContain('Question 1 of 1');
   });
+
+  it('renders an "(optional)" tag for optional questions', () => {
+    const markup = render({
+      args: {
+        questions: [
+          { id: 'r', prompt: 'Required prompt' },
+          { id: 'o', prompt: 'Optional prompt', optional: true },
+        ],
+      },
+      result: undefined,
+      status: { type: 'complete' },
+    });
+    expect(markup).toContain('(optional)');
+  });
+
+  it('shows a "X of N answered" counter for multi-required-question forms', () => {
+    const markup = render({
+      args: {
+        questions: [
+          { id: 'q1', prompt: 'First?' },
+          { id: 'q2', prompt: 'Second?' },
+          { id: 'optional', prompt: 'Optional?', optional: true },
+        ],
+      },
+      result: undefined,
+      status: { type: 'complete' },
+    });
+    expect(markup).toContain('0 of 2 answered');
+  });
+
+  it('omits the counter when there is only one required question', () => {
+    const markup = render({
+      args: {
+        questions: [
+          { id: 'q1', prompt: 'Only required?' },
+          { id: 'opt', prompt: 'Optional?', optional: true },
+        ],
+      },
+      result: undefined,
+      status: { type: 'complete' },
+    });
+    expect(markup).not.toContain(' answered');
+  });
+
+  it('does not disable the submit button when the form is incomplete', () => {
+    // Click-validate replaces the disabled state: the button stays enabled
+    // and the click handler scrolls/highlights the missing question.
+    const markup = render({
+      args: {
+        questions: [{ id: 'q1', prompt: 'Anything?' }],
+      },
+      result: undefined,
+      status: { type: 'requires-action', reason: 'tool-calls' } as RenderProps['status'],
+    });
+    expect(markup).toContain('Submit');
+    expect(markup).not.toContain('disabled=""');
+  });
 });
 
 describe('AskUserQuestionCard — answered summary', () => {

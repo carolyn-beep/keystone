@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import {
   buildAskUserResult,
+  countAskUserRequiredAnswered,
+  findFirstUnansweredRequired,
   isAskUserDraftComplete,
   type AskUserDraftAnswer,
   type AskUserQuestion,
@@ -80,6 +82,70 @@ describe('isAskUserDraftComplete', () => {
         draft({ q3: { freeText: '   \n\t  ' } }),
       ),
     ).toBe(false);
+  });
+
+  it('ignores optional questions when computing completeness', () => {
+    const required: AskUserQuestion = { id: 'r1', prompt: 'Required?' };
+    const optional: AskUserQuestion = { id: 'o1', prompt: 'Optional?', optional: true };
+    expect(
+      isAskUserDraftComplete(
+        [required, optional],
+        draft({ r1: { freeText: 'yes' } }),
+      ),
+    ).toBe(true);
+  });
+
+  it('returns true when all questions are optional and none are answered', () => {
+    const optionalA: AskUserQuestion = { id: 'a', prompt: 'A?', optional: true };
+    const optionalB: AskUserQuestion = { id: 'b', prompt: 'B?', optional: true };
+    expect(isAskUserDraftComplete([optionalA, optionalB], draft({}))).toBe(true);
+  });
+});
+
+describe('countAskUserRequiredAnswered', () => {
+  it('counts only required questions in numerator and denominator', () => {
+    const r1: AskUserQuestion = { id: 'r1', prompt: 'R1?' };
+    const r2: AskUserQuestion = { id: 'r2', prompt: 'R2?' };
+    const opt: AskUserQuestion = { id: 'o1', prompt: 'O?', optional: true };
+    const result = countAskUserRequiredAnswered(
+      [r1, r2, opt],
+      draft({
+        r1: { freeText: 'answered' },
+        o1: { freeText: 'also answered, but optional' },
+      }),
+    );
+    expect(result).toEqual({ answered: 1, required: 2 });
+  });
+
+  it('returns required: 0 when every question is optional', () => {
+    const opt: AskUserQuestion = { id: 'o1', prompt: 'O?', optional: true };
+    expect(countAskUserRequiredAnswered([opt], draft({}))).toEqual({
+      answered: 0,
+      required: 0,
+    });
+  });
+});
+
+describe('findFirstUnansweredRequired', () => {
+  it('skips optional questions and returns the first unanswered required', () => {
+    const opt: AskUserQuestion = { id: 'o', prompt: 'O?', optional: true };
+    const r1: AskUserQuestion = { id: 'r1', prompt: 'R1?' };
+    const r2: AskUserQuestion = { id: 'r2', prompt: 'R2?' };
+    const result = findFirstUnansweredRequired(
+      [opt, r1, r2],
+      draft({ r1: { freeText: 'done' } }),
+    );
+    expect(result?.id).toBe('r2');
+  });
+
+  it('returns null when every required question is answered', () => {
+    const r1: AskUserQuestion = { id: 'r1', prompt: 'R1?' };
+    const opt: AskUserQuestion = { id: 'o', prompt: 'O?', optional: true };
+    const result = findFirstUnansweredRequired(
+      [r1, opt],
+      draft({ r1: { selectedOptions: new Set(['x']) } }),
+    );
+    expect(result).toBeNull();
   });
 });
 
