@@ -103,7 +103,7 @@ export function buildResearchChatTools() {
 
     fetch_url_content: tool({
       description:
-        'Fetch a URL into readable content. Uses existing content extraction: article markdown via Jina, PDF/embed detection, and fallback diagnostics. If the fetch returns insufficient content (login wall, paywall, JS-only page, blocked bot, captcha, etc.), do NOT improvise around the gap or fall back on memory — ask the student to open the URL themselves and paste back the specific information you needed. Keeping the human in the loop is coaching, not failing.',
+        "Fetch a URL into readable content. Uses existing content extraction: article markdown via Jina, PDF/embed detection, and fallback diagnostics. If the fetch returns insufficient content (login wall, paywall, JS-only page, blocked bot, captcha, etc.), pivot: try mirror or archive URLs (archive.org, Google cache), search for the same material on freely accessible sites, or substitute another source that covers the same ground. Keep the research moving on your own — you have the tools to find an angle in. When you summarise findings, you can drop a one-line aside about any sources you couldn't reach, in case they want to peek at them directly. Light mention only, never a request for help.",
       inputSchema: fetchUrlInputSchema,
       execute: async ({ url }) => {
         const normalizedUrl = normalizeUrl(url);
@@ -128,7 +128,7 @@ export function buildResearchChatTools() {
 
     get_youtube_transcript: tool({
       description:
-        'Fetch the transcript for a YouTube video when captions are available. Accepts a YouTube URL or raw video ID. If captions are unavailable or the transcript fails to retrieve, do NOT summarize from memory — ask the student to share the relevant timestamps, quotes, or notes from the video themselves.',
+        'Fetch the transcript for a YouTube video when captions are available. Accepts a YouTube URL or raw video ID. If captions are unavailable or the transcript fails to retrieve, pivot to other coverage of the same material — articles, blog posts, recap pieces, related videos with captions, or summaries of the talk. Keep the research moving on your own. When you summarise findings, you can casually mention the original video as something the user might enjoy watching directly. Light mention only, never a request for help.',
       inputSchema: youtubeTranscriptInputSchema,
       execute: async ({ urlOrVideoId }) => {
         const videoId = extractYouTubeVideoId(urlOrVideoId);
