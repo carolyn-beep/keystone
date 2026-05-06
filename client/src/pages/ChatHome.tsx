@@ -13,12 +13,7 @@ import {
   resolveChatConversationSelection,
   resolveNextConversationSelectionAfterDelete,
   parseSelectedConversationId,
-  sortChatConversationsByRecency,
 } from '@/hooks/useChatConversations';
-import {
-  hasBeenGreetedThisSession,
-  markGreetedThisSession,
-} from '@/lib/chat-greeting-session';
 import { useLocation, useSearch } from 'wouter';
 import { ChatConversationSidebar } from '@/components/chat/ChatConversationSidebar';
 import { NativeChatThread } from '@/components/chat/NativeChatThread';
@@ -98,11 +93,10 @@ export default function ChatHome() {
   const [deleteTarget, setDeleteTarget] = useState<ChatConversation | null>(null);
   const [autoCreateState, setAutoCreateState] = useState<'idle' | 'pending' | 'error'>('idle');
 
-  // Holds the ID of the conversation auto-created by the homepage-landing
-  // path. Only that conversation should be flagged `needsOpener=true`. Manual
-  // "New chat" clicks, post-delete fallbacks, and direct `?c=ID` navigation
-  // do not fire the opener. See client/src/chat/chat-opener.ts.
-  const [openerPendingForId, setOpenerPendingForId] = useState<number | null>(null);
+  // Holds the ID of the empty conversation auto-created from the bare homepage
+  // route. The 48h/user cooldown lives in chat-opener.ts; this state only
+  // records that the current conversation came from the opener surface.
+  const [homepageOpenerConversationId, setHomepageOpenerConversationId] = useState<number | null>(null);
 
   const conversationsQuery = useChatConversations();
   const createConversation = useCreateChatConversation();
@@ -117,6 +111,10 @@ export default function ChatHome() {
   const selectedConversationId = selection.selectedConversationId;
   const requestedConversationId = parseSelectedConversationId(search);
   const selectedConversationQuery = useChatConversation(selectedConversationId);
+  const shouldMarkHomepageOpenerConversation = useMemo(() => {
+    const params = new URLSearchParams(search.startsWith('?') ? search.slice(1) : search);
+    return !params.has('c') && !params.has('send');
+  }, [search]);
   const initialUserMessage = useMemo(() => {
     if (selectedConversationId == null) return null;
     const params = new URLSearchParams(search);
@@ -130,29 +128,12 @@ export default function ChatHome() {
     if (selection.shouldCreateConversation) {
       if (autoCreateState !== 'idle') return;
 
-      // The user has already been greeted this session (via the chat opener
-      // on first visit). Treat this landing as plain "take me to chat":
-      // route to the most recent existing conversation instead of creating a
-      // fresh one + greeting again. If they have no conversations at all,
-      // fall through to auto-create -- but skip the opener.
-      const alreadyGreeted = hasBeenGreetedThisSession();
-      if (alreadyGreeted && conversations.length > 0) {
-        const mostRecent = sortChatConversationsByRecency(conversations)[0]!;
-        setLocation(buildChatConversationLocation(mostRecent.id));
-        return;
-      }
-
       setAutoCreateState('pending');
       createConversation.mutate({}, {
         onSuccess: (conversation) => {
           setAutoCreateState('idle');
-          // Only fire the chat opener on the FIRST landing of the session.
-          // Subsequent navigations to `/` in the same tab skip it; the
-          // sign-out path in UserMenu clears the flag so the next user on
-          // the tab is greeted again.
-          if (!alreadyGreeted) {
-            setOpenerPendingForId(conversation.id);
-            markGreetedThisSession();
+          if (shouldMarkHomepageOpenerConversation) {
+            setHomepageOpenerConversationId(conversation.id);
           }
           setLocation(buildChatConversationLocation(conversation.id));
         },
@@ -186,6 +167,7 @@ export default function ChatHome() {
     selectedConversationId,
     selection.shouldCreateConversation,
     setLocation,
+    shouldMarkHomepageOpenerConversation,
     toast,
   ]);
 
@@ -271,6 +253,9 @@ export default function ChatHome() {
   const selectedConversationTitle = selectedConversationQuery.data?.conversation.title
     ?? conversations.find((conversation) => conversation.id === selectedConversationId)?.title
     ?? 'New chat';
+  const selectedConversation = selectedConversationQuery.data?.conversation
+    ?? conversations.find((conversation) => conversation.id === selectedConversationId)
+    ?? null;
 
   const sidebarBody = (
     <ChatConversationSidebar
@@ -373,7 +358,8 @@ export default function ChatHome() {
             initialMessages={selectedConversationQuery.data?.messages}
             modelId={selectedModelId}
             onModelIdChange={setSelectedModelId}
-            needsOpener={openerPendingForId === selectedConversationId && !initialUserMessage}
+            userId={selectedConversation?.userId ?? null}
+            shouldConsiderOpener={homepageOpenerConversationId === selectedConversationId && !initialUserMessage}
             initialUserMessage={initialUserMessage}
           />
         )}

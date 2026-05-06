@@ -2,7 +2,6 @@ import { LogOut } from 'lucide-react';
 import { useLocation } from 'wouter';
 import { authClient } from '@/lib/auth-client';
 import { queryClient } from '@/lib/queryClient';
-import { clearGreetedThisSession } from '@/lib/chat-greeting-session';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -42,9 +41,6 @@ export function UserMenu({ onSignedOut, isCollapsed = false }: UserMenuProps) {
         fetchOptions: {
           onSuccess: () => {
             queryClient.clear();
-            // Clear so the next user on this tab gets the chat opener
-            // on their first chat landing.
-            clearGreetedThisSession();
             if (onSignedOut) {
               onSignedOut();
             } else {

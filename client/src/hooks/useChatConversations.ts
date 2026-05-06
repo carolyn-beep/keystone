@@ -128,11 +128,9 @@ export function resolveChatConversationSelection({
     };
   }
 
-  // Bare `/` (no `?c=` in the URL) is the homepage landing surface. The user
-  // explicitly opted into being greeted every time they land here, even if
-  // they have prior conversations. ChatHome consumes `shouldCreateConversation`
-  // and uses it as both "create a fresh conversation" and "fire the opener
-  // into it". See client/src/chat/chat-opener.ts.
+  // Bare `/` (no `?c=` in the URL) is the homepage landing surface. ChatHome
+  // consumes `shouldCreateConversation` to create a fresh empty conversation;
+  // NativeChatThread decides whether the opener is due for this user.
   return {
     selectedConversationId: null,
     shouldCreateConversation: true,

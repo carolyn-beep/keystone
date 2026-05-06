@@ -74,11 +74,11 @@ describe('ChatHome (unified shell) source', () => {
     expect(source).toMatch(/useDeleteChatConversation/);
   });
 
-  it('passes the auto-send message into NativeChatThread without firing the opener', () => {
+  it('passes the auto-send message into NativeChatThread without firing the homepage opener', () => {
     expect(source).toMatch(/initialUserMessage/);
     expect(source).toMatch(/params\.get\(['"]send['"]\)/);
     expect(source).toMatch(/initialUserMessage=\{initialUserMessage\}/);
-    expect(source).toMatch(/needsOpener=\{openerPendingForId === selectedConversationId && !initialUserMessage\}/);
+    expect(source).toMatch(/shouldConsiderOpener=\{homepageOpenerConversationId === selectedConversationId && !initialUserMessage\}/);
   });
 
   it('passes the reduced sidebarProps (no navLinks, user, onSignOut, onClose)', () => {
