@@ -25,7 +25,7 @@ export function Avatar({ variant }: AvatarProps) {
             src={logoMark}
             alt=""
             draggable={false}
-            className="h-full w-full object-contain"
+            className="brainlift-avatar-mark"
           />
         </span>
       </div>
@@ -42,7 +42,7 @@ export function Avatar({ variant }: AvatarProps) {
             alt=""
             aria-hidden="true"
             draggable={false}
-            className="h-full w-full object-contain"
+            className="brainlift-avatar-mark"
           />
         </span>
       </span>
@@ -54,7 +54,7 @@ export function Avatar({ variant }: AvatarProps) {
       src={logoMark}
       alt="Brainlift Central"
       draggable={false}
-      className="h-full w-full object-contain"
+      className="brainlift-avatar-mark"
     />
   );
 }

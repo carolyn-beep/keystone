@@ -18,8 +18,9 @@ describe('NativeChatThread source', () => {
     expect(source).toMatch(/firedAutoSendForConversation\.add\(conversationId\)/);
   });
 
-  it('keeps opener triggering separate from auto-send wiring', () => {
+  it('keeps homepage opener triggering separate from auto-send wiring', () => {
     expect(source).toMatch(/OpenerTrigger/);
-    expect(source).toMatch(/needsOpener=\{needsOpener\}/);
+    expect(source).toMatch(/shouldConsiderOpener=\{shouldConsiderOpener\}/);
+    expect(source).toMatch(/userId=\{userId\}/);
   });
 });

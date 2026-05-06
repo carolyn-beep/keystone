@@ -3,7 +3,11 @@ import { AssistantRuntimeProvider, useThread, useThreadRuntime } from '@assistan
 import { Thread } from '@assistant-ui/react-ui';
 import type { UIMessage } from 'ai';
 import type { ChatModelId } from '@shared/chat-models';
-import { OPENER_PROMPT } from '@/chat/chat-opener';
+import {
+  markChatOpenerSent,
+  OPENER_PROMPT,
+  shouldSendChatOpener,
+} from '@/chat/chat-opener';
 import { queryClient } from '@/lib/queryClient';
 import {
   CHAT_CONVERSATIONS_QUERY_KEY,
@@ -14,36 +18,34 @@ import { buildNativeChatThreadConfig } from './native-chat-thread-config';
 import { ChatComposerSettingsProvider } from './ChatComposer';
 
 /**
- * Module-level guards. Ensure the opener prompt and the auto-send prompt fire
- * at most once per conversation across StrictMode double-mount, HMR, and
- * parent remounts. Lives at module scope on purpose — surviving unmount/remount
- * within the session is the desired behavior.
+ * Module-level guard. Ensures auto-send prompts fire at most once per
+ * conversation across StrictMode double-mount, HMR, and parent remounts.
  */
-const firedOpenerForConversation = new Set<number>();
 const firedAutoSendForConversation = new Set<number>();
 
 function OpenerTrigger({
-  conversationId,
   hasInitialMessages,
-  needsOpener,
+  shouldConsiderOpener,
+  userId,
 }: {
-  conversationId: number;
   hasInitialMessages: boolean;
-  needsOpener: boolean;
+  shouldConsiderOpener: boolean;
+  userId: string | null;
 }) {
   const threadRuntime = useThreadRuntime();
 
   useEffect(() => {
-    if (!needsOpener) return;
+    if (!shouldConsiderOpener) return;
     if (hasInitialMessages) return;
-    if (firedOpenerForConversation.has(conversationId)) return;
-    firedOpenerForConversation.add(conversationId);
+    if (!userId) return;
+    if (!shouldSendChatOpener(userId)) return;
+    markChatOpenerSent(userId);
 
     threadRuntime.append({
       role: 'user',
       content: [{ type: 'text', text: OPENER_PROMPT }],
     });
-  }, [conversationId, hasInitialMessages, needsOpener, threadRuntime]);
+  }, [hasInitialMessages, shouldConsiderOpener, threadRuntime, userId]);
 
   return null;
 }
@@ -87,8 +89,9 @@ interface NativeChatThreadProps {
   initialMessages?: UIMessage[] | null;
   modelId: ChatModelId;
   onModelIdChange: (next: ChatModelId) => void;
-  /** Server-driven flag: this conversation should be opened by the chat opener. */
-  needsOpener: boolean;
+  userId: string | null;
+  /** True only for empty conversations auto-created from the bare chat homepage. */
+  shouldConsiderOpener: boolean;
   /** Optional message to send automatically once on conversation entry. */
   initialUserMessage?: string | null;
 }
@@ -122,7 +125,8 @@ export function NativeChatThread({
   initialMessages,
   modelId,
   onModelIdChange,
-  needsOpener,
+  userId,
+  shouldConsiderOpener,
   initialUserMessage = null,
 }: NativeChatThreadProps) {
   const runtime = useNativeChatRuntime({
@@ -142,9 +146,9 @@ export function NativeChatThread({
         <div className="native-chat-thread flex h-full min-h-0 flex-col bg-transparent">
           <ConversationQueryInvalidator conversationId={conversationId} />
           <OpenerTrigger
-            conversationId={conversationId}
             hasInitialMessages={hasInitialMessages}
-            needsOpener={needsOpener}
+            shouldConsiderOpener={shouldConsiderOpener}
+            userId={userId}
           />
           <AutoSendTrigger
             conversationId={conversationId}

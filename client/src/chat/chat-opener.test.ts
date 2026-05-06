@@ -1,13 +1,16 @@
 /**
- * Tests for FR6: Chat opener relocation and tag rename.
- *
- * Verifies the relocated `client/src/chat/chat-opener.ts` exposes the same
- * surface as the old `shared/chat-opener.ts` with the detection tag changed
- * from `[ALPHAX_OPENER]` to `[OPENER]`.
+ * Tests for the chat opener prompt tag and localStorage cooldown gate.
  */
 
 import { describe, it, expect } from 'vitest';
-import { OPENER_PROMPT, isOpenerPromptMessage } from '../chat/chat-opener';
+import {
+  CHAT_OPENER_COOLDOWN_MS,
+  getChatOpenerStorageKey,
+  markChatOpenerSent,
+  OPENER_PROMPT,
+  shouldSendChatOpener,
+  isOpenerPromptMessage,
+} from '../chat/chat-opener';
 
 describe('FR6 chat-opener: OPENER_PROMPT', () => {
   it('starts with the brand-agnostic [OPENER] tag', () => {
@@ -80,5 +83,77 @@ describe('FR6 chat-opener: isOpenerPromptMessage', () => {
       parts: [{ type: 'image', url: 'foo.png' }],
     });
     expect(result).toBe(false);
+  });
+});
+
+function makeStorage(initial: Record<string, string> = {}): Storage {
+  const values = new Map(Object.entries(initial));
+
+  return {
+    get length() {
+      return values.size;
+    },
+    clear: () => values.clear(),
+    getItem: (key: string) => values.get(key) ?? null,
+    key: (index: number) => Array.from(values.keys())[index] ?? null,
+    removeItem: (key: string) => {
+      values.delete(key);
+    },
+    setItem: (key: string, value: string) => {
+      values.set(key, value);
+    },
+  };
+}
+
+describe('chat opener localStorage cooldown', () => {
+  it('scopes the timestamp key by user id', () => {
+    expect(getChatOpenerStorageKey('user-a')).toBe('chat-opener:last-sent-at:user-a');
+    expect(getChatOpenerStorageKey('user-b')).toBe('chat-opener:last-sent-at:user-b');
+  });
+
+  it('allows the opener when this user has no stored timestamp', () => {
+    expect(shouldSendChatOpener('user-a', 1_000, makeStorage())).toBe(true);
+  });
+
+  it('blocks the same user inside the 48h cooldown', () => {
+    const storage = makeStorage({
+      [getChatOpenerStorageKey('user-a')]: String(1_000),
+    });
+
+    expect(shouldSendChatOpener('user-a', 1_000 + CHAT_OPENER_COOLDOWN_MS - 1, storage)).toBe(false);
+  });
+
+  it('allows the same user after more than 48h', () => {
+    const storage = makeStorage({
+      [getChatOpenerStorageKey('user-a')]: String(1_000),
+    });
+
+    expect(shouldSendChatOpener('user-a', 1_000 + CHAT_OPENER_COOLDOWN_MS + 1, storage)).toBe(true);
+  });
+
+  it('does not let one user suppress another user on the same browser', () => {
+    const storage = makeStorage({
+      [getChatOpenerStorageKey('user-a')]: String(1_000),
+    });
+
+    expect(shouldSendChatOpener('user-b', 1_100, storage)).toBe(true);
+  });
+
+  it('marks the current user timestamp', () => {
+    const storage = makeStorage();
+
+    markChatOpenerSent('user-a', 42_000, storage);
+
+    expect(storage.getItem(getChatOpenerStorageKey('user-a'))).toBe('42000');
+  });
+
+  it('fails closed when localStorage is unavailable', () => {
+    const storage = {
+      getItem: () => {
+        throw new Error('blocked');
+      },
+    } as unknown as Storage;
+
+    expect(shouldSendChatOpener('user-a', 1_000, storage)).toBe(false);
   });
 });

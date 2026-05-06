@@ -57,10 +57,9 @@ describe('native chat conversation selection', () => {
     });
   });
 
-  it('requests creation on bare landing even when conversations exist (homepage greets every time)', () => {
-    // The homepage (`/` with no `?c=`) is the opener-trigger surface. The
-    // user opted into being met by AlphaX Buddy on every landing. See
-    // client/src/chat/chat-opener.ts.
+  it('requests creation on bare landing even when conversations exist', () => {
+    // The homepage (`/` with no `?c=`) is the empty-conversation surface. The
+    // opener itself is gated separately by user-scoped localStorage.
     const selection = resolveChatConversationSelection({
       search: '',
       conversations: [

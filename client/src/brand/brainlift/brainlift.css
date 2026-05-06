@@ -123,6 +123,20 @@
   box-shadow: none;
 }
 
+.brainlift-avatar-mark {
+  display: block;
+  width: 82%;
+  height: 82%;
+  object-fit: contain;
+}
+
+.native-chat-thread .aui-thread-welcome-root .aui-avatar-image {
+  width: 82%;
+  height: 82%;
+  margin: auto;
+  object-fit: contain;
+}
+
 /* ===== Login illustration -- frameless brain with inside-out glow ===== */
 
 .brainlift-login-plate {

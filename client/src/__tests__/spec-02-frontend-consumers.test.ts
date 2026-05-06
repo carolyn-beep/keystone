@@ -81,7 +81,7 @@ describe('FR10 comment-leak sweep', () => {
     'components/chat/NativeChatThread.tsx',
     'components/chat/native-chat-thread-config.tsx',
     'pages/ChatHome.tsx',
-    'lib/chat-greeting-session.ts',
+    'chat/chat-opener.ts',
   ];
 
   for (const rel of consumerFiles) {
