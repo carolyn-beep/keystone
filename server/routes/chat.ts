@@ -9,10 +9,12 @@ import { buildChatSystemPromptFromRegistry } from '../ai/chat/system-prompt';
 import { generateChatTitle, shouldGenerateChatTitle } from '../ai/chat/title';
 import {
   consumeChatUiMessageStream,
+  logAskUserSubmitBlocked,
   logChatModelChunk,
   logChatStreamError,
   logChatStreamStart,
   logChatTurn,
+  type AskUserSubmitBlockedQuestion,
 } from '../ai/chat/telemetry';
 import { buildNativeChatTools } from '../ai/chat/tools';
 
@@ -312,4 +314,63 @@ chatRouter.post(
   '/api/chat/stream',
   requireAuth,
   asyncHandler(streamChatHandler),
+);
+
+export async function logAskUserSubmitBlockedHandler(
+  req: Request,
+  res: Response,
+): Promise<void> {
+  const userId = req.authContext!.userId;
+  const body = req.body as {
+    conversationId?: number | string | null;
+    toolCallId?: unknown;
+    questions?: unknown;
+  };
+
+  if (typeof body.toolCallId !== 'string' || body.toolCallId.length === 0) {
+    throw new BadRequestError('toolCallId is required');
+  }
+  if (!Array.isArray(body.questions) || body.questions.length === 0) {
+    throw new BadRequestError('questions[] is required');
+  }
+
+  const conversationId = typeof body.conversationId === 'number'
+    ? body.conversationId
+    : typeof body.conversationId === 'string' && /^\d+$/.test(body.conversationId)
+      ? Number.parseInt(body.conversationId, 10)
+      : null;
+
+  const questions: AskUserSubmitBlockedQuestion[] = body.questions.map((rawQuestion) => {
+    const question = (rawQuestion ?? {}) as Record<string, unknown>;
+    const promptPreview = typeof question.promptPreview === 'string'
+      ? question.promptPreview.slice(0, 200)
+      : '';
+    return {
+      id: typeof question.id === 'string' ? question.id : '',
+      optional: question.optional === true,
+      optionCount: typeof question.optionCount === 'number' ? question.optionCount : 0,
+      multiSelect: question.multiSelect === true,
+      allowFreeText: question.allowFreeText !== false,
+      selectedCount: typeof question.selectedCount === 'number' ? question.selectedCount : 0,
+      freeTextLength: typeof question.freeTextLength === 'number' ? question.freeTextLength : 0,
+      freeTextTrimmedLength: typeof question.freeTextTrimmedLength === 'number' ? question.freeTextTrimmedLength : 0,
+      answered: question.answered === true,
+      promptPreview,
+    };
+  });
+
+  logAskUserSubmitBlocked({
+    userId,
+    conversationId,
+    toolCallId: body.toolCallId,
+    questions,
+  });
+
+  res.json({ ok: true });
+}
+
+chatRouter.post(
+  '/api/chat/diagnostics/ask-user-blocked',
+  requireAuth,
+  asyncHandler(logAskUserSubmitBlockedHandler),
 );

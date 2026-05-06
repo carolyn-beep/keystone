@@ -18,6 +18,7 @@ const askUserQuestionSchema = z.object({
   options: z.array(z.string().min(1)).optional().describe('Optional preset choices. Omit for free-text-only.'),
   multiSelect: z.boolean().optional().describe('Allow picking more than one option. Defaults to false.'),
   allowFreeText: z.boolean().optional().describe('Render a free-text input alongside any options. Defaults to true.'),
+  optional: z.boolean().optional().describe('Mark the question as skippable. Defaults to false.'),
 });
 
 export function buildAskUserQuestionTool() {
