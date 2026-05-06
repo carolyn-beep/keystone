@@ -217,7 +217,7 @@ export async function fetchReadableUrlDetailed(
         source: null,
         skippedReason: 'non_article',
         normalizedUrl,
-        title: content.title ?? null,
+        title: null,
       };
     }
 
