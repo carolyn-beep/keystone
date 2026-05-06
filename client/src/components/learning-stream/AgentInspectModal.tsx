@@ -1,4 +1,4 @@
-import { memo, useRef, useEffect, useState } from 'react';
+import { forwardRef, memo, useRef, useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, ExternalLink } from 'lucide-react';
@@ -244,7 +244,10 @@ interface LogEntryProps {
   index: number;
 }
 
-const LogEntry = memo(function LogEntry({ event, index }: LogEntryProps) {
+const LogEntry = memo(forwardRef<HTMLDivElement, LogEntryProps>(function LogEntry(
+  { event, index },
+  ref
+) {
   const style = EVENT_STYLES[event.type] || { color: 'text-muted-foreground', label: event.type };
 
   // Format timestamp for display
@@ -261,6 +264,9 @@ const LogEntry = memo(function LogEntry({ event, index }: LogEntryProps) {
   // Extract display content based on event type
   let content = '';
   switch (event.type) {
+    case 'spawn':
+      content = `${event.data.resourceType || 'Agent'}: ${event.data.description || 'Deploying'}`;
+      break;
     case 'search':
       content = `"${event.data.query}"`;
       break;
@@ -280,8 +286,13 @@ const LogEntry = memo(function LogEntry({ event, index }: LogEntryProps) {
     case 'save_item':
       content = `[${event.data.type}] "${event.data.topic}"`;
       break;
+    case 'result':
+      content = event.data.topic
+        ? `Found: ${event.data.topic}${event.data.url ? ` (${event.data.url})` : ''}`
+        : String(event.data.reason || 'Completed');
+      break;
     case 'error':
-      content = String(event.data.error || 'Unknown error');
+      content = String(event.data.reason || event.data.error || 'Unknown error');
       break;
     default:
       content = JSON.stringify(event.data).substring(0, 80);
@@ -289,6 +300,7 @@ const LogEntry = memo(function LogEntry({ event, index }: LogEntryProps) {
 
   return (
     <motion.div
+      ref={ref}
       initial={{ opacity: 0, x: -5 }}
       animate={{ opacity: 1, x: 0 }}
       transition={{ delay: index * 0.02 }}
@@ -301,4 +313,4 @@ const LogEntry = memo(function LogEntry({ event, index }: LogEntryProps) {
       </span>
     </motion.div>
   );
-});
+}));

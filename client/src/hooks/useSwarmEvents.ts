@@ -73,6 +73,34 @@ interface SwarmEvent {
 
 const MAX_ORCHESTRATOR_LOGS = 50; // Keep last 50 logs in memory
 
+function getAgentEventKey(event: AgentEvent) {
+  return `${event.timestamp}:${event.type}:${JSON.stringify(event.data)}`;
+}
+
+export function mergeAgentEvents(existing: AgentEvent[] = [], incoming: AgentEvent[] = []) {
+  const seen = new Set<string>();
+  const merged: AgentEvent[] = [];
+
+  for (const event of [...existing, ...incoming]) {
+    const key = getAgentEventKey(event);
+    if (seen.has(key)) continue;
+    seen.add(key);
+    merged.push(event);
+  }
+
+  return merged.sort((a, b) => a.timestamp - b.timestamp);
+}
+
+function getCompletionEvent(event: SwarmEvent): AgentEvent {
+  const success = event.data.success as boolean;
+
+  return {
+    timestamp: event.timestamp,
+    type: success ? 'result' : 'error',
+    data: event.data,
+  };
+}
+
 /**
  * Hook for subscribing to real-time swarm events via SSE.
  *
@@ -110,7 +138,11 @@ export function useSwarmEvents(slug: string, enabled = true) {
       const newAgents = new Map(prev.agents);
       const existing = newAgents.get(agentId);
       if (existing) {
-        newAgents.set(agentId, { ...existing, ...updates });
+        newAgents.set(agentId, {
+          ...existing,
+          ...updates,
+          events: updates.events ? mergeAgentEvents(existing.events, updates.events) : existing.events,
+        });
       } else {
         // Create new agent entry
         newAgents.set(agentId, {
@@ -198,24 +230,38 @@ export function useSwarmEvents(slug: string, enabled = true) {
 
       // If data contains full agent list, update all
       if (Array.isArray(data.agents)) {
-        const newAgents = new Map<string, AgentInfo>();
-        for (const agent of data.agents as AgentInfo[]) {
-          newAgents.set(agent.toolUseId, agent);
-        }
+        let total = 0;
+        let completedForLog = 0;
 
-        const completed = data.completed as number;
-        const total = newAgents.size;
+        setState((prev) => {
+          const newAgents = new Map<string, AgentInfo>();
+          for (const agent of data.agents as AgentInfo[]) {
+            const existing = prev.agents.get(agent.toolUseId);
+            newAgents.set(agent.toolUseId, {
+              ...(existing ?? {}),
+              ...agent,
+              events: mergeAgentEvents(existing?.events, agent.events),
+            });
+          }
 
-        setState((prev) => ({
-          ...prev,
-          status: 'running',
-          agents: newAgents,
-          completedCount: completed ?? 0,
-          totalCount: total,
-        }));
+          total = newAgents.size;
+          const completedFromEvent = data.completed as number | undefined;
+          const calculatedCompleted = Array.from(newAgents.values()).filter(
+            (a) => a.status === 'complete' || a.status === 'failed'
+          ).length;
+          completedForLog = completedFromEvent ?? calculatedCompleted;
 
-        if (completed > 0) {
-          addLog(`Progress: ${completed}/${total} units reporting...`, 'progress');
+          return {
+            ...prev,
+            status: 'running',
+            agents: newAgents,
+            completedCount: completedForLog,
+            totalCount: total,
+          };
+        });
+
+        if (completedForLog > 0) {
+          addLog(`Progress: ${completedForLog}/${total} units reporting...`, 'progress');
         }
       } else {
         // Just counts update
@@ -244,7 +290,13 @@ export function useSwarmEvents(slug: string, enabled = true) {
         resourceType,
         status: 'spawning',
         startTime: event.timestamp,
-        events: [],
+        events: [
+          {
+            timestamp: event.timestamp,
+            type: 'spawn',
+            data: event.data,
+          },
+        ],
       });
 
       setState((prev) => ({ ...prev, status: 'running' }));
@@ -253,6 +305,7 @@ export function useSwarmEvents(slug: string, enabled = true) {
 
     // Handle agent activity
     eventSource.addEventListener('agent:activity', (e) => {
+      console.log('[SSE] Received: agent:activity', e.data);
       const event: SwarmEvent = JSON.parse(e.data);
       if (!event.agentId) return;
 
@@ -280,6 +333,7 @@ export function useSwarmEvents(slug: string, enabled = true) {
 
     // Handle agent complete
     eventSource.addEventListener('agent:complete', (e) => {
+      console.log('[SSE] Received: agent:complete', e.data);
       const event: SwarmEvent = JSON.parse(e.data);
       if (!event.agentId) return;
 
@@ -296,6 +350,7 @@ export function useSwarmEvents(slug: string, enabled = true) {
           ...agent,
           status: success ? 'complete' : 'failed',
           endTime: event.timestamp,
+          events: mergeAgentEvents(agent.events, [getCompletionEvent(event)]),
           result: {
             found: success,
             url: event.data.url as string | undefined,
