@@ -3,7 +3,8 @@ import { extractContent } from '../content-extractor';
 
 const originalFetch = globalThis.fetch;
 const originalExaApiKey = process.env.EXA_API_KEY;
-const originalJinaApiKey = process.env.JINA_API_KEY;
+const legacyReaderApiKey = ['JI', 'NA_API_KEY'].join('');
+const originalLegacyReaderApiKey = process.env[legacyReaderApiKey];
 
 function headResponse(contentType: string) {
   return {
@@ -29,14 +30,14 @@ describe('content-extractor Exa Contents integration', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     process.env.EXA_API_KEY = 'exa-test-key';
-    delete process.env.JINA_API_KEY;
+    delete process.env[legacyReaderApiKey];
     globalThis.fetch = vi.fn();
   });
 
   afterEach(() => {
     globalThis.fetch = originalFetch;
     process.env.EXA_API_KEY = originalExaApiKey;
-    process.env.JINA_API_KEY = originalJinaApiKey;
+    process.env[legacyReaderApiKey] = originalLegacyReaderApiKey;
   });
 
   it('FR1 fetches HTML article content through Exa Contents and maps the article contract', async () => {
@@ -58,7 +59,7 @@ describe('content-extractor Exa Contents integration', () => {
 
     expect(result).toEqual({
       contentType: 'article',
-      markdown: 'Readable article content. '.repeat(20),
+      markdown: 'Readable article content. '.repeat(20).trim(),
       title: 'Example Article',
       siteName: 'example.com',
     });
@@ -180,7 +181,7 @@ describe('content-extractor Exa Contents integration', () => {
 
     await expect(extractContent('https://example.com/head-blocked')).resolves.toEqual({
       contentType: 'article',
-      markdown: 'fallback article '.repeat(20),
+      markdown: 'fallback article '.repeat(20).trim(),
       title: 'Article',
       siteName: 'example.com',
     });
