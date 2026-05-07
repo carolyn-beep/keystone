@@ -179,7 +179,7 @@ export async function saveBrainliftFromAI(
   console.log(`[Auto-Grade] Title: "${data.title}", Facts count: ${data.facts.length}`);
   console.log(`[Auto-Grade] Memory at start: ${Math.round(memStart.heapUsed / 1024 / 1024)}MB heap, ${Math.round(memStart.rss / 1024 / 1024)}MB RSS`);
 
-  const limit = pLimit(60);
+  const limit = pLimit(30);
   let completedCount = 0;
   const totalFacts = data.facts.length;
   const skipGrading = process.env.SKIP_GRADING === 'true';
