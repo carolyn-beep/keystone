@@ -9,11 +9,6 @@ import { DOK3LinkingUI } from '@/components/DOK3LinkingUI';
 import { DOK4LinkingUI } from '@/components/DOK4LinkingUI';
 import { TactileButton } from '@/components/ui/tactile-button';
 import { BuildFromScratchWizard } from '@/components/home/BuildFromScratchWizard';
-import { ImportAgentLayout } from '@/components/import-agent/ImportAgentLayout';
-import { ImportAgentProvider } from '@/components/import-agent/ImportAgentContext';
-import { useImportConversation } from '@/hooks/useImportConversation';
-import { useCreateForAgent } from '@/hooks/useCreateForAgent';
-import { useGradingProgress } from '@/hooks/useGradingProgress';
 import type { ImportStage } from '@shared/import-progress';
 import modalBgTexture from '@/assets/textures/modal_bgv2.webp';
 
@@ -24,14 +19,6 @@ const tabs: { id: SourceType; label: string; icon: typeof FileText }[] = [
   { id: 'html', label: 'HTML', icon: FileText },
   { id: 'markdown', label: 'Markdown', icon: FileText },
   { id: 'googledocs', label: 'Google Docs', icon: LinkIcon },
-];
-
-const CASCADE_ORDERED_STAGES: Exclude<ImportStage, 'complete' | 'error'>[] = [
-  'grading',
-  'grading_dok2',
-  'grading_dok3',
-  'experts',
-  'redundancy',
 ];
 
 // Manual mode: only stages up to DOK2 grading (linking UIs handle the rest)
@@ -76,16 +63,9 @@ export function AddBrainliftModal({ show, mode, onClose, onSuccess }: AddBrainli
   const importState = useImportWithProgress();
   const { importPhase } = importState;
 
-  // Agent flow state
-  const [agentSlug, setAgentSlug] = useState<string | null>(null);
-  const [isGradingMode, setIsGradingMode] = useState(false);
-  const createForAgent = useCreateForAgent();
-  const grading = useGradingProgress();
-  const conversation = useImportConversation(agentSlug);
-
   // Derived state from phase machine
   const isManualLinking = importPhase === 'dok3_manual_linking' || importPhase === 'dok4_manual_linking';
-  const isExpanded = isManualLinking || !!agentSlug;
+  const isExpanded = isManualLinking;
   const isBusy = importState.isImporting || importPhase === 'evaluating' || importPhase === 'formatting';
 
   // Holds the completed slug when import finishes while user is still linking
@@ -154,16 +134,12 @@ export function AddBrainliftModal({ show, mode, onClose, onSuccess }: AddBrainli
     setError('');
     setAutoLink(true);
     setWizardActive(false);
-    setAgentSlug(null);
-    setIsGradingMode(false);
     pendingSlugRef.current = null;
     pendingFormDataRef.current = null;
-    createForAgent.reset();
-  }, [createForAgent]);
+  }, []);
 
   const closeModal = useCallback(() => {
     if (isManualLinking) return;
-    if (isGradingMode && grading.isGrading) return;
     if (importState.isImporting) return;
     if (importPhase === 'evaluating') return;
     if (importPhase === 'formatting') return;
@@ -171,7 +147,7 @@ export function AddBrainliftModal({ show, mode, onClose, onSuccess }: AddBrainli
     importState.reset();
     resetAll();
     onClose();
-  }, [isManualLinking, isGradingMode, grading.isGrading, importState, importPhase, resetAll, onClose]);
+  }, [isManualLinking, importState, importPhase, resetAll, onClose]);
 
   // Decision pending: user can close (resets to idle)
   const closeDecision = useCallback(() => {
@@ -312,46 +288,13 @@ export function AddBrainliftModal({ show, mode, onClose, onSuccess }: AddBrainli
     pendingFormDataRef.current = null;
   }, [importState]);
 
-  // Agent flow: create brainlift then expand
-  const handleRunAgent = async () => {
-    setError('');
-    if (!url.trim()) {
-      setError('Please enter a URL');
-      return;
-    }
-
-    createForAgent.mutate(
-      { url: url.trim(), sourceType: 'workflowy' },
-      {
-        onSuccess: (data) => {
-          setAgentSlug(data.slug);
-        },
-        onError: (err) => {
-          setError(err.message || 'Failed to create brainlift');
-        },
-      }
-    );
-  };
-
-  // Agent grading flow
-  const handleStartGrading = useCallback(async () => {
-    if (!agentSlug) return;
-    setIsGradingMode(true);
-    const resultSlug = await grading.startGrading(agentSlug);
-    if (resultSlug) {
-      resetAll();
-      onClose();
-      onSuccess(resultSlug);
-    }
-  }, [agentSlug, grading, resetAll, onClose, onSuccess]);
-
   if (!show) return null;
 
   return (
     <div
       className="fixed inset-0 flex items-center justify-center z-[1000] p-5 overflow-hidden"
       style={{ backgroundColor: tokens.overlay }}
-      onClick={(isManualLinking || (isGradingMode && grading.isGrading) || isBusy) ? undefined : closeModal}
+      onClick={(isManualLinking || isBusy) ? undefined : closeModal}
     >
       <motion.div
         layout
@@ -397,62 +340,6 @@ export function AddBrainliftModal({ show, mode, onClose, onSuccess }: AddBrainli
                 importState={importState}
                 onComplete={handleDok3LinkingComplete}
               />
-            </motion.div>
-          ) : agentSlug ? (
-            <motion.div
-              key="agent"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              transition={{ duration: 0.3 }}
-              className="flex flex-col h-full"
-            >
-              {/* Agent header */}
-              <div className="flex items-center justify-between px-6 py-3 border-b border-border shrink-0">
-                <h2 className="text-sm font-semibold text-foreground">
-                  {isGradingMode ? 'Grading in Progress' : 'Import Agent'}
-                </h2>
-                <button
-                  onClick={closeModal}
-                  disabled={isGradingMode && grading.isGrading}
-                  className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
-                >
-                  <X size={18} />
-                </button>
-              </div>
-
-              {/* Agent body */}
-              <div className="flex-1 min-h-0 overflow-hidden">
-                {isGradingMode ? (
-                  <div className="flex items-center justify-center h-full px-6">
-                    <div className="w-full max-w-md">
-                      <ImportProgress
-                        currentStage={grading.currentStage}
-                        stageLabel={grading.stageLabel}
-                        progress={grading.progress}
-                        gradingProgress={grading.gradingProgress}
-                        gradingDok2Progress={grading.gradingDok2Progress}
-                        gradingDok3Progress={grading.gradingDok3Progress}
-                        error={grading.error}
-                        isVisible={true}
-                        orderedStages={CASCADE_ORDERED_STAGES}
-                      />
-                    </div>
-                  </div>
-                ) : conversation.isLoading ? (
-                  <div className="flex items-center justify-center h-full gap-2 text-muted-foreground">
-                    <Loader2 size={16} className="animate-spin" />
-                    <span className="text-sm">Loading conversation...</span>
-                  </div>
-                ) : (
-                  <ImportAgentProvider value={{ startGrading: handleStartGrading }}>
-                    <ImportAgentLayout
-                      slug={agentSlug}
-                      initialMessages={conversation.messages}
-                    />
-                  </ImportAgentProvider>
-                )}
-              </div>
             </motion.div>
           ) : importPhase === 'evaluating' ? (
             /* ── Evaluating phase: spinner ── */
@@ -771,9 +658,9 @@ export function AddBrainliftModal({ show, mode, onClose, onSuccess }: AddBrainli
                           </label>
                         </div>
 
-                        {(error || createForAgent.error?.message || importState.error) && !isBusy && (
+                        {(error || importState.error) && !isBusy && (
                           <p className="text-destructive text-sm mt-3">
-                            {error || createForAgent.error?.message || importState.error}
+                            {error || importState.error}
                           </p>
                         )}
 
@@ -803,23 +690,6 @@ export function AddBrainliftModal({ show, mode, onClose, onSuccess }: AddBrainli
                           >
                             Cancel
                           </TactileButton>
-                          {process.env.NODE_ENV !== 'production' && !isBusy && activeTab === 'workflowy' && (
-                            <TactileButton
-                              variant="inset"
-                              onClick={handleRunAgent}
-                              disabled={createForAgent.isPending}
-                              className="text-xs"
-                            >
-                              {createForAgent.isPending ? (
-                                <span className="flex items-center gap-2">
-                                  <Loader2 size={14} className="animate-spin" />
-                                  Creating...
-                                </span>
-                              ) : (
-                                'Run Import Agent (Beta)'
-                              )}
-                            </TactileButton>
-                          )}
                           <TactileButton
                             variant="raised"
                             data-testid="button-submit-import"

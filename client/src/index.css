@@ -772,18 +772,6 @@
 
 /* ===== End Discussion Panel overrides ===== */
 
-/* ===== Import Agent — semi-transparent thread to show background image ===== */
-
-.import-agent-chat .aui-thread-root {
-  background: hsl(var(--card-elevated) / 0.88);
-}
-
-.import-agent-chat .aui-thread-viewport-footer {
-  background: hsl(var(--card-elevated) / 0.88);
-}
-
-/* ===== End Import Agent overrides ===== */
-
 /* ===== Native Chat Home ===== */
 
 /* Warm parchment wash behind the entire chat column,
