@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { Maximize2, X } from 'lucide-react';
 
@@ -49,6 +49,11 @@ export function ExpandableTextarea({
     return () => window.removeEventListener('keydown', onKey);
   }, [isOpen, onOpenChange]);
 
+  // Prevents text selections that end on the backdrop from closing the modal:
+  // browsers fire `click` on the common ancestor of mousedown/mouseup, which
+  // is the backdrop in that case.
+  const mouseDownOnBackdropRef = useRef(false);
+
   return (
     <div className="relative">
       <textarea
@@ -72,12 +77,17 @@ export function ExpandableTextarea({
             <div
               className="fixed inset-0 z-[1000] flex items-center justify-center px-4 py-6"
               style={{ backgroundColor: 'rgba(45, 45, 45, 0.55)' }}
-              onClick={() => onOpenChange(false)}
+              onMouseDown={(e) => {
+                mouseDownOnBackdropRef.current = e.target === e.currentTarget;
+              }}
+              onClick={(e) => {
+                if (e.target === e.currentTarget && mouseDownOnBackdropRef.current) {
+                  onOpenChange(false);
+                }
+                mouseDownOnBackdropRef.current = false;
+              }}
             >
-              <div
-                className="flex h-[90vh] w-[95vw] max-w-[1400px] flex-col overflow-hidden rounded-2xl bg-card-elevated shadow-card"
-                onClick={(e) => e.stopPropagation()}
-              >
+              <div className="flex h-[90vh] w-[95vw] max-w-[1400px] flex-col overflow-hidden rounded-2xl bg-card-elevated shadow-card">
                 <div className="flex items-center justify-between gap-3 border-b border-border px-6 py-4">
                   <div>
                     <p className="text-[10px] uppercase tracking-[0.32em] font-semibold text-muted-foreground">
