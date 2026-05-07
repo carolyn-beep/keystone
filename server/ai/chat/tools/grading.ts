@@ -17,7 +17,7 @@ const gradeBrainliftInputSchema = z.object({
     .string()
     .trim()
     .min(1)
-    .describe('Complete Brainlift in markdown format. Use get_template first to see the required format.'),
+    .describe('Complete Brainlift in markdown format for a BRAND-NEW brainlift. Use get_template first to see the required format. Do not pass markdown for a brainlift that already exists — that creates a duplicate, not an update.'),
   title: z
     .string()
     .optional()
@@ -109,7 +109,16 @@ export function buildChatGradingTools(userId: string): ToolSet {
     }),
 
     grade_brainlift: tool({
-      description: 'Submit a Brainlift for grading. Returns the slug immediately while grading continues asynchronously.',
+      description:
+        'CREATES A BRAND-NEW BRAINLIFT from the supplied markdown and queues it for grading. ' +
+        'Use this ONLY for the very first submission of a brainlift that does not yet exist for the user. ' +
+        'DO NOT call this to update, edit, fix, regrade, repair, reformat, or improve an existing brainlift — ' +
+        'it will create a duplicate with an auto-suffixed slug (e.g. `my-brainlift-2`), not modify the original. ' +
+        'Before calling, confirm via `list_brainlifts` that no brainlift on this topic already exists, ' +
+        'and confirm with the user that they want a new brainlift created. ' +
+        'For existing brainlifts use `edit_dok_item`, `create_dok2`, `create_dok3`, `create_dok4`, ' +
+        '`link_dok3`, `link_dok4`, `delete_dok_item`, or `dismiss_stale` instead — these mutate in place ' +
+        'and trigger regrading automatically. Returns the new slug immediately while grading continues asynchronously.',
       inputSchema: gradeBrainliftInputSchema,
       execute: async ({ markdown, title }) => {
         const result = await processGradeRequest(
