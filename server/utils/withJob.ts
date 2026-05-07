@@ -63,13 +63,13 @@ function buildQueueMethods(name: string, payload: unknown, baseOptions: JobOptio
  * Type-safe job queueing utility.
  *
  * Usage:
- *   await withJob('example:hello')
- *     .forPayload({ name: 'Alice' })
+ *   await withJob('brainlift:generate-image')
+ *     .forPayload({ brainliftId: 123 })
  *     .queue();
  *
  *   // With options (e.g. jobKey for idempotency):
- *   await withJob('example:hello')
- *     .forPayload({ name: 'Alice' })
+ *   await withJob('brainlift:generate-image')
+ *     .forPayload({ brainliftId: 123 })
  *     .withOptions({ jobKey: 'unique-key' })
  *     .queue();
  *

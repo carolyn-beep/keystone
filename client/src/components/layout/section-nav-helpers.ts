@@ -55,8 +55,8 @@ const SKILLS_HREF = '/skills';
 /**
  * Pure path -> section resolver for the unified SectionNav.
  *
- * Returns `null` for paths that bypass the shell (e.g. `/login`, `/dev/*`,
- * `/view/:slug`) and for any unrecognized path.
+ * Returns `null` for paths that bypass the shell (e.g. `/login`, `/view/:slug`)
+ * and for any unrecognized path.
  */
 export function resolveSectionNavActive(pathname: string): SectionNavSection | null {
   if (!pathname) return null;

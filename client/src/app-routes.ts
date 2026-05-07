@@ -4,9 +4,6 @@ import {
 } from '@/components/chat/chat-home-helpers';
 
 export const APP_PROTECTED_ROUTE_ORDER = [
-  '/dev/import-agent',
-  '/dev/preformat-test',
-  '/dev/preformat-batch',
   CHAT_HOME_ROUTE_PATH,
   '/analytics',
   '/admin/providers',
