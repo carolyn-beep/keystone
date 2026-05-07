@@ -16,8 +16,8 @@ import {
 
 describe('analytics foundation schema', () => {
   it('exposes the analytics origin taxonomy', () => {
-    expect(ANALYTICS_ORIGINS).toEqual(['ui', 'mcp', 'builder', 'agent', 'seed']);
-    expect(Object.keys(ANALYTICS_ORIGINS)).toHaveLength(5);
+    expect(ANALYTICS_ORIGINS).toEqual(['ui', 'mcp', 'builder', 'seed']);
+    expect(Object.keys(ANALYTICS_ORIGINS)).toHaveLength(4);
   });
 
   it('exposes the fixed score-event trigger set', () => {

@@ -16,9 +16,6 @@ const Analytics = lazy(() => import("@/pages/Analytics"));
 const AdminProviders = lazy(() => import("@/pages/AdminProviders"));
 const Login = lazy(() => import("@/pages/Login"));
 const NotFound = lazy(() => import("@/pages/not-found"));
-const DevImportAgentTest = lazy(() => import("@/pages/DevImportAgentTest"));
-const PreformatTestPage = lazy(() => import("@/pages/dev/PreformatTestPage"));
-const PreformatBatchPage = lazy(() => import("@/pages/dev/PreformatBatchPage"));
 
 // Loading fallback
 function PageLoader() {
@@ -33,21 +30,6 @@ function Router() {
   return (
     <Switch>
       <Route path="/login" component={Login} />
-      <Route path="/dev/import-agent">
-        <ProtectedRoute>
-          <DevImportAgentTest />
-        </ProtectedRoute>
-      </Route>
-      <Route path="/dev/preformat-test">
-        <ProtectedRoute>
-          <PreformatTestPage />
-        </ProtectedRoute>
-      </Route>
-      <Route path="/dev/preformat-batch">
-        <ProtectedRoute>
-          <PreformatBatchPage />
-        </ProtectedRoute>
-      </Route>
       <Route path={CHAT_HOME_ROUTE_PATH}>
         <ProtectedRoute>
           <ChatHome />

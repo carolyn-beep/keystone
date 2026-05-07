@@ -47,7 +47,6 @@ describe('resolveSectionNavActive', () => {
 
   it('returns null for shell-bypass routes', () => {
     expect(resolveSectionNavActive('/login')).toBeNull();
-    expect(resolveSectionNavActive('/dev/import-agent')).toBeNull();
     expect(resolveSectionNavActive('/view/some-slug')).toBeNull();
   });
 

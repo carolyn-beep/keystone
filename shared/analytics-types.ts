@@ -1,4 +1,4 @@
-export const ANALYTICS_ORIGINS = ['ui', 'mcp', 'builder', 'agent', 'seed'] as const;
+export const ANALYTICS_ORIGINS = ['ui', 'mcp', 'builder', 'seed'] as const;
 export type AnalyticsOrigin = typeof ANALYTICS_ORIGINS[number];
 
 export const SCORE_EVENT_TRIGGERS = ['import', 'pipeline', 'grade', 'regrade', 'delete'] as const;

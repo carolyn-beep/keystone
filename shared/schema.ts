@@ -150,7 +150,6 @@ export const brainlifts = pgTable("brainlifts", {
     score5Count: number;
     contradictionCount: number;
   }>().notNull(),
-  // Import Agent fields
   importStatus: text("import_status").$type<ImportStatus>().default('pending'),
   importHierarchy: jsonb("import_hierarchy"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
@@ -1403,21 +1402,6 @@ export const builderExpertsRelations = relations(builderExperts, ({ one }) => ({
   }),
 }));
 
-// === IMPORT AGENT TABLES ===
-
-// Import Agent Phase enum
-export const IMPORT_PHASE = {
-  INIT: 'init',
-  SOURCES: 'sources',
-  DOK1: 'dok1',
-  DOK2: 'dok2',
-  DOK3: 'dok3',
-  DOK3_LINKING: 'dok3_linking',
-  FINAL: 'final',
-} as const;
-
-export type ImportPhase = typeof IMPORT_PHASE[keyof typeof IMPORT_PHASE];
-
 // Import Status enum (on brainlifts table)
 export const IMPORT_STATUS = {
   PENDING: 'pending',
@@ -1425,56 +1409,6 @@ export const IMPORT_STATUS = {
 } as const;
 
 export type ImportStatus = typeof IMPORT_STATUS[keyof typeof IMPORT_STATUS];
-
-// Source curation status
-export const SOURCE_STATUS = {
-  PENDING: 'pending',
-  CONFIRMED: 'confirmed',
-  SCRATCHPADDED: 'scratchpadded',
-} as const;
-
-export type SourceStatus = typeof SOURCE_STATUS[keyof typeof SOURCE_STATUS];
-
-// Import Agent Conversations - persists agent chat history across sessions
-export const importAgentConversations = pgTable("import_agent_conversations", {
-  id: serial("id").primaryKey(),
-  brainliftId: integer("brainlift_id").notNull().references(() => brainlifts.id, { onDelete: "cascade" }),
-  messages: jsonb("messages").notNull().default([]),
-  currentPhase: text("current_phase").$type<ImportPhase>().notNull().default('init'),
-  updatedAt: timestamp("updated_at").defaultNow().notNull(),
-}, (table) => [
-  unique("unique_brainlift_conversation").on(table.brainliftId),
-]);
-
-// Brainlift Sources - URLs/references curated during import
-export const brainliftSources = pgTable("brainlift_sources", {
-  id: serial("id").primaryKey(),
-  brainliftId: integer("brainlift_id").notNull().references(() => brainlifts.id, { onDelete: "cascade" }),
-  url: text("url"),
-  name: text("name"),
-  category: text("category"),
-  surroundingContext: text("surrounding_context"),
-  status: text("status").$type<SourceStatus>().notNull().default('pending'),
-  createdAt: timestamp("created_at").defaultNow().notNull(),
-}, (table) => [
-  index("idx_brainlift_sources_brainlift").on(table.brainliftId),
-  unique("uq_brainlift_sources_url").on(table.brainliftId, table.url),
-]);
-
-// Import Agent Relations
-export const importAgentConversationsRelations = relations(importAgentConversations, ({ one }) => ({
-  brainlift: one(brainlifts, {
-    fields: [importAgentConversations.brainliftId],
-    references: [brainlifts.id],
-  }),
-}));
-
-export const brainliftSourcesRelations = relations(brainliftSources, ({ one }) => ({
-  brainlift: one(brainlifts, {
-    fields: [brainliftSources.brainliftId],
-    references: [brainlifts.id],
-  }),
-}));
 
 // === NATIVE CHAT TABLES ===
 
@@ -1633,8 +1567,6 @@ export const insertDeliverableSchema = createInsertSchema(deliverables).omit({ i
 export const insertPlatformConfigSchema = createInsertSchema(platformConfig).omit({ updatedAt: true });
 export const insertLearningStreamItemSchema = createInsertSchema(learningStreamItems).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertCategorySchema = createInsertSchema(categories).omit({ id: true, createdAt: true });
-export const insertImportAgentConversationSchema = createInsertSchema(importAgentConversations).omit({ id: true, updatedAt: true });
-export const insertBrainliftSourceSchema = createInsertSchema(brainliftSources).omit({ id: true, createdAt: true });
 export const insertDok4SpovSchema = createInsertSchema(dok4Spovs).omit({ id: true, createdAt: true });
 export const insertDok4Dok3LinkSchema = createInsertSchema(dok4Dok3Links).omit({ id: true });
 export const insertDokItemVersionSchema = createInsertSchema(dokItemVersions).omit({ id: true, createdAt: true });
@@ -1715,10 +1647,6 @@ export type InsertPlatformConfig = z.infer<typeof insertPlatformConfigSchema>;
 export type InsertLearningStreamItem = z.infer<typeof insertLearningStreamItemSchema>;
 export type Category = typeof categories.$inferSelect;
 export type InsertCategory = z.infer<typeof insertCategorySchema>;
-export type ImportAgentConversation = typeof importAgentConversations.$inferSelect;
-export type InsertImportAgentConversation = z.infer<typeof insertImportAgentConversationSchema>;
-export type BrainliftSource = typeof brainliftSources.$inferSelect;
-export type InsertBrainliftSource = z.infer<typeof insertBrainliftSourceSchema>;
 export type ChatConversation = typeof chatConversations.$inferSelect;
 export type ChatMessage = typeof chatMessages.$inferSelect;
 export type DOK4Spov = typeof dok4Spovs.$inferSelect;

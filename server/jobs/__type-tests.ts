@@ -15,28 +15,20 @@ import { withJob } from '../utils/withJob';
 
 async function test_correct_usage() {
   // ✅ Should work: correct payload structure
-  await withJob('example:hello')
+  await withJob('brainlift:generate-image')
     .forPayload({
-      name: 'Alice',
-      delay: 1000,
-    })
-    .queue();
-
-  // ✅ Should work: optional field omitted
-  await withJob('example:hello')
-    .forPayload({
-      name: 'Bob',
+      brainliftId: 123,
     })
     .queue();
 
   // ✅ Should work: with scheduleFor
-  await withJob('example:hello')
-    .forPayload({ name: 'Charlie' })
+  await withJob('brainlift:generate-image')
+    .forPayload({ brainliftId: 123 })
     .scheduleFor(new Date());
 
   // ✅ Should work: with queueWith
-  await withJob('example:hello')
-    .forPayload({ name: 'Dave' })
+  await withJob('brainlift:generate-image')
+    .forPayload({ brainliftId: 123 })
     .queueWith({ priority: -10 });
 }
 
@@ -45,38 +37,34 @@ async function test_correct_usage() {
 // ============================================================================
 
 async function test_type_errors() {
-  // ❌ Should error: missing required field 'name'
-  // @ts-expect-error
-  await withJob('example:hello')
+  // ❌ Should error: missing required field 'brainliftId'
+  await withJob('brainlift:generate-image')
+    // @ts-expect-error
     .forPayload({
-      delay: 1000,
     })
     .queue();
 
   // ❌ Should error: wrong field name
-  // @ts-expect-error
-  await withJob('example:hello')
+  await withJob('brainlift:generate-image')
     .forPayload({
-      username: 'Alice', // should be 'name'
-      delay: 1000,
+      // @ts-expect-error
+      id: 123, // should be 'brainliftId'
     })
     .queue();
 
-  // ❌ Should error: wrong type for 'delay'
-  // @ts-expect-error
-  await withJob('example:hello')
+  // ❌ Should error: wrong type for 'brainliftId'
+  await withJob('brainlift:generate-image')
     .forPayload({
-      name: 'Alice',
-      delay: '1000', // should be number, not string
+      // @ts-expect-error
+      brainliftId: '123', // should be number, not string
     })
     .queue();
 
   // ❌ Should error: extra unexpected field
-  // @ts-expect-error
-  await withJob('example:hello')
+  await withJob('brainlift:generate-image')
     .forPayload({
-      name: 'Alice',
-      delay: 1000,
+      brainliftId: 123,
+      // @ts-expect-error
       extra: 'field', // not in payload type
     })
     .queue();
@@ -94,12 +82,11 @@ async function test_type_errors() {
 
 async function test_type_inference() {
   // Test that the payload type is correctly inferred
-  const job = withJob('example:hello');
+  const job = withJob('brainlift:generate-image');
 
-  // This should show autocomplete for 'name' and 'delay' in your IDE
+  // This should show autocomplete for 'brainliftId' in your IDE
   const result = job.forPayload({
-    name: 'Test',
-    delay: 500,
+    brainliftId: 123,
   });
 
   // Verify return type is correct
@@ -118,10 +105,9 @@ async function test_type_inference() {
 
 async function test_job_name_autocomplete() {
   // When you type withJob('..., your IDE should show:
-  // - 'example:hello'
-  // And nothing else (since that's the only registered job)
+  // - registered task names from tasks.ts
 
-  await withJob('example:hello').forPayload({ name: 'Test' }).queue();
+  await withJob('brainlift:generate-image').forPayload({ brainliftId: 123 }).queue();
 
   // Future jobs would appear here when added to tasks.ts:
   // await withJob('brainlift:import').forPayload({ ... }).queue();
@@ -141,17 +127,17 @@ async function test_job_name_autocomplete() {
  *    - If errors on unmarked lines: type system is broken
  *
  * 2. Open this file in VS Code
- *    - Hover over withJob('example:hello') -> should show job name type
+ *    - Hover over withJob('brainlift:generate-image') -> should show job name type
  *    - Hover over .forPayload({ ... }) -> should show payload type
- *    - Type withJob(' -> should see 'example:hello' in autocomplete
- *    - In forPayload, type { and press Ctrl+Space -> should see 'name' and 'delay'
+ *    - Type withJob(' -> should see registered task names in autocomplete
+ *    - In forPayload, type { and press Ctrl+Space -> should see 'brainliftId'
  *
  * 3. Remove a @ts-expect-error and check if TypeScript complains
  *    - If it does: type checking is working!
  *    - If it doesn't: type checking is broken
  *
  * Expected TypeScript errors when @ts-expect-error is removed:
- * - test_type_errors line 1: Property 'name' is missing
+ * - test_type_errors line 1: Property 'brainliftId' is missing
  * - test_type_errors line 2: Object literal may only specify known properties
  * - test_type_errors line 3: Type 'string' is not assignable to type 'number'
  * - test_type_errors line 4: Object literal may only specify known properties

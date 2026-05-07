@@ -1,4 +1,3 @@
-import { exampleJob } from './exampleJob';
 import { learningStreamResearchJob } from './learningStreamResearchJob';
 import { brainliftImageJob } from './brainliftImageJob';
 import { contentExtractJob } from './contentExtractJob';
@@ -31,7 +30,6 @@ import { purgeDeletedSkillsJob } from './purgeDeletedSkillsJob';
  * 3. Type safety is automatic via withJob() utility
  */
 const tasks = {
-  'example:hello': exampleJob,
   'learning-stream:research': learningStreamResearchJob,
   'learning-stream:extract-content': contentExtractJob,
   'learning-stream:generate-quiz': quizGenerateJob,

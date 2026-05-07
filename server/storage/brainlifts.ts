@@ -5,7 +5,7 @@ import {
   llmFeedback, factRedundancyGroups, dok2Summaries, dok2Points, dok2FactRelations,
   nativeBrainliftDetails, builderExperts, dok4Spovs, user,
   type Brainlift, type BrainliftData, type InsertBrainlift,
-  type BrainliftVersion, type AuthContext
+  type BrainliftVersion, type AuthContext, type ImportStatus
 } from './base';
 import { getDOK2Summaries, deleteDOK2Summaries } from './dok2';
 import { getSharedBrainlifts } from './shares';
@@ -255,6 +255,12 @@ export async function updateBrainliftFields(id: number, fields: {
   await db.update(brainlifts)
     .set(fields)
     .where(eq(brainlifts.id, id));
+}
+
+export async function updateImportStatus(brainliftId: number, importStatus: ImportStatus) {
+  await db.update(brainlifts)
+    .set({ importStatus })
+    .where(eq(brainlifts.id, brainliftId));
 }
 
 /**

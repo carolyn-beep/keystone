@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { forwardRef, useEffect, useImperativeHandle, useMemo, useState } from 'react';
 import { Loader2, Plus, Save, Trash2, X } from 'lucide-react';
 import { TactileButton } from '@/components/ui/tactile-button';
 import { ExpandableTextarea } from './ExpandableTextarea';
@@ -117,10 +117,37 @@ interface SkillEditorProps {
   mode: 'create' | 'edit';
   detail: SkillDetail | null;
   isLoadingDetail: boolean;
-  onSave: (input: SaveSkillRequest, mode: 'create' | 'edit', currentName: string | null) => Promise<void>;
+  onSave: (
+    input: SaveSkillRequest,
+    mode: 'create' | 'edit',
+    currentName: string | null,
+  ) => Promise<{ success: boolean }>;
+  onSaveSuccess?: () => void;
   onDelete?: (detail: SkillDetail) => void;
   isSaving: boolean;
   isDeleting: boolean;
+  onDirtyChange?: (isDirty: boolean) => void;
+}
+
+export interface SkillEditorHandle {
+  save: () => Promise<{ success: boolean }>;
+}
+
+function isSameDraft(a: SaveSkillRequest, b: SaveSkillRequest): boolean {
+  if (a.name !== b.name) return false;
+  if (a.description !== b.description) return false;
+  if (a.body !== b.body) return false;
+  if (a.visibility !== b.visibility) return false;
+  if (a.references.length !== b.references.length) return false;
+  for (let i = 0; i < a.references.length; i++) {
+    if (a.references[i].path !== b.references[i].path) return false;
+    if (a.references[i].content !== b.references[i].content) return false;
+  }
+  if (a.shareIdentifiers.length !== b.shareIdentifiers.length) return false;
+  for (let i = 0; i < a.shareIdentifiers.length; i++) {
+    if (a.shareIdentifiers[i] !== b.shareIdentifiers[i]) return false;
+  }
+  return true;
 }
 
 interface ShareChipsInputProps {
@@ -251,16 +278,19 @@ function ShareChipsInput({ identifiers, onChange, disabled }: ShareChipsInputPro
  * Create / edit form for a skill. Used as the body of the "Create Skill" view
  * (mode='create') and the "Edit" sub-view (mode='edit', detail provided).
  */
-export function SkillEditor({
+export const SkillEditor = forwardRef<SkillEditorHandle, SkillEditorProps>(function SkillEditor({
   mode,
   detail,
   isLoadingDetail,
   onSave,
+  onSaveSuccess,
   onDelete,
   isSaving,
   isDeleting,
-}: SkillEditorProps) {
+  onDirtyChange,
+}, forwardedRef) {
   const [draft, setDraft] = useState<SaveSkillRequest>(EMPTY_DRAFT);
+  const [baseline, setBaseline] = useState<SaveSkillRequest>(EMPTY_DRAFT);
   // Which textarea is expanded into the modal. `null` when none. Strings are
   // 'body' for the skill body and `ref-<index>` for a reference's content.
   // Only one can be open at a time; opening another closes the previous.
@@ -269,19 +299,31 @@ export function SkillEditor({
   // Hydrate draft from detail when entering edit mode or when detail loads.
   useEffect(() => {
     if (mode === 'create') {
-      setDraft({ ...EMPTY_DRAFT, references: [] });
+      const empty = { ...EMPTY_DRAFT, references: [] };
+      setDraft(empty);
+      setBaseline(empty);
       return;
     }
     if (!detail) return;
-    setDraft({
+    const next: SaveSkillRequest = {
       name: detail.name,
       description: detail.description,
       body: detail.body,
       visibility: detail.visibility,
       references: detail.references.map((r) => ({ path: r.path, content: r.content })),
       shareIdentifiers: detail.shares.map((s) => s.userEmail || s.userName).filter(Boolean),
-    });
+    };
+    setDraft(next);
+    setBaseline(next);
   }, [mode, detail]);
+
+  const isDirty = !isSameDraft(draft, baseline);
+  useEffect(() => {
+    onDirtyChange?.(isDirty);
+  }, [isDirty, onDirtyChange]);
+  useEffect(() => {
+    return () => onDirtyChange?.(false);
+  }, [onDirtyChange]);
 
   function updateReference(index: number, patch: Partial<SkillReferenceInput>) {
     setDraft((current) => ({
@@ -299,19 +341,26 @@ export function SkillEditor({
     }));
   }
 
-  async function handleSave() {
+  async function performSave(): Promise<{ success: boolean }> {
     // Drop any reference rows with an empty slug — the user added a row but
     // never filled in a name. Sanitise the path one more time as a last line
     // of defense against bad shapes flowing through to the server.
     const cleanedReferences = draft.references
       .map((r) => ({ ...r, path: slugToPath(pathToSlug(r.path)) }))
       .filter((r) => r.path !== '');
-    await onSave(
+    return onSave(
       { ...draft, references: cleanedReferences },
       mode,
       mode === 'edit' ? detail?.name ?? null : null,
     );
   }
+
+  async function handleSaveClick() {
+    const { success } = await performSave();
+    if (success) onSaveSuccess?.();
+  }
+
+  useImperativeHandle(forwardedRef, () => ({ save: performSave }), [performSave]);
 
   const sharesDisabled = draft.visibility === 'public';
   const shareControlsDisabled = sharesDisabled;
@@ -555,7 +604,7 @@ export function SkillEditor({
             variant="raised"
             className="flex items-center gap-2"
             disabled={isSaving}
-            onClick={() => void handleSave()}
+            onClick={() => void handleSaveClick()}
           >
             {isSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save size={16} />}
             {mode === 'create' ? 'Publish skill' : 'Save changes'}
@@ -564,4 +613,4 @@ export function SkillEditor({
       </section>
     </div>
   );
-}
+});

@@ -12,10 +12,8 @@ import * as learningStreamStorage from './learning-stream';
 import * as dok3Storage from './dok3';
 import * as dok4Storage from './dok4';
 import * as analyticsDashboardStorage from './analytics-dashboard';
-import * as importAgentStorage from './import-agent';
 import * as chatStorage from './chat';
 import * as qaBatchesStorage from './qa-batches';
-import * as brainliftSourcesStorage from './brainlift-sources';
 import * as graderMonitoringStorage from './grader-monitoring';
 import * as knowledgeCheckStorage from './knowledge-check';
 import * as nativeBrainliftsStorage from './native-brainlifts';
@@ -81,6 +79,7 @@ export const storage = {
   updateBrainlift: brainliftsStorage.updateBrainlift,
   deleteBrainlift: brainliftsStorage.deleteBrainlift,
   updateBrainliftFields: brainliftsStorage.updateBrainliftFields,
+  updateImportStatus: brainliftsStorage.updateImportStatus,
   updateBrainliftCoverImage: brainliftsStorage.updateBrainliftCoverImage,
   getVersionsByBrainliftId: brainliftsStorage.getVersionsByBrainliftId,
   getBrainliftsForUserPaginated: brainliftsStorage.getBrainliftsForUserPaginated,
@@ -240,12 +239,6 @@ export const storage = {
   triggerDependentDOK4Grading: dok4Storage.triggerDependentDOK4Grading,
   setDOK4InsightRankings: dok4Storage.setDOK4InsightRankings,
 
-  // Import Agent
-  getImportConversation: importAgentStorage.getImportConversation,
-  saveImportConversation: importAgentStorage.saveImportConversation,
-  deleteImportConversation: importAgentStorage.deleteImportConversation,
-  updateImportStatus: importAgentStorage.updateImportStatus,
-
   // Native chat
   listChatConversations: chatStorage.listChatConversations,
   createChatConversation: chatStorage.createChatConversation,
@@ -256,11 +249,6 @@ export const storage = {
   listChatMessages: chatStorage.listChatMessages,
   syncChatMessages: chatStorage.syncChatMessages,
   getChatUserContext: chatStorage.getChatUserContext,
-
-  // Brainlift Sources
-  saveBrainliftSources: brainliftSourcesStorage.saveBrainliftSources,
-  getBrainliftSources: brainliftSourcesStorage.getBrainliftSources,
-  deleteBrainliftSources: brainliftSourcesStorage.deleteBrainliftSources,
 
   // Knowledge Check
   getQuizByItemId: knowledgeCheckStorage.getQuizByItemId,
@@ -370,4 +358,4 @@ export const storage = {
 };
 
 // Export individual modules for direct access if needed
-export { brainliftsStorage, expertsStorage, verificationsStorage, redundancyStorage, analyticsStorage, dok2Storage, sharesStorage, learningStreamStorage, dok3Storage, dok4Storage, importAgentStorage, brainliftSourcesStorage, knowledgeCheckStorage, nativeBrainliftsStorage, builderExpertsStorage, knowledgeTreeStorage, apiKeysStorage, internalStorage, versionsStorage, staleStorage, dok1CrudStorage, dok2CrudStorage, dok3CrudStorage, dok4CrudStorage, sprintsStorage };
+export { brainliftsStorage, expertsStorage, verificationsStorage, redundancyStorage, analyticsStorage, dok2Storage, sharesStorage, learningStreamStorage, dok3Storage, dok4Storage, knowledgeCheckStorage, nativeBrainliftsStorage, builderExpertsStorage, knowledgeTreeStorage, apiKeysStorage, internalStorage, versionsStorage, staleStorage, dok1CrudStorage, dok2CrudStorage, dok3CrudStorage, dok4CrudStorage, sprintsStorage };

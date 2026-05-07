@@ -1,8 +1,18 @@
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation, useSearch } from 'wouter';
 import { authClient } from '@/lib/auth-client';
 import { AppShell, AppSidebar } from '@/components/layout';
 import { ConfirmationModal } from '@/components/ui/confirmation-modal';
+import {
+  AlertDialog,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
+import { TactileButton } from '@/components/ui/tactile-button';
+import { Loader2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import {
   type SaveSkillRequest,
@@ -19,7 +29,7 @@ import {
 } from '@/hooks/useSkills';
 import { SkillsLibraryView } from '@/components/skills/SkillsLibraryView';
 import { SkillsTrashView } from '@/components/skills/SkillsTrashView';
-import { SkillEditor } from '@/components/skills/SkillEditor';
+import { SkillEditor, type SkillEditorHandle } from '@/components/skills/SkillEditor';
 
 type SkillsView = 'library' | 'create' | 'trash';
 const VALID_VIEWS: SkillsView[] = ['library', 'create', 'trash'];
@@ -58,6 +68,13 @@ export default function Skills() {
   const isEditing = rawView === 'edit' && Boolean(editingNameParam) && isAdmin;
 
   const [deleteTarget, setDeleteTarget] = useState<{ name: string } | null>(null);
+
+  const [isDirty, setIsDirty] = useState(false);
+  const [pendingNav, setPendingNav] = useState<string | null>(null);
+  const [isSavingFromGuard, setIsSavingFromGuard] = useState(false);
+  // Lets our own post-Save / post-Discard nav skip the pushState guard.
+  const bypassGuardRef = useRef(false);
+  const editorRef = useRef<SkillEditorHandle | null>(null);
 
   const skillsQuery = useSkills({ createdByMe });
   const detailQuery = useSkillDetail(editingNameParam, {
@@ -134,7 +151,7 @@ export default function Skills() {
     input: SaveSkillRequest,
     mode: 'create' | 'edit',
     currentName: string | null,
-  ) => {
+  ): Promise<{ success: boolean }> => {
     try {
       const saved = mode === 'create'
         ? await createSkill.mutateAsync(input)
@@ -143,15 +160,22 @@ export default function Skills() {
         title: mode === 'create' ? 'Skill created' : 'Skill saved',
         description: `${saved.name} is available to authorized users in new conversations.`,
       });
-      updateUrl({ view: 'library', name: null });
+      return { success: true };
     } catch (error) {
       toast({
         title: 'Could not save skill',
         description: getErrorMessage(error),
         variant: 'destructive',
       });
+      return { success: false };
     }
   };
+
+  const handleSaveSuccess = useCallback(() => {
+    setIsDirty(false);
+    bypassGuardRef.current = true;
+    updateUrl({ view: 'library', name: null });
+  }, [updateUrl]);
 
   const handleConfirmDelete = async () => {
     if (!deleteTarget) return;
@@ -195,6 +219,78 @@ export default function Skills() {
   const isMutating =
     setSkillEnabled.isPending || tryItOutSkill.isPending || deleteSkill.isPending;
 
+  // Browser back isn't intercepted — edits silently drop on back-while-dirty.
+  const guardArmed = isDirty && (isEditing || view === 'create');
+
+  useEffect(() => {
+    if (!guardArmed) return;
+
+    const wouterPush = window.history.pushState.bind(window.history);
+    const wouterReplace = window.history.replaceState.bind(window.history);
+
+    function makeGuard(original: typeof window.history.pushState) {
+      return function guarded(
+        this: History,
+        state: unknown,
+        unused: string,
+        url?: string | URL | null,
+      ) {
+        if (bypassGuardRef.current) {
+          bypassGuardRef.current = false;
+          return original(state as never, unused, url as never);
+        }
+        const target = url == null ? null : typeof url === 'string' ? url : url.toString();
+        if (target != null) setPendingNav(target);
+      };
+    }
+
+    window.history.pushState = makeGuard(wouterPush) as typeof window.history.pushState;
+    window.history.replaceState = makeGuard(wouterReplace) as typeof window.history.replaceState;
+
+    return () => {
+      window.history.pushState = wouterPush;
+      window.history.replaceState = wouterReplace;
+    };
+  }, [guardArmed]);
+
+  useEffect(() => {
+    if (!guardArmed) return;
+    const handler = (e: BeforeUnloadEvent) => {
+      e.preventDefault();
+      e.returnValue = '';
+    };
+    window.addEventListener('beforeunload', handler);
+    return () => window.removeEventListener('beforeunload', handler);
+  }, [guardArmed]);
+
+  const proceedToPending = useCallback(() => {
+    const target = pendingNav;
+    setPendingNav(null);
+    setIsDirty(false);
+    if (!target) return;
+    bypassGuardRef.current = true;
+    setLocation(target);
+  }, [pendingNav, setLocation]);
+
+  const handleGuardSave = useCallback(async () => {
+    if (!editorRef.current) return;
+    setIsSavingFromGuard(true);
+    try {
+      const { success } = await editorRef.current.save();
+      if (success) proceedToPending();
+    } finally {
+      setIsSavingFromGuard(false);
+    }
+  }, [proceedToPending]);
+
+  const handleGuardDiscard = useCallback(() => {
+    proceedToPending();
+  }, [proceedToPending]);
+
+  const handleGuardStay = useCallback(() => {
+    setPendingNav(null);
+  }, []);
+
   return (
     <AppShell
       sidebar={<AppSidebar activeSection="skills" />}
@@ -203,13 +299,16 @@ export default function Skills() {
       <main className="mx-auto flex w-full max-w-[1500px] flex-col gap-6 px-4 py-6 sm:px-6 md:px-8">
         {isEditing ? (
           <SkillEditor
+            ref={editorRef}
             mode="edit"
             detail={detailQuery.data ?? null}
             isLoadingDetail={detailQuery.isLoading}
             onSave={handleSave}
+            onSaveSuccess={handleSaveSuccess}
             onDelete={(d) => setDeleteTarget({ name: d.name })}
             isSaving={updateSkill.isPending}
             isDeleting={deleteSkill.isPending}
+            onDirtyChange={setIsDirty}
           />
         ) : view === 'library' ? (
           <SkillsLibraryView
@@ -228,12 +327,15 @@ export default function Skills() {
           />
         ) : view === 'create' ? (
           <SkillEditor
+            ref={editorRef}
             mode="create"
             detail={null}
             isLoadingDetail={false}
             onSave={handleSave}
+            onSaveSuccess={handleSaveSuccess}
             isSaving={createSkill.isPending}
             isDeleting={false}
+            onDirtyChange={setIsDirty}
           />
         ) : view === 'trash' ? (
           <SkillsTrashView
@@ -260,6 +362,50 @@ export default function Skills() {
           void handleConfirmDelete();
         }}
       />
+
+      <AlertDialog
+        open={pendingNav !== null}
+        onOpenChange={(open) => {
+          if (!open && !isSavingFromGuard) handleGuardStay();
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Unsaved changes</AlertDialogTitle>
+            <AlertDialogDescription>
+              You have unsaved edits to this skill. If you leave now, those edits will be lost.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <TactileButton
+              type="button"
+              variant="inset"
+              onClick={handleGuardStay}
+              disabled={isSavingFromGuard}
+            >
+              Keep editing
+            </TactileButton>
+            <TactileButton
+              type="button"
+              variant="inset"
+              onClick={handleGuardDiscard}
+              disabled={isSavingFromGuard}
+            >
+              Discard changes
+            </TactileButton>
+            <TactileButton
+              type="button"
+              variant="raised"
+              onClick={() => void handleGuardSave()}
+              disabled={isSavingFromGuard}
+              className="flex items-center gap-2"
+            >
+              {isSavingFromGuard ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+              Save changes
+            </TactileButton>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </AppShell>
   );
 }

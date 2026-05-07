@@ -9,7 +9,7 @@ import {
   dok4Spovs, dok4Dok3Links,
   dok3Insights, dok3InsightLinks,
   dok2Summaries, dok2Points, dok2FactRelations, facts,
-  brainlifts, brainliftSources,
+  brainlifts,
 } from './base';
 import type { DOK4SpovStatus } from '@shared/schema';
 import type { DOK4SpovWithLinks, DOK4GradeResult, DOK4RejectionCategory, DOK4EvaluationContext } from '@shared/dok4-types';
@@ -391,19 +391,29 @@ export async function getSpovEvaluationContext(
     };
   });
 
-  // 10. Get source evidence from brainlift_sources
-  const sources = await db.select({
-    name: brainliftSources.name,
-    url: brainliftSources.url,
-    surroundingContext: brainliftSources.surroundingContext,
-  }).from(brainliftSources)
-    .where(eq(brainliftSources.brainliftId, spov.brainliftId));
+  // 10. Derive source evidence from the linked DOK2/DOK1 foundation.
+  const sourceEvidenceByUrl = new Map<string, {
+    sourceName: string;
+    sourceUrl: string | null;
+    content: string | null;
+  }>();
+  for (const dok2 of linkedDok2s) {
+    const sourceKey = (dok2.sourceUrl || dok2.sourceName || `dok2:${dok2.id}`).toLowerCase().replace(/\/+$/, '');
+    const evidenceParts = [
+      ...dok2.points,
+      ...dok2.dok1Facts.map(f => f.fact),
+    ].filter(Boolean);
+    const content = evidenceParts.join('\n');
 
-  const sourceEvidence = sources.map(s => ({
-    sourceName: s.name ?? '',
-    sourceUrl: s.url,
-    content: s.surroundingContext,
-  }));
+    if (!sourceEvidenceByUrl.has(sourceKey) || content.length > (sourceEvidenceByUrl.get(sourceKey)?.content?.length ?? 0)) {
+      sourceEvidenceByUrl.set(sourceKey, {
+        sourceName: dok2.sourceName,
+        sourceUrl: dok2.sourceUrl,
+        content,
+      });
+    }
+  }
+  const sourceEvidence = Array.from(sourceEvidenceByUrl.values());
 
   // 11. Compute foundation integrity
   const dok1Scores = factsData.map(f => f.score);
