@@ -27,7 +27,10 @@ export function findExpertsSection(content: string): string | null {
     },
     {
       pattern: /^##\s*Experts\s*$/im,     // ## Experts (H2)
-      stopPattern: /\n##?\s+[^\n]+/       // Stop at next H1 or H2
+      // Stop at next H1 OR a known top-level structural bullet (Knowledge Tree, DOK1-4, Sources, Owner, Purpose).
+      // Must NOT stop on plain H2: individual expert blocks use H2 headers (## Vivek Murthy), so any
+      // ##-pattern stop would slice the section off at the first expert and discard every Who/Why follow/Focus/Where.
+      stopPattern: /\n(?:#(?!#)\s+|-\s+(?:Knowledge\s+Tree|DOK\s*[1-4]|Sources|Owner|Purpose)\b)/i
     },
     {
       pattern: /^-\s*Experts\s*$/im,      // - Experts (bullet)
