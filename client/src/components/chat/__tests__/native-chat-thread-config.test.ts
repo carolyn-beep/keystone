@@ -36,7 +36,7 @@ describe('native chat thread config', () => {
     expect(toolNames).toEqual(expect.arrayContaining([
       'get_template',
       'list_brainlifts',
-      'grade_brainlift',
+      'create_brainlift',
       'get_brainlift_assessment',
       'create_dok1',
       'delete_dok_item',

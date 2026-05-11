@@ -13,7 +13,7 @@ import { extractBrainlift } from '../ai/brainliftExtractor';
 import { storage } from '../storage';
 import { withJob } from '../utils/withJob';
 import { BadRequestError } from '../middleware/error-handler';
-import { generateUniqueSlug } from '../utils/slug';
+import { assertSlugAvailable } from '../utils/slug';
 
 /**
  * Process a grade request: parse, extract, create, and queue.
@@ -69,8 +69,10 @@ export async function processGradeRequest(
     status: c.status,
   }));
 
-  // 5. Generate unique slug (appends -2, -3, etc. if slug exists)
-  const slug = await generateUniqueSlug(title || extracted.title);
+  // 5. Generate slug. STRICT: errors if slug exists (no silent -2 suffix).
+  // Agents are instructed to call `list_brainlifts` first and use the edit
+  // tools when a BrainLift on this topic already exists.
+  const slug = await assertSlugAvailable(title || extracted.title);
 
   // 6. Create brainlift record (importStatus defaults to 'pending')
   const brainlift = await storage.createBrainlift(
