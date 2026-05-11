@@ -25,7 +25,9 @@ describe('FR5 server brand selector: happy paths', () => {
     expect(mod.brandId).toBe('alphax');
     expect(mod.config.id).toBe('alphax');
     expect(mod.config.productName).toBe('AlphaX Buddy');
-    expect(mod.config.platformName).toBe('Brainlift Central');
+    // JLS-145: platformName no longer leaks the "Brainlift Central" brand
+    // into the AlphaX product. AlphaX now identifies its platform as itself.
+    expect(mod.config.platformName).toBe('AlphaX');
   });
 
   it('resolves Brainlift Central config when BRAND=brainlift', async () => {
