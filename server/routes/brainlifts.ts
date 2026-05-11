@@ -49,9 +49,13 @@ brainliftsRouter.get(
       throw new BadRequestError('Invalid filter parameter');
     }
 
+    // Search parameter (optional): matches against title, document author,
+    // and creator's display name. Case-insensitive, partial matches.
+    const search = typeof req.query.search === 'string' ? req.query.search : undefined;
+
     const { brainlifts, total } = showAll
-      ? await storage.getAllBrainliftsPaginated(offset, PAGE_SIZE)
-      : await storage.getBrainliftsForUserPaginated(req.authContext!, offset, PAGE_SIZE, filter);
+      ? await storage.getAllBrainliftsPaginated(offset, PAGE_SIZE, { search })
+      : await storage.getBrainliftsForUserPaginated(req.authContext!, offset, PAGE_SIZE, filter, { search });
 
     res.json({
       brainlifts,

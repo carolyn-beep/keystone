@@ -325,6 +325,7 @@ describe('FR2: GET /api/internal/brainlifts', () => {
       0,
       10,
       'all',
+      { search: undefined },
     );
     expect(res.json).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -352,6 +353,7 @@ describe('FR2: GET /api/internal/brainlifts', () => {
       0,  // offset
       20, // capped pageSize
       'all',
+      { search: undefined },
     );
   });
 
@@ -372,6 +374,7 @@ describe('FR2: GET /api/internal/brainlifts', () => {
       0,  // offset = (1-1) * 10
       10, // default pageSize
       'all',
+      { search: undefined },
     );
   });
 });

@@ -38,6 +38,12 @@ const listBrainliftsInputSchema = z.object({
     .max(20)
     .optional()
     .describe('Items per page. Default: 10, max: 20'),
+  search: z
+    .string()
+    .trim()
+    .min(1)
+    .optional()
+    .describe('Optional case-insensitive search query. Matches partial substrings against the BrainLift title, the document author, and the creator\'s display name. Use this BEFORE create_brainlift to confirm no similar BrainLift already exists on the topic the user is bringing.'),
 });
 
 const getBrainliftAssessmentInputSchema = z.object({
@@ -138,10 +144,10 @@ export function buildChatGradingTools(userId: string): ToolSet {
     }),
 
     list_brainlifts: tool({
-      description: 'List Brainlifts the current user can access — both owned and shared with them. Each entry includes a `permission` field: `owner` (full access, created by user), `editor` (full access via share, can read + edit/create/delete DOK items), or `viewer` (read-only via share, cannot mutate). Respect the permission when picking next actions: only `owner` and `editor` may call edit/create/delete tools on a brainlift.',
+      description: 'List BrainLifts the caller can access — both owned and shared. Admins receive the system-wide list. Each entry includes a `permission` field: `owner` (full access, created by user), `editor` (full access via share, can read + edit/create/delete DOK items), or `viewer` (read-only via share, cannot mutate). Respect the permission when picking next actions: only `owner` and `editor` may call edit/create/delete tools on a brainlift. ALWAYS call this — with the `search` argument when applicable — before considering `create_brainlift`, to confirm no similar BrainLift already exists.',
       inputSchema: listBrainliftsInputSchema,
-      execute: async ({ page, pageSize }) =>
-        listBrainliftsForAuthContext(authContext, { page, pageSize }),
+      execute: async ({ page, pageSize, search }) =>
+        listBrainliftsForAuthContext(authContext, { page, pageSize, search }),
     }),
 
     get_brainlift_assessment: tool({
