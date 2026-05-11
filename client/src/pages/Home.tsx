@@ -307,7 +307,7 @@ export default function Home() {
             {/* End of list indicator */}
             {!hasNextPage && brainlifts.length > 0 && (
               <p className="text-center text-muted-foreground text-sm mt-8">
-                Showing all {totalCount} brainlifts
+                Showing all {totalCount} projects
               </p>
             )}
           </>
