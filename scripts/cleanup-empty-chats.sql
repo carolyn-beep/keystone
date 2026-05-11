@@ -1,0 +1,32 @@
+-- JLS-142: One-shot cleanup of empty/unused chat conversations.
+--
+-- "Empty" = `chat_conversations.last_message_at IS NULL`. The
+-- `last_message_at` column is set by `syncChatMessages()` after the first
+-- assistant response is persisted, so NULL means the conversation was
+-- created (likely by the homepage OPENER auto-create path) but never
+-- accumulated a real assistant reply.
+--
+-- The FK on `chat_messages.conversation_id` is ON DELETE CASCADE, so any
+-- residual rows in `chat_messages` for these conversations are removed
+-- automatically.
+--
+-- ⚠ DO NOT run blindly against prod. Workflow:
+--   1. Run the SELECT to inspect the size of the deletion set:
+--
+--      SELECT COUNT(*) FROM chat_conversations WHERE last_message_at IS NULL;
+--
+--   2. Spot-check a sample to confirm these are genuinely empty:
+--
+--      SELECT id, title, created_at, updated_at
+--      FROM chat_conversations
+--      WHERE last_message_at IS NULL
+--      ORDER BY id DESC
+--      LIMIT 20;
+--
+--   3. Apply against STAGING first (Neon branch `staging`), verify nothing
+--      user-visible broke, THEN apply to prod main branch.
+--
+-- Once verified, run:
+
+DELETE FROM chat_conversations
+WHERE last_message_at IS NULL;

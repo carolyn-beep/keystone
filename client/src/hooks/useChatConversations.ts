@@ -50,7 +50,7 @@ function asDate(value: JsonDate | null): Date | null {
   return value instanceof Date ? value : new Date(value);
 }
 
-function normalizeChatConversation(conversation: ChatConversationDto): ChatConversation {
+export function normalizeChatConversation(conversation: ChatConversationDto): ChatConversation {
   return {
     ...conversation,
     createdAt: asDate(conversation.createdAt) ?? new Date(),
