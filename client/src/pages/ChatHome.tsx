@@ -105,6 +105,12 @@ export default function ChatHome() {
   // do not fire the opener. See client/src/chat/chat-opener.ts.
   const [openerPendingForId, setOpenerPendingForId] = useState<number | null>(null);
 
+  // Holds the ID + text of a conversation auto-created in response to an
+  // `?ask=...` URL param (used by the "Chat About This BrainLift" button on
+  // BrainLift pages). Fires the ask text as the first visible user message
+  // exactly once on entry, then clears. Mutually exclusive with the opener.
+  const [askPending, setAskPending] = useState<{ id: number; text: string } | null>(null);
+
   const conversationsQuery = useChatConversations();
   const createConversation = useCreateChatConversation();
   const renameConversation = useRenameChatConversation();
@@ -129,12 +135,20 @@ export default function ChatHome() {
     return send && send.trim().length > 0 ? send : null;
   }, [search, selectedConversationId]);
 
-  // URL param `?new=1` forces draft mode (sidebar New Chat / Cmd+K /
-  // post-delete). No opener, no auto-create. The composer lazy-creates the
-  // chat row on first submit.
-  const forceDraft = useMemo(() => {
+  // URL params that change routing semantics:
+  //   - `new=1`   — force draft mode (sidebar New Chat / Cmd+K /
+  //                 post-delete). No opener, no auto-create. The composer
+  //                 lazy-creates the chat row on first submit.
+  //   - `ask=...` — "Chat About This BrainLift". Eager create + fire the
+  //                 ask text as the first visible user message. Bypasses
+  //                 the opener cooldown.
+  const { forceDraft, askParam } = useMemo(() => {
     const params = new URLSearchParams(search);
-    return params.get('new') === '1';
+    const ask = params.get('ask');
+    return {
+      forceDraft: params.get('new') === '1',
+      askParam: ask && ask.trim() ? ask : null,
+    };
   }, [search]);
 
   // Draft mode: bare `/` (no `?c=`), the user already has at least one
@@ -143,12 +157,13 @@ export default function ChatHome() {
   // `conversationId={null}`; `useNativeChatRuntime` will lazy-create on
   // first submit. Also forced when the URL carries `?new=1`.
   const isDraftMode = useMemo(() => {
+    if (askParam) return false;
     if (forceDraft) return true;
     if (!selection.shouldCreateConversation) return false;
     if (conversationsQuery.status !== 'success') return false;
     const alreadyGreeted = hasBeenGreetedThisSession();
     return alreadyGreeted && conversations.length > 0;
-  }, [forceDraft, selection.shouldCreateConversation, conversationsQuery.status, conversations.length]);
+  }, [askParam, forceDraft, selection.shouldCreateConversation, conversationsQuery.status, conversations.length]);
 
   useEffect(() => {
     if (conversationsQuery.status !== 'success') return;
@@ -175,15 +190,22 @@ export default function ChatHome() {
 
     if (autoCreateState !== 'idle') return;
 
-    // Eager create path: the user is new OR the opener cooldown has
-    // expired. Either way we produce a real DB row up front because the
-    // opener prompt is about to be appended into it.
+    // Eager create path: either `?ask=...` is set, or the user is new /
+    // the opener cooldown has expired. Both produce a real DB row up
+    // front because they're going to immediately send a message into it
+    // (ask text or opener prompt).
+    const shouldFireOpener = !askParam;
+
     setAutoCreateState('pending');
     createConversation.mutate({}, {
       onSuccess: (conversation) => {
         setAutoCreateState('idle');
-        setOpenerPendingForId(conversation.id);
-        markGreetedThisSession();
+        if (askParam) {
+          setAskPending({ id: conversation.id, text: askParam });
+        } else if (shouldFireOpener) {
+          setOpenerPendingForId(conversation.id);
+          markGreetedThisSession();
+        }
         setLocation(buildChatConversationLocation(conversation.id));
       },
       onError: (error) => {
@@ -196,6 +218,7 @@ export default function ChatHome() {
       },
     });
   }, [
+    askParam,
     autoCreateState,
     conversationsQuery.status,
     createConversation,
@@ -406,6 +429,7 @@ export default function ChatHome() {
             modelId={selectedModelId}
             onModelIdChange={setSelectedModelId}
             needsOpener={false}
+            initialAskMessage={null}
             onLazyCreated={handleLazyCreated}
           />
         ) : selectedConversationQuery.isLoading ? (
@@ -437,6 +461,9 @@ export default function ChatHome() {
             onModelIdChange={setSelectedModelId}
             needsOpener={openerPendingForId === selectedConversationId && !initialUserMessage}
             initialUserMessage={initialUserMessage}
+            initialAskMessage={
+              askPending && askPending.id === selectedConversationId ? askPending.text : null
+            }
           />
         )}
       </div>

@@ -28,6 +28,12 @@ const firedOpenerForConversation = new Set<number>();
 const firedAutoSendForConversation = new Set<number>();
 
 /**
+ * Module-level guard for the `initialAskMessage` (JLS-146 "Chat About This
+ * BrainLift" path). Same rationale as `firedOpenerForConversation`.
+ */
+const firedAskForConversation = new Set<number>();
+
+/**
  * Renders nothing. Fires `runtime.append(OPENER_PROMPT)` exactly once when
  * three conditions hold:
  *
@@ -98,6 +104,42 @@ function AutoSendTrigger({
   return null;
 }
 
+/**
+ * Renders nothing. Fires `runtime.append({ role: 'user', text: askMessage })`
+ * exactly once when the conversation was opened via the "Chat About This
+ * BrainLift" button on a BrainLift page. The ask message is a real user
+ * message (visible in the thread, persisted to the DB); the agent reads it
+ * and calls `get_brainlift_assessment` to load the BrainLift context.
+ *
+ * Mutually exclusive with `OpenerTrigger` — the parent guarantees only one
+ * is armed for a given conversation.
+ */
+function AskTrigger({
+  conversationId,
+  hasInitialMessages,
+  askMessage,
+}: {
+  conversationId: number;
+  hasInitialMessages: boolean;
+  askMessage: string | null;
+}) {
+  const threadRuntime = useThreadRuntime();
+
+  useEffect(() => {
+    if (!askMessage) return;
+    if (hasInitialMessages) return;
+    if (firedAskForConversation.has(conversationId)) return;
+    firedAskForConversation.add(conversationId);
+
+    threadRuntime.append({
+      role: 'user',
+      content: [{ type: 'text', text: askMessage }],
+    });
+  }, [askMessage, conversationId, hasInitialMessages, threadRuntime]);
+
+  return null;
+}
+
 const nativeChatThreadConfig = buildNativeChatThreadConfig();
 
 interface NativeChatThreadProps {
@@ -115,6 +157,12 @@ interface NativeChatThreadProps {
   onModelIdChange: (next: ChatModelId) => void;
   /** Server-driven flag: this conversation should be opened by the chat opener. */
   needsOpener: boolean;
+  /**
+   * "Chat About This BrainLift" entrypoint: when set, fires this string as
+   * the first visible user message on mount (once). Mutually exclusive with
+   * `needsOpener` at the parent level.
+   */
+  initialAskMessage?: string | null;
   /**
    * Notified exactly once after a draft chat is lazy-created on first send.
    * Parent uses this to refresh the conversation list and push the new URL.
@@ -159,6 +207,7 @@ export function NativeChatThread({
   modelId,
   onModelIdChange,
   needsOpener,
+  initialAskMessage = null,
   onLazyCreated,
   initialUserMessage = null,
 }: NativeChatThreadProps) {
@@ -196,11 +245,18 @@ export function NativeChatThread({
         <div className="native-chat-thread flex h-full min-h-0 flex-col bg-transparent">
           <ConversationQueryInvalidator conversationId={effectiveConvId} />
           {effectiveConvId !== null && (
-            <OpenerTrigger
-              conversationId={effectiveConvId}
-              hasInitialMessages={hasInitialMessages}
-              needsOpener={needsOpener}
-            />
+            <>
+              <OpenerTrigger
+                conversationId={effectiveConvId}
+                hasInitialMessages={hasInitialMessages}
+                needsOpener={needsOpener}
+              />
+              <AskTrigger
+                conversationId={effectiveConvId}
+                hasInitialMessages={hasInitialMessages}
+                askMessage={initialAskMessage}
+              />
+            </>
           )}
           {effectiveConvId !== null && (
             <AutoSendTrigger

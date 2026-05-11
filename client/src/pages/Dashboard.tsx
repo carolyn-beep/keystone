@@ -19,7 +19,7 @@ import { useRedundancy } from '@/hooks/useRedundancy';
 import { FactGradingPanel } from '@/components/fact-grading';
 import { DashboardHeader } from '@/components/DashboardHeader';
 import { ContradictionsTab } from '@/components/ContradictionsTab';
-import { UpdateModal, FactDetailModal, HistoryModal, RedundancyModal, ShareModal } from '@/components/modals';
+import { FactDetailModal, HistoryModal, RedundancyModal, ShareModal } from '@/components/modals';
 import { NotBrainliftView } from '@/components/NotBrainliftView';
 import { BrainliftTab } from '@/components/BrainliftTab';
 import { SummariesTab } from '@/components/SummariesTab';
@@ -152,7 +152,6 @@ export default function Dashboard({ slug, isSharedView = false }: DashboardProps
     window.dispatchEvent(new PopStateEvent('popstate'));
   }, []);
 
-  const [showUpdateModal, setShowUpdateModal] = useState(false);
   const [showHistoryModal, setShowHistoryModal] = useState(false);
   const [showShareModal, setShowShareModal] = useState(false);
 
@@ -180,9 +179,6 @@ export default function Dashboard({ slug, isSharedView = false }: DashboardProps
     observer.observe(el);
     headerObserverRef.current = observer;
   }, []);
-  const [updateSourceType, setUpdateSourceType] = useState<'html' | 'workflowy' | 'googledocs'>('workflowy');
-  const [updateFile, setUpdateFile] = useState<File | null>(null);
-  const [updateUrl, setUpdateUrl] = useState('');
   const [selectedFactForModal, setSelectedFactForModal] = useState<Fact | null>(null);
   const [editingAuthor, setEditingAuthor] = useState(false);
   const [authorInput, setAuthorInput] = useState('');
@@ -199,9 +195,6 @@ const { toast } = useToast();
     error,
     updateAuthor,
     updateTitle,
-    update: updateBrainlift,
-    isUpdating,
-    updateError,
   } = useBrainlift(slug, isSharedView);
 
   // Check if user is admin for restricted features
@@ -279,21 +272,6 @@ const { downloadBrainliftPDF } = usePDFExport();
     isUpdatingStatus: isUpdatingRedundancyStatus,
   } = useRedundancy(slug);
 
-  const updateMutation = {
-    mutate: (formData: FormData) => {
-      updateBrainlift(formData, {
-        onSuccess: () => {
-          setShowUpdateModal(false);
-          setUpdateFile(null);
-          setUpdateUrl('');
-        }
-      });
-    },
-    isPending: isUpdating,
-    isError: !!updateError,
-    error: updateError,
-  };
-
   const handleDownloadPDF = () => {
     if (!data) return;
     downloadBrainliftPDF(data);
@@ -352,7 +330,6 @@ const { downloadBrainliftPDF } = usePDFExport();
         titleInput={titleInput}
         setTitleInput={setTitleInput}
         onUpdateTitle={handleUpdateTitle}
-        setShowUpdateModal={setShowUpdateModal}
         setShowHistoryModal={setShowHistoryModal}
         handleDownloadPDF={handleDownloadPDF}
         isOwner={isOwner}
@@ -550,20 +527,9 @@ const { downloadBrainliftPDF } = usePDFExport();
         <GradedItemsPage slug={slug} viewingItemId={viewingItemId} setViewingItemId={setViewingItemId} />
       )}
 
-      {/* Update Modal */}
-      <UpdateModal
-        show={showUpdateModal}
-        onClose={() => setShowUpdateModal(false)}
-        sourceType={updateSourceType}
-        onSourceTypeChange={setUpdateSourceType}
-        file={updateFile}
-        onFileChange={setUpdateFile}
-        url={updateUrl}
-        onUrlChange={setUpdateUrl}
-        onSubmit={(formData) => updateMutation.mutate(formData)}
-        isSubmitting={updateMutation.isPending}
-        error={updateMutation.isError ? (updateMutation.error as Error).message : undefined}
-      />
+      {/* Update Modal removed: JLS-146 replaced the primary "Update" button
+          with "Chat About This BrainLift". Re-grading from a fresh upload is
+          no longer surfaced here. */}
 
       {/* Fact Detail Modal */}
       <FactDetailModal
