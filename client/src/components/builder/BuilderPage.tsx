@@ -115,7 +115,6 @@ function BuilderPageContent({
           authorInput={authorInput}
           setAuthorInput={setAuthorInput}
           onUpdateAuthor={handleUpdateAuthor}
-          setShowUpdateModal={() => {}}
           setShowHistoryModal={() => {}}
           handleDownloadPDF={() => {}}
           canModify={canModify}

@@ -57,9 +57,9 @@ describe('buildChatGradingTools', () => {
     const tools = buildChatGradingTools('user-1');
 
     expect(Object.keys(tools).sort()).toEqual([
+      'create_brainlift',
       'get_brainlift_assessment',
       'get_template',
-      'grade_brainlift',
       'list_brainlifts',
     ]);
   });
@@ -82,7 +82,7 @@ describe('buildChatGradingTools', () => {
     });
   });
 
-  it('grade_brainlift trims title overrides, delegates grading, and shapes the queued response', async () => {
+  it('create_brainlift trims title overrides, delegates grading, and shapes the queued response', async () => {
     mockProcessGradeRequest.mockResolvedValue({
       slug: 'alpha',
       brainliftId: 42,
@@ -98,7 +98,7 @@ describe('buildChatGradingTools', () => {
     const { buildChatGradingTools } = await import('../tools/grading');
     const tools = buildChatGradingTools('user-1');
 
-    const result = await tools.grade_brainlift.execute(
+    const result = await tools.create_brainlift.execute(
       {
         markdown: '# Alpha',
         title: '  Alpha Override  ',
@@ -124,7 +124,7 @@ describe('buildChatGradingTools', () => {
     });
   });
 
-  it('grade_brainlift ignores blank title overrides', async () => {
+  it('create_brainlift ignores blank title overrides', async () => {
     mockProcessGradeRequest.mockResolvedValue({
       slug: 'alpha',
       brainliftId: 42,
@@ -140,7 +140,7 @@ describe('buildChatGradingTools', () => {
     const { buildChatGradingTools } = await import('../tools/grading');
     const tools = buildChatGradingTools('user-1');
 
-    await tools.grade_brainlift.execute(
+    await tools.create_brainlift.execute(
       {
         markdown: '# Alpha',
         title: '   ',

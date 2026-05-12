@@ -236,7 +236,7 @@ type GradeBrainliftArgs = { markdown: string; title?: string };
 type GradeBrainliftResult = { slug: string; brainliftId: number; status: string; retryAfter: number };
 
 const GradeBrainliftToolUI = makeAssistantToolUI<GradeBrainliftArgs, GradeBrainliftResult>({
-  toolName: 'grade_brainlift',
+  toolName: 'create_brainlift',
   render: ({ result, status, isError }) => (
     <ToolStatusLine
       icon={<StatusIcon status={status} isError={isError} fallback={<NotebookPen size={13} />} />}

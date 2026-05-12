@@ -121,13 +121,14 @@ describe('processGradeRequest', () => {
     expect(createCall[0].title).toBe('Custom Title');
   });
 
-  it('generates unique slug when slug already exists', async () => {
+  it('throws when the slug for the title is already taken (JLS-143)', async () => {
     const { storage } = await import('../../storage');
 
-    // First call: slug exists. Second call: slug-2 is free.
-    (storage.getBrainliftBySlug as any)
-      .mockResolvedValueOnce({ id: 1, slug: 'test-bl' }) // 'test-bl' taken
-      .mockResolvedValueOnce(null); // 'test-bl-2' free
+    // Slug already exists for the agent's chosen title.
+    (storage.getBrainliftBySlug as any).mockResolvedValueOnce({
+      id: 1,
+      slug: 'test-bl',
+    });
 
     mockParseMarkdownBrainlift.mockReturnValue({
       markdown: '# BL',
@@ -147,20 +148,13 @@ describe('processGradeRequest', () => {
       dok4Spovs: [],
     });
 
-    mockCreateBrainlift.mockResolvedValue({
-      id: 44,
-      slug: 'test-bl-2',
-      title: 'Test BL',
-      importStatus: 'pending',
-    });
-
     const { processGradeRequest } = await import('../internal-grading');
-    const result = await processGradeRequest('# BL\n\nContent', undefined, 'user-1');
 
-    // Should have created with the deduplicated slug
-    const createCall = mockCreateBrainlift.mock.calls[0];
-    expect(createCall[0].slug).toBe('test-bl-2');
-    expect(result.slug).toBe('test-bl-2');
+    await expect(
+      processGradeRequest('# BL\n\nContent', undefined, 'user-1'),
+    ).rejects.toThrow(/already exists/i);
+
+    expect(mockCreateBrainlift).not.toHaveBeenCalled();
   });
 
   it('throws BadRequestError for empty markdown', async () => {

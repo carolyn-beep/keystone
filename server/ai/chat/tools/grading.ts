@@ -12,16 +12,16 @@ import {
 
 const getTemplateInputSchema = z.object({});
 
-const gradeBrainliftInputSchema = z.object({
+const createBrainliftInputSchema = z.object({
   markdown: z
     .string()
     .trim()
     .min(1)
-    .describe('Complete Brainlift in markdown format for a BRAND-NEW brainlift. Use get_template first to see the required format. Do not pass markdown for a brainlift that already exists — that creates a duplicate, not an update.'),
+    .describe('Complete BrainLift in markdown format for a BRAND-NEW BrainLift. Use get_template first to see the required format. Do NOT pass markdown for a BrainLift that already exists — the backend will reject it.'),
   title: z
     .string()
     .optional()
-    .describe('Optional title override. If omitted, extracted from the # heading in the markdown.'),
+    .describe('Optional title override. If omitted, extracted from the # heading in the markdown. The slug is derived from this title; if a BrainLift with the resulting slug already exists, the call will be rejected.'),
 });
 
 const listBrainliftsInputSchema = z.object({
@@ -38,6 +38,12 @@ const listBrainliftsInputSchema = z.object({
     .max(20)
     .optional()
     .describe('Items per page. Default: 10, max: 20'),
+  search: z
+    .string()
+    .trim()
+    .min(1)
+    .optional()
+    .describe('Optional case-insensitive search query. Matches partial substrings against the BrainLift title, the document author, and the creator\'s display name. Use this BEFORE create_brainlift to confirm no similar BrainLift already exists on the topic the user is bringing.'),
 });
 
 const getBrainliftAssessmentInputSchema = z.object({
@@ -45,7 +51,7 @@ const getBrainliftAssessmentInputSchema = z.object({
     .string()
     .trim()
     .min(1)
-    .describe('The brainlift slug returned by grade_brainlift.'),
+    .describe('The brainlift slug returned by create_brainlift (or found via list_brainlifts).'),
   dok: z
     .number()
     .int()
@@ -108,18 +114,24 @@ export function buildChatGradingTools(userId: string): ToolSet {
       execute: async () => getBrainliftTemplatePayload(),
     }),
 
-    grade_brainlift: tool({
-      description:
-        'CREATES A BRAND-NEW BRAINLIFT from the supplied markdown and queues it for grading. ' +
-        'Use this ONLY for the very first submission of a brainlift that does not yet exist for the user. ' +
-        'DO NOT call this to update, edit, fix, regrade, repair, reformat, or improve an existing brainlift — ' +
-        'it will create a duplicate with an auto-suffixed slug (e.g. `my-brainlift-2`), not modify the original. ' +
-        'Before calling, confirm via `list_brainlifts` that no brainlift on this topic already exists, ' +
-        'and confirm with the user that they want a new brainlift created. ' +
-        'For existing brainlifts use `edit_dok_item`, `create_dok2`, `create_dok3`, `create_dok4`, ' +
-        '`link_dok3`, `link_dok4`, `delete_dok_item`, or `dismiss_stale` instead — these mutate in place ' +
-        'and trigger regrading automatically. Returns the new slug immediately while grading continues asynchronously.',
-      inputSchema: gradeBrainliftInputSchema,
+    create_brainlift: tool({
+      description: [
+        'Creates a BRAND-NEW BrainLift from the supplied markdown and queues it for grading.',
+        '',
+        'BEFORE CALLING — MANDATORY:',
+        '1. Call `list_brainlifts` FIRST and check whether a BrainLift on this topic already exists for the user.',
+        '2. If a similar BrainLift exists, DO NOT call `create_brainlift`. Use the edit tools instead:',
+        '   `edit_dok_item`, `create_dok2`, `create_dok3`, `create_dok4`, `link_dok3`, `link_dok4`,',
+        '   `delete_dok_item`, or `dismiss_stale`. Those mutate the existing BrainLift in place and trigger regrading automatically.',
+        '3. Confirm with the user that they want a brand-new BrainLift created.',
+        '',
+        'BACKEND BEHAVIOUR:',
+        '- The slug is derived from the title. If a BrainLift with that slug already exists, the call is REJECTED with the error: "This BrainLift already exists. Use the edit tools instead."',
+        '- When you see that error: STOP. Do NOT retry with a slightly different title. Instead, call `list_brainlifts`, find the existing BrainLift, and use the edit tools on it.',
+        '',
+        'On success: returns the new slug immediately while grading continues asynchronously.',
+      ].join('\n'),
+      inputSchema: createBrainliftInputSchema,
       execute: async ({ markdown, title }) => {
         const result = await processGradeRequest(
           markdown,
@@ -132,10 +144,10 @@ export function buildChatGradingTools(userId: string): ToolSet {
     }),
 
     list_brainlifts: tool({
-      description: 'List Brainlifts the current user can access — both owned and shared with them. Each entry includes a `permission` field: `owner` (full access, created by user), `editor` (full access via share, can read + edit/create/delete DOK items), or `viewer` (read-only via share, cannot mutate). Respect the permission when picking next actions: only `owner` and `editor` may call edit/create/delete tools on a brainlift.',
+      description: 'List BrainLifts the caller can access — both owned and shared. Admins receive the system-wide list. Each entry includes a `permission` field: `owner` (full access, created by user), `editor` (full access via share, can read + edit/create/delete DOK items), or `viewer` (read-only via share, cannot mutate). Respect the permission when picking next actions: only `owner` and `editor` may call edit/create/delete tools on a brainlift. ALWAYS call this — with the `search` argument when applicable — before considering `create_brainlift`, to confirm no similar BrainLift already exists.',
       inputSchema: listBrainliftsInputSchema,
-      execute: async ({ page, pageSize }) =>
-        listBrainliftsForAuthContext(authContext, { page, pageSize }),
+      execute: async ({ page, pageSize, search }) =>
+        listBrainliftsForAuthContext(authContext, { page, pageSize, search }),
     }),
 
     get_brainlift_assessment: tool({

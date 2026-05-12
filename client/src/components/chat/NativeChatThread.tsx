@@ -1,13 +1,9 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { AssistantRuntimeProvider, useThread, useThreadRuntime } from '@assistant-ui/react';
 import { Thread } from '@assistant-ui/react-ui';
 import type { UIMessage } from 'ai';
 import type { ChatModelId } from '@shared/chat-models';
-import {
-  markChatOpenerSent,
-  OPENER_PROMPT,
-  shouldSendChatOpener,
-} from '@/chat/chat-opener';
+import { OPENER_PROMPT } from '@/chat/chat-opener';
 import { queryClient } from '@/lib/queryClient';
 import {
   CHAT_CONVERSATIONS_QUERY_KEY,
@@ -18,34 +14,60 @@ import { buildNativeChatThreadConfig } from './native-chat-thread-config';
 import { ChatComposerSettingsProvider } from './ChatComposer';
 
 /**
- * Module-level guard. Ensures auto-send prompts fire at most once per
+ * Module-level guard. Ensures the opener prompt fires at most once per
  * conversation across StrictMode double-mount, HMR, and parent remounts.
+ * Lives at module scope on purpose — surviving unmount/remount within the
+ * session is the desired behavior. See client/src/chat/chat-opener.ts.
+ */
+const firedOpenerForConversation = new Set<number>();
+
+/**
+ * Module-level guard for AutoSendTrigger (Skills Try-it-out / Sprint plan
+ * "?send=" auto-send). Same rationale as `firedOpenerForConversation`.
  */
 const firedAutoSendForConversation = new Set<number>();
 
+/**
+ * Module-level guard for the `initialAskMessage` (JLS-146 "Chat About This
+ * BrainLift" path). Same rationale as `firedOpenerForConversation`.
+ */
+const firedAskForConversation = new Set<number>();
+
+/**
+ * Renders nothing. Fires `runtime.append(OPENER_PROMPT)` exactly once when
+ * three conditions hold:
+ *
+ *   1. The conversation is flagged `needsOpener` server-side (set at
+ *      conversation-creation time when the user had zero prior conversations).
+ *   2. No initial messages are present (the conversation is brand-new).
+ *   3. We have not already fired for this conversation in the current session
+ *      (module-level Set guard).
+ *
+ * Lives inside the runtime provider so it can call `useThreadRuntime()`.
+ * See client/src/chat/chat-opener.ts.
+ */
 function OpenerTrigger({
+  conversationId,
   hasInitialMessages,
-  shouldConsiderOpener,
-  userId,
+  needsOpener,
 }: {
+  conversationId: number;
   hasInitialMessages: boolean;
-  shouldConsiderOpener: boolean;
-  userId: string | null;
+  needsOpener: boolean;
 }) {
   const threadRuntime = useThreadRuntime();
 
   useEffect(() => {
-    if (!shouldConsiderOpener) return;
+    if (!needsOpener) return;
     if (hasInitialMessages) return;
-    if (!userId) return;
-    if (!shouldSendChatOpener(userId)) return;
-    markChatOpenerSent(userId);
+    if (firedOpenerForConversation.has(conversationId)) return;
+    firedOpenerForConversation.add(conversationId);
 
     threadRuntime.append({
       role: 'user',
       content: [{ type: 'text', text: OPENER_PROMPT }],
     });
-  }, [hasInitialMessages, shouldConsiderOpener, threadRuntime, userId]);
+  }, [conversationId, hasInitialMessages, needsOpener, threadRuntime]);
 
   return null;
 }
@@ -82,24 +104,78 @@ function AutoSendTrigger({
   return null;
 }
 
+/**
+ * Renders nothing. Fires `runtime.append({ role: 'user', text: askMessage })`
+ * exactly once when the conversation was opened via the "Chat About This
+ * BrainLift" button on a BrainLift page. The ask message is a real user
+ * message (visible in the thread, persisted to the DB); the agent reads it
+ * and calls `get_brainlift_assessment` to load the BrainLift context.
+ *
+ * Mutually exclusive with `OpenerTrigger` — the parent guarantees only one
+ * is armed for a given conversation.
+ */
+function AskTrigger({
+  conversationId,
+  hasInitialMessages,
+  askMessage,
+}: {
+  conversationId: number;
+  hasInitialMessages: boolean;
+  askMessage: string | null;
+}) {
+  const threadRuntime = useThreadRuntime();
+
+  useEffect(() => {
+    if (!askMessage) return;
+    if (hasInitialMessages) return;
+    if (firedAskForConversation.has(conversationId)) return;
+    firedAskForConversation.add(conversationId);
+
+    threadRuntime.append({
+      role: 'user',
+      content: [{ type: 'text', text: askMessage }],
+    });
+  }, [askMessage, conversationId, hasInitialMessages, threadRuntime]);
+
+  return null;
+}
+
 const nativeChatThreadConfig = buildNativeChatThreadConfig();
 
 interface NativeChatThreadProps {
-  conversationId: number;
+  /**
+   * `null` means DRAFT: no chat_conversations row exists yet. The runtime
+   * lazy-creates one on the first `submit-message` send. Once created, the
+   * `onLazyCreated` callback fires with the new ID and the parent should
+   * update routing/state accordingly.
+   *
+   * Number means normal: every send addresses this ID.
+   */
+  conversationId: number | null;
   initialMessages?: UIMessage[] | null;
   modelId: ChatModelId;
   onModelIdChange: (next: ChatModelId) => void;
-  userId: string | null;
-  /** True only for empty conversations auto-created from the bare chat homepage. */
-  shouldConsiderOpener: boolean;
-  /** Optional message to send automatically once on conversation entry. */
+  /** Server-driven flag: this conversation should be opened by the chat opener. */
+  needsOpener: boolean;
+  /**
+   * "Chat About This BrainLift" entrypoint: when set, fires this string as
+   * the first visible user message on mount (once). Mutually exclusive with
+   * `needsOpener` at the parent level.
+   */
+  initialAskMessage?: string | null;
+  /**
+   * Notified exactly once after a draft chat is lazy-created on first send.
+   * Parent uses this to refresh the conversation list and push the new URL.
+   */
+  onLazyCreated?: (conversationId: number) => void;
+  /** Optional message to send automatically once on conversation entry (Skills Try-it-out `?send=`). */
   initialUserMessage?: string | null;
 }
 
 function ConversationQueryInvalidator({
   conversationId,
 }: {
-  conversationId: number;
+  conversationId: number | null;
 }) {
   const isRunning = useThread((state) => state.isRunning);
   const previousRunningRef = useRef(false);
@@ -109,9 +185,14 @@ function ConversationQueryInvalidator({
       queryClient.invalidateQueries({
         queryKey: CHAT_CONVERSATIONS_QUERY_KEY,
       });
-      queryClient.invalidateQueries({
-        queryKey: getChatConversationQueryKey(conversationId),
-      });
+      // In draft mode (conversationId still null) we have nothing scoped to
+      // invalidate yet — the lazy-create handler invalidates the list once
+      // the new ID is known.
+      if (conversationId !== null) {
+        queryClient.invalidateQueries({
+          queryKey: getChatConversationQueryKey(conversationId),
+        });
+      }
     }
 
     previousRunningRef.current = isRunning;
@@ -125,14 +206,32 @@ export function NativeChatThread({
   initialMessages,
   modelId,
   onModelIdChange,
-  userId,
-  shouldConsiderOpener,
+  needsOpener,
+  initialAskMessage = null,
+  onLazyCreated,
   initialUserMessage = null,
 }: NativeChatThreadProps) {
+  // Track the "effective" conversation ID for child components (triggers,
+  // query invalidator). Starts at the prop, gets promoted to the
+  // lazy-created ID after a draft submit. We don't propagate the new ID
+  // back through props because the parent typically only learns of it
+  // through `onLazyCreated` (which may navigate the URL after the stream).
+  const [effectiveConvId, setEffectiveConvId] = useState<number | null>(conversationId);
+
+  useEffect(() => {
+    if (conversationId !== null) {
+      setEffectiveConvId(conversationId);
+    }
+  }, [conversationId]);
+
   const runtime = useNativeChatRuntime({
     conversationId,
     initialMessages,
     modelId,
+    onLazyCreated: (id) => {
+      setEffectiveConvId(id);
+      onLazyCreated?.(id);
+    },
   });
 
   const hasInitialMessages = Boolean(initialMessages && initialMessages.length > 0);
@@ -144,17 +243,28 @@ export function NativeChatThread({
         onModelIdChange={onModelIdChange}
       >
         <div className="native-chat-thread flex h-full min-h-0 flex-col bg-transparent">
-          <ConversationQueryInvalidator conversationId={conversationId} />
-          <OpenerTrigger
-            hasInitialMessages={hasInitialMessages}
-            shouldConsiderOpener={shouldConsiderOpener}
-            userId={userId}
-          />
-          <AutoSendTrigger
-            conversationId={conversationId}
-            hasInitialMessages={hasInitialMessages}
-            message={initialUserMessage}
-          />
+          <ConversationQueryInvalidator conversationId={effectiveConvId} />
+          {effectiveConvId !== null && (
+            <>
+              <OpenerTrigger
+                conversationId={effectiveConvId}
+                hasInitialMessages={hasInitialMessages}
+                needsOpener={needsOpener}
+              />
+              <AskTrigger
+                conversationId={effectiveConvId}
+                hasInitialMessages={hasInitialMessages}
+                askMessage={initialAskMessage}
+              />
+            </>
+          )}
+          {effectiveConvId !== null && (
+            <AutoSendTrigger
+              conversationId={effectiveConvId}
+              hasInitialMessages={hasInitialMessages}
+              message={initialUserMessage}
+            />
+          )}
           <Thread {...nativeChatThreadConfig} />
         </div>
       </ChatComposerSettingsProvider>

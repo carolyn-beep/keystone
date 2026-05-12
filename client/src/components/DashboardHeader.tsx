@@ -1,7 +1,9 @@
 import { ReactNode } from 'react';
-import { RefreshCw, Download, Users, History, Pencil } from 'lucide-react';
+import { useLocation } from 'wouter';
+import { MessageSquare, Download, Users, History, Pencil } from 'lucide-react';
 import { BrainliftData, BrainliftVersion } from '@shared/schema';
 import { TactileButton } from '@/components/ui/tactile-button';
+import { CHAT_HOME_ROUTE_PATH } from '@/components/chat/chat-home-helpers';
 
 // Import all profile images
 import appleImg from '@/assets/bl_profile/apple.webp';
@@ -91,7 +93,6 @@ interface DashboardHeaderProps {
   titleInput?: string;
   setTitleInput?: (input: string) => void;
   onUpdateTitle?: (title: string) => void;
-  setShowUpdateModal: (show: boolean) => void;
   setShowHistoryModal: (show: boolean) => void;
   handleDownloadPDF: () => void;
   isOwner?: boolean;
@@ -117,7 +118,6 @@ export function DashboardHeader({
   titleInput = '',
   setTitleInput,
   onUpdateTitle,
-  setShowUpdateModal,
   setShowHistoryModal,
   handleDownloadPDF,
   isOwner,
@@ -127,7 +127,8 @@ export function DashboardHeader({
   rightSlot,
   hideDefaultActions = false,
 }: DashboardHeaderProps) {
-  const { title, description, displayPurpose } = data;
+  const [, setLocation] = useLocation();
+  const { title, description, displayPurpose, slug } = data;
   const canEditTitle = canModify && !!setEditingTitle && !!setTitleInput && !!onUpdateTitle;
 
   const beginTitleEdit = () => {
@@ -145,6 +146,14 @@ export function DashboardHeader({
     }
     onUpdateTitle(next);
   };
+
+  // "Chat About This BrainLift" — opens the chat homepage with an initial
+  // user message that asks the agent to load the BrainLift context. The
+  // homepage reads the `ask` param, creates a new conversation, and fires
+  // the message once on entry. The agent then calls
+  // `get_brainlift_assessment` to load the full DOK1-4 picture.
+  const askMessage = `Load the full context from ${slug}`;
+  const chatAboutHref = `${CHAT_HOME_ROUTE_PATH}?ask=${encodeURIComponent(askMessage)}`;
 
   return (
     <div className="header-content pt-4 pb-4 px-4">
@@ -262,16 +271,16 @@ export function DashboardHeader({
         <div className="header-actions flex gap-2 items-end flex-wrap shrink-0 self-end">
           {rightSlot}
 
-          {/* Primary Action: Update */}
-          {!hideDefaultActions && canModify && !isSharedView && !isNotBrainlift && (
+          {/* Primary Action: Chat About This BrainLift */}
+          {!hideDefaultActions && !isNotBrainlift && (
             <TactileButton
               variant="raised"
-              data-testid="button-update-brainlift"
-              onClick={() => setShowUpdateModal(true)}
+              data-testid="button-chat-about-brainlift"
+              onClick={() => setLocation(chatAboutHref)}
               className="flex items-center gap-1.5 px-4 py-2 text-[13px]"
             >
-              <RefreshCw size={14} />
-              Update
+              <MessageSquare size={14} />
+              Chat About This BrainLift
             </TactileButton>
           )}
 

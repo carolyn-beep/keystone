@@ -33,6 +33,11 @@ export type BrainliftAssessmentDetail = 'summary' | 'full';
 export interface ListBrainliftsOptions {
   page?: number;
   pageSize?: number;
+  /**
+   * Optional case-insensitive partial-match filter applied across the
+   * BrainLift title, document author, and creator's display name.
+   */
+  search?: string;
 }
 
 export interface GetBrainliftAssessmentOptions {
@@ -187,12 +192,21 @@ export async function listBrainliftsForAuthContext(
   );
   const offset = (page - 1) * pageSize;
 
-  const { brainlifts, total } = await storage.getBrainliftsForUserPaginated(
-    authContext,
-    offset,
-    pageSize,
-    'all',
-  );
+  const search = options.search?.trim() || undefined;
+
+  // Admin users get a system-wide listing (every BrainLift, regardless of
+  // owner) so they can locate / coach across the whole platform from chat.
+  // Non-admins are scoped to brainlifts they own or have been shared with.
+  // Both branches honour the optional `search` filter.
+  const { brainlifts, total } = authContext.isAdmin
+    ? await storage.getAllBrainliftsPaginated(offset, pageSize, { search })
+    : await storage.getBrainliftsForUserPaginated(
+        authContext,
+        offset,
+        pageSize,
+        'all',
+        { search },
+      );
 
   return {
     brainlifts: brainlifts.map((brainlift) => ({
@@ -205,6 +219,7 @@ export async function listBrainliftsForAuthContext(
       // 'editor' = full access via share (read + edit/create/delete DOK items).
       // 'viewer' = read-only via share (no mutations allowed).
       permission: deriveBrainliftPermission(brainlift, authContext.userId),
+      creator: brainlift.creatorName ?? brainlift.author ?? null,
     })),
     pagination: {
       page,

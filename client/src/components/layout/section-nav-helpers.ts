@@ -78,12 +78,11 @@ export function resolveSectionNavActive(pathname: string): SectionNavSection | n
 /**
  * Build the ordered list of SectionNav items for the current viewer.
  *
- * - [Chat, Library, Skills] are always included, in that order.
- * - Analytics is appended when the viewer is an admin.
- * - Providers is appended when the viewer's email is on the allow list. The
- *   allow-list check is delegated to `getChatHomeNavLinks` so the
- *   `PROVIDERS_ALLOWED_EMAIL` constant stays module-private to
- *   `chat-home-helpers.ts`.
+ * Order: Projects -> Skills -> Analytics (admin) -> Providers (allow-list) -> Chat.
+ * Chat is intentionally last so admin-only sections sit between the always-visible
+ * sections and Chat for the audiences that see them. The Providers allow-list
+ * check is delegated to `getChatHomeNavLinks` so `PROVIDERS_ALLOWED_EMAIL` stays
+ * module-private to `chat-home-helpers.ts`.
  */
 export function getSectionNavItems(opts: {
   isAdmin: boolean;
@@ -92,12 +91,6 @@ export function getSectionNavItems(opts: {
   const { isAdmin, email = null } = opts;
 
   const items: SectionNavItem[] = [
-    {
-      section: 'chat',
-      label: 'Chat',
-      href: CHAT_HOME_ROUTE_PATH,
-      icon: MessageSquare as IconComponent,
-    },
     {
       section: 'library',
       label: 'Projects',
@@ -148,6 +141,13 @@ export function getSectionNavItems(opts: {
       icon: Shield as IconComponent,
     });
   }
+
+  items.push({
+    section: 'chat',
+    label: 'Chat',
+    href: CHAT_HOME_ROUTE_PATH,
+    icon: MessageSquare as IconComponent,
+  });
 
   return items;
 }
