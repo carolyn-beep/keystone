@@ -70,6 +70,7 @@ describe('requireServiceAuth', () => {
       name: 'test-service',
       rateLimit: 60,
       isActive: true,
+      scopes: ['*'],
       createdAt: new Date(),
       revokedAt: null,
     });
@@ -99,6 +100,7 @@ describe('requireServiceAuth', () => {
     expect((req as any).serviceAuth).toEqual({
       apiKeyId: 1,
       apiKeyName: 'test-service',
+      scopes: ['*'],
     });
   });
 
@@ -228,6 +230,7 @@ describe('requireServiceAuth', () => {
       name: 'brainlift-mcp-prod',
       rateLimit: 60,
       isActive: true,
+      scopes: ['*'],
       createdAt: new Date(),
       revokedAt: null,
     });
@@ -244,6 +247,63 @@ describe('requireServiceAuth', () => {
     expect((req as any).serviceAuth).toEqual({
       apiKeyId: 42,
       apiKeyName: 'brainlift-mcp-prod',
+      scopes: ['*'],
+    });
+  });
+
+  it('attaches scoped key scopes to serviceAuth', async () => {
+    mockedValidateApiKey.mockResolvedValue({
+      id: 43,
+      key: 'test-key-scoped',
+      name: 'brainlift-partner',
+      rateLimit: 60,
+      isActive: true,
+      scopes: ['brainlifts:list', 'brainlifts:read'],
+      createdAt: new Date(),
+      revokedAt: null,
+    });
+
+    const req = createMockReq({
+      'x-service-key': 'test-key-scoped',
+      'x-user-email': 'test@example.com',
+      'x-user-name': 'Test',
+    });
+    const res = createMockRes();
+
+    await requireServiceAuth(req as Request, res as Response, next);
+
+    expect((req as any).serviceAuth).toEqual({
+      apiKeyId: 43,
+      apiKeyName: 'brainlift-partner',
+      scopes: ['brainlifts:list', 'brainlifts:read'],
+    });
+  });
+
+  it('falls back to wildcard scope when a legacy key has no scopes value', async () => {
+    mockedValidateApiKey.mockResolvedValue({
+      id: 44,
+      key: 'test-key-legacy',
+      name: 'legacy-service',
+      rateLimit: 60,
+      isActive: true,
+      scopes: null as any,
+      createdAt: new Date(),
+      revokedAt: null,
+    });
+
+    const req = createMockReq({
+      'x-service-key': 'test-key-legacy',
+      'x-user-email': 'test@example.com',
+      'x-user-name': 'Test',
+    });
+    const res = createMockRes();
+
+    await requireServiceAuth(req as Request, res as Response, next);
+
+    expect((req as any).serviceAuth).toEqual({
+      apiKeyId: 44,
+      apiKeyName: 'legacy-service',
+      scopes: ['*'],
     });
   });
 });
