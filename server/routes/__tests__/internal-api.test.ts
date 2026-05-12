@@ -17,6 +17,8 @@ const { mockProcessGradeRequest, mockStorage } = vi.hoisted(() => ({
   mockProcessGradeRequest: vi.fn(),
   mockStorage: {
     getBrainliftBySlug: vi.fn(),
+    getBrainliftRecordBySlug: vi.fn(),
+    getBrainliftDetailById: vi.fn(),
     getBrainliftsForUserPaginated: vi.fn(),
     canAccessBrainlift: vi.fn(),
     canModifyBrainlift: vi.fn(),
@@ -162,6 +164,169 @@ function createMockRes(): any {
   res.json = vi.fn().mockReturnValue(res);
   res.end = vi.fn().mockReturnValue(res);
   return res;
+}
+
+async function runInternalRoute(method: string, path: string, reqOverrides: Record<string, any> = {}) {
+  const { internalRouter } = await import('../internal');
+  const layer = (internalRouter as any).stack.find((candidate: any) =>
+    candidate.route?.path === path && candidate.route?.methods?.[method],
+  );
+  if (!layer) {
+    throw new Error(`Route not found: ${method.toUpperCase()} ${path}`);
+  }
+
+  const req = createMockReq(reqOverrides);
+  const res = createMockRes();
+  const stack = layer.route.stack.map((entry: any) => entry.handle);
+
+  let index = 0;
+  const pending: Promise<unknown>[] = [];
+  const next = vi.fn(() => {
+    index += 1;
+    const handler = stack[index];
+    if (handler) {
+      const result = Promise.resolve(handler(req, res, next));
+      pending.push(result);
+      return result;
+    }
+  });
+
+  await stack[0](req, res, next);
+  while (pending.length > 0) {
+    await pending.shift();
+  }
+
+  return { req, res, next };
+}
+
+function createBrainliftDetailAggregate(overrides: Record<string, any> = {}) {
+  return {
+    brainlift: {
+      id: 42,
+      slug: 'canonical-bl',
+      title: 'Canonical Brainlift',
+      description: 'Fallback purpose',
+      displayPurpose: 'Display purpose',
+      author: 'Ada',
+      createdAt: new Date('2026-01-03T04:05:06.000Z'),
+      createdByUserId: 'test-user-1',
+      classification: 'brainlift',
+      summary: { totalFacts: 2, meanScore: '4', score5Count: 1, contradictionCount: 0 },
+      originalContent: 'must not leak',
+    },
+    experts: [
+      {
+        id: 7,
+        name: 'Expert One',
+        who: 'Researcher',
+        focus: 'Canonical APIs',
+        why: 'Relevant',
+        where: '@expert',
+        rankScore: 9,
+        rationale: 'Strong source',
+        twitterHandle: '@expert',
+        isFollowing: true,
+      },
+    ],
+    dok1: [
+      {
+        id: 1,
+        originalId: '1.1',
+        fact: 'DOK1 fact',
+        category: 'Evidence',
+        source: 'Source A',
+        score: 5,
+        note: 'Strong',
+        gradingStatus: 'graded',
+      },
+    ],
+    dok2: [
+      {
+        id: 2,
+        sourceName: 'Source A',
+        sourceUrl: 'https://example.com/a',
+        displayTitle: 'Source synthesis',
+        category: 'Evidence',
+        points: [
+          { id: 21, text: 'Point one', sortOrder: 0 },
+          { id: 22, text: 'Point two', sortOrder: 1 },
+        ],
+        relatedFactIds: [1],
+        grade: 4,
+        feedback: 'Useful synthesis',
+        gradingStatus: 'graded',
+      },
+      {
+        id: 3,
+        sourceName: 'Ungraded Source',
+        sourceUrl: null,
+        displayTitle: null,
+        category: null,
+        points: [{ id: 23, text: 'Ungraded point', sortOrder: 0 }],
+        relatedFactIds: [],
+        grade: null,
+        feedback: null,
+        gradingStatus: null,
+      },
+    ],
+    dok3: [
+      {
+        id: 4,
+        text: 'Linked insight',
+        status: 'linked',
+        frameworkName: 'Framework',
+        frameworkDescription: 'Framework description',
+        score: 4,
+        rationale: 'Good',
+        feedback: 'Improve evidence',
+        criteriaBreakdown: { C1: { assessment: 'strong' } },
+        linkedDok2SummaryIds: [2],
+      },
+      {
+        id: 5,
+        text: 'Scratchpadded insight',
+        status: 'scratchpadded',
+        frameworkName: null,
+        frameworkDescription: null,
+        score: null,
+        rationale: null,
+        feedback: null,
+        criteriaBreakdown: null,
+        linkedDok2SummaryIds: [],
+      },
+    ],
+    dok4: [
+      {
+        id: 6,
+        text: 'Rejected SPOV',
+        status: 'rejected',
+        score: null,
+        rationale: null,
+        feedback: null,
+        criteriaBreakdown: null,
+        rejectionReason: 'Not spiky',
+        rejectionCategory: 'not_spiky',
+        linkedDok3InsightIds: [4],
+        primaryDok3InsightId: 4,
+        positionSummary: null,
+      },
+      {
+        id: 8,
+        text: 'Pending SPOV',
+        status: 'pending_linking',
+        score: null,
+        rationale: null,
+        feedback: null,
+        criteriaBreakdown: null,
+        rejectionReason: null,
+        rejectionCategory: null,
+        linkedDok3InsightIds: [],
+        primaryDok3InsightId: null,
+        positionSummary: null,
+      },
+    ],
+    ...overrides,
+  };
 }
 
 // ── FR1: POST /api/internal/grade ──
@@ -376,6 +541,384 @@ describe('FR2: GET /api/internal/brainlifts', () => {
       'all',
       { search: undefined },
     );
+  });
+});
+
+describe('03-service-key-scopes route enforcement', () => {
+  it('allows wildcard service keys to call both BrainLift read routes', async () => {
+    mockStorage.getBrainliftsForUserPaginated.mockResolvedValue({ brainlifts: [], total: 0 });
+    const aggregate = createBrainliftDetailAggregate();
+    mockStorage.getBrainliftRecordBySlug.mockResolvedValue(aggregate.brainlift);
+    mockStorage.getBrainliftDetailById.mockResolvedValue(aggregate);
+
+    const list = await runInternalRoute('get', '/api/internal/brainlifts', {
+      serviceAuth: { apiKeyId: 1, apiKeyName: 'wildcard', scopes: ['*'] },
+      query: {},
+    });
+    const detail = await runInternalRoute('get', '/api/internal/brainlifts/:slug', {
+      serviceAuth: { apiKeyId: 1, apiKeyName: 'wildcard', scopes: ['*'] },
+      params: { slug: 'canonical-bl' },
+      query: {},
+    });
+
+    expect(list.res.status).not.toHaveBeenCalledWith(403);
+    expect(list.res.json).toHaveBeenCalledWith(expect.objectContaining({ pagination: expect.any(Object) }));
+    expect(detail.res.status).not.toHaveBeenCalledWith(403);
+    expect(detail.res.json).toHaveBeenCalledWith(expect.objectContaining({ slug: 'canonical-bl' }));
+  });
+
+  it('requires brainlifts:list for GET /api/internal/brainlifts', async () => {
+    const denied = await runInternalRoute('get', '/api/internal/brainlifts', {
+      serviceAuth: { apiKeyId: 2, apiKeyName: 'read-only', scopes: ['brainlifts:read'] },
+      query: {},
+    });
+
+    expect(denied.res.status).toHaveBeenCalledWith(403);
+    expect(denied.res.json).toHaveBeenCalledWith({ error: 'Insufficient service key scope' });
+
+    mockStorage.getBrainliftsForUserPaginated.mockResolvedValue({ brainlifts: [], total: 0 });
+    const allowed = await runInternalRoute('get', '/api/internal/brainlifts', {
+      serviceAuth: { apiKeyId: 3, apiKeyName: 'list-only', scopes: ['brainlifts:list'] },
+      query: {},
+    });
+
+    expect(allowed.res.status).not.toHaveBeenCalledWith(403);
+    expect(allowed.res.json).toHaveBeenCalledWith(expect.objectContaining({ pagination: expect.any(Object) }));
+  });
+
+  it('requires brainlifts:read for GET /api/internal/brainlifts/:slug', async () => {
+    const denied = await runInternalRoute('get', '/api/internal/brainlifts/:slug', {
+      serviceAuth: { apiKeyId: 4, apiKeyName: 'list-only', scopes: ['brainlifts:list'] },
+      params: { slug: 'canonical-bl' },
+      query: {},
+    });
+
+    expect(denied.res.status).toHaveBeenCalledWith(403);
+    expect(denied.res.json).toHaveBeenCalledWith({ error: 'Insufficient service key scope' });
+
+    const aggregate = createBrainliftDetailAggregate();
+    mockStorage.getBrainliftRecordBySlug.mockResolvedValue(aggregate.brainlift);
+    mockStorage.getBrainliftDetailById.mockResolvedValue(aggregate);
+    const allowed = await runInternalRoute('get', '/api/internal/brainlifts/:slug', {
+      serviceAuth: { apiKeyId: 5, apiKeyName: 'reader', scopes: ['brainlifts:read'] },
+      params: { slug: 'canonical-bl' },
+      query: {},
+    });
+
+    expect(allowed.res.status).not.toHaveBeenCalledWith(403);
+    expect(allowed.res.json).toHaveBeenCalledWith(expect.objectContaining({ slug: 'canonical-bl' }));
+  });
+});
+
+describe('02-canonical-detail-endpoint service', () => {
+  it('returns the owned BrainLift canonical detail without grading by default', async () => {
+    const aggregate = createBrainliftDetailAggregate();
+    mockStorage.getBrainliftRecordBySlug.mockResolvedValue(aggregate.brainlift);
+    mockStorage.getBrainliftDetailById.mockResolvedValue(aggregate);
+
+    const { getInternalBrainliftDetailForAuthContext } = await import('../../services/brainlift-read-contract');
+    const response = await getInternalBrainliftDetailForAuthContext(
+      { userId: 'test-user-1', role: 'user', isAdmin: false },
+      'canonical-bl',
+      { includeGrading: false },
+    );
+
+    expect(mockStorage.getBrainliftRecordBySlug).toHaveBeenCalledWith('canonical-bl');
+    expect(mockStorage.canAccessBrainlift).toHaveBeenCalledWith(
+      expect.objectContaining({ slug: 'canonical-bl' }),
+      expect.objectContaining({ userId: 'test-user-1' }),
+    );
+    expect(mockStorage.getBrainliftDetailById).toHaveBeenCalledWith(42);
+    expect(Object.keys(response).sort()).toEqual([
+      'author',
+      'createdAt',
+      'dok1',
+      'dok2',
+      'dok3',
+      'dok4',
+      'experts',
+      'id',
+      'purpose',
+      'slug',
+      'title',
+    ].sort());
+    expect(response).toMatchObject({
+      id: 42,
+      slug: 'canonical-bl',
+      title: 'Canonical Brainlift',
+      purpose: 'Display purpose',
+      author: 'Ada',
+      createdAt: '2026-01-03T04:05:06.000Z',
+      experts: [
+        {
+          id: 7,
+          name: 'Expert One',
+          who: 'Researcher',
+          focus: 'Canonical APIs',
+          why: 'Relevant',
+          where: '@expert',
+          rankScore: 9,
+          rationale: 'Strong source',
+          twitterHandle: '@expert',
+          isFollowing: true,
+        },
+      ],
+      dok1: [
+        {
+          id: 1,
+          originalId: '1.1',
+          text: 'DOK1 fact',
+          category: 'Evidence',
+          source: 'Source A',
+          note: 'Strong',
+        },
+      ],
+      dok2: expect.arrayContaining([
+        expect.objectContaining({
+          id: 2,
+          sourceName: 'Source A',
+          linkedDok1Ids: [1],
+          points: [
+            { id: 21, text: 'Point one', sortOrder: 0 },
+            { id: 22, text: 'Point two', sortOrder: 1 },
+          ],
+        }),
+      ]),
+      dok3: [
+        expect.objectContaining({
+          id: 4,
+          text: 'Linked insight',
+          status: 'linked',
+          linkedDok2Ids: [2],
+        }),
+        expect.objectContaining({
+          id: 5,
+          text: 'Scratchpadded insight',
+          status: 'scratchpadded',
+          linkedDok2Ids: [],
+        }),
+      ],
+      dok4: [
+        expect.objectContaining({
+          id: 6,
+          text: 'Rejected SPOV',
+          status: 'rejected',
+          linkedDok3Ids: [4],
+          primaryDok3Id: 4,
+        }),
+        expect.objectContaining({
+          id: 8,
+          text: 'Pending SPOV',
+          status: 'pending_linking',
+        }),
+      ],
+    });
+    expect(response).not.toHaveProperty('originalContent');
+    expect(response).not.toHaveProperty('classification');
+    expect(response).not.toHaveProperty('summary');
+    expect(response.dok1[0]).not.toHaveProperty('grading');
+    expect(response.dok2[0]).not.toHaveProperty('grading');
+    expect(response.dok3[0]).not.toHaveProperty('grading');
+    expect(response.dok4[0]).not.toHaveProperty('grading');
+  });
+
+  it('allows shared readers when canAccessBrainlift returns true', async () => {
+    const aggregate = createBrainliftDetailAggregate({
+      brainlift: {
+        ...createBrainliftDetailAggregate().brainlift,
+        createdByUserId: 'owner-user',
+      },
+    });
+    mockStorage.getBrainliftRecordBySlug.mockResolvedValue(aggregate.brainlift);
+    mockStorage.canAccessBrainlift.mockResolvedValue(true);
+    mockStorage.getBrainliftDetailById.mockResolvedValue(aggregate);
+
+    const { getInternalBrainliftDetailForAuthContext } = await import('../../services/brainlift-read-contract');
+    const response = await getInternalBrainliftDetailForAuthContext(
+      { userId: 'shared-viewer', role: 'user', isAdmin: false },
+      'canonical-bl',
+      { includeGrading: false },
+    );
+
+    expect(response.slug).toBe('canonical-bl');
+    expect(mockStorage.canAccessBrainlift).toHaveBeenCalledWith(
+      expect.objectContaining({ createdByUserId: 'owner-user' }),
+      expect.objectContaining({ userId: 'shared-viewer' }),
+    );
+  });
+
+  it('falls back to description for purpose and maps stable text/link names', async () => {
+    const aggregate = createBrainliftDetailAggregate({
+      brainlift: {
+        ...createBrainliftDetailAggregate().brainlift,
+        displayPurpose: null,
+        description: 'Description purpose',
+      },
+    });
+    mockStorage.getBrainliftRecordBySlug.mockResolvedValue(aggregate.brainlift);
+    mockStorage.getBrainliftDetailById.mockResolvedValue(aggregate);
+
+    const { getInternalBrainliftDetailForAuthContext } = await import('../../services/brainlift-read-contract');
+    const response = await getInternalBrainliftDetailForAuthContext(
+      { userId: 'test-user-1', role: 'user', isAdmin: false },
+      'canonical-bl',
+      { includeGrading: false },
+    );
+
+    expect(response.purpose).toBe('Description purpose');
+    expect(response.dok1[0]).toHaveProperty('text', 'DOK1 fact');
+    expect(response.dok1[0]).not.toHaveProperty('fact');
+    expect(response.dok2[0]).toHaveProperty('linkedDok1Ids', [1]);
+    expect(response.dok2[0]).not.toHaveProperty('relatedFactIds');
+    expect(response.dok3[0]).toHaveProperty('linkedDok2Ids', [2]);
+    expect(response.dok3[0]).not.toHaveProperty('linkedDok2SummaryIds');
+    expect(response.dok4[0]).toHaveProperty('linkedDok3Ids', [4]);
+    expect(response.dok4[0]).not.toHaveProperty('linkedDok3InsightIds');
+  });
+
+  it('throws not found for unknown and unauthorized slugs', async () => {
+    const { getInternalBrainliftDetailForAuthContext } = await import('../../services/brainlift-read-contract');
+
+    mockStorage.getBrainliftRecordBySlug.mockResolvedValueOnce(undefined);
+    await expect(getInternalBrainliftDetailForAuthContext(
+      { userId: 'test-user-1', role: 'user', isAdmin: false },
+      'missing',
+      { includeGrading: false },
+    )).rejects.toMatchObject({ statusCode: 404 });
+
+    const aggregate = createBrainliftDetailAggregate({
+      brainlift: {
+        ...createBrainliftDetailAggregate().brainlift,
+        createdByUserId: 'other-user',
+      },
+    });
+    mockStorage.getBrainliftRecordBySlug.mockResolvedValueOnce(aggregate.brainlift);
+    mockStorage.canAccessBrainlift.mockResolvedValueOnce(false);
+
+    await expect(getInternalBrainliftDetailForAuthContext(
+      { userId: 'test-user-1', role: 'user', isAdmin: false },
+      'other',
+      { includeGrading: false },
+    )).rejects.toMatchObject({ statusCode: 404 });
+    expect(mockStorage.getBrainliftDetailById).not.toHaveBeenCalledWith(42);
+  });
+
+  it('includes nested grading only when requested and preserves content statuses top-level', async () => {
+    const aggregate = createBrainliftDetailAggregate();
+    mockStorage.getBrainliftRecordBySlug.mockResolvedValue(aggregate.brainlift);
+    mockStorage.getBrainliftDetailById.mockResolvedValue(aggregate);
+
+    const { getInternalBrainliftDetailForAuthContext } = await import('../../services/brainlift-read-contract');
+    const response = await getInternalBrainliftDetailForAuthContext(
+      { userId: 'test-user-1', role: 'user', isAdmin: false },
+      'canonical-bl',
+      { includeGrading: true },
+    );
+
+    expect(response.dok1[0].grading).toEqual({ score: 5, status: 'graded' });
+    expect(response.dok2[0].grading).toEqual({ grade: 4, feedback: 'Useful synthesis', status: 'graded' });
+    expect(response.dok2[1].grading).toBeNull();
+    expect(response.dok3[0]).toMatchObject({
+      status: 'linked',
+      grading: {
+        score: 4,
+        rationale: 'Good',
+        feedback: 'Improve evidence',
+        criteriaBreakdown: { C1: { assessment: 'strong' } },
+      },
+    });
+    expect(response.dok3[1]).toMatchObject({ status: 'scratchpadded', grading: null });
+    expect(response.dok4[0]).toMatchObject({
+      status: 'rejected',
+      grading: {
+        score: null,
+        rationale: null,
+        feedback: null,
+        criteriaBreakdown: null,
+        rejectionReason: 'Not spiky',
+        rejectionCategory: 'not_spiky',
+      },
+    });
+    expect(response.dok4[1]).toMatchObject({ status: 'pending_linking', grading: null });
+    expect(response.dok1[0]).not.toHaveProperty('score');
+    expect(response.dok2[0]).not.toHaveProperty('grade');
+    expect(response.dok3[0]).not.toHaveProperty('score');
+    expect(response.dok4[0]).not.toHaveProperty('rejectionReason');
+  });
+});
+
+describe('02-canonical-detail-endpoint route', () => {
+  it('returns 200 from GET /api/internal/brainlifts/:slug', async () => {
+    const aggregate = createBrainliftDetailAggregate();
+    mockStorage.getBrainliftRecordBySlug.mockResolvedValue(aggregate.brainlift);
+    mockStorage.getBrainliftDetailById.mockResolvedValue(aggregate);
+
+    const { internalBrainliftDetailHandler } = await import('../internal');
+    const req = createMockReq({ params: { slug: 'canonical-bl' } });
+    const res = createMockRes();
+
+    await internalBrainliftDetailHandler(req, res);
+
+    expect(res.status).not.toHaveBeenCalled();
+    expect(res.json).toHaveBeenCalledWith(expect.objectContaining({
+      slug: 'canonical-bl',
+      dok3: expect.arrayContaining([
+        expect.objectContaining({ status: 'scratchpadded' }),
+      ]),
+      dok4: expect.arrayContaining([
+        expect.objectContaining({ status: 'rejected' }),
+        expect.objectContaining({ status: 'pending_linking' }),
+      ]),
+    }));
+  });
+
+  it('returns 404 for missing or unauthorized BrainLifts', async () => {
+    mockStorage.getBrainliftRecordBySlug.mockResolvedValue(undefined);
+
+    const { internalBrainliftDetailHandler } = await import('../internal');
+    const req = createMockReq({ params: { slug: 'missing' } });
+    const res = createMockRes();
+
+    await internalBrainliftDetailHandler(req, res);
+
+    expect(res.status).toHaveBeenCalledWith(404);
+    expect(res.json).toHaveBeenCalledWith({ error: 'Brainlift not found' });
+  });
+
+  it('parses include=grading and comma-separated include values', async () => {
+    const aggregate = createBrainliftDetailAggregate();
+    mockStorage.getBrainliftRecordBySlug.mockResolvedValue(aggregate.brainlift);
+    mockStorage.getBrainliftDetailById.mockResolvedValue(aggregate);
+
+    const { internalBrainliftDetailHandler } = await import('../internal');
+    const req = createMockReq({
+      params: { slug: 'canonical-bl' },
+      query: { include: ' grading, ' },
+    });
+    const res = createMockRes();
+
+    await internalBrainliftDetailHandler(req, res);
+
+    const response = res.json.mock.calls[0][0];
+    expect(response.dok1[0]).toHaveProperty('grading');
+    expect(response.dok2[0]).toHaveProperty('grading');
+    expect(response.dok3[0]).toHaveProperty('grading');
+    expect(response.dok4[0]).toHaveProperty('grading');
+  });
+
+  it('returns 400 for unknown include values', async () => {
+    const { internalBrainliftDetailHandler } = await import('../internal');
+    const req = createMockReq({
+      params: { slug: 'canonical-bl' },
+      query: { include: 'grading,unknownvalue' },
+    });
+    const res = createMockRes();
+
+    await internalBrainliftDetailHandler(req, res);
+
+    expect(res.status).toHaveBeenCalledWith(400);
+    expect(res.json).toHaveBeenCalledWith({ error: 'Unknown include value: unknownvalue' });
+    expect(mockStorage.getBrainliftRecordBySlug).not.toHaveBeenCalled();
   });
 });
 

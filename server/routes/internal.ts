@@ -8,6 +8,7 @@
  *   GET  /api/internal/template                    — Brainlift markdown template (spec 02)
  *   POST /api/internal/grade                       — Submit markdown for grading (spec 03)
  *   GET  /api/internal/brainlifts                  — Paginated list of user's brainlifts (spec 03)
+ *   GET  /api/internal/brainlifts/:slug            — Canonical normalized BrainLift detail
  *   GET  /api/internal/brainlifts/:slug/status     — Grading progress (spec 03)
  *   GET  /api/internal/brainlifts/:slug/assessment — Paginated assessment results (spec 03)
  *   GET  /api/internal/brainlifts/:slug/experts    — List experts for one brainlift
@@ -26,6 +27,7 @@ import {
   updateDeliverableRequestSchema,
 } from '@shared/routes';
 import { requireServiceAuth } from '../middleware/service-auth';
+import { requireServiceScope } from '../middleware/service-scope';
 import { requireBrainliftAccess, requireBrainliftModify } from '../middleware/brainlift-auth';
 import { asyncHandler, BadRequestError, NotFoundError } from '../middleware/error-handler';
 import { storage } from '../storage';
@@ -37,6 +39,10 @@ import {
   getBrainliftTemplatePayload,
   listBrainliftsForAuthContext,
 } from '../services/brainlift-grading-surface';
+import {
+  getInternalBrainliftDetailForAuthContext,
+  parseInternalBrainliftDetailInclude,
+} from '../services/brainlift-read-contract';
 import {
   createSprintDeliverable,
   listDocumentsForUser,
@@ -147,7 +153,41 @@ export async function listBrainliftsHandler(
 internalRouter.get(
   '/api/internal/brainlifts',
   requireServiceAuth,
+  requireServiceScope('brainlifts:list'),
   asyncHandler(listBrainliftsHandler),
+);
+
+export async function internalBrainliftDetailHandler(
+  req: Request,
+  res: Response,
+): Promise<void> {
+  try {
+    const options = parseInternalBrainliftDetailInclude(req.query.include);
+    res.json(await getInternalBrainliftDetailForAuthContext(
+      req.authContext!,
+      req.params.slug,
+      options,
+    ));
+  } catch (error) {
+    if (error instanceof NotFoundError) {
+      res.status(404).json({ error: error.message });
+      return;
+    }
+
+    if (error instanceof BadRequestError) {
+      res.status(400).json({ error: error.message });
+      return;
+    }
+
+    throw error;
+  }
+}
+
+internalRouter.get(
+  '/api/internal/brainlifts/:slug',
+  requireServiceAuth,
+  requireServiceScope('brainlifts:read'),
+  asyncHandler(internalBrainliftDetailHandler),
 );
 
 // ── FR3: GET /api/internal/brainlifts/:slug/status ──
