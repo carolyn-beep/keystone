@@ -1,13 +1,13 @@
 import { Request, Response, NextFunction } from 'express';
 import { storage } from '../storage';
 import { NotFoundError, ForbiddenError, BadRequestError } from './error-handler';
-import type { BrainliftData } from '@shared/schema';
+import type { Brainlift } from '@shared/schema';
 
 // Extend Express Request to include brainlift
 declare global {
   namespace Express {
     interface Request {
-      brainlift?: BrainliftData;
+      brainlift?: Brainlift;
     }
   }
 }
@@ -31,7 +31,7 @@ export async function requireBrainliftAccess(
       throw new BadRequestError('Brainlift slug is required');
     }
 
-    const brainlift = await storage.getBrainliftBySlug(slug);
+    const brainlift = await storage.getBrainliftRecordBySlug(slug);
     if (!brainlift) {
       throw new NotFoundError('Brainlift not found');
     }
@@ -66,7 +66,7 @@ export async function requireBrainliftModify(
       throw new BadRequestError('Brainlift slug is required');
     }
 
-    const brainlift = await storage.getBrainliftBySlug(slug);
+    const brainlift = await storage.getBrainliftRecordBySlug(slug);
     if (!brainlift) {
       throw new NotFoundError('Brainlift not found');
     }
@@ -111,7 +111,7 @@ export async function requireBrainliftModifyById(
       throw new ForbiddenError('Access denied');
     }
 
-    req.brainlift = brainlift as BrainliftData;
+    req.brainlift = brainlift;
     next();
   } catch (err) {
     next(err);

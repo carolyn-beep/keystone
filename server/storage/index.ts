@@ -72,7 +72,10 @@ export type {
 export const storage = {
   // Brainlifts
   getBrainliftBySlug: brainliftsStorage.getBrainliftBySlug,
+  getBrainliftRecordBySlug: brainliftsStorage.getBrainliftRecordBySlug,
+  getContradictionClustersByBrainliftId: brainliftsStorage.getContradictionClustersByBrainliftId,
   getBrainliftById: brainliftsStorage.getBrainliftById,
+  getBrainliftDetailById: brainliftsStorage.getBrainliftDetailById,
   getBrainliftDataById: brainliftsStorage.getBrainliftDataById,
   getBrainliftsByOwnerId: brainliftsStorage.getBrainliftsByOwnerId,
   createBrainlift: brainliftsStorage.createBrainlift,
