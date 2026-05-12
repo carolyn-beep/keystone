@@ -1716,10 +1716,12 @@ export const apiKeys = pgTable(
     name: text("name").notNull(),
     rateLimit: integer("rate_limit").default(60),
     isActive: boolean("is_active").default(true),
+    scopes: text("scopes").array().notNull().default(sql`ARRAY['*']::text[]`),
     createdAt: timestamp("created_at").defaultNow().notNull(),
     revokedAt: timestamp("revoked_at"),
   },
   (table) => [index("api_keys_key_idx").on(table.key)],
 );
 
+export type ServiceScope = '*' | 'brainlifts:list' | 'brainlifts:read';
 export type ApiKey = typeof apiKeys.$inferSelect;

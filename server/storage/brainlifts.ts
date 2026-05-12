@@ -5,15 +5,30 @@ import {
   llmFeedback, factRedundancyGroups, dok2Summaries, dok2Points, dok2FactRelations,
   nativeBrainliftDetails, builderExperts, dok4Spovs, user,
   type Brainlift, type BrainliftData, type InsertBrainlift,
-  type BrainliftVersion, type AuthContext, type ImportStatus
+  type BrainliftVersion, type AuthContext, type ImportStatus, type Expert, type Fact
 } from './base';
 import { getDOK2Summaries, deleteDOK2Summaries } from './dok2';
+import { getDOK3Insights, type DOK3InsightWithLinks } from './dok3';
+import { getDOK4Spovs } from './dok4';
+import type { DOK4SpovWithLinks } from '@shared/dok4-types';
 import { getSharedBrainlifts } from './shares';
 
 function expertOrderBy() {
   return [sql`${experts.rankScore} DESC NULLS LAST`, desc(experts.id)] as const;
 }
 
+export async function getBrainliftRecordBySlug(slug: string): Promise<Brainlift | undefined> {
+  const [brainlift] = await db.select().from(brainlifts).where(eq(brainlifts.slug, slug));
+  return brainlift;
+}
+
+export async function getContradictionClustersByBrainliftId(brainliftId: number) {
+  return await db.select().from(contradictionClusters).where(eq(contradictionClusters.brainliftId, brainliftId));
+}
+
+// TODO: This legacy API is a partial aggregate, not a simple row lookup. Row-only
+// callers should use getBrainliftRecordBySlug; full current-state callers should
+// use explicit detail/per-DOK storage functions instead of extending this shape.
 export async function getBrainliftBySlug(slug: string): Promise<BrainliftData | undefined> {
   const [brainlift] = await db.select().from(brainlifts).where(eq(brainlifts.slug, slug));
 
@@ -39,6 +54,93 @@ export async function getBrainliftBySlug(slug: string): Promise<BrainliftData | 
 export async function getBrainliftById(id: number): Promise<Brainlift | undefined> {
   const [brainlift] = await db.select().from(brainlifts).where(eq(brainlifts.id, id));
   return brainlift;
+}
+
+export interface BrainliftDetailRecord {
+  id: number;
+  slug: string;
+  title: string;
+  description: string;
+  displayPurpose: string | null;
+  author: string | null;
+  createdAt: Date;
+}
+
+export interface BrainliftDetailAggregate {
+  brainlift: BrainliftDetailRecord;
+  experts: Expert[];
+  dok1: Fact[];
+  dok2: Array<{
+    id: number;
+    category: string | null;
+    sourceName: string;
+    sourceUrl: string | null;
+    displayTitle: string | null;
+    workflowyNodeId: string | null;
+    sourceWorkflowyNodeId: string | null;
+    points: Array<{ id: number; text: string; sortOrder: number }>;
+    relatedFactIds: number[];
+    grade: number | null;
+    diagnosis: string | null;
+    feedback: string | null;
+    failReason: unknown | null;
+    sourceVerified: boolean | null;
+    gradingStatus: 'graded' | 'regrading' | 'grading' | 'error' | null;
+  }>;
+  dok3: DOK3InsightWithLinks[];
+  dok4: DOK4SpovWithLinks[];
+}
+
+export async function getBrainliftDetailById(id: number): Promise<BrainliftDetailAggregate | undefined> {
+  const [brainlift] = await db.select({
+    id: brainlifts.id,
+    slug: brainlifts.slug,
+    title: brainlifts.title,
+    description: brainlifts.description,
+    displayPurpose: brainlifts.displayPurpose,
+    author: brainlifts.author,
+    createdAt: brainlifts.createdAt,
+  }).from(brainlifts).where(eq(brainlifts.id, id));
+  if (!brainlift) return undefined;
+
+  const [
+    brainliftExperts,
+    brainliftFacts,
+    dok2SummariesData,
+    dok3InsightsData,
+    dok4SpovsData,
+  ] = await Promise.all([
+    db.select().from(experts)
+      .where(eq(experts.brainliftId, id))
+      .orderBy(...expertOrderBy()),
+    db.select().from(facts)
+      .where(eq(facts.brainliftId, id))
+      .orderBy(asc(facts.id)),
+    getDOK2Summaries(id),
+    getDOK3Insights(id, []),
+    getDOK4Spovs(id),
+  ]);
+
+  const dok2Ids = dok2SummariesData.map((summary) => summary.id);
+  const dok2Statuses = dok2Ids.length > 0
+    ? await db.select({
+        id: dok2Summaries.id,
+        gradingStatus: dok2Summaries.gradingStatus,
+      }).from(dok2Summaries).where(inArray(dok2Summaries.id, dok2Ids))
+    : [];
+  const dok2StatusById = new Map(dok2Statuses.map((row) => [row.id, row.gradingStatus]));
+
+  return {
+    brainlift,
+    experts: brainliftExperts,
+    dok1: brainliftFacts,
+    dok2: dok2SummariesData.map((summary) => ({
+      ...summary,
+      gradingStatus: dok2StatusById.get(summary.id) ?? null,
+    })),
+    dok3: dok3InsightsData,
+    dok4: dok4SpovsData,
+  };
 }
 
 export async function getBrainliftDataById(id: number): Promise<BrainliftData | undefined> {

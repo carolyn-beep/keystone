@@ -89,9 +89,20 @@ brainliftsRouter.get(
       userPermission = sharePermission;
     }
 
-    // Enrich response with user's permission
+    const [factsRows, clusters, expertsRows, dok2Rows] = await Promise.all([
+      storage.getFactsForBrainlift(brainlift.id),
+      storage.getContradictionClustersByBrainliftId(brainlift.id),
+      storage.getExpertsByBrainliftId(brainlift.id),
+      storage.getDOK2Summaries(brainlift.id),
+    ]);
+
     res.json({
       ...brainlift,
+      improperlyFormatted: brainlift.improperlyFormatted ?? false,
+      facts: factsRows,
+      contradictionClusters: clusters,
+      experts: expertsRows,
+      dok2Summaries: dok2Rows.length > 0 ? dok2Rows : undefined,
       userPermission,
     });
   })

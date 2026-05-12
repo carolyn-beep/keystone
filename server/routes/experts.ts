@@ -25,6 +25,7 @@ expertsRouter.post(
   requireBrainliftModify,
   asyncHandler(async (req, res) => {
     const brainlift = req.brainlift!;
+    const facts = await storage.getFactsForBrainlift(brainlift.id);
 
     // Run expert extraction
     const expertsData = await extractAndRankExperts({
@@ -32,7 +33,7 @@ expertsRouter.post(
       title: brainlift.title,
       description: brainlift.description,
       author: brainlift.author,
-      facts: brainlift.facts,
+      facts,
       originalContent: brainlift.originalContent || '',
     });
 
@@ -52,9 +53,8 @@ expertsRouter.post(
     }
 
     res.json({
-      ...brainlift,
       experts: savedExperts,
-      expertDiagnostics
+      expertDiagnostics,
     });
   })
 );
