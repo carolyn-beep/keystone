@@ -243,14 +243,14 @@ describe('buildAlphaXSystemPrompt', () => {
     expect(prompt).toContain('Business Brainlift');
   });
 
-  it('contains the AlphaX MAIN OPERATIONAL POSTURE gatekeeping language', () => {
+  it('contains the AlphaX MAIN OPERATIONAL POSTURE Socratic language', () => {
     const prompt = buildAlphaXSystemPrompt({
       userContext: oneBrainliftContext,
       skills: [],
     });
 
-    expect(prompt).toContain('Substantive thinking');
-    expect(prompt).toContain('must originate from the student');
-    expect(prompt).toContain('pull them back in');
+    expect(prompt).toContain('MAIN OPERATIONAL POSTURE — SOCRATIC');
+    expect(prompt).toContain("the knowledge passes through the student's brain");
+    expect(prompt).toContain('the refusal IS the work');
   });
 });
