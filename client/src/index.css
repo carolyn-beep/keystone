@@ -523,6 +523,39 @@
   background-color: var(--text-muted-hex);
 }
 
+/* Minimal scrollbar for small popovers/dropdowns (e.g. ProjectPicker). 4px
+ * track, low-contrast thumb, no buttons, no track background. Firefox uses
+ * `thin`; webkit uses the explicit width + transparent track. The thumb
+ * lifts opacity on hover so the scrollbar fades into the panel at rest. */
+.scrollbar-minimal {
+  scrollbar-width: thin;
+  scrollbar-color: hsl(var(--border) / 0.5) transparent;
+}
+
+.scrollbar-minimal::-webkit-scrollbar {
+  width: 4px;
+  height: 4px;
+}
+
+.scrollbar-minimal::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.scrollbar-minimal::-webkit-scrollbar-thumb {
+  background-color: hsl(var(--border) / 0.5);
+  border-radius: 999px;
+  transition: background-color 120ms ease;
+}
+
+.scrollbar-minimal:hover::-webkit-scrollbar-thumb,
+.scrollbar-minimal:focus-within::-webkit-scrollbar-thumb {
+  background-color: hsl(var(--border) / 0.85);
+}
+
+.scrollbar-minimal::-webkit-scrollbar-button {
+  display: none;
+}
+
 /* Subtle pulsing glow animations for diagnostic badges */
 @keyframes subtle-glow-error {
   0%, 100% {
@@ -562,7 +595,7 @@
   animation: pulse 2s ease-in-out infinite;
 }
 
-/* Learning Stream animations */
+/* Research Stream animations */
 @keyframes shimmer {
   0% { background-position: -200% 0; }
   100% { background-position: 200% 0; }
@@ -588,7 +621,7 @@
   animation: bounce-dots 1.2s ease-in-out infinite;
 }
 
-/* Learning Stream card exit animations */
+/* Research Stream card exit animations */
 @keyframes exit-bookmark {
   0% {
     opacity: 1;
@@ -1713,7 +1746,7 @@
 
 /* ===== End Native Chat Home ===== */
 
-/* Reduced motion support for Learning Stream */
+/* Reduced motion support for Research Stream */
 @media (prefers-reduced-motion: reduce) {
   .animate-shimmer,
   .animate-bounce-dots,

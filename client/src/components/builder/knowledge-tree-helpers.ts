@@ -33,7 +33,7 @@ export function buildItemDetailUrl(itemId: number): string {
  * Build the URL for the MissionDashboard (learning stream tab).
  */
 export function buildMissionDashboardUrl(slug: string): string {
-  return `/brainlifts/${slug}?tab=learning-stream`;
+  return `/grading/${slug}?tab=learning-stream`;
 }
 
 // ─── Extraction Count Formatting ────────────────────────────────────────────

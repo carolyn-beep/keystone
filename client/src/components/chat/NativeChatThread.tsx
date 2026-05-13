@@ -224,14 +224,28 @@ export function NativeChatThread({
     }
   }, [conversationId]);
 
+  // Draft-mode pending brainlift binding. Held locally so the picker can
+  // be set BEFORE any DB row exists; the runtime PATCHes it onto the new
+  // conversation immediately after lazy-create (before the first message
+  // is sent) so the chat route's mode resolver sees the binding from turn
+  // one. Cleared on draft -> bound promotion to avoid re-binding on
+  // subsequent picker changes (those go through the normal PATCH path).
+  const [pendingDraftBrainliftId, setPendingDraftBrainliftId] = useState<number | null>(null);
+  const pendingDraftBrainliftIdRef = useRef<number | null>(null);
+  useEffect(() => {
+    pendingDraftBrainliftIdRef.current = pendingDraftBrainliftId;
+  }, [pendingDraftBrainliftId]);
+
   const runtime = useNativeChatRuntime({
     conversationId,
     initialMessages,
     modelId,
     onLazyCreated: (id) => {
       setEffectiveConvId(id);
+      setPendingDraftBrainliftId(null);
       onLazyCreated?.(id);
     },
+    getPendingDraftBrainliftId: () => pendingDraftBrainliftIdRef.current,
   });
 
   const hasInitialMessages = Boolean(initialMessages && initialMessages.length > 0);
@@ -241,6 +255,9 @@ export function NativeChatThread({
       <ChatComposerSettingsProvider
         modelId={modelId}
         onModelIdChange={onModelIdChange}
+        conversationId={effectiveConvId}
+        pendingDraftBrainliftId={pendingDraftBrainliftId}
+        setPendingDraftBrainliftId={setPendingDraftBrainliftId}
       >
         <div className="native-chat-thread flex h-full min-h-0 flex-col bg-transparent">
           <ConversationQueryInvalidator conversationId={effectiveConvId} />

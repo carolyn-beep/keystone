@@ -19,6 +19,7 @@
 import type { ChatUserContext } from '../storage/base';
 import {
   formatActivePlans,
+  formatCurrentProject,
   formatRecentBrainlifts,
   formatRecentConversations,
   formatSkillSummaries,
@@ -85,7 +86,7 @@ export function formatAlphaXUserContext(userContext: ChatUserContext): string[] 
 }
 
 export function buildAlphaXSystemPrompt(args: BuildSystemPromptArgs): string {
-  const { userContext, skills } = args;
+  const { userContext, skills, conversation } = args;
 
   return [
     '=== START OF IDENTITY ===',
@@ -158,6 +159,8 @@ export function buildAlphaXSystemPrompt(args: BuildSystemPromptArgs): string {
     '',
     ...formatAlphaXUserContext(userContext),
     '',
+    ...formatCurrentProject(conversation),
+    ...(conversation?.brainlift ? [''] : []),
     '=== START OF BRAINLIFT HEURISTICS ===',
     '## Brainlift Heuristics',
     ...buildAlphaXBrainliftHeuristics(userContext),
@@ -172,6 +175,6 @@ export function buildAlphaXSystemPrompt(args: BuildSystemPromptArgs): string {
 
 export const promptBuilders: BrandPromptBuilders = {
   buildSystemPrompt: buildAlphaXSystemPrompt,
-  buildBrainliftHeuristics: buildAlphaXBrainliftHeuristics,
+  buildBrainliftHeuristics: ({ userContext }) => buildAlphaXBrainliftHeuristics(userContext),
   formatUserContext: formatAlphaXUserContext,
 };

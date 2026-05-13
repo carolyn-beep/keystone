@@ -16,9 +16,52 @@
 
 import type { ChatUserContext } from '../../storage/base';
 import type { SkillSummary } from '../../ai/chat/skills';
+import type { ConversationContext } from '../types';
 
 export function formatDate(date: Date): string {
   return date.toISOString().slice(0, 10);
+}
+
+/**
+ * Renders the bound-brainlift project header when the chat conversation is
+ * bound. Returns an empty array when the conversation is unbound (or no
+ * conversation context was supplied) so the surrounding prompt array can
+ * splat the result without emitting empty section markers.
+ *
+ * The block tells the agent the title/slug/phase of the project this
+ * conversation is currently scoped to, and explicitly forbids both asking
+ * the user "which project" and calling `list_brainlifts` when the question
+ * is about the bound project. This closes the "Hello, which project have I
+ * picked?" loophole — the binding metadata is now in-prompt instead of
+ * being implied by a generic "a project is bound" line.
+ */
+export function formatCurrentProject(
+  conversation: ConversationContext | undefined,
+): string[] {
+  const brainlift = conversation?.brainlift;
+  if (!brainlift) {
+    return [];
+  }
+
+  return [
+    '=== START OF CURRENT PROJECT ===',
+    '## CURRENT PROJECT',
+    `This conversation is currently scoped to the project "${brainlift.title}" (slug: \`${brainlift.slug}\`, phase: ${brainlift.phase}).`,
+    'Refer to it by name. Do NOT ask the user which project they mean — the binding is unambiguous and visible to them in the project picker.',
+    'Do NOT call `list_brainlifts` when the user is asking about THIS project. Only call `list_brainlifts` when the user explicitly wants to switch projects or work across projects.',
+    'Every research / authoring action you take in this turn (categories, sources, notes, DOK items, grading, sprint, deliverables — whichever apply in the current mode) is scoped to this project.',
+    '',
+    '### SWITCHING PROJECTS FROM CHAT',
+    'You CAN switch the conversation to a different project yourself. You have the `change_conversation_project` tool for this — do not tell the user they have to use the UI picker.',
+    'When the user expresses intent to work on a different project (examples: "let\'s talk about my MCP project now", "switch to Battery Chemistry", "I want to work on Marketing Plan", "open my X brainlift"):',
+    '  1. Call `list_brainlifts` to find the project the user named. Each entry returns a `slug` — that is the canonical identifier.',
+    '  2. If exactly one match → call `change_conversation_project` with `{ slug: "<that-slug>" }`. Confirm the switch in your reply (one short sentence) and continue working in the new project.',
+    '  3. If multiple plausible matches → ask the user to disambiguate with `ask_user_question`, then call `change_conversation_project` with the chosen slug.',
+    '  4. If no match → tell the user no project with that name exists for them, and offer to either spell it out or create a new research project (`create_blank_project`, research mode only).',
+    'NOTE: `list_brainlifts` does NOT return numeric ids — only slugs. Always pass `slug`, never invent or assume a numeric `brainliftId`.',
+    'Telling the user "I can\'t switch from here, use the picker" is wrong. The picker is convenience for the user; the tool is your equivalent. Use it.',
+    '=== END OF CURRENT PROJECT ===',
+  ];
 }
 
 export function formatRecentBrainlifts(

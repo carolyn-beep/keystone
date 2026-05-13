@@ -30,6 +30,49 @@ export interface UseNativeChatRuntimeArgs {
    * at mount time.
    */
   onLazyCreated?: (conversationId: number) => void;
+  /**
+   * Read each time a lazy-create resolves. When non-null, the runtime
+   * PATCHes `chat_conversations.brainlift_id` immediately after the row is
+   * created and **before** the first chat request is sent — so the chat
+   * route resolves mode against the bound brainlift on the very first
+   * turn. Returning null is the unbound default.
+   *
+   * Held as a getter (not a value) so the runtime never needs to be
+   * rebuilt when the picker selection changes mid-draft.
+   */
+  getPendingDraftBrainliftId?: () => number | null;
+}
+
+async function applyPendingBrainliftBinding(
+  conversationId: number,
+  brainliftId: number,
+): Promise<{ conversationId: number; brainliftId: number | null } | null> {
+  const response = await apiRequest(
+    'PATCH',
+    `/api/chat/conversations/${conversationId}/brainlift`,
+    { brainliftId },
+  );
+  const data = (await response.json()) as {
+    conversation?: Parameters<typeof normalizeChatConversation>[0];
+  } | Parameters<typeof normalizeChatConversation>[0];
+  const raw = (data as { conversation?: Parameters<typeof normalizeChatConversation>[0] })
+    .conversation ?? (data as Parameters<typeof normalizeChatConversation>[0]);
+  const updated = normalizeChatConversation(raw);
+
+  // The per-conversation detail cache was seeded by the create POST with the
+  // freshly-inserted (unbound) row. Without this write the picker reads
+  // `brainliftId: null` from cache during the first stream and only
+  // self-heals when `ConversationQueryInvalidator` refetches on stream-done.
+  // Writing the bound row here keeps the picker in sync from turn one.
+  queryClient.setQueryData<ChatConversationDetail | undefined>(
+    getChatConversationQueryKey(updated.id),
+    (current) => (current ? { ...current, conversation: updated } : current),
+  );
+
+  return {
+    conversationId: updated.id,
+    brainliftId: updated.brainliftId ?? null,
+  };
 }
 
 async function createConversationRow(): Promise<number> {
@@ -89,6 +132,14 @@ export function createLazyConversationPrepareSend(opts: {
   onLazyCreated?: (id: number) => void;
   /** Override for the conversation-create network call (tests). */
   createConversation?: () => Promise<number>;
+  /**
+   * Read after a fresh row is inserted: if non-null, the runtime PATCHes
+   * the binding immediately so the very first chat request resolves mode
+   * against the bound brainlift.
+   */
+  getPendingDraftBrainliftId?: () => number | null;
+  /** Override for the binding PATCH (tests). */
+  applyPendingBinding?: (conversationId: number, brainliftId: number) => Promise<void>;
 }) {
   let inFlight: Promise<number> | null = null;
 
@@ -98,7 +149,24 @@ export function createLazyConversationPrepareSend(opts: {
 
     if (!inFlight) {
       inFlight = (opts.createConversation ?? createConversationRow)()
-        .then((newId) => {
+        .then(async (newId) => {
+          const pending = opts.getPendingDraftBrainliftId?.() ?? null;
+          if (pending !== null) {
+            try {
+              if (opts.applyPendingBinding) {
+                await opts.applyPendingBinding(newId, pending);
+              } else {
+                await applyPendingBrainliftBinding(newId, pending);
+              }
+            } catch (err) {
+              // Surfacing this to the user is non-trivial from inside the
+              // runtime; log so devs can diagnose. The chat request still
+              // proceeds against the unbound row — the user can re-pick
+              // from the now-bound picker.
+              // eslint-disable-next-line no-console
+              console.error('[chat] lazy-bind brainlift failed', err);
+            }
+          }
           opts.setConversationId(newId);
           opts.onLazyCreated?.(newId);
           return newId;
@@ -133,7 +201,7 @@ export function createLazyConversationPrepareSend(opts: {
 }
 
 export function useNativeChatRuntime(args: UseNativeChatRuntimeArgs) {
-  const { conversationId, modelId, initialMessages, onLazyCreated } = args;
+  const { conversationId, modelId, initialMessages, onLazyCreated, getPendingDraftBrainliftId } = args;
 
   // The "live" conversation ID for this runtime instance. Held in a ref so
   // the transport (which is created exactly once) can read the latest value
@@ -160,6 +228,11 @@ export function useNativeChatRuntime(args: UseNativeChatRuntimeArgs) {
     onLazyCreatedRef.current = onLazyCreated;
   }, [onLazyCreated]);
 
+  const getPendingDraftBrainliftIdRef = useRef(getPendingDraftBrainliftId);
+  useEffect(() => {
+    getPendingDraftBrainliftIdRef.current = getPendingDraftBrainliftId;
+  }, [getPendingDraftBrainliftId]);
+
   const transport = useMemo(() => {
     const { prepareSendMessagesRequest } = createLazyConversationPrepareSend({
       getConversationId: () => conversationIdRef.current,
@@ -168,6 +241,8 @@ export function useNativeChatRuntime(args: UseNativeChatRuntimeArgs) {
       },
       getModelId: () => modelIdRef.current,
       onLazyCreated: (id) => onLazyCreatedRef.current?.(id),
+      getPendingDraftBrainliftId: () =>
+        getPendingDraftBrainliftIdRef.current?.() ?? null,
     });
     return new AssistantChatTransport({
       api: '/api/chat/stream',

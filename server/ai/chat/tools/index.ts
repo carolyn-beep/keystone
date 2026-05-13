@@ -1,19 +1,40 @@
 import type { AuthContext } from '@shared/schema';
+import type { ChatMode, ConversationContext } from '../../../brand/types';
 import { buildAskUserQuestionTool } from './ask-user';
 import { buildChatCurationTools } from './curation';
 import { buildChatGradingTools } from './grading';
 import { buildAdminSkillManagementTools, buildChatSkillTools } from './load-skill';
+import {
+  buildResearchOnlyProjectChatTools,
+  buildSharedProjectChatTools,
+} from './project';
 import { buildResearchChatTools } from './research';
+import { buildSecondBrainChatTools } from './second-brain';
 import { buildSprintChatTools } from './sprint';
 
-export function buildNativeChatTools(authContext: AuthContext) {
+export function buildNativeChatTools(
+  authContext: AuthContext,
+  mode: ChatMode,
+  conversation: ConversationContext,
+) {
+  const gradingTools = buildChatGradingTools(authContext.userId);
+  const isResearch = mode === 'research';
+  const isAuthoring = mode === 'authoring';
+  const isBound = conversation.brainliftId != null;
+  const researchBrainliftTools = {
+    list_brainlifts: gradingTools.list_brainlifts,
+  };
+
   return {
-    ...buildChatGradingTools(authContext.userId),
     ...buildChatSkillTools({ authContext }),
     ...(authContext.isAdmin ? buildAdminSkillManagementTools({ authContext }) : {}),
     ...buildResearchChatTools(),
-    ...buildChatCurationTools(authContext),
-    ...buildSprintChatTools({ authContext }),
     ...buildAskUserQuestionTool(),
+    ...(isResearch ? researchBrainliftTools : gradingTools),
+    ...buildSharedProjectChatTools(authContext, conversation),
+    ...(isResearch ? buildResearchOnlyProjectChatTools(authContext, conversation) : {}),
+    ...(isResearch && isBound ? buildSecondBrainChatTools(authContext, conversation) : {}),
+    ...(isAuthoring ? buildChatCurationTools(authContext) : {}),
+    ...(isAuthoring ? buildSprintChatTools({ authContext }) : {}),
   };
 }

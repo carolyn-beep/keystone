@@ -1,4 +1,4 @@
-import { Router } from "express";
+import { Router, type Request, type Response } from "express";
 import { storage } from "../storage";
 import { api } from "@shared/routes";
 import { z } from "zod";
@@ -31,6 +31,36 @@ const upload = multer({
 });
 
 const PAGE_SIZE = 9;
+
+export async function createBlankBrainliftHandler(req: Request, res: Response): Promise<void> {
+  const rawTitle = typeof req.body?.title === 'string' ? req.body.title.trim() : '';
+  if (!rawTitle) {
+    throw new BadRequestError('Title is required');
+  }
+
+  const description = typeof req.body?.description === 'string' ? req.body.description : undefined;
+  const brainlift = await storage.createBlankBrainlift({
+    userId: req.authContext!.userId,
+    title: rawTitle,
+    description,
+  });
+
+  res.status(201).json(brainlift);
+}
+
+export async function setBrainliftPhaseHandler(req: Request, res: Response): Promise<void> {
+  if (!req.authContext?.isAdmin) {
+    throw new ForbiddenError('Admin access required');
+  }
+
+  const phase = req.body?.phase;
+  if (phase !== 'research' && phase !== 'authoring') {
+    throw new BadRequestError('Invalid phase');
+  }
+
+  const brainlift = await storage.setBrainliftPhase(req.brainlift!.id, phase);
+  res.json(brainlift);
+}
 
 // Get all brainlifts (filtered by user role, or all if admin with ?all=true)
 // Supports pagination via ?page=1 (1-indexed)
@@ -129,6 +159,19 @@ brainliftsRouter.post(
     );
     res.status(201).json(brainlift);
   })
+);
+
+brainliftsRouter.post(
+  '/api/brainlifts/blank',
+  requireAuth,
+  asyncHandler(createBlankBrainliftHandler),
+);
+
+brainliftsRouter.patch(
+  '/api/brainlifts/:slug/phase',
+  requireAuth,
+  requireBrainliftAccess,
+  asyncHandler(setBrainliftPhaseHandler),
 );
 
 // Delete brainlift (owner only - editors cannot delete)

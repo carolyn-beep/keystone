@@ -7,11 +7,13 @@ import {
   type Brainlift, type BrainliftData, type InsertBrainlift,
   type BrainliftVersion, type AuthContext, type ImportStatus, type Expert, type Fact
 } from './base';
+import type { BrainliftPhase } from '@shared/schema';
 import { getDOK2Summaries, deleteDOK2Summaries } from './dok2';
 import { getDOK3Insights, type DOK3InsightWithLinks } from './dok3';
 import { getDOK4Spovs } from './dok4';
 import type { DOK4SpovWithLinks } from '@shared/dok4-types';
 import { getSharedBrainlifts } from './shares';
+import { NotFoundError } from '../middleware/error-handler';
 
 function expertOrderBy() {
   return [sql`${experts.rankScore} DESC NULLS LAST`, desc(experts.id)] as const;
@@ -202,6 +204,83 @@ export async function createBrainlift(
   }
 
   return getBrainliftBySlug(brainlift.slug) as Promise<BrainliftData>;
+}
+
+function slugifyTitle(title: string): string {
+  const slug = title
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/(^-|-$)/g, '');
+
+  return slug || 'research-project';
+}
+
+function isUniqueViolation(error: unknown): boolean {
+  if (typeof error !== 'object' || error === null) {
+    return false;
+  }
+
+  const maybeError = error as { code?: string; cause?: { code?: string } };
+  return maybeError.code === '23505' || maybeError.cause?.code === '23505';
+}
+
+function blankBrainliftSlug(baseSlug: string, attempt: number): string {
+  return attempt === 0 ? baseSlug : `${baseSlug}-${attempt + 1}`;
+}
+
+export async function createBlankBrainlift(args: {
+  userId: string;
+  title: string;
+  description?: string;
+}): Promise<Brainlift> {
+  const baseSlug = slugifyTitle(args.title);
+  const maxAttempts = 25;
+
+  for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
+    try {
+      const [brainlift] = await db
+        .insert(brainlifts)
+        .values({
+          slug: blankBrainliftSlug(baseSlug, attempt),
+          title: args.title,
+          description: args.description ?? '',
+          createdByUserId: args.userId,
+          phase: 'research',
+          summary: {
+            totalFacts: 0,
+            meanScore: '0',
+            score5Count: 0,
+            contradictionCount: 0,
+          },
+        })
+        .returning();
+
+      return brainlift;
+    } catch (error) {
+      if (!isUniqueViolation(error) || attempt === maxAttempts - 1) {
+        throw error;
+      }
+    }
+  }
+
+  throw new Error('Unable to create a unique brainlift slug');
+}
+
+export async function setBrainliftPhase(
+  brainliftId: number,
+  phase: BrainliftPhase,
+): Promise<Brainlift> {
+  const [brainlift] = await db
+    .update(brainlifts)
+    .set({ phase })
+    .where(eq(brainlifts.id, brainliftId))
+    .returning();
+
+  if (!brainlift) {
+    throw new NotFoundError('Brainlift not found');
+  }
+
+  return brainlift;
 }
 
 export async function updateBrainlift(

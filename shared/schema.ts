@@ -108,6 +108,7 @@ export const CLASSIFICATION = {
 } as const;
 
 export type Classification = typeof CLASSIFICATION[keyof typeof CLASSIFICATION];
+export type BrainliftPhase = 'research' | 'authoring';
 
 export const brainlifts = pgTable("brainlifts", {
   id: serial("id").primaryKey(),
@@ -152,6 +153,7 @@ export const brainlifts = pgTable("brainlifts", {
   }>().notNull(),
   importStatus: text("import_status").$type<ImportStatus>().default('pending'),
   importHierarchy: jsonb("import_hierarchy"),
+  phase: text("phase").$type<BrainliftPhase>().default('authoring').notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 }, (table) => [
   index("brainlifts_created_by_user_id_idx").on(table.createdByUserId),
@@ -642,6 +644,8 @@ export const brainliftsRelations = relations(brainlifts, ({ one, many }) => ({
   deliverables: many(deliverables),
   learningStreamItems: many(learningStreamItems),
   categories: many(categories),
+  sources: many(sources),
+  notes: many(notes),
   nativeDetails: one(nativeBrainliftDetails),
   builderExperts: many(builderExperts),
   graderMonitoringSnapshots: many(graderMonitoringBrainlifts),
@@ -938,6 +942,67 @@ export const learningStreamItems = pgTable("learning_stream_items", {
 
 export type LearningStreamItem = typeof learningStreamItems.$inferSelect;
 export type NewLearningStreamItem = typeof learningStreamItems.$inferInsert;
+
+export const sources = pgTable("sources", {
+  id: serial("id").primaryKey(),
+  brainliftId: integer("brainlift_id").notNull().references(() => brainlifts.id, { onDelete: "cascade" }),
+  title: text("title").notNull(),
+  url: text("url").notNull(),
+  author: text("author").notNull(),
+  categoryId: integer("category_id").notNull().references(() => categories.id, { onDelete: "restrict" }),
+  extractedContent: jsonb("extracted_content").$type<ExtractedContent | Record<string, unknown> | null>(),
+  learningStreamItemId: integer("learning_stream_item_id").references(() => learningStreamItems.id, { onDelete: "set null" }),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().$onUpdate(() => new Date()).notNull(),
+}, (table) => [
+  uniqueIndex("sources_brainlift_url_uq").on(table.brainliftId, table.url),
+  index("sources_brainlift_idx").on(table.brainliftId),
+  index("sources_category_idx").on(table.categoryId),
+]);
+
+export const notes = pgTable("notes", {
+  id: serial("id").primaryKey(),
+  brainliftId: integer("brainlift_id").notNull().references(() => brainlifts.id, { onDelete: "cascade" }),
+  sourceId: integer("source_id").references(() => sources.id, { onDelete: "set null" }),
+  categoryId: integer("category_id").references(() => categories.id, { onDelete: "set null" }),
+  content: text("content").notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().$onUpdate(() => new Date()).notNull(),
+}, (table) => [
+  index("notes_brainlift_idx").on(table.brainliftId),
+  index("notes_source_idx").on(table.sourceId),
+]);
+
+export const sourcesRelations = relations(sources, ({ one, many }) => ({
+  brainlift: one(brainlifts, {
+    fields: [sources.brainliftId],
+    references: [brainlifts.id],
+  }),
+  category: one(categories, {
+    fields: [sources.categoryId],
+    references: [categories.id],
+  }),
+  learningStreamItem: one(learningStreamItems, {
+    fields: [sources.learningStreamItemId],
+    references: [learningStreamItems.id],
+  }),
+  notes: many(notes),
+}));
+
+export const notesRelations = relations(notes, ({ one }) => ({
+  brainlift: one(brainlifts, {
+    fields: [notes.brainliftId],
+    references: [brainlifts.id],
+  }),
+  source: one(sources, {
+    fields: [notes.sourceId],
+    references: [sources.id],
+  }),
+  category: one(categories, {
+    fields: [notes.categoryId],
+    references: [categories.id],
+  }),
+}));
 
 // Knowledge Check - Quiz question and answer types
 export interface QuizQuestion {
@@ -1463,8 +1528,10 @@ export const chatConversations = pgTable("chat_conversations", {
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().$onUpdate(() => new Date()).notNull(),
   lastMessageAt: timestamp("last_message_at"),
+  brainliftId: integer("brainlift_id").references(() => brainlifts.id, { onDelete: "set null" }),
 }, (table) => [
   index("chat_conversations_user_updated_idx").on(table.userId, table.updatedAt),
+  index("chat_conversations_brainlift_idx").on(table.brainliftId),
 ]);
 
 export const chatMessages = pgTable("chat_messages", {
@@ -1489,6 +1556,10 @@ export const chatConversationsRelations = relations(chatConversations, ({ one, m
     references: [user.id],
   }),
   messages: many(chatMessages),
+  brainlift: one(brainlifts, {
+    fields: [chatConversations.brainliftId],
+    references: [brainlifts.id],
+  }),
 }));
 
 export const chatMessagesRelations = relations(chatMessages, ({ one }) => ({
@@ -1567,6 +1638,8 @@ export const insertDeliverableSchema = createInsertSchema(deliverables).omit({ i
 export const insertPlatformConfigSchema = createInsertSchema(platformConfig).omit({ updatedAt: true });
 export const insertLearningStreamItemSchema = createInsertSchema(learningStreamItems).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertCategorySchema = createInsertSchema(categories).omit({ id: true, createdAt: true });
+export const insertSourceSchema = createInsertSchema(sources).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertNoteSchema = createInsertSchema(notes).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertDok4SpovSchema = createInsertSchema(dok4Spovs).omit({ id: true, createdAt: true });
 export const insertDok4Dok3LinkSchema = createInsertSchema(dok4Dok3Links).omit({ id: true });
 export const insertDokItemVersionSchema = createInsertSchema(dokItemVersions).omit({ id: true, createdAt: true });
@@ -1647,6 +1720,10 @@ export type InsertPlatformConfig = z.infer<typeof insertPlatformConfigSchema>;
 export type InsertLearningStreamItem = z.infer<typeof insertLearningStreamItemSchema>;
 export type Category = typeof categories.$inferSelect;
 export type InsertCategory = z.infer<typeof insertCategorySchema>;
+export type Source = typeof sources.$inferSelect;
+export type InsertSource = typeof sources.$inferInsert;
+export type Note = typeof notes.$inferSelect;
+export type InsertNote = typeof notes.$inferInsert;
 export type ChatConversation = typeof chatConversations.$inferSelect;
 export type ChatMessage = typeof chatMessages.$inferSelect;
 export type DOK4Spov = typeof dok4Spovs.$inferSelect;

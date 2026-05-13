@@ -16,10 +16,13 @@ import {
   promptBuilders as alphaxPromptBuilders,
 } from './alphax';
 import {
+  alphaxResearchPromptBuilders,
+} from './alphax-research';
+import {
   config as brainliftConfig,
   promptBuilders as brainliftPromptBuilders,
 } from './brainlift';
-import type { BrandId, BrandPromptBuilders, ServerBrandConfig } from './types';
+import type { BrandId, BrandPromptBuilders, ChatMode, ServerBrandConfig } from './types';
 
 const id = process.env.BRAND;
 
@@ -37,4 +40,18 @@ export const config: ServerBrandConfig = id === 'alphax' ? alphaxConfig : brainl
 export const promptBuilders: BrandPromptBuilders =
   id === 'alphax' ? alphaxPromptBuilders : brainliftPromptBuilders;
 
-export type { BrandId, ServerBrandConfig, BrandPromptBuilders } from './types';
+export function getPromptBuilders(mode: ChatMode): BrandPromptBuilders {
+  if (id === 'alphax') {
+    return mode === 'research' ? alphaxResearchPromptBuilders : alphaxPromptBuilders;
+  }
+
+  return brainliftPromptBuilders;
+}
+
+export type {
+  BrandId,
+  BrandPromptBuilders,
+  ChatMode,
+  ConversationContext,
+  ServerBrandConfig,
+} from './types';

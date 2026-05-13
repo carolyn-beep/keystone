@@ -4,6 +4,7 @@ import {
   asc,
   chatConversations,
   chatMessages,
+  brainliftShares,
   brainlifts,
   db,
   deliverables,
@@ -19,8 +20,10 @@ import {
   type ChatMessage,
   type ChatConversation,
   type ChatUserContext,
+  type Brainlift,
   type StoredChatMessage,
 } from './base';
+import { ForbiddenError, NotFoundError } from '../middleware/error-handler';
 
 function clampLimit(limit?: number): number {
   if (limit == null || Number.isNaN(limit)) {
@@ -213,6 +216,103 @@ export async function getChatConversation(
     );
 
   return conversation ?? null;
+}
+
+async function userCanAccessBrainlift(brainliftId: number, userId: string): Promise<boolean> {
+  const [row] = await db
+    .select({
+      brainliftId: brainlifts.id,
+      ownerUserId: brainlifts.createdByUserId,
+      shareId: brainliftShares.id,
+      userRole: user.role,
+    })
+    .from(brainlifts)
+    .leftJoin(user, eq(user.id, userId))
+    .leftJoin(
+      brainliftShares,
+      and(
+        eq(brainliftShares.brainliftId, brainlifts.id),
+        eq(brainliftShares.userId, userId),
+        eq(brainliftShares.type, 'user'),
+      ),
+    )
+    .where(eq(brainlifts.id, brainliftId))
+    .limit(1);
+
+  if (!row) {
+    return false;
+  }
+
+  return row.userRole === 'admin'
+    || row.ownerUserId === userId
+    || row.shareId != null;
+}
+
+export async function setConversationBrainlift(
+  conversationId: number,
+  brainliftId: number | null,
+  userId: string,
+): Promise<ChatConversation> {
+  const existing = await getChatConversation(conversationId, userId);
+  if (!existing) {
+    throw new NotFoundError('Conversation not found');
+  }
+
+  if (brainliftId !== null) {
+    const canAccess = await userCanAccessBrainlift(brainliftId, userId);
+    if (!canAccess) {
+      throw new ForbiddenError('Access denied');
+    }
+  }
+
+  const [conversation] = await db
+    .update(chatConversations)
+    .set({
+      brainliftId,
+      updatedAt: new Date(),
+    })
+    .where(and(
+      eq(chatConversations.id, conversationId),
+      eq(chatConversations.userId, userId),
+    ))
+    .returning();
+
+  if (!conversation) {
+    throw new NotFoundError('Conversation not found');
+  }
+
+  return conversation;
+}
+
+export interface ConversationBrainliftBinding {
+  conversationId: number;
+  brainliftId: number | null;
+  brainlift: Brainlift | null;
+}
+
+export async function getConversationBrainlift(
+  conversationId: number,
+): Promise<ConversationBrainliftBinding | null> {
+  const [row] = await db
+    .select({
+      conversationId: chatConversations.id,
+      brainliftId: chatConversations.brainliftId,
+      brainlift: brainlifts,
+    })
+    .from(chatConversations)
+    .leftJoin(brainlifts, eq(chatConversations.brainliftId, brainlifts.id))
+    .where(eq(chatConversations.id, conversationId))
+    .limit(1);
+
+  if (!row) {
+    return null;
+  }
+
+  return {
+    conversationId: row.conversationId,
+    brainliftId: row.brainliftId,
+    brainlift: row.brainlift,
+  };
 }
 
 export async function renameChatConversation(

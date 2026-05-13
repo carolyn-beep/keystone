@@ -253,4 +253,37 @@ describe('buildAlphaXSystemPrompt', () => {
     expect(prompt).toContain("the knowledge passes through the student's brain");
     expect(prompt).toContain('the refusal IS the work');
   });
+
+  it('renders the CURRENT PROJECT block when the conversation is bound to a brainlift', () => {
+    const prompt = buildAlphaXSystemPrompt({
+      userContext: oneBrainliftContext,
+      skills: [],
+      mode: 'authoring',
+      conversation: {
+        conversationId: 99,
+        brainliftId: 7,
+        brainlift: {
+          id: 7,
+          slug: 'solo-brainlift',
+          title: 'Solo Brainlift',
+          phase: 'authoring',
+        } as never,
+      },
+    } as never);
+
+    expect(prompt).toContain('=== START OF CURRENT PROJECT ===');
+    expect(prompt).toContain('"Solo Brainlift"');
+    expect(prompt).toContain('slug: `solo-brainlift`');
+    expect(prompt).toContain('phase: authoring');
+    expect(prompt).toContain('Do NOT ask the user which project they mean');
+  });
+
+  it('omits the CURRENT PROJECT block when the conversation is unbound', () => {
+    const prompt = buildAlphaXSystemPrompt({
+      userContext: zeroBrainliftContext,
+      skills: [],
+    });
+
+    expect(prompt).not.toContain('CURRENT PROJECT');
+  });
 });

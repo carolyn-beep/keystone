@@ -1,12 +1,15 @@
 import { useState, useCallback, useEffect, useRef, useMemo } from 'react';
 import { LayoutGroup, motion } from 'framer-motion';
 import { Loader2 } from 'lucide-react';
+import type { BrainliftPhase } from '@shared/schema';
 import { useLearningStream, type LearningStreamItem } from '@/hooks/useLearningStream';
 import { useSwarmEvents } from '@/hooks/useSwarmEvents';
 import { StreamProgressBar, StreamItemCard, GradeModal, MissionDashboard, ExpandedItemView } from './learning-stream';
+import { BookmarkCategoryDialog } from './learning-stream/BookmarkCategoryDialog';
 
-interface LearningStreamTabProps {
+interface ResearchStreamTabProps {
   slug: string;
+  phase: BrainliftPhase;
   canModify?: boolean;
   setActiveTab: (tab: string) => void;
   viewingItemId: number | null;
@@ -15,7 +18,7 @@ interface LearningStreamTabProps {
 
 type ExitAnimation = 'bookmark' | 'grade' | 'discard' | null;
 
-export function LearningStreamTab({ slug, canModify = true, setActiveTab, viewingItemId, setViewingItemId }: LearningStreamTabProps) {
+export function ResearchStreamTab({ slug, phase, canModify = true, setActiveTab, viewingItemId, setViewingItemId }: ResearchStreamTabProps) {
   const {
     items,
     stats,
@@ -47,6 +50,7 @@ export function LearningStreamTab({ slug, canModify = true, setActiveTab, viewin
 
   // Track which item is being animated out
   const [exitingItem, setExitingItem] = useState<{ id: number; animation: ExitAnimation } | null>(null);
+  const [bookmarkDialogItem, setBookmarkDialogItem] = useState<LearningStreamItem | null>(null);
   // Grade modal state
   const [gradeModalItem, setGradeModalItem] = useState<LearningStreamItem | null>(null);
   // Content viewer state — derived from URL param
@@ -72,13 +76,8 @@ export function LearningStreamTab({ slug, canModify = true, setActiveTab, viewin
 
   const handleBookmark = useCallback(async (item: LearningStreamItem) => {
     if (!canModify) return;
-    if (prefersReducedMotion) {
-      await bookmark(item.id);
-    } else {
-      setExitingItem({ id: item.id, animation: 'bookmark' });
-      pendingOperationRef.current = { id: item.id, action: 'bookmark' };
-    }
-  }, [bookmark, canModify, prefersReducedMotion]);
+    setBookmarkDialogItem(item);
+  }, [canModify]);
 
   const handleDiscard = useCallback(async (item: LearningStreamItem) => {
     if (!canModify) return;
@@ -149,10 +148,9 @@ export function LearningStreamTab({ slug, canModify = true, setActiveTab, viewin
 
   // Action handlers from expanded view — process and advance to next
   const handleBookmarkFromExpanded = useCallback((item: LearningStreamItem) => {
-    const next = getNextItem(item);
-    setViewingItem(next);
-    bookmark(item.id);
-  }, [getNextItem, setViewingItem, bookmark]);
+    if (!canModify) return;
+    setBookmarkDialogItem(item);
+  }, [canModify]);
 
   const handleGradeFromExpanded = useCallback((item: LearningStreamItem) => {
     // Open grade modal — advance happens in handleGradeSubmit
@@ -190,6 +188,13 @@ export function LearningStreamTab({ slug, canModify = true, setActiveTab, viewin
   const handleNavigate = useCallback((page: 'saved' | 'graded') => {
     setActiveTab(page === 'saved' ? 'learning-saved' : 'learning-graded');
   }, [setActiveTab]);
+
+  const handleBookmarkSaved = useCallback(() => {
+    if (bookmarkDialogItem && viewingItem?.id === bookmarkDialogItem.id) {
+      setViewingItem(getNextItem(bookmarkDialogItem));
+    }
+    setBookmarkDialogItem(null);
+  }, [bookmarkDialogItem, getNextItem, setViewingItem, viewingItem]);
 
   // Loading state
   if (isLoading) {
@@ -302,6 +307,7 @@ export function LearningStreamTab({ slug, canModify = true, setActiveTab, viewin
                           <div className="cursor-pointer" onClick={() => setViewingItem(item)}>
                             <StreamItemCard.Root
                               item={item}
+                              phase={phase}
                               exitAnimation={exitAnimation}
                               onAnimationEnd={() => handleAnimationEnd(item.id)}
                             >
@@ -333,10 +339,22 @@ export function LearningStreamTab({ slug, canModify = true, setActiveTab, viewin
           onSubmit={handleGradeSubmit}
           isSubmitting={isGrading}
         />
+
+        {bookmarkDialogItem && (
+          <BookmarkCategoryDialog
+            slug={slug}
+            itemId={bookmarkDialogItem.id}
+            open={!!bookmarkDialogItem}
+            onClose={() => setBookmarkDialogItem(null)}
+            onSaved={handleBookmarkSaved}
+          />
+        )}
       </div>
     </LayoutGroup>
   );
 }
+
+export default ResearchStreamTab;
 
 // All processed state - editorial print aesthetic
 import { CheckCircle, Search, Loader2 as Loader } from 'lucide-react';

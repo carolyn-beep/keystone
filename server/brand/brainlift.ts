@@ -163,6 +163,6 @@ export function buildBrainliftSystemPrompt(args: BuildSystemPromptArgs): string 
 
 export const promptBuilders: BrandPromptBuilders = {
   buildSystemPrompt: buildBrainliftSystemPrompt,
-  buildBrainliftHeuristics: buildBrainliftBrainliftHeuristics,
+  buildBrainliftHeuristics: ({ userContext }) => buildBrainliftBrainliftHeuristics(userContext),
   formatUserContext: formatBrainliftUserContext,
 };
