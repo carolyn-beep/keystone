@@ -1,7 +1,7 @@
 import type { JobHelpers } from 'graphile-worker';
 import { storage } from '../storage';
 import { verifyFactWithAllModels } from '../ai/factVerifier';
-import { fetchEvidenceForFact } from '../ai/evidenceFetcher';
+import { fetchEvidenceForFact, type EvidenceResult } from '../ai/evidenceFetcher';
 import { recomputeBrainliftScore } from '../services/brainlift';
 import { persistFactVerification } from '../services/persist-fact-verification';
 import type { PreviousEvaluation } from '@shared/types/regrading';
@@ -28,22 +28,19 @@ export async function dok1RegradeJob(
 
   try {
     // Fetch evidence
-    let evidence = {
+    let evidence: EvidenceResult = {
       url: fact.source || null,
       content: null as string | null,
       error: null as string | null,
       fetchedAt: new Date(),
+      mode: 'none',
+      originalSourceUrl: fact.source || null,
     };
     let linkFailed = false;
     if (fact.source) {
       try {
         const evidenceResult = await fetchEvidenceForFact(fact.fact, fact.source);
-        evidence = {
-          url: evidenceResult.url ?? fact.source,
-          content: evidenceResult.content || null,
-          error: evidenceResult.error || null,
-          fetchedAt: evidenceResult.fetchedAt ? new Date(evidenceResult.fetchedAt) : new Date(),
-        };
+        evidence = evidenceResult;
         linkFailed = !!evidence.error;
       } catch (err: any) {
         helpers.logger.error(`[DOK1 Regrade] Evidence fetch failed:`, { err });
@@ -52,6 +49,8 @@ export async function dok1RegradeJob(
           content: null,
           error: err instanceof Error ? err.message : String(err),
           fetchedAt: new Date(),
+          mode: 'none',
+          originalSourceUrl: fact.source || null,
         };
         linkFailed = true;
       }
@@ -61,7 +60,7 @@ export async function dok1RegradeJob(
     const verification = await verifyFactWithAllModels(
       fact.fact,
       fact.source || '',
-      evidence.content || '',
+      evidence,
       linkFailed,
       previousEvaluation,
     );

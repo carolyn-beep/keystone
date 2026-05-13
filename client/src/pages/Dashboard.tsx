@@ -19,7 +19,7 @@ import { useRedundancy } from '@/hooks/useRedundancy';
 import { FactGradingPanel } from '@/components/fact-grading';
 import { DashboardHeader } from '@/components/DashboardHeader';
 import { ContradictionsTab } from '@/components/ContradictionsTab';
-import { UpdateModal, FactDetailModal, HistoryModal, RedundancyModal, ShareModal } from '@/components/modals';
+import { FactDetailModal, HistoryModal, RedundancyModal, ShareModal } from '@/components/modals';
 import { NotBrainliftView } from '@/components/NotBrainliftView';
 import { BrainliftTab } from '@/components/BrainliftTab';
 import { SummariesTab } from '@/components/SummariesTab';
@@ -29,7 +29,6 @@ import { DOK3LinkingUI } from '@/components/DOK3LinkingUI';
 import { DOK4LinkingUI } from '@/components/DOK4LinkingUI';
 import { LearningStreamTab } from '@/components/LearningStreamTab';
 import { SavedItemsPage, GradedItemsPage } from '@/components/learning-stream';
-import { ImportAgentModal } from '@/components/import-agent/ImportAgentModal';
 import { RedundancyPage } from '@/components/fact-grading/RedundancyPage';
 import { SprintTab, parseTaskViewId } from '@/components/sprint/SprintTab';
 import { DocumentHubTab } from '@/components/documents/DocumentHubTab';
@@ -153,7 +152,6 @@ export default function Dashboard({ slug, isSharedView = false }: DashboardProps
     window.dispatchEvent(new PopStateEvent('popstate'));
   }, []);
 
-  const [showUpdateModal, setShowUpdateModal] = useState(false);
   const [showHistoryModal, setShowHistoryModal] = useState(false);
   const [showShareModal, setShowShareModal] = useState(false);
 
@@ -181,15 +179,13 @@ export default function Dashboard({ slug, isSharedView = false }: DashboardProps
     observer.observe(el);
     headerObserverRef.current = observer;
   }, []);
-  const [updateSourceType, setUpdateSourceType] = useState<'html' | 'workflowy' | 'googledocs'>('workflowy');
-  const [updateFile, setUpdateFile] = useState<File | null>(null);
-  const [updateUrl, setUpdateUrl] = useState('');
   const [selectedFactForModal, setSelectedFactForModal] = useState<Fact | null>(null);
   const [editingAuthor, setEditingAuthor] = useState(false);
   const [authorInput, setAuthorInput] = useState('');
+  const [editingTitle, setEditingTitle] = useState(false);
+  const [titleInput, setTitleInput] = useState('');
   const [showLinkingModal, setShowLinkingModal] = useState(false);
   const [showDok4LinkingModal, setShowDok4LinkingModal] = useState(false);
-  const [showAgentModal, setShowAgentModal] = useState(false);
 
 const { toast } = useToast();
 
@@ -198,9 +194,7 @@ const { toast } = useToast();
     isLoading,
     error,
     updateAuthor,
-    update: updateBrainlift,
-    isUpdating,
-    updateError,
+    updateTitle,
   } = useBrainlift(slug, isSharedView);
 
   // Check if user is admin for restricted features
@@ -216,6 +210,23 @@ const { downloadBrainliftPDF } = usePDFExport();
 
   const handleUpdateAuthor = (author: string) => {
     updateAuthor(author).then(() => setEditingAuthor(false));
+  };
+
+  const handleUpdateTitle = (title: string) => {
+    const trimmed = title.trim();
+    if (!trimmed) {
+      setEditingTitle(false);
+      return;
+    }
+    if (trimmed === data?.title) {
+      setEditingTitle(false);
+      return;
+    }
+    updateTitle(trimmed)
+      .then(() => setEditingTitle(false))
+      .catch((err: Error) => {
+        toast({ title: 'Could not update project name', description: err.message, variant: 'destructive' });
+      });
   };
 
   const isNotBrainlift = data?.classification === 'not_brainlift';
@@ -261,21 +272,6 @@ const { downloadBrainliftPDF } = usePDFExport();
     isUpdatingStatus: isUpdatingRedundancyStatus,
   } = useRedundancy(slug);
 
-  const updateMutation = {
-    mutate: (formData: FormData) => {
-      updateBrainlift(formData, {
-        onSuccess: () => {
-          setShowUpdateModal(false);
-          setUpdateFile(null);
-          setUpdateUrl('');
-        }
-      });
-    },
-    isPending: isUpdating,
-    isError: !!updateError,
-    error: updateError,
-  };
-
   const handleDownloadPDF = () => {
     if (!data) return;
     downloadBrainliftPDF(data);
@@ -308,50 +304,6 @@ const { downloadBrainliftPDF } = usePDFExport();
 
   const { facts, contradictionClusters } = data;
 
-  // Gate: if import hasn't completed, show resume banner instead of dashboard.
-  // DISABLED: allowing dashboard to render even during pending imports
-  // const isAgentInProgress = data.importStatus === 'pending';
-  //
-  // if (isAgentInProgress) {
-  //   return (
-  //     <>
-  //       <div className="min-h-screen flex items-center justify-center bg-background p-6">
-  //         <div className="bg-card rounded-xl border border-border shadow-card p-8 max-w-md w-full text-center">
-  //           <h2 className="text-lg font-semibold text-foreground mb-2">
-  //             Import In Progress
-  //           </h2>
-  //           <p className="text-sm text-muted-foreground mb-6">
-  //             This BrainLift is being imported via the Import Agent. Resume the conversation to continue extracting and grading content.
-  //           </p>
-  //           <div className="flex flex-col gap-3 items-center">
-  //             <TactileButton
-  //               variant="raised"
-  //               onClick={() => setShowAgentModal(true)}
-  //             >
-  //               Resume Import
-  //             </TactileButton>
-  //             <Link href="/" className="text-xs text-muted-foreground hover:text-foreground transition-colors">
-  //               Back to all Brainlifts
-  //             </Link>
-  //           </div>
-  //         </div>
-  //       </div>
-  //
-  //       {showAgentModal && (
-  //         <ImportAgentModal
-  //           brainliftSlug={slug}
-  //           onClose={() => setShowAgentModal(false)}
-  //           onComplete={(completedSlug) => {
-  //             setShowAgentModal(false);
-  //             // Reload page with complete data
-  //             window.location.href = `/grading/${completedSlug}`;
-  //           }}
-  //         />
-  //       )}
-  //     </>
-  //   );
-  // }
-
   // Brainlift chrome: DashboardHeader rich banner is the entire <header>.
   // Cross-section navigation (back to Library) lives in the sidebar SectionNav,
   // so no breadcrumb strip is needed. Update / PDF / Share / History stay in
@@ -373,7 +325,11 @@ const { downloadBrainliftPDF } = usePDFExport();
         authorInput={authorInput}
         setAuthorInput={setAuthorInput}
         onUpdateAuthor={handleUpdateAuthor}
-        setShowUpdateModal={setShowUpdateModal}
+        editingTitle={editingTitle}
+        setEditingTitle={setEditingTitle}
+        titleInput={titleInput}
+        setTitleInput={setTitleInput}
+        onUpdateTitle={handleUpdateTitle}
         setShowHistoryModal={setShowHistoryModal}
         handleDownloadPDF={handleDownloadPDF}
         isOwner={isOwner}
@@ -571,20 +527,9 @@ const { downloadBrainliftPDF } = usePDFExport();
         <GradedItemsPage slug={slug} viewingItemId={viewingItemId} setViewingItemId={setViewingItemId} />
       )}
 
-      {/* Update Modal */}
-      <UpdateModal
-        show={showUpdateModal}
-        onClose={() => setShowUpdateModal(false)}
-        sourceType={updateSourceType}
-        onSourceTypeChange={setUpdateSourceType}
-        file={updateFile}
-        onFileChange={setUpdateFile}
-        url={updateUrl}
-        onUrlChange={setUpdateUrl}
-        onSubmit={(formData) => updateMutation.mutate(formData)}
-        isSubmitting={updateMutation.isPending}
-        error={updateMutation.isError ? (updateMutation.error as Error).message : undefined}
-      />
+      {/* Update Modal removed: JLS-146 replaced the primary "Update" button
+          with "Chat About This BrainLift". Re-grading from a fresh upload is
+          no longer surfaced here. */}
 
       {/* Fact Detail Modal */}
       <FactDetailModal

@@ -772,18 +772,6 @@
 
 /* ===== End Discussion Panel overrides ===== */
 
-/* ===== Import Agent — semi-transparent thread to show background image ===== */
-
-.import-agent-chat .aui-thread-root {
-  background: hsl(var(--card-elevated) / 0.88);
-}
-
-.import-agent-chat .aui-thread-viewport-footer {
-  background: hsl(var(--card-elevated) / 0.88);
-}
-
-/* ===== End Import Agent overrides ===== */
-
 /* ===== Native Chat Home ===== */
 
 /* Warm parchment wash behind the entire chat column,
@@ -1450,6 +1438,31 @@
   color: hsl(var(--foreground));
 }
 
+.native-chat-thread .ask-user-optional-tag {
+  font-family: var(--font-sans);
+  font-size: 11px;
+  font-weight: 500;
+  color: hsl(var(--muted-foreground));
+  letter-spacing: 0.02em;
+}
+
+.native-chat-thread .ask-user-question-error {
+  padding: 0.625rem;
+  border-radius: 0.625rem;
+  background: hsl(var(--destructive) / 0.06);
+  box-shadow: inset 0 0 0 1px hsl(var(--destructive) / 0.45);
+  scroll-margin: 1rem;
+}
+
+.native-chat-thread .ask-user-submit-error {
+  margin: 0;
+  font-family: var(--font-sans);
+  font-size: 12px;
+  font-weight: 500;
+  color: hsl(var(--destructive));
+}
+
+
 .native-chat-thread .ask-user-options {
   display: flex;
   flex-wrap: wrap;
@@ -1517,6 +1530,21 @@
 
 .native-chat-thread .ask-user-actions {
   display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.native-chat-thread .ask-user-counter {
+  font-family: var(--font-sans);
+  font-size: 11px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  font-weight: 600;
+  color: hsl(var(--muted-foreground));
+}
+
+.native-chat-thread .ask-user-actions:not(:has(.ask-user-counter)) {
   justify-content: flex-end;
 }
 

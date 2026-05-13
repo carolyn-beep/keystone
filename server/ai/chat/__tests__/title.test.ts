@@ -42,6 +42,73 @@ describe('chat title generation', () => {
     })).toBe(true);
   });
 
+  it('does NOT generate a title when only the homepage OPENER exchange exists', async () => {
+    const { shouldGenerateChatTitle } = await import('../title');
+
+    expect(shouldGenerateChatTitle({
+      currentTitle: 'New chat',
+      messages: [
+        {
+          id: 'u1',
+          role: 'user',
+          parts: [{ type: 'text', text: '[OPENER] This is the user landing on the chat homepage. Introduce yourself as AlphaX Buddy.' }],
+        },
+        {
+          id: 'a1',
+          role: 'assistant',
+          parts: [{ type: 'text', text: "Hi! I'm AlphaX Buddy, here to help with your brainlift." }],
+        },
+      ],
+    })).toBe(false);
+  });
+
+  it('generates a title once a real user message follows the OPENER exchange', async () => {
+    const { shouldGenerateChatTitle } = await import('../title');
+
+    expect(shouldGenerateChatTitle({
+      currentTitle: 'New chat',
+      messages: [
+        {
+          id: 'u1',
+          role: 'user',
+          parts: [{ type: 'text', text: '[OPENER] Landing on the chat homepage.' }],
+        },
+        { id: 'a1', role: 'assistant', parts: [{ type: 'text', text: 'Hi there.' }] },
+        {
+          id: 'u2',
+          role: 'user',
+          parts: [{ type: 'text', text: 'I want to draft a SPOV about urban beekeeping.' }],
+        },
+        { id: 'a2', role: 'assistant', parts: [{ type: 'text', text: 'Great topic.' }] },
+      ],
+    })).toBe(true);
+  });
+
+  it('strips the OPENER exchange from the title-prompt context fed to the model', async () => {
+    const { generateChatTitle } = await import('../title');
+    mockCallModel.mockResolvedValue({ content: 'Urban Beekeeping SPOV' });
+
+    await generateChatTitle([
+      {
+        id: 'u1',
+        role: 'user',
+        parts: [{ type: 'text', text: '[OPENER] Introduce yourself as AlphaX Buddy.' }],
+      },
+      { id: 'a1', role: 'assistant', parts: [{ type: 'text', text: "I'm AlphaX Buddy, happy to help." }] },
+      {
+        id: 'u2',
+        role: 'user',
+        parts: [{ type: 'text', text: 'Help me draft a SPOV about urban beekeeping.' }],
+      },
+      { id: 'a2', role: 'assistant', parts: [{ type: 'text', text: 'Lets start with the angle.' }] },
+    ]);
+
+    const conversationSentToModel = mockCallModel.mock.calls[0][0].messages[0].content;
+    expect(conversationSentToModel).not.toContain('[OPENER]');
+    expect(conversationSentToModel).not.toContain('AlphaX Buddy');
+    expect(conversationSentToModel).toContain('urban beekeeping');
+  });
+
   it('sanitizes model output into a compact title', async () => {
     const { sanitizeChatTitle } = await import('../title');
 

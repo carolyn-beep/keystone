@@ -35,7 +35,14 @@ vi.mock('../../storage', () => ({
 }));
 
 vi.mock('../../ai/evidenceFetcher', () => ({
-  fetchEvidenceForFact: vi.fn().mockResolvedValue({ content: 'evidence', error: null }),
+  fetchEvidenceForFact: vi.fn().mockResolvedValue({
+    url: 'https://example.com',
+    content: 'evidence',
+    error: null,
+    fetchedAt: new Date('2026-05-04T00:00:00.000Z'),
+    mode: 'direct_source',
+    originalSourceUrl: 'https://example.com',
+  }),
 }));
 
 vi.mock('../../utils/resolve-youtube-transcript', () => ({
@@ -92,8 +99,12 @@ describe('dok1GradeSingleJob', () => {
     expect(verifyFactWithAllModels).toHaveBeenCalledWith(
       'The sky is blue',
       'https://example.com',
-      expect.any(String),
-      expect.any(Boolean),
+      expect.objectContaining({
+        content: 'evidence',
+        mode: 'direct_source',
+        originalSourceUrl: 'https://example.com',
+      }),
+      false,
     );
     expect(recomputeBrainliftScore).toHaveBeenCalledWith(
       10,

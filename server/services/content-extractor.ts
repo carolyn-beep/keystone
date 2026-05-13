@@ -1,5 +1,31 @@
 import type { ExtractedContent } from '@shared/schema';
 
+const EXA_CONTENTS_URL = 'https://api.exa.ai/contents';
+const HEAD_TIMEOUT_MS = 5_000;
+const ARTICLE_FETCH_TIMEOUT_MS = 15_000;
+const EXA_CONTENTS_TEXT_MAX_CHARACTERS = 20_000;
+const MIN_ARTICLE_CONTENT_CHARS = 50;
+
+interface ExaContentsResult {
+  url?: string;
+  title?: string;
+  text?: string;
+}
+
+interface ExaContentsStatus {
+  id?: string;
+  status?: 'success' | 'error';
+  error?: {
+    tag?: string;
+    httpStatusCode?: number;
+  };
+}
+
+interface ExaContentsResponse {
+  results?: ExaContentsResult[];
+  statuses?: ExaContentsStatus[];
+}
+
 // === Embed pattern matchers (pure URL parsing, no network) ===
 
 const EMBED_PATTERNS: Array<{
@@ -72,7 +98,7 @@ const EMBED_PATTERNS: Array<{
  * 1. Try embed pattern matchers first (YouTube, Spotify, Apple Podcasts, Twitter/X) — pure URL parsing, no network
  * 2. HEAD request to detect content type (5s timeout)
  * 3. If PDF → return { contentType: 'pdf', url }
- * 4. If HTML → call Jina Reader for article markdown
+ * 4. If HTML → call Exa Contents for article text
  * 5. Fallback for errors/unsupported types
  */
 export async function extractContent(rawUrl: string): Promise<ExtractedContent> {
@@ -91,12 +117,12 @@ export async function extractContent(rawUrl: string): Promise<ExtractedContent> 
     try {
       const headRes = await fetch(rawUrl, {
         method: 'HEAD',
-        signal: AbortSignal.timeout(5000),
+        signal: AbortSignal.timeout(HEAD_TIMEOUT_MS),
         redirect: 'follow',
       });
       contentType = headRes.headers.get('content-type') || '';
     } catch {
-      // HEAD failed — try Jina anyway (some servers block HEAD)
+      // HEAD failed — try Exa anyway (some servers block HEAD)
       contentType = 'text/html';
     }
 
@@ -105,9 +131,9 @@ export async function extractContent(rawUrl: string): Promise<ExtractedContent> 
       return { contentType: 'pdf', url: rawUrl };
     }
 
-    // 4. HTML → Jina Reader for markdown extraction
+    // 4. HTML/text → Exa Contents for article extraction
     if (contentType.includes('text/html') || contentType.includes('text/') || !contentType) {
-      return await fetchArticleViaJina(rawUrl);
+      return await fetchArticleViaExaContents(rawUrl);
     }
 
     // 5. Unsupported content type
@@ -118,49 +144,76 @@ export async function extractContent(rawUrl: string): Promise<ExtractedContent> 
 }
 
 /**
- * Fetch article content via Jina Reader API.
- * Returns markdown with optional title and site name.
+ * Fetch article content via Exa Contents API.
+ * Returns text in the existing article markdown field for compatibility.
  */
-async function fetchArticleViaJina(url: string): Promise<ExtractedContent> {
-  const apiKey = process.env.JINA_API_KEY;
+async function fetchArticleViaExaContents(url: string): Promise<ExtractedContent> {
+  const apiKey = process.env.EXA_API_KEY;
   if (!apiKey) {
-    return { contentType: 'fallback', reason: 'JINA_API_KEY not configured' };
+    return { contentType: 'fallback', reason: 'EXA_API_KEY not configured' };
   }
 
   try {
-    const res = await fetch(`https://r.jina.ai/${url}`, {
-      method: 'GET',
+    const res = await fetch(EXA_CONTENTS_URL, {
+      method: 'POST',
       headers: {
-        Accept: 'application/json',
-        Authorization: `Bearer ${apiKey}`,
-        'X-Return-Format': 'markdown',
+        'Content-Type': 'application/json',
+        'x-api-key': apiKey,
       },
-      signal: AbortSignal.timeout(15000),
+      body: JSON.stringify({
+        urls: [url],
+        text: { maxCharacters: EXA_CONTENTS_TEXT_MAX_CHARACTERS },
+        livecrawlTimeout: ARTICLE_FETCH_TIMEOUT_MS,
+      }),
+      signal: AbortSignal.timeout(ARTICLE_FETCH_TIMEOUT_MS),
     });
 
     if (!res.ok) {
-      return { contentType: 'fallback', reason: `Jina Reader returned ${res.status}` };
+      return { contentType: 'fallback', reason: `Exa Contents returned ${res.status}` };
     }
 
-    // Jina returns JSON with { data: { content, title, ... } } when Accept: application/json
-    const json = await res.json();
-    const data = json.data || json;
-    const markdown = data.content || data.text || '';
+    const json = await res.json() as ExaContentsResponse;
+    const statusFailure = getExaContentsStatusFailureReason(json);
+    if (statusFailure) {
+      return { contentType: 'fallback', reason: statusFailure };
+    }
 
-    if (!markdown || markdown.length < 50) {
+    const data = json.results?.[0];
+    const markdown = data?.text?.trim() || '';
+
+    if (!markdown || markdown.length < MIN_ARTICLE_CONTENT_CHARS) {
       return { contentType: 'fallback', reason: 'Article content too short or empty' };
     }
 
     return {
       contentType: 'article',
       markdown,
-      title: data.title || undefined,
-      siteName: data.siteName || undefined,
+      title: data?.title || undefined,
+      siteName: getSiteName(data?.url || url),
     };
   } catch (error: any) {
     if (error.name === 'TimeoutError' || error.name === 'AbortError') {
       return { contentType: 'fallback', reason: 'Article fetch timed out (15s)' };
     }
     return { contentType: 'fallback', reason: `Article fetch failed: ${error.message}` };
+  }
+}
+
+function getExaContentsStatusFailureReason(payload: ExaContentsResponse): string | null {
+  const failedStatus = payload.statuses?.find((status) => status.status === 'error');
+  if (!failedStatus) {
+    return null;
+  }
+
+  const tag = failedStatus.error?.tag || 'unknown error';
+  const statusCode = failedStatus.error?.httpStatusCode;
+  return `Exa Contents could not fetch URL: ${tag}${statusCode ? ` (${statusCode})` : ''}`;
+}
+
+function getSiteName(value: string): string | undefined {
+  try {
+    return new URL(value).hostname;
+  } catch {
+    return undefined;
   }
 }

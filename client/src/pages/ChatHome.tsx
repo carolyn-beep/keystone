@@ -1,10 +1,12 @@
-import { useEffect, useState } from 'react';
-import { AlertTriangle, Loader2, MessageSquareText, PanelLeft } from 'lucide-react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { AlertTriangle, Loader2, PanelLeft } from 'lucide-react';
 import type { ChatModelId } from '@shared/chat-models';
 import type { ChatConversation } from '@shared/schema';
 import { ConfirmationModal } from '@/components/ui/confirmation-modal';
 import { useToast } from '@/hooks/use-toast';
+import { queryClient } from '@/lib/queryClient';
 import {
+  CHAT_CONVERSATIONS_QUERY_KEY,
   useChatConversation,
   useChatConversations,
   useCreateChatConversation,
@@ -13,7 +15,6 @@ import {
   resolveChatConversationSelection,
   resolveNextConversationSelectionAfterDelete,
   parseSelectedConversationId,
-  sortChatConversationsByRecency,
 } from '@/hooks/useChatConversations';
 import {
   hasBeenGreetedThisSession,
@@ -104,6 +105,12 @@ export default function ChatHome() {
   // do not fire the opener. See client/src/chat/chat-opener.ts.
   const [openerPendingForId, setOpenerPendingForId] = useState<number | null>(null);
 
+  // Holds the ID + text of a conversation auto-created in response to an
+  // `?ask=...` URL param (used by the "Chat About This BrainLift" button on
+  // BrainLift pages). Fires the ask text as the first visible user message
+  // exactly once on entry, then clears. Mutually exclusive with the opener.
+  const [askPending, setAskPending] = useState<{ id: number; text: string } | null>(null);
+
   const conversationsQuery = useChatConversations();
   const createConversation = useCreateChatConversation();
   const renameConversation = useRenameChatConversation();
@@ -118,64 +125,104 @@ export default function ChatHome() {
   const requestedConversationId = parseSelectedConversationId(search);
   const selectedConversationQuery = useChatConversation(selectedConversationId);
 
+  // URL param `?send=...` queues a user message to auto-fire once the
+  // conversation is open. Used by Skills "Try it out" and the Sprint plan
+  // empty-state shortcut, which navigate to `/?c=<id>&send=<msg>`.
+  const initialUserMessage = useMemo(() => {
+    if (selectedConversationId == null) return null;
+    const params = new URLSearchParams(search);
+    const send = params.get('send');
+    return send && send.trim().length > 0 ? send : null;
+  }, [search, selectedConversationId]);
+
+  // URL params that change routing semantics:
+  //   - `new=1`   — force draft mode (sidebar New Chat / Cmd+K /
+  //                 post-delete). No opener, no auto-create. The composer
+  //                 lazy-creates the chat row on first submit.
+  //   - `ask=...` — "Chat About This BrainLift". Eager create + fire the
+  //                 ask text as the first visible user message. Bypasses
+  //                 the opener cooldown.
+  const { forceDraft, askParam } = useMemo(() => {
+    const params = new URLSearchParams(search);
+    const ask = params.get('ask');
+    return {
+      forceDraft: params.get('new') === '1',
+      askParam: ask && ask.trim() ? ask : null,
+    };
+  }, [search]);
+
+  // Draft mode: bare `/` (no `?c=`), the user already has at least one
+  // conversation AND the 72h opener cooldown is still active. Instead of
+  // eagerly creating an empty chat row, render the composer with
+  // `conversationId={null}`; `useNativeChatRuntime` will lazy-create on
+  // first submit. Also forced when the URL carries `?new=1`.
+  const isDraftMode = useMemo(() => {
+    if (askParam) return false;
+    if (forceDraft) return true;
+    if (!selection.shouldCreateConversation) return false;
+    if (conversationsQuery.status !== 'success') return false;
+    const alreadyGreeted = hasBeenGreetedThisSession();
+    return alreadyGreeted && conversations.length > 0;
+  }, [askParam, forceDraft, selection.shouldCreateConversation, conversationsQuery.status, conversations.length]);
+
   useEffect(() => {
     if (conversationsQuery.status !== 'success') return;
-
-    if (selection.shouldCreateConversation) {
-      if (autoCreateState !== 'idle') return;
-
-      // The user has already been greeted this session (via the chat opener
-      // on first visit). Treat this landing as plain "take me to chat":
-      // route to the most recent existing conversation instead of creating a
-      // fresh one + greeting again. If they have no conversations at all,
-      // fall through to auto-create -- but skip the opener.
-      const alreadyGreeted = hasBeenGreetedThisSession();
-      if (alreadyGreeted && conversations.length > 0) {
-        const mostRecent = sortChatConversationsByRecency(conversations)[0]!;
-        setLocation(buildChatConversationLocation(mostRecent.id));
-        return;
+    if (!selection.shouldCreateConversation) {
+      // Real conversation selected (or none yet). Reset auto-create state
+      // and reconcile URL with the resolved selection.
+      if (autoCreateState !== 'idle') {
+        setAutoCreateState('idle');
       }
-
-      setAutoCreateState('pending');
-      createConversation.mutate({}, {
-        onSuccess: (conversation) => {
-          setAutoCreateState('idle');
-          // Only fire the chat opener on the FIRST landing of the session.
-          // Subsequent navigations to `/` in the same tab skip it; the
-          // sign-out path in UserMenu clears the flag so the next user on
-          // the tab is greeted again.
-          if (!alreadyGreeted) {
-            setOpenerPendingForId(conversation.id);
-            markGreetedThisSession();
-          }
-          setLocation(buildChatConversationLocation(conversation.id));
-        },
-        onError: (error) => {
-          setAutoCreateState('error');
-          toast({
-            title: 'Failed to start a chat',
-            description: getErrorMessage(error),
-            variant: 'destructive',
-          });
-        },
-      });
+      if (
+        selectedConversationId != null
+        && requestedConversationId !== selectedConversationId
+      ) {
+        setLocation(buildChatConversationLocation(selectedConversationId));
+      }
       return;
     }
 
-    if (autoCreateState !== 'idle') {
-      setAutoCreateState('idle');
+    if (isDraftMode) {
+      // Draft state — we will NOT auto-create. The composer renders and
+      // lazy-creates the row on first submit. Nothing else to do here.
+      return;
     }
 
-    if (
-      selectedConversationId != null
-      && requestedConversationId !== selectedConversationId
-    ) {
-      setLocation(buildChatConversationLocation(selectedConversationId));
-    }
+    if (autoCreateState !== 'idle') return;
+
+    // Eager create path: either `?ask=...` is set, or the user is new /
+    // the opener cooldown has expired. Both produce a real DB row up
+    // front because they're going to immediately send a message into it
+    // (ask text or opener prompt).
+    const shouldFireOpener = !askParam;
+
+    setAutoCreateState('pending');
+    createConversation.mutate({}, {
+      onSuccess: (conversation) => {
+        setAutoCreateState('idle');
+        if (askParam) {
+          setAskPending({ id: conversation.id, text: askParam });
+        } else if (shouldFireOpener) {
+          setOpenerPendingForId(conversation.id);
+          markGreetedThisSession();
+        }
+        setLocation(buildChatConversationLocation(conversation.id));
+      },
+      onError: (error) => {
+        setAutoCreateState('error');
+        toast({
+          title: 'Failed to start a chat',
+          description: getErrorMessage(error),
+          variant: 'destructive',
+        });
+      },
+    });
   }, [
+    askParam,
     autoCreateState,
     conversationsQuery.status,
     createConversation,
+    isDraftMode,
     requestedConversationId,
     selectedConversationId,
     selection.shouldCreateConversation,
@@ -183,18 +230,29 @@ export default function ChatHome() {
     toast,
   ]);
 
-  async function handleCreateConversation() {
-    try {
-      const conversation = await createConversation.mutateAsync({});
-      setLocation(buildChatConversationLocation(conversation.id));
-    } catch (error) {
-      toast({
-        title: 'Failed to create a chat',
-        description: getErrorMessage(error),
-        variant: 'destructive',
-      });
-    }
-  }
+  // Lazy-create handler — fired by NativeChatThread once the draft chat
+  // has been promoted to a real DB row (i.e. the user sent their first
+  // message in draft mode). Invalidate the conversation list so the
+  // sidebar picks the new row up, and push the canonical URL so refresh /
+  // back navigation behaves correctly. We do this on the SAME tick as
+  // create (not after the stream finishes) because the URL change will
+  // cause this component to re-render with the new selection; the
+  // runtime instance inside NativeChatThread survives because the `key`
+  // we use on it is stable across the draft → real transition.
+  const handleLazyCreated = useCallback((newConversationId: number) => {
+    queryClient.invalidateQueries({ queryKey: CHAT_CONVERSATIONS_QUERY_KEY });
+    setLocation(buildChatConversationLocation(newConversationId));
+  }, [setLocation]);
+
+  // Sidebar "New chat" / Cmd+K: route to draft mode. We no longer eagerly
+  // insert a chat_conversations row — the row is created lazily on the
+  // first user submit inside the composer (see `useNativeChatRuntime`).
+  // Always route through `?new=1` so a user who landed on `/` with the
+  // cooldown expired (and would otherwise get the opener) still gets a
+  // clean fresh-chat surface when they explicitly ask for one.
+  const handleCreateConversation = useCallback(async () => {
+    setLocation('/?new=1');
+  }, [setLocation]);
 
   useEffect(() => {
     function handleKeyDown(event: KeyboardEvent) {
@@ -242,8 +300,9 @@ export default function ChatHome() {
       setDeleteTarget(null);
 
       if (nextSelection.shouldCreateConversation) {
-        const conversation = await createConversation.mutateAsync({});
-        setLocation(buildChatConversationLocation(conversation.id));
+        // User deleted their last (or selected) conversation. Drop them
+        // into a fresh draft instead of eagerly inserting an empty row.
+        setLocation('/?new=1');
         return;
       }
 
@@ -265,6 +324,28 @@ export default function ChatHome() {
   const selectedConversationTitle = selectedConversationQuery.data?.conversation.title
     ?? conversations.find((conversation) => conversation.id === selectedConversationId)?.title
     ?? 'New chat';
+
+  // The `key` we pass to NativeChatThread must:
+  //   - change when the user switches between different existing
+  //     conversations (so the runtime is reset to the new thread); and
+  //   - stay stable across the draft → real transition (so the in-flight
+  //     send / stream isn't dropped when the URL flips from `/` to
+  //     `/?c=<id>` after lazy-create).
+  //
+  // We use a render-time ref counter: a transition counts as a "switch"
+  // only when we go from one concrete conversation id to a different one
+  // (or from a concrete id back to draft). Going FROM draft TO a concrete
+  // id leaves the key stable — that's exactly the lazy-create promotion.
+  const prevSelectedConversationIdRef = useRef<number | null>(selectedConversationId);
+  const chatSessionKeyRef = useRef(0);
+  if (
+    prevSelectedConversationIdRef.current !== null
+    && selectedConversationId !== prevSelectedConversationIdRef.current
+  ) {
+    chatSessionKeyRef.current += 1;
+  }
+  prevSelectedConversationIdRef.current = selectedConversationId;
+  const chatSessionKey = chatSessionKeyRef.current;
 
   const sidebarBody = (
     <ChatConversationSidebar
@@ -335,10 +416,21 @@ export default function ChatHome() {
             }
           />
         ) : selectedConversationId == null ? (
-          <CenteredState
-            icon={<MessageSquareText className="h-6 w-6" />}
-            title="Select a conversation"
-            description="Choose an existing thread or start a new one from the sidebar."
+          // Draft mode: no chat_conversations row exists yet. The runtime
+          // will lazy-create one on the first user submit; until then,
+          // the composer renders with an empty thread. The `key` here
+          // matches the `key` used on the real-conversation branch below
+          // so that the draft → real promotion (when the URL flips to
+          // `/?c=<id>`) does NOT unmount the runtime mid-stream.
+          <NativeChatThread
+            key={chatSessionKey}
+            conversationId={null}
+            initialMessages={null}
+            modelId={selectedModelId}
+            onModelIdChange={setSelectedModelId}
+            needsOpener={false}
+            initialAskMessage={null}
+            onLazyCreated={handleLazyCreated}
           />
         ) : selectedConversationQuery.isLoading ? (
           <CenteredState
@@ -362,12 +454,16 @@ export default function ChatHome() {
           />
         ) : (
           <NativeChatThread
-            key={selectedConversationId}
+            key={chatSessionKey}
             conversationId={selectedConversationId}
             initialMessages={selectedConversationQuery.data?.messages}
             modelId={selectedModelId}
             onModelIdChange={setSelectedModelId}
-            needsOpener={openerPendingForId === selectedConversationId}
+            needsOpener={openerPendingForId === selectedConversationId && !initialUserMessage}
+            initialUserMessage={initialUserMessage}
+            initialAskMessage={
+              askPending && askPending.id === selectedConversationId ? askPending.text : null
+            }
           />
         )}
       </div>

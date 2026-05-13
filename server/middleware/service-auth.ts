@@ -18,6 +18,7 @@ declare global {
       serviceAuth?: {
         apiKeyId: number;
         apiKeyName: string;
+        scopes: string[];
       };
     }
   }
@@ -36,7 +37,7 @@ const rateLimiter = new RateLimiter();
  *
  * Sets:
  *   req.authContext — same shape as requireAuth
- *   req.serviceAuth — { apiKeyId, apiKeyName } for logging
+ *   req.serviceAuth — { apiKeyId, apiKeyName, scopes } for logging and scope checks
  */
 export async function requireServiceAuth(
   req: Request,
@@ -91,6 +92,7 @@ export async function requireServiceAuth(
     req.serviceAuth = {
       apiKeyId: apiKey.id,
       apiKeyName: apiKey.name,
+      scopes: apiKey.scopes ?? ['*'],
     };
 
     next();

@@ -33,13 +33,58 @@ function messageToText(message: StoredChatMessage): string {
     .trim();
 }
 
+/**
+ * Is this user message the synthetic homepage `[OPENER]` instruction sent by
+ * the frontend to ask the agent to greet the user? Those messages are not
+ * substantive student input and must be excluded from title decisions —
+ * otherwise the title ends up reflecting the agent's identity greeting
+ * (e.g. "AlphaX Buddy: Personalized Brainlift Guidance") instead of the
+ * student's actual topic.
+ */
+function isOpenerUserMessage(message: StoredChatMessage): boolean {
+  if (message.role !== 'user') return false;
+  const text = messageToText(message);
+  return text.startsWith('[OPENER]');
+}
+
+/**
+ * Strip the homepage OPENER user message AND the immediately-following
+ * assistant reply (the agent's identity greeting bound to the OPENER).
+ * Returns messages that reflect genuine conversation only.
+ */
+function stripOpenerExchange(messages: StoredChatMessage[]): StoredChatMessage[] {
+  if (messages.length === 0) return messages;
+  // Find the first OPENER user message
+  const openerIndex = messages.findIndex(isOpenerUserMessage);
+  if (openerIndex === -1) return messages;
+
+  // Determine the index of the assistant reply tied to the OPENER. It's
+  // the next assistant message after the OPENER user message.
+  let removeThrough = openerIndex;
+  for (let i = openerIndex + 1; i < messages.length; i++) {
+    if (messages[i].role === 'assistant') {
+      removeThrough = i;
+      break;
+    }
+    // Another user message before any assistant reply means OPENER was
+    // never answered — drop only the OPENER itself.
+    if (messages[i].role === 'user') {
+      break;
+    }
+  }
+
+  return [...messages.slice(0, openerIndex), ...messages.slice(removeThrough + 1)];
+}
+
 function getFirstUserText(messages: StoredChatMessage[]): string {
-  const firstUserMessage = messages.find((message) => message.role === 'user');
+  const filtered = stripOpenerExchange(messages);
+  const firstUserMessage = filtered.find((message) => message.role === 'user');
   return firstUserMessage ? messageToText(firstUserMessage) : '';
 }
 
 function buildTitlePrompt(messages: StoredChatMessage[]): string {
-  const context = messages
+  const filtered = stripOpenerExchange(messages);
+  const context = filtered
     .filter((message) => message.role === 'user' || message.role === 'assistant')
     .map((message) => {
       const text = messageToText(message);
@@ -127,8 +172,13 @@ export function shouldGenerateChatTitle(input: {
     return false;
   }
 
-  const hasUserMessage = input.messages.some((message) => message.role === 'user');
-  const hasAssistantMessage = input.messages.some((message) => message.role === 'assistant');
+  // Only title once the conversation has REAL content. The homepage OPENER
+  // user message and the agent's identity-greeting reply do not count — if
+  // we titled after that exchange, every chat would be named after the
+  // agent's persona ("AlphaX Buddy: Personalized Brainlift Guidance").
+  const real = stripOpenerExchange(input.messages);
+  const hasUserMessage = real.some((message) => message.role === 'user');
+  const hasAssistantMessage = real.some((message) => message.role === 'assistant');
   return hasUserMessage && hasAssistantMessage;
 }
 
@@ -147,10 +197,18 @@ export async function generateChatTitle(messages: StoredChatMessage[]): Promise<
       timeout: 4_000,
       retries: 0,
       system: [
-        'Generate a concise title for this chat.',
-        'Return only the title.',
-        'No quotes. No punctuation at the end.',
-        'Use 3 to 6 words.',
+        'You generate short, content-focused titles for chat conversations.',
+        '',
+        'RULES',
+        '- 3 to 6 words. No more.',
+        '- Title MUST describe the USER\'S subject or task, not the assistant\'s identity or greeting.',
+        '- Never include any of these words: "AlphaX", "AlphaX Buddy", "Brainlift Central", "Buddy",',
+        '  "Personalized", "Onboarding", "Assistant", "Available", "Awaits", "Guidance", "Chat",',
+        '  "Conversation", "Help", "Welcome", "Hello", "Hi".',
+        '- No agent self-references ("personal assistant", "your research helper", etc.).',
+        '- Title Case. No quotes. No trailing punctuation. No emoji.',
+        '',
+        'Return only the title. Nothing else.',
       ].join('\n'),
       messages: [
         {

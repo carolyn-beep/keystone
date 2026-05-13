@@ -1,7 +1,10 @@
 import { useMemo, useState } from 'react';
 import { Loader2 } from 'lucide-react';
+import { useLocation } from 'wouter';
 import type { GeneratedPlanResponse, TaskListItem } from '@shared/routes';
 import { useSprint } from '@/hooks/useSprint';
+import { useCreateChatConversation } from '@/hooks/useChatConversations';
+import { useToast } from '@/hooks/use-toast';
 import { getTodayLocalDate } from '@/lib/date';
 import { TactileButton } from '@/components/ui/tactile-button';
 import { CalendarView } from './CalendarView';
@@ -55,6 +58,23 @@ export function SprintTab({ slug, viewTaskId, onSelectTask }: SprintTabProps) {
     refetch,
   } = useSprint(slug);
   const [selectedDate, setSelectedDate] = useState<string>(localDate);
+  const [, setLocation] = useLocation();
+  const createConversation = useCreateChatConversation();
+  const { toast } = useToast();
+
+  const handleGenerateSprintPlan = async () => {
+    try {
+      const conversation = await createConversation.mutateAsync({});
+      const message = `Generate a sprint plan for ${slug}`;
+      setLocation(`/?c=${conversation.id}&send=${encodeURIComponent(message)}`);
+    } catch (error) {
+      toast({
+        title: 'Could not start sprint generation',
+        description: error instanceof Error ? error.message : 'Unexpected error',
+        variant: 'destructive',
+      });
+    }
+  };
 
   const selectedTask = useMemo(
     () => resolveSelectedTask(activePlan, todayTasks, viewTaskId),
@@ -92,23 +112,25 @@ export function SprintTab({ slug, viewTaskId, onSelectTask }: SprintTabProps) {
 
         {failed && (
           <div className="mt-5 rounded-lg bg-warning-soft p-3 text-sm text-muted-foreground">
-            Previous generation failed{generationError ? `: ${generationError}` : '.'} Start a new one from your coach in the MCP.
+            Previous generation failed{generationError ? `: ${generationError}` : '.'} Start a new one below.
           </div>
         )}
 
-        <div className="mt-6 rounded-lg border border-border bg-card p-5">
-          <p className="m-0 text-[11px] uppercase tracking-[0.22em] font-semibold text-foreground">
-            Generate from your coach
-          </p>
-          <p className="m-0 mt-3 text-sm text-muted-foreground leading-relaxed">
-            Sprint generation runs through a short diagnosis conversation with your coach in the Brainlift MCP — that's how the plan gets tailored to where you actually are. Ask your coach to generate your sprint and come back to this tab once it's ready.
-          </p>
-          <p className="m-0 mt-3 text-xs text-muted-light italic">
-            In-platform generation is coming soon.
-          </p>
-        </div>
-
-        <div className="mt-5">
+        <div className="mt-6 flex flex-wrap items-center gap-3">
+          <TactileButton
+            onClick={handleGenerateSprintPlan}
+            disabled={createConversation.isPending}
+            className="text-[12px] uppercase tracking-[0.22em]"
+          >
+            {createConversation.isPending ? (
+              <>
+                <Loader2 size={14} className="mr-2 animate-spin" />
+                Starting…
+              </>
+            ) : (
+              'Generate Sprint Plan'
+            )}
+          </TactileButton>
           <TactileButton
             variant="inset"
             onClick={refetch}

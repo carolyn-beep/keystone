@@ -49,9 +49,13 @@ brainliftsRouter.get(
       throw new BadRequestError('Invalid filter parameter');
     }
 
+    // Search parameter (optional): matches against title, document author,
+    // and creator's display name. Case-insensitive, partial matches.
+    const search = typeof req.query.search === 'string' ? req.query.search : undefined;
+
     const { brainlifts, total } = showAll
-      ? await storage.getAllBrainliftsPaginated(offset, PAGE_SIZE)
-      : await storage.getBrainliftsForUserPaginated(req.authContext!, offset, PAGE_SIZE, filter);
+      ? await storage.getAllBrainliftsPaginated(offset, PAGE_SIZE, { search })
+      : await storage.getBrainliftsForUserPaginated(req.authContext!, offset, PAGE_SIZE, filter, { search });
 
     res.json({
       brainlifts,
@@ -85,9 +89,20 @@ brainliftsRouter.get(
       userPermission = sharePermission;
     }
 
-    // Enrich response with user's permission
+    const [factsRows, clusters, expertsRows, dok2Rows] = await Promise.all([
+      storage.getFactsForBrainlift(brainlift.id),
+      storage.getContradictionClustersByBrainliftId(brainlift.id),
+      storage.getExpertsByBrainliftId(brainlift.id),
+      storage.getDOK2Summaries(brainlift.id),
+    ]);
+
     res.json({
       ...brainlift,
+      improperlyFormatted: brainlift.improperlyFormatted ?? false,
+      facts: factsRows,
+      contradictionClusters: clusters,
+      experts: expertsRows,
+      dok2Summaries: dok2Rows.length > 0 ? dok2Rows : undefined,
       userPermission,
     });
   })
@@ -388,6 +403,24 @@ brainliftsRouter.patch(
     const { author } = req.body;
     await storage.updateBrainliftFields(req.brainlift!.id, { author: author || null });
     res.json({ success: true, author });
+  })
+);
+
+// Update project (brainlift) title
+brainliftsRouter.patch(
+  '/api/brainlifts/:slug/title',
+  requireAuth,
+  requireBrainliftModify,
+  asyncHandler(async (req, res) => {
+    const rawTitle = typeof req.body?.title === 'string' ? req.body.title.trim() : '';
+    if (!rawTitle) {
+      throw new BadRequestError('Title is required');
+    }
+    if (rawTitle.length > 200) {
+      throw new BadRequestError('Title is too long (max 200 characters)');
+    }
+    await storage.updateBrainliftFields(req.brainlift!.id, { title: rawTitle });
+    res.json({ success: true, title: rawTitle });
   })
 );
 

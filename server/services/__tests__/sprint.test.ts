@@ -30,12 +30,14 @@ const {
       listTasksForBrainlift: vi.fn(),
       getTaskForBrainlift: vi.fn(),
       getDeliverableByTaskId: vi.fn(),
+      getDeliverableByIdForBrainlift: vi.fn(),
       getSprintSharingAudience: vi.fn(),
       setBrainliftGdriveRootFolder: vi.fn(),
       setPlanGdriveFolder: vi.fn(),
       createDeliverable: vi.fn(),
       markPlanCompleteIfAllDelivered: vi.fn(),
       listDeliverablesForBrainlift: vi.fn(),
+      listDocuments: vi.fn(),
     },
     mockDriveService: {
       ensureRootFolder: vi.fn(),
@@ -322,7 +324,52 @@ describe('sprint service deliverables', () => {
       sourceSurface: 'ui',
       createdByUserId: 'user-1',
     }));
-    expect(result).toEqual({ docUrl: 'https://docs.google.com/document/d/doc-1/edit' });
+    expect(result).toEqual({ id: 900, docUrl: 'https://docs.google.com/document/d/doc-1/edit' });
+  });
+
+  it('creates a hub document in the Brainlift root folder without completing a plan', async () => {
+    const { createSprintDeliverable } = await import('../sprint');
+    mockStorage.getSprintSharingAudience.mockResolvedValue({
+      ownerEmail: 'owner@example.com',
+      ownerName: 'Owner',
+      editorEmails: ['editor@example.com'],
+      guideEmails: [],
+    });
+    mockDriveService.ensureRootFolder.mockResolvedValue({ folderId: 'root-1', created: true });
+    mockDriveService.createGoogleDocFromMarkdown.mockResolvedValue({
+      fileId: 'doc-hub',
+      docUrl: 'https://docs.google.com/document/d/doc-hub/edit',
+    });
+    mockStorage.createDeliverable.mockResolvedValue({
+      id: 901,
+      docUrl: 'https://docs.google.com/document/d/doc-hub/edit',
+    });
+
+    const result = await createSprintDeliverable({
+      brainlift: {
+        id: 7,
+        title: 'Scope Breaker',
+        gdriveRootFolderId: null,
+      },
+      userId: 'user-1',
+      title: 'Hub Doc',
+      markdown: '# Hub',
+      sourceSurface: 'mcp',
+    });
+
+    expect(mockStorage.getTaskForBrainlift).not.toHaveBeenCalled();
+    expect(mockDriveService.ensurePlanFolder).not.toHaveBeenCalled();
+    expect(mockDriveService.createGoogleDocFromMarkdown).toHaveBeenCalledWith(expect.objectContaining({
+      parentFolderId: 'root-1',
+      title: 'Hub Doc',
+    }));
+    expect(mockStorage.createDeliverable).toHaveBeenCalledWith(expect.objectContaining({
+      taskId: null,
+      brainliftId: 7,
+      sourceSurface: 'mcp',
+    }));
+    expect(mockStorage.markPlanCompleteIfAllDelivered).not.toHaveBeenCalled();
+    expect(result).toEqual({ id: 901, docUrl: 'https://docs.google.com/document/d/doc-hub/edit' });
   });
 
   it('cleans up a newly created doc when deliverable persistence conflicts', async () => {
@@ -416,7 +463,47 @@ describe('sprint service deliverables', () => {
 
     expect(mockDriveService.replaceGoogleDocFromMarkdown).toHaveBeenCalledWith('doc-77', '# Updated');
     expect(mockSetDeliverableSourceSurface).toHaveBeenCalledWith(77, 7, 'mcp');
-    expect(result).toEqual({ docUrl: 'https://docs.google.com/document/d/doc-77/edit' });
+    expect(result).toEqual({ id: 77, docUrl: 'https://docs.google.com/document/d/doc-77/edit' });
+  });
+
+  it('updates hub deliverables by scoped deliverable id', async () => {
+    const { updateSprintDeliverable } = await import('../sprint');
+    mockStorage.getDeliverableByIdForBrainlift.mockResolvedValue({
+      id: 78,
+      taskId: null,
+      brainliftId: 7,
+      title: 'Hub Doc',
+      docFileId: 'doc-78',
+      docUrl: 'https://docs.google.com/document/d/doc-78/edit',
+      sourceSurface: 'ui',
+      createdByUserId: 'user-1',
+      createdAt: new Date(),
+    });
+
+    const result = await updateSprintDeliverable({
+      brainliftId: 7,
+      deliverableId: 78,
+      markdown: '',
+      sourceSurface: 'mcp',
+    });
+
+    expect(mockStorage.getTaskForBrainlift).not.toHaveBeenCalled();
+    expect(mockStorage.getDeliverableByIdForBrainlift).toHaveBeenCalledWith(78, 7);
+    expect(mockDriveService.replaceGoogleDocFromMarkdown).toHaveBeenCalledWith('doc-78', '');
+    expect(mockSetDeliverableSourceSurface).toHaveBeenCalledWith(78, 7, 'mcp');
+    expect(result).toEqual({ id: 78, docUrl: 'https://docs.google.com/document/d/doc-78/edit' });
+  });
+
+  it('rejects read selectors with both task and deliverable ids', async () => {
+    const { readSprintDeliverable } = await import('../sprint');
+
+    await expect(readSprintDeliverable({
+      brainliftId: 7,
+      taskId: 42,
+      deliverableId: 78,
+    })).rejects.toThrow('Provide exactly one of taskId or deliverableId');
+
+    expect(mockDriveService.exportGoogleDocAsMarkdown).not.toHaveBeenCalled();
   });
 
   it('throws not found when reading a missing deliverable', async () => {

@@ -17,9 +17,12 @@ export type {
   LearningStreamItem, NewLearningStreamItem,
   KnowledgeCheckQuiz, QuizQuestion, QuizAnswer,
   ExtractedContent, AuthContext,
-  ImportAgentConversation, InsertImportAgentConversation,
-  BrainliftSource, InsertBrainliftSource,
-  ImportPhase, ImportStatus, SourceStatus,
+  Skill, InsertSkill,
+  SkillResource, InsertSkillResource,
+  SkillShare, InsertSkillShare,
+  SkillUserDisabled, InsertSkillUserDisabled,
+  SkillVisibility,
+  ImportStatus,
   ChatConversation, ChatMessage, StoredChatMessage, ChatUserContext,
   ChatActivePlanSnapshot, ChatActivePlanTask,
   NativeBrainliftDetails, InsertNativeBrainliftDetails,
@@ -36,6 +39,7 @@ export type {
 export {
   user,
   brainlifts, brainliftShares, facts, contradictionClusters,
+  skills, skillResources, skillShares, skillUserDisabled,
   brainliftVersions, experts, factVerifications, factModelScores,
   llmFeedback, modelAccuracyStats, factRedundancyGroups,
   brainliftScoreLog, brainliftScoreSummary,
@@ -44,7 +48,6 @@ export {
   dok2Summaries, dok2Points, dok2FactRelations, learningStreamItems, swarmUsage, knowledgeCheckQuizzes,
   dok3Insights, dok3InsightLinks,
   dok4Spovs, dok4Dok3Links,
-  importAgentConversations, brainliftSources,
   chatConversations, chatMessages,
   nativeBrainliftDetails, builderExperts,
   categories,
@@ -52,4 +55,4 @@ export {
   apiKeys,
 } from "@shared/schema";
 
-export { eq, inArray, desc, asc, and, sql, isNull, or } from "drizzle-orm";
+export { eq, inArray, desc, asc, and, sql, isNull, isNotNull, or } from "drizzle-orm";

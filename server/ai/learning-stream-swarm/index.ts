@@ -21,7 +21,7 @@ import { videoResearcherAgent } from './video-researcher-agent';
 import { podcastResearcherAgent } from './podcast-researcher-agent';
 import { newsResearcherAgent } from './news-researcher-agent';
 import { buildOrchestratorPrompt } from './orchestrator-prompt';
-import type { SwarmResult, AgentInfo, SwarmEvent } from './types';
+import type { SwarmResult, AgentInfo, SwarmEvent, AgentEventType } from './types';
 import * as swarmEmitter from './event-emitter';
 import * as fs from 'fs';
 import * as path from 'path';
@@ -41,6 +41,8 @@ class SwarmLogger {
   private writeStream: fs.WriteStream | null = null;
   private verbose: boolean;
   private agentRegistry: Map<string, AgentInfo> = new Map();
+  private agentOutputFiles: Map<string, string> = new Map();
+  private emittedSubagentEvents: Set<string> = new Set();
   private agentCounter = 0;
   private brainliftId: number;
 
@@ -142,6 +144,36 @@ class SwarmLogger {
     return this.agentRegistry.get(toolUseId);
   }
 
+  setAgentOutputFile(toolUseId: string, outputFile: string | undefined) {
+    if (!outputFile || !this.agentRegistry.has(toolUseId)) return;
+    this.agentOutputFiles.set(toolUseId, outputFile);
+  }
+
+  syncAgentOutputFile(toolUseId: string) {
+    const outputFile = this.agentOutputFiles.get(toolUseId);
+    if (!outputFile) return;
+
+    let jsonl = '';
+    try {
+      jsonl = fs.readFileSync(outputFile, 'utf8');
+    } catch {
+      return;
+    }
+
+    const events = parseSubagentOutputEvents(jsonl);
+    for (const event of events) {
+      const key = `${toolUseId}:${event.key}`;
+      if (this.emittedSubagentEvents.has(key)) continue;
+      this.emittedSubagentEvents.add(key);
+
+      if (event.kind === 'activity') {
+        this.recordActivity(toolUseId, event.eventType, event.data);
+      } else {
+        this.completeAgent(toolUseId, event.result);
+      }
+    }
+  }
+
   /**
    * Record an activity for an agent.
    */
@@ -176,6 +208,7 @@ class SwarmLogger {
   ) {
     const agent = this.agentRegistry.get(toolUseId);
     if (!agent) return;
+    if (agent.status === 'complete' || agent.status === 'failed') return;
 
     agent.status = 'complete';
     agent.endTime = Date.now();
@@ -300,7 +333,10 @@ export async function runLearningStreamSwarm(
   }
 
   // Track pending tool calls to map results back to agents
-  const pendingToolCalls = new Map<string, { agentToolUseId: string; toolName: string }>();
+  const pendingToolCalls = new Map<
+    string,
+    { agentToolUseId: string; toolName: string; toolInput: unknown }
+  >();
 
   // Start the HTTP MCP server so both orchestrator and subagents can reach it
   const mcpHandle = await startMcpServer();
@@ -371,6 +407,24 @@ export async function runLearningStreamSwarm(
         });
       }
 
+      if (message.type === 'system' && message.subtype === 'task_progress') {
+        const toolUseId = 'tool_use_id' in message ? message.tool_use_id : undefined;
+        if (typeof toolUseId === 'string' && logger.getAgent(toolUseId)) {
+          logger.syncAgentOutputFile(toolUseId);
+        }
+      }
+
+      if (message.type === 'system' && message.subtype === 'task_notification') {
+        const toolUseId = 'tool_use_id' in message ? message.tool_use_id : undefined;
+        if (typeof toolUseId === 'string' && logger.getAgent(toolUseId)) {
+          logger.setAgentOutputFile(
+            toolUseId,
+            'output_file' in message ? message.output_file : undefined
+          );
+          logger.syncAgentOutputFile(toolUseId);
+        }
+      }
+
       // Handle assistant messages (tool calls and reasoning)
       if (message.type === 'assistant' && 'message' in message) {
         const content = message.message?.content;
@@ -411,6 +465,7 @@ export async function runLearningStreamSwarm(
                 pendingToolCalls.set(toolUseId, {
                   agentToolUseId: parentToolUseId as string,
                   toolName,
+                  toolInput,
                 });
               }
 
@@ -490,14 +545,39 @@ export async function runLearningStreamSwarm(
                   pendingCall.toolName,
                   result
                 );
+                if (pendingCall.toolName === 'mcp__learning-stream__save_learning_item') {
+                  const input = pendingCall.toolInput as {
+                    topic?: string;
+                    url?: string;
+                    type?: string;
+                  };
+                  const resultText = extractResultText(result) || '';
+                  if (resultText.includes('"success":true')) {
+                    logger.completeAgent(pendingCall.agentToolUseId, {
+                      found: true,
+                      topic: input.topic?.trim(),
+                      url: input.url?.trim(),
+                    });
+                  } else if (resultText.includes('"error":"duplicate"')) {
+                    logger.completeAgent(pendingCall.agentToolUseId, {
+                      found: false,
+                      reason: 'Duplicate URL skipped',
+                    });
+                  }
+                }
                 pendingToolCalls.delete(toolUseId);
               } else {
                 // Check if this is a Task tool result (agent completion)
                 const agent = logger.getAgent(toolUseId);
                 if (agent) {
-                  // Parse the agent's result
-                  const parsedResult = parseAgentResult(result);
-                  logger.completeAgent(toolUseId, parsedResult);
+                  const resultText = extractResultText(result);
+                  if (isAgentLaunchAcknowledgement(resultText)) {
+                    logger.setAgentOutputFile(toolUseId, extractAgentOutputFile(resultText));
+                    logger.syncAgentOutputFile(toolUseId);
+                  } else {
+                    const parsedResult = parseAgentResult(result);
+                    logger.completeAgent(toolUseId, parsedResult);
+                  }
                 }
 
                 logger.toolResult(source, `tool_use_${toolUseId}`, result);
@@ -718,6 +798,129 @@ function extractResourceType(text: string): string {
   return 'Unknown';
 }
 
+type ParsedSubagentOutputEvent =
+  | {
+      kind: 'activity';
+      key: string;
+      eventType: AgentEventType;
+      data: Record<string, unknown>;
+    }
+  | {
+      kind: 'complete';
+      key: string;
+      result: { found: boolean; url?: string; topic?: string; reason?: string };
+    };
+
+function extractAgentOutputFile(text: string | null): string | undefined {
+  if (!text) return undefined;
+  return text.match(/^output_file:\s*(.+)$/m)?.[1]?.trim();
+}
+
+function parseSubagentOutputEvents(jsonl: string): ParsedSubagentOutputEvent[] {
+  const events: ParsedSubagentOutputEvent[] = [];
+  const toolUses = new Map<string, { name: string; input: Record<string, unknown> }>();
+
+  for (const line of jsonl.split('\n')) {
+    const trimmed = line.trim();
+    if (!trimmed) continue;
+
+    let entry: any;
+    try {
+      entry = JSON.parse(trimmed);
+    } catch {
+      continue;
+    }
+
+    const content = entry?.message?.content;
+    if (entry?.type === 'assistant' && Array.isArray(content)) {
+      for (const block of content) {
+        if (block?.type === 'text' && typeof block.text === 'string') {
+          events.push({
+            kind: 'activity',
+            key: `reasoning:${entry.uuid}:${block.text}`,
+            eventType: 'reasoning',
+            data: { text: block.text.substring(0, 500) },
+          });
+        }
+
+        if (block?.type === 'tool_use' && typeof block.id === 'string') {
+          const input = isRecord(block.input) ? block.input : {};
+          toolUses.set(block.id, { name: String(block.name || ''), input });
+          const activity = getActivityFromSubagentToolUse(block.name, input);
+          if (activity) {
+            events.push({
+              kind: 'activity',
+              key: `tool:${block.id}`,
+              eventType: activity.eventType,
+              data: activity.data,
+            });
+          }
+        }
+      }
+    }
+
+    if (entry?.type === 'user' && Array.isArray(content)) {
+      for (const block of content) {
+        if (block?.type !== 'tool_result' || typeof block.tool_use_id !== 'string') continue;
+        const toolUse = toolUses.get(block.tool_use_id);
+        if (!toolUse || toolUse.name !== 'mcp__learning-stream__save_learning_item') continue;
+
+        const resultText = extractResultText(block.content) || '';
+        if (resultText.includes('"success":true')) {
+          events.push({
+            kind: 'complete',
+            key: `complete:${block.tool_use_id}`,
+            result: {
+              found: true,
+              topic: typeof toolUse.input.topic === 'string' ? toolUse.input.topic.trim() : undefined,
+              url: typeof toolUse.input.url === 'string' ? toolUse.input.url.trim() : undefined,
+            },
+          });
+        } else if (resultText.includes('"error":"duplicate"')) {
+          events.push({
+            kind: 'complete',
+            key: `complete:${block.tool_use_id}`,
+            result: {
+              found: false,
+              reason: 'Duplicate URL skipped',
+              url: typeof toolUse.input.url === 'string' ? toolUse.input.url.trim() : undefined,
+            },
+          });
+        }
+      }
+    }
+  }
+
+  return events;
+}
+
+function getActivityFromSubagentToolUse(
+  toolName: unknown,
+  input: Record<string, unknown>
+): { eventType: AgentEventType; data: Record<string, unknown> } | null {
+  switch (toolName) {
+    case 'mcp__exa__web_search_exa':
+      return { eventType: 'search', data: { query: input.query } };
+    case 'WebFetch':
+      return { eventType: 'fetch', data: { url: input.url } };
+    case 'mcp__yt-mcp__getVideoDetails':
+      return { eventType: 'fetch', data: { videoId: input.videoId, source: 'youtube' } };
+    case 'mcp__learning-stream__check_duplicate':
+      return { eventType: 'check_duplicate', data: { url: input.url } };
+    case 'mcp__learning-stream__save_learning_item':
+      return {
+        eventType: 'save_item',
+        data: { topic: input.topic, url: input.url, type: input.type },
+      };
+    default:
+      return null;
+  }
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value && typeof value === 'object' && !Array.isArray(value));
+}
+
 /**
  * Parse the agent's final result from tool result content.
  */
@@ -757,12 +960,54 @@ function parseAgentResult(content: unknown): {
       }
     }
 
-    return { found: false, reason: 'Could not parse result' };
+    return parseAgentSummaryResult(jsonStr) || { found: false, reason: 'Could not parse result' };
   } catch {
     return { found: false, reason: 'Parse error' };
   }
 }
 
+function isAgentLaunchAcknowledgement(text: string | null): boolean {
+  return Boolean(
+    text &&
+      text.includes('Async agent launched successfully') &&
+      text.includes('agentId:') &&
+      text.includes('output_file:')
+  );
+}
+
+function parseAgentSummaryResult(text: string): {
+  found: boolean;
+  topic?: string;
+  reason?: string;
+} | null {
+  const normalized = text.trim();
+  if (!normalized) {
+    return null;
+  }
+
+  if (/found\s*&\s*saved/i.test(normalized) || /found and saved/i.test(normalized)) {
+    const quotedTitle = normalized.match(/[“"]([^”"]+)[”"]/)?.[1];
+    const italicTitle = normalized.match(/\*([^*\n]+)\*/)?.[1]?.replace(/^["“]|["”]$/g, '');
+    return {
+      found: true,
+      topic: (quotedTitle || italicTitle || normalized.split('\n')[0]).trim(),
+    };
+  }
+
+  if (/not found|no resource|could not find|failed/i.test(normalized)) {
+    return { found: false, reason: normalized.split('\n')[0] };
+  }
+
+  return null;
+}
+
 // Re-export types and event emitter functions for external use
 export type { SwarmResult, SwarmEvent, AgentInfo };
 export { swarmEmitter };
+export const __learningStreamSwarmTestInternals = {
+  extractAgentOutputFile,
+  isAgentLaunchAcknowledgement,
+  parseAgentResult,
+  parseAgentSummaryResult,
+  parseSubagentOutputEvents,
+};

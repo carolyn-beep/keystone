@@ -2,7 +2,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import type { UIMessage } from 'ai';
 import { eq, inArray } from 'drizzle-orm';
 import { db } from '../../db';
-import { brainlifts, chatConversations, chatMessages, user } from '@shared/schema';
+import { brainlifts, brainliftShares, chatConversations, chatMessages, user } from '@shared/schema';
 import {
   createChatConversation,
   deleteChatConversation,
@@ -356,8 +356,63 @@ describe('chat storage', () => {
       'Newest brainlift',
       'Older brainlift',
     ]);
+    expect(context.recentBrainlifts.every((b) => b.permission === 'owner')).toBe(true);
     expect(context.recentConversations).toEqual([]);
     expect(context.activePlans).toEqual([]);
+  });
+
+  it('includes brainlifts shared with the user, tagged with their share permission', async () => {
+    const ownedNew = await insertBrainlift({
+      slug: `chat-context-owned-${Date.now()}`,
+      title: 'My own brainlift',
+      userId: TEST_USER_ID,
+      createdAt: new Date('2026-04-01T08:00:00.000Z'),
+    });
+    const sharedEditor = await insertBrainlift({
+      slug: `chat-context-shared-editor-${Date.now()}`,
+      title: 'Shared as editor',
+      userId: OTHER_USER_ID,
+      createdAt: new Date('2026-04-02T08:00:00.000Z'),
+    });
+    const sharedViewer = await insertBrainlift({
+      slug: `chat-context-shared-viewer-${Date.now()}`,
+      title: 'Shared as viewer',
+      userId: OTHER_USER_ID,
+      createdAt: new Date('2026-04-03T08:00:00.000Z'),
+    });
+
+    await db.insert(brainliftShares).values([
+      {
+        brainliftId: sharedEditor.id,
+        type: 'user',
+        permission: 'editor',
+        userId: TEST_USER_ID,
+        createdByUserId: OTHER_USER_ID,
+      },
+      {
+        brainliftId: sharedViewer.id,
+        type: 'user',
+        permission: 'viewer',
+        userId: TEST_USER_ID,
+        createdByUserId: OTHER_USER_ID,
+      },
+    ]);
+
+    const context = await getChatUserContext(TEST_USER_ID);
+
+    // Count includes owned (1) + shared (2) = 3
+    expect(context.brainliftCount).toBe(3);
+
+    // Recent ordering: shared-viewer (newest) > shared-editor > owned. Each tagged with its permission.
+    expect(context.recentBrainlifts).toEqual([
+      expect.objectContaining({ slug: sharedViewer.slug, permission: 'viewer' }),
+      expect.objectContaining({ slug: sharedEditor.slug, permission: 'editor' }),
+      expect.objectContaining({ slug: ownedNew.slug, permission: 'owner' }),
+    ]);
+
+    await db.delete(brainliftShares).where(
+      inArray(brainliftShares.brainliftId, [sharedEditor.id, sharedViewer.id]),
+    );
   });
 
   it('includes recent conversations in user context, ordered by last activity desc and scoped by owner', async () => {

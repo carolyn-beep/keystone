@@ -16,6 +16,7 @@ const {
 } = vi.hoisted(() => ({
   mockStorage: {
     getBrainliftsForUserPaginated: vi.fn(),
+    getAllBrainliftsPaginated: vi.fn(),
     getBrainliftBySlug: vi.fn(),
     canAccessBrainlift: vi.fn(),
     canModifyBrainlift: vi.fn(),
@@ -90,6 +91,9 @@ describe('brainlift grading surface', () => {
           importStatus: 'pending',
           summary: { meanScore: '3.75' },
           createdAt: new Date('2026-04-01T10:00:00.000Z'),
+          createdByUserId: 'user-1', // owned by current user
+          author: null,
+          creatorName: 'Ada Lovelace',
         },
         {
           id: 2,
@@ -98,6 +102,10 @@ describe('brainlift grading surface', () => {
           importStatus: 'complete',
           summary: null,
           createdAt: new Date('2026-04-02T11:00:00.000Z'),
+          createdByUserId: 'user-other',
+          sharePermission: 'editor', // shared with current user as editor
+          author: null,
+          creatorName: null,
         },
       ],
       total: 11,
@@ -117,7 +125,9 @@ describe('brainlift grading surface', () => {
       5,
       5,
       'all',
+      { search: undefined },
     );
+    expect(mockStorage.getAllBrainliftsPaginated).not.toHaveBeenCalled();
     expect(result).toEqual({
       brainlifts: [
         {
@@ -126,6 +136,8 @@ describe('brainlift grading surface', () => {
           status: 'grading',
           score: 3.75,
           createdAt: '2026-04-01T10:00:00.000Z',
+          permission: 'owner',
+          creator: 'Ada Lovelace',
         },
         {
           slug: 'beta',
@@ -133,6 +145,8 @@ describe('brainlift grading surface', () => {
           status: 'complete',
           score: null,
           createdAt: '2026-04-02T11:00:00.000Z',
+          permission: 'editor',
+          creator: null,
         },
       ],
       pagination: {
@@ -142,6 +156,118 @@ describe('brainlift grading surface', () => {
         totalPages: 3,
       },
     });
+  });
+
+  it('forwards search to user-scoped storage for non-admins', async () => {
+    mockStorage.getBrainliftsForUserPaginated.mockResolvedValue({
+      brainlifts: [],
+      total: 0,
+    });
+
+    const {
+      listBrainliftsForAuthContext,
+    } = await import('../brainlift-grading-surface');
+
+    await listBrainliftsForAuthContext(createAuthContext(), {
+      page: 1,
+      pageSize: 5,
+      search: '  Robotics  ',
+    });
+
+    expect(mockStorage.getBrainliftsForUserPaginated).toHaveBeenCalledWith(
+      createAuthContext(),
+      0,
+      5,
+      'all',
+      { search: 'Robotics' },
+    );
+  });
+
+  it('forwards search to system-wide storage for admins', async () => {
+    mockStorage.getAllBrainliftsPaginated.mockResolvedValue({
+      brainlifts: [],
+      total: 0,
+    });
+
+    const {
+      listBrainliftsForAuthContext,
+    } = await import('../brainlift-grading-surface');
+
+    await listBrainliftsForAuthContext(
+      createAuthContext({ isAdmin: true, role: 'admin' }),
+      { page: 1, pageSize: 5, search: 'Robotics' },
+    );
+
+    expect(mockStorage.getAllBrainliftsPaginated).toHaveBeenCalledWith(
+      0,
+      5,
+      { search: 'Robotics' },
+    );
+  });
+
+  it('treats an all-whitespace search as no search', async () => {
+    mockStorage.getBrainliftsForUserPaginated.mockResolvedValue({
+      brainlifts: [],
+      total: 0,
+    });
+
+    const {
+      listBrainliftsForAuthContext,
+    } = await import('../brainlift-grading-surface');
+
+    await listBrainliftsForAuthContext(createAuthContext(), {
+      page: 1,
+      pageSize: 5,
+      search: '   ',
+    });
+
+    expect(mockStorage.getBrainliftsForUserPaginated).toHaveBeenCalledWith(
+      createAuthContext(),
+      0,
+      5,
+      'all',
+      { search: undefined },
+    );
+  });
+
+  it('admins get a system-wide list (not user-scoped) from list_brainlifts', async () => {
+    mockStorage.getAllBrainliftsPaginated.mockResolvedValue({
+      brainlifts: [
+        {
+          id: 9,
+          slug: 'omega',
+          title: 'Omega',
+          importStatus: 'complete',
+          summary: { meanScore: '4.5' },
+          createdAt: new Date('2026-04-05T09:00:00.000Z'),
+          author: 'Dr. Doc',
+          creatorName: 'Grace Hopper',
+        },
+      ],
+      total: 1,
+    });
+
+    const {
+      listBrainliftsForAuthContext,
+    } = await import('../brainlift-grading-surface');
+
+    const result = await listBrainliftsForAuthContext(
+      createAuthContext({ isAdmin: true, role: 'admin' }),
+      { page: 1, pageSize: 10 },
+    );
+
+    expect(mockStorage.getAllBrainliftsPaginated).toHaveBeenCalledWith(0, 10, { search: undefined });
+    expect(mockStorage.getBrainliftsForUserPaginated).not.toHaveBeenCalled();
+    expect(result.brainlifts).toEqual([
+      {
+        slug: 'omega',
+        title: 'Omega',
+        status: 'complete',
+        score: 4.5,
+        createdAt: '2026-04-05T09:00:00.000Z',
+        creator: 'Grace Hopper',
+      },
+    ]);
   });
 
   it('returns status payloads with progress, scores, and retry guidance', async () => {

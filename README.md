@@ -105,7 +105,7 @@ The chat model adapter in `server/ai/chat/provider.ts` implements `LanguageModel
 Tools are loaded from `buildNativeChatTools()` and grouped by domain:
 
 - **Grading tools** inspect or create BrainLift grading state (`get_template`, `grade_brainlift`, `list_brainlifts`, `get_brainlift_assessment`).
-- **Skill tools** expose repo-local skills from `skills/*/SKILL.md`; the prompt lists summaries and `load_skill` loads the full markdown only when needed.
+- **Skill tools** expose runtime skills from the database (see [Runtime Skills Library](#runtime-skills-library) below). The prompt lists summaries and `load_skill` loads one body on demand; reference files are loaded individually via `load_skill_reference`. Admins additionally see `create_skill`, `update_skill`, `add_skill_reference`, `update_skill_reference`, `delete_skill_reference`, and `delete_skill`.
 - **Research tools** port the Learning Stream source-discovery surface into chat: Exa search (`web_search_exa`), URL extraction through the existing content extractor (`fetch_url_content`), and YouTube transcript retrieval (`get_youtube_transcript`).
 - **Curation and expert tools** create/edit/delete/link DOK items, handle stale flags, and manage experts through `server/services/brainlift-curation.ts`.
 - **Sprint tools** generate plans, inspect tasks, and create/read/update deliverables through `server/services/sprint.ts`.
@@ -113,11 +113,31 @@ Tools are loaded from `buildNativeChatTools()` and grouped by domain:
 
 #### First-message opener
 
-When the student lands on the homepage (`/` with no `?c=`), `ChatHome` always creates a fresh conversation and arms the new conversation with a transient `needsOpener` flag (pure client state — no DB column). `NativeChatThread`'s `OpenerTrigger` fires exactly one priming user message containing the `OPENER_PROMPT` from `shared/chat-opener.ts`, guarded by a module-level `Set` so StrictMode/HMR cannot double-fire. The prompt itself is the directive — the LLM follows it and streams a contextual welcome shaped by the brainlift-count heuristic and active sprint plans. The priming message is hidden from the visible thread by a custom `UserMessage` component that filters on `isOpenerPromptMessage`. Manual "New chat" clicks, sidebar selection, and direct `/?c=ID` navigation deliberately do not arm the flag, so the opener only fires on homepage landings.
+When the student lands on the homepage (`/` with no `?c=`), `ChatHome` creates a fresh empty conversation. `NativeChatThread`'s `OpenerTrigger` sends the priming user message only when that conversation is empty and the user's localStorage opener timestamp is more than 48 hours old. The timestamp key is scoped by user id, so two users on the same browser do not suppress each other. The prompt itself is the directive: the LLM follows it and streams a contextual welcome shaped by the brainlift-count heuristic and active sprint plans. The priming message is hidden from the visible thread by a custom `UserMessage` component that filters on `isOpenerPromptMessage`. Manual "New chat" clicks, sidebar selection, direct `/?c=ID` navigation, and `send=` autosend flows do not trigger the opener.
 
 The system prompt (`server/ai/chat/system-prompt.ts`) is generated per user. It includes recent BrainLifts, recent conversations, active sprint plans, available skill summaries, and strict operating rules that keep the agent coaching from the student's BrainLift instead of guessing hidden state.
 
 Chat title generation runs after a completed user+assistant exchange when the conversation is still titled `New chat`. It uses a cheap fast Gemini Flash call through the unified AI client (`caller: 'chat.title'`) and falls back to a deterministic local title if the provider call fails. The database update is guarded so an automatic title cannot overwrite a user-renamed conversation.
+
+### Runtime Skills Library
+
+Skills moved from filesystem `skills/*/SKILL.md` files into Postgres tables (`skills`, `skill_resources`, `skill_shares`, `skill_user_disabled` — see `migrations/0031_runtime_skills_library.sql`). Authentication-aware: every list, load, and reference-load enforces the same authorization boundary so private skill names cannot be enumerated. Unauthorized, disabled, deleted, and unknown skills all collapse to the same not-found-shaped error.
+
+**Progressive disclosure**, three levels:
+
+1. **Catalogue** (`name` + `description`) is always in the system prompt. Description is the single signal that decides whether the model triggers the skill, so it is written as a list of concrete user-vocabulary triggers, not a topic blurb.
+2. **Body** loads into context only when the model calls `load_skill`. The response is the body plus a manifest of reference *paths*, never the contents.
+3. **References** load one at a time only when the model calls `load_skill_reference`. They are never inlined eagerly.
+
+**Authorization model.** Public skills are visible to all authenticated users. Private skills are visible to admins, the creator, and users in `skill_shares`. Every viewer can disable a skill they are authorized to see (`skill_user_disabled`); disabled skills drop out of the prompt and out of `load_skill`. Admins always see every non-deleted skill regardless of visibility or shares.
+
+**Soft delete with 30-day Trash.** `delete_skill` (admin only, UI or chat) sets `deletedAt`; deleted skills disappear from runtime surfaces but remain restorable from the admin Trash tab. `server/jobs/purgeDeletedSkillsJob.ts` runs daily at 03:30 (`server/jobs/crontab`) and hard-deletes rows whose `deletedAt` is older than 30 days.
+
+**`/skills` page** (`client/src/pages/Skills.tsx`, hook `client/src/hooks/useSkills.ts`) is the user catalogue and admin management surface. Users browse authorized skills, toggle enabled state, filter to skills they created, and click "Try it out" to start a new chat with `Use the {skill-name} skill.` pre-filled in the composer. Admin mode adds creation, editing, share grant/revoke, soft delete, restore, and the Trash tab. The same atomic save path validates name regex, body and description size, reference path and size limits, and visibility in `server/storage/skills.ts`.
+
+**Admin chat tools** (`create_skill`, `update_skill`, `add_skill_reference`, `update_skill_reference`, `delete_skill_reference`, `delete_skill`) are gated by `AuthContext.isAdmin` in `server/ai/chat/tools/index.ts` and let admins create or maintain skills from chat. `create_skill` requires `visibility` to be set explicitly — there is no default — so the model has to confirm public vs private with the admin before saving.
+
+**First-boot seed.** `seedRuntimeSkillsIfEmpty()` in `server/runtimeSkillsSeed.ts` runs on boot and seeds existing skills (plus the `create-skill` admin bootstrap and `gap-analyzer` references) when the `skills` table is empty. It reads `INSERT` statements directly from `migrations/0031_runtime_skills_library.sql` so the migration file is the single source of truth for seeded content. The seeded `create-skill` skill is auto-shared with every admin user on seed, walks the model through draft → review → save, and links to three references (`tool-catalogue.md`, `skill-template.md`, `description-patterns.md`) that ground new skills in real tool names instead of hallucinated ones.
 
 ---
 
@@ -183,9 +203,11 @@ Every fact in a BrainLift is verified through a single logical verifier chain ma
 
 Before grading, the system gathers evidence for each fact:
 
-1. **Direct source fetch** — extracts URLs from source citations, fetches the page with a 10-second timeout, strips navigation and boilerplate, and returns up to 8,000 characters of clean text. PDFs are detected and skipped. A shared URL cache prevents re-attempting failed URLs across the batch — important when many facts cite the same source.
+1. **Direct source fetch** — extracts URLs from source citations, fetches the page with a 10-second timeout, strips navigation and boilerplate, and returns clean text. PDFs are detected and skipped. A shared URL cache prevents re-attempting failed URLs across the batch — important when many facts cite the same source.
 
-2. **AI-powered evidence search** — when the direct fetch fails or no URL is present, a language model searches its knowledge base for the cited work. The prompt grounds the search in specific educational research literature (Willingham, Rosenshine, Sweller, Hattie, Hirsch, Christodoulou) so evidence retrieval is domain-aware rather than generic.
+2. **Web-search fallback** — when the direct fetch fails or no URL is present, the system generates a concise search query with `qwen/qwen-plus`, falling back to `google/gemini-2.0-flash-001` if needed. The query is passed to Exa, and the returned pages are fetched as readable source evidence for the verifier. A deterministic query builder remains as the last backup so tests can pin query behavior and make future query-generation swaps straightforward.
+
+Fallback evidence retrieval is intentionally conservative. Known arXiv PDF URLs are normalized to arXiv HTML pages before extraction, and readable sources are rejected when they look like blocker or error pages (`Just a moment...`, captcha/browser-check pages, access denied, not found) or when the extracted text is too short to support grading. Fallback logs include the reason fallback started, the generated query, returned result metadata, skipped-source reasons, readable source metadata, and the verifier score, without dumping page content into logs.
 
 ### Tiered Verifier Chain
 
@@ -494,7 +516,7 @@ Every learning stream item goes through a tiered content extraction pipeline tha
 
 2. **HEAD request (5s timeout)** — detects content type. PDFs get a direct viewer. If the server blocks HEAD requests, it falls through to step 3 anyway.
 
-3. **Jina Reader API (15s timeout)** — converts HTML articles to clean markdown with title and site name metadata. Articles shorter than 50 characters are treated as extraction failures.
+3. **Exa Contents API (15s timeout)** — fetches HTML/text articles into readable article text with title and site metadata. Articles shorter than 50 characters are treated as extraction failures.
 
 4. **Fallback** — stores the failure reason so the item doesn't stay in "pending" state forever. The original URL remains clickable.
 
@@ -892,9 +914,8 @@ docker exec -i wizardly_kalam psql -U postgres -d dok1grader_local < migrations/
 | `OPENROUTER_API_KEY` | Primary text-generation provider for the unified AI client |
 | `FIREWORKS_API_KEY` | Fireworks failover provider for the unified AI client and image fallback |
 | `OPENAI_API_KEY` | Primary image-generation provider (`gpt-image-1`) |
-| `EXA_API_KEY` | Exa search API (research swarm and native chat web search) |
+| `EXA_API_KEY` | Exa search and Contents APIs (research swarm, native chat web search, article content extraction) |
 | `YOUTUBE_API_KEY` | YouTube Data API (video researcher agent) |
-| `JINA_API_KEY` | Jina Reader API (article content extraction) |
 | `SWARM_AGENT_COUNT` | Research agents per swarm (default: 5) |
 | `WORKER_CONCURRENCY` | Background job concurrency (default: 3) |
 | `BRAND` | Server brand selector. `alphax` or `brainlift`. Throws at boot if missing or unknown. |

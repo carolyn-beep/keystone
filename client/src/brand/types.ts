@@ -58,7 +58,7 @@ export interface BrandConfig {
   loginPlateCaption: LoginPlateCaption | null;
   /**
    * Body of the homepage opener instruction (everything after the `[OPENER]`
-   * tag). Consumed by `client/src/chat/chat-opener.ts` in spec 02.
+   * tag). Consumed by `client/src/chat/chat-opener.ts`.
    */
   chatOpenerInstruction: string;
 }

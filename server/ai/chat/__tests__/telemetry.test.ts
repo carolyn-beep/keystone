@@ -69,7 +69,7 @@ describe('chat telemetry', () => {
       conversationId: 42,
       requestedModel: 'qwen/qwen-plus',
       messageCount: 3,
-      toolNames: ['get_template', 'grade_brainlift'],
+      toolNames: ['get_template', 'create_brainlift'],
       timestamp: new Date('2026-04-28T12:00:00.000Z'),
     });
 
@@ -79,7 +79,7 @@ describe('chat telemetry', () => {
       conversationId: 42,
       requestedModel: 'qwen/qwen-plus',
       messageCount: 3,
-      toolNames: ['get_template', 'grade_brainlift'],
+      toolNames: ['get_template', 'create_brainlift'],
       timestamp: '2026-04-28T12:00:00.000Z',
     });
   });

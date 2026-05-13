@@ -3,7 +3,10 @@ import { ArrowUp, Check, Loader2 } from 'lucide-react';
 import { useMessage, useThread, type ToolCallMessagePartProps } from '@assistant-ui/react';
 import {
   buildAskUserResult,
+  countAskUserRequiredAnswered,
+  findFirstUnansweredRequired,
   isAskUserDraftComplete,
+  isAskUserQuestionAnswered,
   type AskUserDraftAnswer,
   type AskUserDraftAnswers,
   type AskUserQuestion,
@@ -39,16 +42,6 @@ type Props = ToolCallMessagePartProps<
  */
 export function AskUserQuestionCard(props: Props) {
   const { args, result, status } = props;
-
-  // DEV DIAG: prove the matched-render path fires. Pair with the
-  // GenericToolCallCard fallback warning in native-chat-thread-config.tsx —
-  // they should be mutually exclusive per tool call.
-  // eslint-disable-next-line no-console
-  console.info('[ask-user-question] AskUserQuestionCard render', {
-    status: status.type,
-    hasResult: !!result,
-    questionCount: Array.isArray(args?.questions) ? args.questions.length : null,
-  });
 
   // Stale-card detection: if the student typed a free-form reply in the
   // composer (or the agent moved on for any other reason), a newer message
@@ -125,10 +118,66 @@ export function AskUserQuestionCard(props: Props) {
   return (
     <AskUserForm
       key={props.toolCallId}
+      toolCallId={props.toolCallId}
       questions={questions}
       addResult={props.addResult}
     />
   );
+}
+
+function readConversationIdFromUrl(): number | null {
+  if (typeof window === 'undefined') return null;
+  const params = new URLSearchParams(window.location.search);
+  const raw = params.get('c');
+  return raw && /^\d+$/.test(raw) ? Number.parseInt(raw, 10) : null;
+}
+
+/**
+ * Fire-and-forget POST to a server endpoint that records the failed-submit
+ * state. Replaces the user-facing diagnostic strip — when a user reports
+ * "I filled everything but couldn't submit," grep server logs for the event
+ * by `userId`, `conversationId`, or `toolCallId` and the per-question state
+ * tells us exactly which field was actually blank.
+ */
+function reportAskUserSubmitBlocked({
+  toolCallId,
+  questions,
+  draft,
+}: {
+  toolCallId: string;
+  questions: readonly AskUserQuestion[];
+  draft: AskUserDraftAnswers;
+}): void {
+  const conversationId = readConversationIdFromUrl();
+  const payload = {
+    conversationId,
+    toolCallId,
+    questions: questions.map((question) => {
+      const answer = draft[question.id] ?? { selectedOptions: new Set<string>(), freeText: '' };
+      const trimmedLength = answer.freeText.trim().length;
+      return {
+        id: question.id,
+        optional: question.optional === true,
+        optionCount: question.options?.length ?? 0,
+        multiSelect: question.multiSelect === true,
+        allowFreeText: question.allowFreeText !== false,
+        selectedCount: answer.selectedOptions.size,
+        freeTextLength: answer.freeText.length,
+        freeTextTrimmedLength: trimmedLength,
+        answered: answer.selectedOptions.size > 0 || trimmedLength > 0,
+        promptPreview: question.prompt.slice(0, 200),
+      };
+    }),
+  };
+
+  void fetch('/api/chat/diagnostics/ask-user-blocked', {
+    method: 'POST',
+    credentials: 'include',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  }).catch(() => {
+    // Diagnostic logging — never let a failure here surface to the user.
+  });
 }
 
 /**
@@ -138,9 +187,11 @@ export function AskUserQuestionCard(props: Props) {
 function AskUserForm({
   questions: incomingQuestions,
   addResult,
+  toolCallId,
 }: {
   questions: AskUserQuestion[];
   addResult: Props['addResult'];
+  toolCallId: string;
 }) {
   // De-dup defensively. Schema does not enforce id uniqueness; if the LLM
   // emits duplicates, keep first occurrence so React keys are stable.
@@ -165,6 +216,10 @@ function AskUserForm({
   });
 
   const submittedRef = useRef(false);
+  const sectionRefs = useRef(new Map<string, HTMLElement | null>());
+  // True after a failed submit click. Drives the per-question red-ring
+  // highlight; clears per-question automatically as each one is answered.
+  const [submitAttempted, setSubmitAttempted] = useState(false);
 
   function setSelectedOption(question: AskUserQuestion, option: string) {
     setDraft((current) => {
@@ -201,12 +256,29 @@ function AskUserForm({
 
   function handleSubmit() {
     if (submittedRef.current) return;
-    if (!isAskUserDraftComplete(questions, draft as AskUserDraftAnswers)) return;
+    const draftSnapshot = draft as AskUserDraftAnswers;
+    if (!isAskUserDraftComplete(questions, draftSnapshot)) {
+      // Don't silently no-op — scroll to the first gap and ring it red.
+      // Also fire a server-side log so support can find the exact form
+      // state from logs alone if the user opens a ticket.
+      setSubmitAttempted(true);
+      reportAskUserSubmitBlocked({ toolCallId, questions, draft: draftSnapshot });
+      const missing = findFirstUnansweredRequired(questions, draftSnapshot);
+      if (missing) {
+        const node = sectionRefs.current.get(missing.id);
+        node?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
+      return;
+    }
     submittedRef.current = true;
-    addResult(buildAskUserResult(questions, draft as AskUserDraftAnswers));
+    addResult(buildAskUserResult(questions, draftSnapshot));
   }
 
-  const canSubmit = isAskUserDraftComplete(questions, draft as AskUserDraftAnswers);
+  const { answered, required, optional: optionalCount } = countAskUserRequiredAnswered(
+    questions,
+    draft as AskUserDraftAnswers,
+  );
+  const showCounter = required > 1 || (required >= 1 && optionalCount > 0);
   const showQuestionLabels = questions.length > 1;
 
   return (
@@ -215,15 +287,30 @@ function AskUserForm({
         const answer = draft[question.id] ?? emptyDraft();
         const allowFreeText = question.allowFreeText !== false;
         const hasOptions = (question.options?.length ?? 0) > 0;
+        const hasError =
+          submitAttempted
+          && !question.optional
+          && !isAskUserQuestionAnswered(question, draft as AskUserDraftAnswers);
 
         return (
-          <section key={question.id} className="ask-user-question">
+          <section
+            key={question.id}
+            ref={(node) => {
+              sectionRefs.current.set(question.id, node);
+            }}
+            className={cn('ask-user-question', hasError && 'ask-user-question-error')}
+          >
             {showQuestionLabels ? (
               <div className="ask-user-question-label">
                 Question {index + 1} of {questions.length}
               </div>
             ) : null}
-            <p className="ask-user-question-prompt">{question.prompt}</p>
+            <p className="ask-user-question-prompt">
+              {question.prompt}
+              {question.optional ? (
+                <span className="ask-user-optional-tag"> (optional)</span>
+              ) : null}
+            </p>
 
             {hasOptions ? (
               <div
@@ -268,11 +355,22 @@ function AskUserForm({
         );
       })}
 
+      {submitAttempted && answered < required ? (
+        <p className="ask-user-submit-error" role="alert">
+          Please answer the highlighted question{required - answered > 1 ? 's' : ''} to continue.
+        </p>
+      ) : null}
+
       <div className="ask-user-actions">
+        {showCounter ? (
+          <span className="ask-user-counter" aria-live="polite">
+            {answered} of {required} answered
+            {optionalCount > 0 ? ` · ${optionalCount} optional` : ''}
+          </span>
+        ) : null}
         <button
           type="button"
           onClick={handleSubmit}
-          disabled={!canSubmit}
           aria-label="Submit answer"
           className="ask-user-submit"
         >

@@ -5,15 +5,30 @@ import {
   llmFeedback, factRedundancyGroups, dok2Summaries, dok2Points, dok2FactRelations,
   nativeBrainliftDetails, builderExperts, dok4Spovs, user,
   type Brainlift, type BrainliftData, type InsertBrainlift,
-  type BrainliftVersion, type AuthContext
+  type BrainliftVersion, type AuthContext, type ImportStatus, type Expert, type Fact
 } from './base';
 import { getDOK2Summaries, deleteDOK2Summaries } from './dok2';
+import { getDOK3Insights, type DOK3InsightWithLinks } from './dok3';
+import { getDOK4Spovs } from './dok4';
+import type { DOK4SpovWithLinks } from '@shared/dok4-types';
 import { getSharedBrainlifts } from './shares';
 
 function expertOrderBy() {
   return [sql`${experts.rankScore} DESC NULLS LAST`, desc(experts.id)] as const;
 }
 
+export async function getBrainliftRecordBySlug(slug: string): Promise<Brainlift | undefined> {
+  const [brainlift] = await db.select().from(brainlifts).where(eq(brainlifts.slug, slug));
+  return brainlift;
+}
+
+export async function getContradictionClustersByBrainliftId(brainliftId: number) {
+  return await db.select().from(contradictionClusters).where(eq(contradictionClusters.brainliftId, brainliftId));
+}
+
+// TODO: This legacy API is a partial aggregate, not a simple row lookup. Row-only
+// callers should use getBrainliftRecordBySlug; full current-state callers should
+// use explicit detail/per-DOK storage functions instead of extending this shape.
 export async function getBrainliftBySlug(slug: string): Promise<BrainliftData | undefined> {
   const [brainlift] = await db.select().from(brainlifts).where(eq(brainlifts.slug, slug));
 
@@ -39,6 +54,93 @@ export async function getBrainliftBySlug(slug: string): Promise<BrainliftData | 
 export async function getBrainliftById(id: number): Promise<Brainlift | undefined> {
   const [brainlift] = await db.select().from(brainlifts).where(eq(brainlifts.id, id));
   return brainlift;
+}
+
+export interface BrainliftDetailRecord {
+  id: number;
+  slug: string;
+  title: string;
+  description: string;
+  displayPurpose: string | null;
+  author: string | null;
+  createdAt: Date;
+}
+
+export interface BrainliftDetailAggregate {
+  brainlift: BrainliftDetailRecord;
+  experts: Expert[];
+  dok1: Fact[];
+  dok2: Array<{
+    id: number;
+    category: string | null;
+    sourceName: string;
+    sourceUrl: string | null;
+    displayTitle: string | null;
+    workflowyNodeId: string | null;
+    sourceWorkflowyNodeId: string | null;
+    points: Array<{ id: number; text: string; sortOrder: number }>;
+    relatedFactIds: number[];
+    grade: number | null;
+    diagnosis: string | null;
+    feedback: string | null;
+    failReason: unknown | null;
+    sourceVerified: boolean | null;
+    gradingStatus: 'graded' | 'regrading' | 'grading' | 'error' | null;
+  }>;
+  dok3: DOK3InsightWithLinks[];
+  dok4: DOK4SpovWithLinks[];
+}
+
+export async function getBrainliftDetailById(id: number): Promise<BrainliftDetailAggregate | undefined> {
+  const [brainlift] = await db.select({
+    id: brainlifts.id,
+    slug: brainlifts.slug,
+    title: brainlifts.title,
+    description: brainlifts.description,
+    displayPurpose: brainlifts.displayPurpose,
+    author: brainlifts.author,
+    createdAt: brainlifts.createdAt,
+  }).from(brainlifts).where(eq(brainlifts.id, id));
+  if (!brainlift) return undefined;
+
+  const [
+    brainliftExperts,
+    brainliftFacts,
+    dok2SummariesData,
+    dok3InsightsData,
+    dok4SpovsData,
+  ] = await Promise.all([
+    db.select().from(experts)
+      .where(eq(experts.brainliftId, id))
+      .orderBy(...expertOrderBy()),
+    db.select().from(facts)
+      .where(eq(facts.brainliftId, id))
+      .orderBy(asc(facts.id)),
+    getDOK2Summaries(id),
+    getDOK3Insights(id, []),
+    getDOK4Spovs(id),
+  ]);
+
+  const dok2Ids = dok2SummariesData.map((summary) => summary.id);
+  const dok2Statuses = dok2Ids.length > 0
+    ? await db.select({
+        id: dok2Summaries.id,
+        gradingStatus: dok2Summaries.gradingStatus,
+      }).from(dok2Summaries).where(inArray(dok2Summaries.id, dok2Ids))
+    : [];
+  const dok2StatusById = new Map(dok2Statuses.map((row) => [row.id, row.gradingStatus]));
+
+  return {
+    brainlift,
+    experts: brainliftExperts,
+    dok1: brainliftFacts,
+    dok2: dok2SummariesData.map((summary) => ({
+      ...summary,
+      gradingStatus: dok2StatusById.get(summary.id) ?? null,
+    })),
+    dok3: dok3InsightsData,
+    dok4: dok4SpovsData,
+  };
 }
 
 export async function getBrainliftDataById(id: number): Promise<BrainliftData | undefined> {
@@ -239,6 +341,7 @@ export async function deleteBrainlift(id: number): Promise<void> {
 }
 
 export async function updateBrainliftFields(id: number, fields: {
+  title?: string;
   originalContent?: string | null;
   sourceType?: string | null;
   author?: string | null;
@@ -254,6 +357,12 @@ export async function updateBrainliftFields(id: number, fields: {
   await db.update(brainlifts)
     .set(fields)
     .where(eq(brainlifts.id, id));
+}
+
+export async function updateImportStatus(brainliftId: number, importStatus: ImportStatus) {
+  await db.update(brainlifts)
+    .set({ importStatus })
+    .where(eq(brainlifts.id, brainliftId));
 }
 
 /**
@@ -272,91 +381,160 @@ export async function getVersionsByBrainliftId(brainliftId: number): Promise<Bra
 }
 
 // Authorization methods
+
+/**
+ * Build a case-insensitive search predicate that matches `term` against the
+ * brainlift title, the brainlift author (document header), and the platform
+ * user's display name. Returns `undefined` when `term` is empty so callers can
+ * pass it directly into `and(...)`.
+ */
+function buildBrainliftSearchPredicate(term: string | undefined) {
+  if (!term) return undefined;
+  const trimmed = term.trim();
+  if (!trimmed) return undefined;
+  const pattern = `%${trimmed.replace(/[%_]/g, '\\$&')}%`;
+  return sql`(${brainlifts.title} ILIKE ${pattern} OR ${brainlifts.author} ILIKE ${pattern} OR ${user.name} ILIKE ${pattern})`;
+}
+
+export interface BrainliftWithCreator extends Brainlift {
+  creatorName: string | null;
+}
+
 export async function getBrainliftsForUserPaginated(
   authContext: AuthContext,
   offset: number,
   limit: number,
-  filter: 'all' | 'owned' | 'shared' = 'all'
-): Promise<{ brainlifts: Brainlift[]; total: number }> {
-  const { getUserSharePermission } = await import('./shares');
+  filter: 'all' | 'owned' | 'shared' = 'all',
+  options: { search?: string } = {}
+): Promise<{ brainlifts: BrainliftWithCreator[]; total: number }> {
+  const searchPredicate = buildBrainliftSearchPredicate(options.search);
 
   if (filter === 'shared') {
-    // Get brainlifts shared with user via shares table
-    const { getSharedBrainlifts } = await import('./shares');
-    const sharedBrainlifts = await getSharedBrainlifts(authContext.userId, offset, limit);
+    // Brainlifts shared with user via shares table. We re-implement the
+    // shared-lookup here (rather than going through `getSharedBrainlifts`)
+    // so we can JOIN the user table for creatorName and apply search.
+    const sharedJoin = sql`INNER JOIN (SELECT DISTINCT brainlift_id FROM brainlift_shares WHERE user_id = ${authContext.userId} AND type = 'user') sh ON sh.brainlift_id = ${brainlifts.id}`;
 
-    // Get total count for pagination
-    const [countResult] = await db.select({ count: sql<number>`count(*)` })
+    const whereClause = searchPredicate ? and(searchPredicate) : undefined;
+
+    const itemsQuery = db
+      .select({ brainlift: brainlifts, creatorName: user.name })
       .from(brainlifts)
+      .leftJoin(user, eq(brainlifts.createdByUserId, user.id))
       .innerJoin(
-        sql`(SELECT DISTINCT brainlift_id FROM brainlift_shares WHERE user_id = ${authContext.userId} AND type = 'user')`,
-        sql`brainlifts.id = brainlift_id`
+        sql`(SELECT DISTINCT brainlift_id FROM brainlift_shares WHERE user_id = ${authContext.userId} AND type = 'user') sh`,
+        sql`sh.brainlift_id = ${brainlifts.id}`
       );
+    const items = whereClause
+      ? await itemsQuery.where(whereClause).orderBy(desc(brainlifts.id)).limit(limit).offset(offset)
+      : await itemsQuery.orderBy(desc(brainlifts.id)).limit(limit).offset(offset);
 
-    return { brainlifts: sharedBrainlifts, total: Number(countResult.count) };
+    const countQuery = db
+      .select({ count: sql<number>`count(*)` })
+      .from(brainlifts)
+      .leftJoin(user, eq(brainlifts.createdByUserId, user.id))
+      .innerJoin(
+        sql`(SELECT DISTINCT brainlift_id FROM brainlift_shares WHERE user_id = ${authContext.userId} AND type = 'user') sh`,
+        sql`sh.brainlift_id = ${brainlifts.id}`
+      );
+    const [countResult] = whereClause
+      ? await countQuery.where(whereClause)
+      : await countQuery;
+
+    return {
+      brainlifts: items.map((row) => ({ ...row.brainlift, creatorName: row.creatorName })),
+      total: Number(countResult.count),
+    };
   }
 
   if (filter === 'owned') {
-    // Only brainlifts owned by user
-    const [countResult] = await db.select({ count: sql<number>`count(*)` })
-      .from(brainlifts)
-      .where(eq(brainlifts.createdByUserId, authContext.userId));
+    const ownedPredicate = eq(brainlifts.createdByUserId, authContext.userId);
+    const whereClause = searchPredicate ? and(ownedPredicate, searchPredicate) : ownedPredicate;
 
-    const items = await db.select().from(brainlifts)
-      .where(eq(brainlifts.createdByUserId, authContext.userId))
+    const items = await db
+      .select({ brainlift: brainlifts, creatorName: user.name })
+      .from(brainlifts)
+      .leftJoin(user, eq(brainlifts.createdByUserId, user.id))
+      .where(whereClause)
       .orderBy(desc(brainlifts.id))
       .limit(limit)
       .offset(offset);
 
-    return { brainlifts: items, total: Number(countResult.count) };
+    const [countResult] = await db
+      .select({ count: sql<number>`count(*)` })
+      .from(brainlifts)
+      .leftJoin(user, eq(brainlifts.createdByUserId, user.id))
+      .where(whereClause);
+
+    return {
+      brainlifts: items.map((row) => ({ ...row.brainlift, creatorName: row.creatorName })),
+      total: Number(countResult.count),
+    };
   }
 
-  // filter === 'all': Both owned and shared
-  const ownedBrainlifts = await db.select().from(brainlifts)
-    .where(eq(brainlifts.createdByUserId, authContext.userId))
+  // filter === 'all': Both owned and shared. We do this as a single UNION
+  // selecting brainlift ids the user can see, then join+search+paginate over
+  // the union. Keeps the search predicate consistent across both buckets.
+  const visibleIdsCte = sql`(
+    SELECT id FROM ${brainlifts} WHERE created_by_user_id = ${authContext.userId}
+    UNION
+    SELECT brainlift_id AS id FROM brainlift_shares WHERE user_id = ${authContext.userId} AND type = 'user'
+  )`;
+
+  const allWhere = searchPredicate
+    ? and(sql`${brainlifts.id} IN ${visibleIdsCte}`, searchPredicate)
+    : sql`${brainlifts.id} IN ${visibleIdsCte}`;
+
+  const items = await db
+    .select({ brainlift: brainlifts, creatorName: user.name })
+    .from(brainlifts)
+    .leftJoin(user, eq(brainlifts.createdByUserId, user.id))
+    .where(allWhere)
     .orderBy(desc(brainlifts.id))
     .limit(limit)
     .offset(offset);
 
-  const sharedBrainlifts = await getSharedBrainlifts(authContext.userId, offset, limit);
-
-  // Combine and deduplicate (shouldn't happen but just in case)
-  const allBrainlifts = [...ownedBrainlifts, ...sharedBrainlifts];
-  const uniqueBrainlifts = Array.from(
-    new Map(allBrainlifts.map(b => [b.id, b])).values()
-  ).sort((a, b) => b.id - a.id);
-
-  // Get total count
-  const [ownedCount] = await db.select({ count: sql<number>`count(*)` })
+  const [countResult] = await db
+    .select({ count: sql<number>`count(*)` })
     .from(brainlifts)
-    .where(eq(brainlifts.createdByUserId, authContext.userId));
-
-  const [sharedCount] = await db.select({ count: sql<number>`count(*)` })
-    .from(brainlifts)
-    .innerJoin(
-      sql`(SELECT DISTINCT brainlift_id FROM brainlift_shares WHERE user_id = ${authContext.userId} AND type = 'user')`,
-      sql`brainlifts.id = brainlift_id`
-    );
+    .leftJoin(user, eq(brainlifts.createdByUserId, user.id))
+    .where(allWhere);
 
   return {
-    brainlifts: uniqueBrainlifts.slice(0, limit),
-    total: Number(ownedCount.count) + Number(sharedCount.count)
+    brainlifts: items.map((row) => ({ ...row.brainlift, creatorName: row.creatorName })),
+    total: Number(countResult.count),
   };
 }
 
 export async function getAllBrainliftsPaginated(
   offset: number,
-  limit: number
-): Promise<{ brainlifts: Brainlift[]; total: number }> {
-  const [countResult] = await db.select({ count: sql<number>`count(*)` })
-    .from(brainlifts);
+  limit: number,
+  options: { search?: string } = {}
+): Promise<{ brainlifts: BrainliftWithCreator[]; total: number }> {
+  const searchPredicate = buildBrainliftSearchPredicate(options.search);
 
-  const items = await db.select().from(brainlifts)
-    .orderBy(desc(brainlifts.id))
-    .limit(limit)
-    .offset(offset);
+  const itemsQuery = db
+    .select({ brainlift: brainlifts, creatorName: user.name })
+    .from(brainlifts)
+    .leftJoin(user, eq(brainlifts.createdByUserId, user.id));
 
-  return { brainlifts: items, total: Number(countResult.count) };
+  const items = searchPredicate
+    ? await itemsQuery.where(searchPredicate).orderBy(desc(brainlifts.id)).limit(limit).offset(offset)
+    : await itemsQuery.orderBy(desc(brainlifts.id)).limit(limit).offset(offset);
+
+  const countQuery = db
+    .select({ count: sql<number>`count(*)` })
+    .from(brainlifts)
+    .leftJoin(user, eq(brainlifts.createdByUserId, user.id));
+
+  const [countResult] = searchPredicate
+    ? await countQuery.where(searchPredicate)
+    : await countQuery;
+
+  return {
+    brainlifts: items.map((row) => ({ ...row.brainlift, creatorName: row.creatorName })),
+    total: Number(countResult.count),
+  };
 }
 
 /**

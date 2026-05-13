@@ -22,7 +22,9 @@ const {
     mockStorage: {
       getTaskForBrainlift: vi.fn(),
       getDeliverableByTaskId: vi.fn(),
+      getDeliverableByIdForBrainlift: vi.fn(),
       listPlans: vi.fn(),
+      listDocuments: vi.fn(),
       getSprintSharingAudience: vi.fn(),
       setBrainliftGdriveRootFolder: vi.fn(),
       setPlanGdriveFolder: vi.fn(),
@@ -34,6 +36,7 @@ const {
       ensurePlanFolder: vi.fn(),
       syncRootFolderEditors: vi.fn(),
       createGoogleDocFromMarkdown: vi.fn(),
+      exportGoogleDocAsMarkdown: vi.fn(),
       replaceGoogleDocFromMarkdown: vi.fn(),
       deleteGoogleDoc: vi.fn(),
     },
@@ -242,7 +245,48 @@ describe('internal sprint route handlers', () => {
     );
     expect(res.status).toHaveBeenCalledWith(201);
     expect(res.json).toHaveBeenCalledWith({
+      id: 900,
       docUrl: 'https://docs.google.com/document/d/doc-1/edit',
+    });
+  });
+
+  it('internalCreateDeliverableHandler creates hub docs through the unified route shape', async () => {
+    const { internalCreateDeliverableHandler } = await import('../internal');
+    const req = createReq({
+      params: { slug: 'scope-breaker' },
+      body: { title: 'Hub Doc', markdown: '# Hub' },
+    });
+    const res = createRes();
+
+    mockStorage.getSprintSharingAudience.mockResolvedValue({
+      ownerEmail: 'owner@example.com',
+      ownerName: 'Owner',
+      editorEmails: [],
+      guideEmails: [],
+    });
+    mockDriveService.ensureRootFolder.mockResolvedValue({ folderId: 'root-1', created: true });
+    mockDriveService.createGoogleDocFromMarkdown.mockResolvedValue({
+      fileId: 'doc-hub',
+      docUrl: 'https://docs.google.com/document/d/doc-hub/edit',
+    });
+    mockStorage.createDeliverable.mockResolvedValue({
+      id: 901,
+      docUrl: 'https://docs.google.com/document/d/doc-hub/edit',
+    });
+
+    await internalCreateDeliverableHandler(req, res);
+
+    expect(mockStorage.getTaskForBrainlift).not.toHaveBeenCalled();
+    expect(mockDriveService.ensurePlanFolder).not.toHaveBeenCalled();
+    expect(mockStorage.createDeliverable).toHaveBeenCalledWith(expect.objectContaining({
+      taskId: null,
+      sourceSurface: 'mcp',
+    }));
+    expect(mockStorage.markPlanCompleteIfAllDelivered).not.toHaveBeenCalled();
+    expect(res.status).toHaveBeenCalledWith(201);
+    expect(res.json).toHaveBeenCalledWith({
+      id: 901,
+      docUrl: 'https://docs.google.com/document/d/doc-hub/edit',
     });
   });
 
@@ -324,7 +368,107 @@ describe('internal sprint route handlers', () => {
     expect(mockDriveService.replaceGoogleDocFromMarkdown).toHaveBeenCalledWith('doc-123', '# Updated');
     expect(mockSetDeliverableSourceSurface).toHaveBeenCalledWith(7, 1, 'mcp');
     expect(res.json).toHaveBeenCalledWith({
+      id: 7,
       docUrl: 'https://docs.google.com/document/d/doc-123/edit',
+    });
+  });
+
+  it('internalPatchDeliverableByIdHandler scopes updates by deliverable id and stamps mcp', async () => {
+    const { internalPatchDeliverableByIdHandler } = await import('../internal');
+    const req = createReq({
+      params: { slug: 'scope-breaker', id: '77' },
+      body: { markdown: '# Updated' },
+    });
+    const res = createRes();
+
+    mockStorage.getDeliverableByIdForBrainlift.mockResolvedValue({
+      id: 77,
+      taskId: null,
+      brainliftId: 1,
+      title: 'Hub Doc',
+      docFileId: 'doc-77',
+      docUrl: 'https://docs.google.com/document/d/doc-77/edit',
+      sourceSurface: 'ui',
+      createdByUserId: 'user-1',
+      createdAt: new Date(),
+    });
+
+    await internalPatchDeliverableByIdHandler(req, res);
+
+    expect(mockStorage.getDeliverableByIdForBrainlift).toHaveBeenCalledWith(77, 1);
+    expect(mockDriveService.replaceGoogleDocFromMarkdown).toHaveBeenCalledWith('doc-77', '# Updated');
+    expect(mockSetDeliverableSourceSurface).toHaveBeenCalledWith(77, 1, 'mcp');
+    expect(res.json).toHaveBeenCalledWith({
+      id: 77,
+      docUrl: 'https://docs.google.com/document/d/doc-77/edit',
+    });
+  });
+
+  it('internalReadDeliverableByIdHandler returns drive markdown through a scoped deliverable id', async () => {
+    const { internalReadDeliverableByIdHandler } = await import('../internal');
+    const req = createReq({ params: { slug: 'scope-breaker', id: '77' } });
+    const res = createRes();
+
+    mockStorage.getDeliverableByIdForBrainlift.mockResolvedValue({
+      id: 77,
+      taskId: null,
+      brainliftId: 1,
+      title: 'Stored Title',
+      docFileId: 'doc-77',
+      docUrl: 'https://docs.google.com/document/d/doc-77/edit',
+      sourceSurface: 'ui',
+      createdByUserId: 'user-1',
+      createdAt: new Date(),
+    });
+    mockDriveService.exportGoogleDocAsMarkdown.mockResolvedValue({
+      title: 'Drive Title',
+      markdown: '# Exported',
+      docUrl: 'https://docs.google.com/document/d/doc-77/edit',
+    });
+
+    await internalReadDeliverableByIdHandler(req, res);
+
+    expect(mockStorage.getDeliverableByIdForBrainlift).toHaveBeenCalledWith(77, 1);
+    expect(res.json).toHaveBeenCalledWith({
+      title: 'Drive Title',
+      contentMarkdown: '# Exported',
+      docUrl: 'https://docs.google.com/document/d/doc-77/edit',
+    });
+  });
+
+  it('internalListDocumentsHandler forwards filters and auth context', async () => {
+    const { internalListDocumentsHandler } = await import('../internal');
+    const req = createReq({
+      query: { brainliftSlug: 'scope-breaker', q: 'hub', sort: 'title', order: 'asc', page: '2' },
+      authContext: { userId: 'admin-1', role: 'admin', isAdmin: true },
+    });
+    const res = createRes();
+
+    mockStorage.listDocuments.mockResolvedValue({
+      documents: [],
+      page: 2,
+      pageSize: 30,
+      total: 0,
+    });
+
+    await internalListDocumentsHandler(req, res);
+
+    expect(mockStorage.listDocuments).toHaveBeenCalledWith({
+      userId: 'admin-1',
+      isAdmin: true,
+      brainliftId: undefined,
+      brainliftSlug: 'scope-breaker',
+      taskId: undefined,
+      q: 'hub',
+      sort: 'title',
+      order: 'asc',
+      page: 2,
+    });
+    expect(res.json).toHaveBeenCalledWith({
+      documents: [],
+      page: 2,
+      pageSize: 30,
+      total: 0,
     });
   });
 
@@ -367,6 +511,9 @@ describe('internal sprint route wiring', () => {
     assertRoute('post', '/api/internal/brainlifts/:slug/tasks/:taskId/deliverable', 'write');
     assertRoute('get', '/api/internal/brainlifts/:slug/tasks/:taskId/deliverable', 'read');
     assertRoute('put', '/api/internal/brainlifts/:slug/tasks/:taskId/deliverable', 'write');
+    assertRoute('post', '/api/internal/brainlifts/:slug/deliverables', 'write');
     assertRoute('get', '/api/internal/brainlifts/:slug/deliverables', 'read');
+    assertRoute('get', '/api/internal/brainlifts/:slug/deliverables/:id', 'read');
+    assertRoute('patch', '/api/internal/brainlifts/:slug/deliverables/:id', 'write');
   });
 });

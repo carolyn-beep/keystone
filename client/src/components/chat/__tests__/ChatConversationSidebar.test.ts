@@ -56,8 +56,8 @@ describe('ChatConversationSidebar (reduced) source', () => {
     expect(source).not.toMatch(/Brainlift Central/i);
   });
 
-  it('does not render the nav-links footer (Brainlift Library / Analytics / Providers)', () => {
-    expect(source).not.toMatch(/Brainlift Library/);
+  it('does not render the nav-links footer (Projects / Analytics / Providers)', () => {
+    expect(source).not.toMatch(/Projects/);
     // The nav-links footer iterated `navLinks.map`. With navLinks gone, no
     // such reference should remain.
     expect(source).not.toMatch(/navLinks\.map/);

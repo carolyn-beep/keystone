@@ -1,11 +1,12 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { eq } from 'drizzle-orm';
 import { db } from '../../db';
-import { brainlifts, user } from '@shared/schema';
+import { brainlifts, brainliftShares, user } from '@shared/schema';
 import { deleteBrainlift } from '../brainlifts';
 import {
   createDeliverable,
   createPlanWithTasks,
+  listDocuments,
   listDeliverablesForBrainlift,
   listTasksForBrainlift,
   markPlanCompleteIfAllDelivered,
@@ -33,7 +34,7 @@ async function insertUser(id: string, email: string): Promise<void> {
   createdUserIds.push(id);
 }
 
-async function insertBrainlift(label: string): Promise<number> {
+async function insertBrainlift(label: string, ownerId = OWNER_ID): Promise<number> {
   const [row] = await db
     .insert(brainlifts)
     .values({
@@ -41,7 +42,7 @@ async function insertBrainlift(label: string): Promise<number> {
       title: `Scope Sprint ${label}`,
       description: `Scope sprint brainlift ${label}`,
       summary: DEFAULT_SUMMARY,
-      createdByUserId: OWNER_ID,
+      createdByUserId: ownerId,
     })
     .returning({ id: brainlifts.id });
 
@@ -51,6 +52,7 @@ async function insertBrainlift(label: string): Promise<number> {
 
 beforeAll(async () => {
   await insertUser(OWNER_ID, `scope-sprints-owner-${Date.now()}@scope.test`);
+  await insertUser(`${OWNER_ID}-other`, `scope-sprints-other-${Date.now()}@scope.test`);
 });
 
 afterAll(async () => {
@@ -119,6 +121,157 @@ describe('sprints storage queries', () => {
     expect(planBDeliverables).toHaveLength(1);
     expect(planADeliverables.every((row) => row.planId === planA.id)).toBe(true);
     expect(planBDeliverables.every((row) => row.planId === planB.id)).toBe(true);
+  });
+
+  it('lists hub deliverables with nullable task metadata and preserves task uniqueness', async () => {
+    const brainliftId = await insertBrainlift('hub-deliverables');
+
+    const { plan, tasks: createdTasks } = await createPlanWithTasks({
+      brainliftId,
+      startDate: '2026-07-01',
+      userId: OWNER_ID,
+      tasks: [
+        { scheduledDate: '2026-07-01', title: 'Task doc', description: 'Task desc' },
+      ],
+    });
+
+    await createDeliverable({
+      taskId: createdTasks[0].id,
+      brainliftId,
+      title: 'Task Deliverable',
+      docFileId: 'doc-task',
+      docUrl: 'https://docs.google.com/document/d/doc-task/edit',
+      sourceSurface: 'ui',
+      createdByUserId: OWNER_ID,
+    });
+    await createDeliverable({
+      taskId: null,
+      brainliftId,
+      title: 'Hub Note',
+      docFileId: 'doc-hub-1',
+      docUrl: 'https://docs.google.com/document/d/doc-hub-1/edit',
+      sourceSurface: 'mcp',
+      createdByUserId: OWNER_ID,
+    });
+    await createDeliverable({
+      taskId: null,
+      brainliftId,
+      title: 'Hub Note',
+      docFileId: 'doc-hub-2',
+      docUrl: 'https://docs.google.com/document/d/doc-hub-2/edit',
+      sourceSurface: 'mcp',
+      createdByUserId: OWNER_ID,
+    });
+
+    await expect(createDeliverable({
+      taskId: createdTasks[0].id,
+      brainliftId,
+      title: 'Duplicate Task Deliverable',
+      docFileId: 'doc-task-duplicate',
+      docUrl: 'https://docs.google.com/document/d/doc-task-duplicate/edit',
+      sourceSurface: 'ui',
+      createdByUserId: OWNER_ID,
+    })).rejects.toThrow('A deliverable already exists for this task');
+
+    const allDeliverables = await listDeliverablesForBrainlift(brainliftId);
+    const planDeliverables = await listDeliverablesForBrainlift(brainliftId, { planId: plan.id });
+    const scopedPlanDeliverables = await listDeliverablesForBrainlift(brainliftId, { scope: 'plan' });
+    const hubDeliverables = await listDeliverablesForBrainlift(brainliftId, { scope: 'hub' });
+
+    expect(allDeliverables).toHaveLength(3);
+    expect(planDeliverables).toHaveLength(1);
+    expect(scopedPlanDeliverables).toHaveLength(1);
+    expect(scopedPlanDeliverables[0].taskId).toBe(createdTasks[0].id);
+    expect(hubDeliverables).toHaveLength(2);
+    expect(hubDeliverables).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        taskId: null,
+        planId: null,
+        taskTitle: null,
+        scheduledDate: null,
+      }),
+    ]));
+  });
+
+  it('lists documents across owned and explicitly shared Brainlifts with filters and pagination', async () => {
+    const otherOwnerId = `${OWNER_ID}-other`;
+    const ownedBrainliftId = await insertBrainlift('owned-documents');
+    const sharedBrainliftId = await insertBrainlift('shared-documents', otherOwnerId);
+    const privateBrainliftId = await insertBrainlift('private-documents', otherOwnerId);
+
+    await db.insert(brainliftShares).values({
+      brainliftId: sharedBrainliftId,
+      type: 'user',
+      permission: 'viewer',
+      userId: OWNER_ID,
+      createdByUserId: otherOwnerId,
+    });
+
+    for (let index = 1; index <= 31; index += 1) {
+      await createDeliverable({
+        taskId: null,
+        brainliftId: ownedBrainliftId,
+        title: `Owned Alpha ${String(index).padStart(2, '0')}`,
+        docFileId: `owned-alpha-${index}`,
+        docUrl: `https://docs.google.com/document/d/owned-alpha-${index}/edit`,
+        sourceSurface: 'mcp',
+        createdByUserId: OWNER_ID,
+      });
+    }
+
+    await createDeliverable({
+      taskId: null,
+      brainliftId: sharedBrainliftId,
+      title: 'Shared Beta',
+      docFileId: 'shared-beta',
+      docUrl: 'https://docs.google.com/document/d/shared-beta/edit',
+      sourceSurface: 'mcp',
+      createdByUserId: otherOwnerId,
+    });
+    await createDeliverable({
+      taskId: null,
+      brainliftId: privateBrainliftId,
+      title: 'Private Gamma',
+      docFileId: 'private-gamma',
+      docUrl: 'https://docs.google.com/document/d/private-gamma/edit',
+      sourceSurface: 'mcp',
+      createdByUserId: otherOwnerId,
+    });
+
+    const userDocuments = await listDocuments({
+      userId: OWNER_ID,
+      q: 'alpha',
+      sort: 'title',
+      order: 'asc',
+      page: 2,
+    });
+    const inaccessibleFilter = await listDocuments({
+      userId: OWNER_ID,
+      brainliftId: privateBrainliftId,
+    });
+    const adminDocuments = await listDocuments({
+      userId: OWNER_ID,
+      isAdmin: true,
+      brainliftId: privateBrainliftId,
+    });
+
+    expect(userDocuments.page).toBe(2);
+    expect(userDocuments.pageSize).toBe(30);
+    expect(userDocuments.total).toBe(31);
+    expect(userDocuments.documents).toHaveLength(1);
+    expect(userDocuments.documents[0]).toEqual(expect.objectContaining({
+      brainliftId: ownedBrainliftId,
+      title: 'Owned Alpha 31',
+      taskId: null,
+      planId: null,
+    }));
+    expect(inaccessibleFilter.documents).toEqual([]);
+    expect(adminDocuments.documents).toEqual([
+      expect.objectContaining({
+        brainliftId: privateBrainliftId,
+        title: 'Private Gamma',
+      }),
+    ]);
   });
 
   it('applies date/week/state/includePastDue filters for active-plan task queries', async () => {

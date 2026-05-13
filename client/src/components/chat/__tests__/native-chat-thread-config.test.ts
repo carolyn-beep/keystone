@@ -36,7 +36,7 @@ describe('native chat thread config', () => {
     expect(toolNames).toEqual(expect.arrayContaining([
       'get_template',
       'list_brainlifts',
-      'grade_brainlift',
+      'create_brainlift',
       'get_brainlift_assessment',
       'create_dok1',
       'delete_dok_item',
@@ -45,9 +45,19 @@ describe('native chat thread config', () => {
       'list_tasks',
       'save_deliverable',
       'update_deliverable',
+      'read_deliverable',
+      'list_documents',
       'load_skill',
+      'load_skill_reference',
+      'create_skill',
+      'update_skill',
+      'add_skill_reference',
+      'update_skill_reference',
+      'delete_skill_reference',
+      'delete_skill',
       'ask_user_question',
     ]));
+    expect(toolNames).not.toContain('list_deliverables');
     expect(config.assistantMessage.components.ToolFallback).toBe(GenericToolCallCard);
   });
 

@@ -1,7 +1,9 @@
 import { ReactNode } from 'react';
-import { RefreshCw, Download, Users, History } from 'lucide-react';
+import { useLocation } from 'wouter';
+import { MessageSquare, Download, Users, History, Pencil } from 'lucide-react';
 import { BrainliftData, BrainliftVersion } from '@shared/schema';
 import { TactileButton } from '@/components/ui/tactile-button';
+import { CHAT_HOME_ROUTE_PATH } from '@/components/chat/chat-home-helpers';
 
 // Import all profile images
 import appleImg from '@/assets/bl_profile/apple.webp';
@@ -86,7 +88,11 @@ interface DashboardHeaderProps {
   authorInput: string;
   setAuthorInput: (input: string) => void;
   onUpdateAuthor: (author: string) => void;
-  setShowUpdateModal: (show: boolean) => void;
+  editingTitle?: boolean;
+  setEditingTitle?: (editing: boolean) => void;
+  titleInput?: string;
+  setTitleInput?: (input: string) => void;
+  onUpdateTitle?: (title: string) => void;
   setShowHistoryModal: (show: boolean) => void;
   handleDownloadPDF: () => void;
   isOwner?: boolean;
@@ -107,7 +113,11 @@ export function DashboardHeader({
   authorInput,
   setAuthorInput,
   onUpdateAuthor,
-  setShowUpdateModal,
+  editingTitle = false,
+  setEditingTitle,
+  titleInput = '',
+  setTitleInput,
+  onUpdateTitle,
   setShowHistoryModal,
   handleDownloadPDF,
   isOwner,
@@ -117,7 +127,33 @@ export function DashboardHeader({
   rightSlot,
   hideDefaultActions = false,
 }: DashboardHeaderProps) {
-  const { title, description, displayPurpose } = data;
+  const [, setLocation] = useLocation();
+  const { title, description, displayPurpose, slug } = data;
+  const canEditTitle = canModify && !!setEditingTitle && !!setTitleInput && !!onUpdateTitle;
+
+  const beginTitleEdit = () => {
+    if (!canEditTitle) return;
+    setTitleInput!(title);
+    setEditingTitle!(true);
+  };
+
+  const commitTitle = () => {
+    if (!onUpdateTitle) return;
+    const next = titleInput.trim();
+    if (!next || next === title) {
+      setEditingTitle?.(false);
+      return;
+    }
+    onUpdateTitle(next);
+  };
+
+  // "Chat About This BrainLift" — opens the chat homepage with an initial
+  // user message that asks the agent to load the BrainLift context. The
+  // homepage reads the `ask` param, creates a new conversation, and fires
+  // the message once on entry. The agent then calls
+  // `get_brainlift_assessment` to load the full DOK1-4 picture.
+  const askMessage = `Load the full context from ${slug}`;
+  const chatAboutHref = `${CHAT_HOME_ROUTE_PATH}?ask=${encodeURIComponent(askMessage)}`;
 
   return (
     <div className="header-content pt-4 pb-4 px-4">
@@ -137,7 +173,45 @@ export function DashboardHeader({
 
         {/* Title, Subtitle, Author */}
         <div className="header-text-col flex-1 min-w-0 flex flex-col gap-1.5">
-          <h1 className="header-title text-[30px] font-bold mt-2 text-foreground tracking-tight leading-[1.3]">{title}</h1>
+          {editingTitle && canEditTitle ? (
+            <div className="header-title mt-2 flex items-center gap-2">
+              <input
+                type="text"
+                value={titleInput}
+                onChange={(e) => setTitleInput!(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') commitTitle();
+                  if (e.key === 'Escape') setEditingTitle!(false);
+                }}
+                onBlur={commitTitle}
+                autoFocus
+                maxLength={200}
+                placeholder="Project name..."
+                className="flex-1 min-w-0 bg-transparent outline-none border-0 border-b border-border focus:border-primary text-[30px] font-bold text-foreground tracking-tight leading-[1.3] py-0.5 px-0"
+                aria-label="Edit project name"
+              />
+            </div>
+          ) : (
+            <div className="header-title mt-2 flex items-center gap-2 group">
+              <h1
+                className={`text-[30px] font-bold text-foreground tracking-tight leading-[1.3] m-0 ${canEditTitle ? 'cursor-pointer' : ''}`}
+                onClick={canEditTitle ? beginTitleEdit : undefined}
+                title={canEditTitle ? 'Click to rename project' : undefined}
+              >
+                {title}
+              </h1>
+              {canEditTitle && (
+                <button
+                  type="button"
+                  onClick={beginTitleEdit}
+                  aria-label="Rename project"
+                  className="shrink-0 inline-flex items-center justify-center w-7 h-7 rounded-md text-muted-light hover:text-foreground hover:bg-card border-0 bg-transparent cursor-pointer transition-colors duration-150 opacity-0 group-hover:opacity-100 focus-visible:opacity-100"
+                >
+                  <Pencil size={14} />
+                </button>
+              )}
+            </div>
+          )}
 
           {/* Subtitle */}
           <p className="header-description text-muted-foreground text-base m-0">
@@ -197,16 +271,16 @@ export function DashboardHeader({
         <div className="header-actions flex gap-2 items-end flex-wrap shrink-0 self-end">
           {rightSlot}
 
-          {/* Primary Action: Update */}
-          {!hideDefaultActions && canModify && !isSharedView && !isNotBrainlift && (
+          {/* Primary Action: Chat About This BrainLift */}
+          {!hideDefaultActions && !isNotBrainlift && (
             <TactileButton
               variant="raised"
-              data-testid="button-update-brainlift"
-              onClick={() => setShowUpdateModal(true)}
+              data-testid="button-chat-about-brainlift"
+              onClick={() => setLocation(chatAboutHref)}
               className="flex items-center gap-1.5 px-4 py-2 text-[13px]"
             >
-              <RefreshCw size={14} />
-              Update
+              <MessageSquare size={14} />
+              Chat About This BrainLift
             </TactileButton>
           )}
 

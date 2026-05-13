@@ -236,7 +236,7 @@ type GradeBrainliftArgs = { markdown: string; title?: string };
 type GradeBrainliftResult = { slug: string; brainliftId: number; status: string; retryAfter: number };
 
 const GradeBrainliftToolUI = makeAssistantToolUI<GradeBrainliftArgs, GradeBrainliftResult>({
-  toolName: 'grade_brainlift',
+  toolName: 'create_brainlift',
   render: ({ result, status, isError }) => (
     <ToolStatusLine
       icon={<StatusIcon status={status} isError={isError} fallback={<NotebookPen size={13} />} />}
@@ -578,8 +578,8 @@ const GetTaskToolUI = makeAssistantToolUI<{ taskId: number }, unknown>({
   ),
 });
 
-type DeliverableArgs = { brainliftSlug: string; taskId: number; title?: string };
-type DeliverableResult = { docUrl: string };
+type DeliverableArgs = { brainliftSlug: string; taskId?: number; deliverableId?: number; title?: string };
+type DeliverableResult = { id?: number; docUrl: string };
 
 function DeliverableToolStatus({
   args,
@@ -595,7 +595,10 @@ function DeliverableToolStatus({
   verb: 'Saving' | 'Updating';
 }) {
   const past = verb === 'Saving' ? 'Saved' : 'Updated';
-  const target = args.title || `task #${args.taskId}`;
+  const target = args.title
+    || (args.deliverableId != null ? `document #${args.deliverableId}` : undefined)
+    || (args.taskId != null ? `task #${args.taskId}` : undefined)
+    || args.brainliftSlug;
 
   return (
     <ToolStatusLine
@@ -634,38 +637,45 @@ const UpdateDeliverableToolUI = makeAssistantToolUI<DeliverableArgs, Deliverable
   render: (props) => <DeliverableToolStatus {...props} verb="Updating" />,
 });
 
-const ReadDeliverableToolUI = makeAssistantToolUI<{ taskId: number }, unknown>({
+const ReadDeliverableToolUI = makeAssistantToolUI<{ taskId?: number; deliverableId?: number; brainliftSlug?: string }, unknown>({
   toolName: 'read_deliverable',
-  render: ({ args, status, isError }) => (
-    <ToolStatusLine
-      icon={<StatusIcon status={status} isError={isError} fallback={<FileText size={13} />} />}
-      tone={getTone(status, isError)}
-    >
-      {isError
-        ? `Failed to read deliverable for task #${args.taskId}`
-        : isRunning(status)
-          ? `Reading deliverable for task #${args.taskId}…`
-          : `Read deliverable for task #${args.taskId}`}
-    </ToolStatusLine>
-  ),
+  render: ({ args, status, isError }) => {
+    const target = args.deliverableId != null
+      ? `document #${args.deliverableId}`
+      : args.taskId != null
+        ? `task #${args.taskId}`
+        : args.brainliftSlug || 'document';
+    return (
+      <ToolStatusLine
+        icon={<StatusIcon status={status} isError={isError} fallback={<FileText size={13} />} />}
+        tone={getTone(status, isError)}
+      >
+        {isError
+          ? `Failed to read deliverable for ${target}`
+          : isRunning(status)
+            ? `Reading deliverable for ${target}…`
+            : `Read deliverable for ${target}`}
+      </ToolStatusLine>
+    );
+  },
 });
 
-const ListDeliverablesToolUI = makeAssistantToolUI<{ brainliftSlug: string }, { deliverables?: unknown[] }>({
-  toolName: 'list_deliverables',
+const ListDocumentsToolUI = makeAssistantToolUI<{ brainliftSlug?: string }, { documents?: unknown[] }>({
+  toolName: 'list_documents',
   render: ({ result, status, isError }) => {
-    const count = result?.deliverables?.length;
+    const count = result?.documents?.length;
     return (
       <ToolStatusLine
         icon={<StatusIcon status={status} isError={isError} fallback={<FileStack size={13} />} />}
         tone={getTone(status, isError)}
       >
         {isError
-          ? 'Failed to list deliverables'
+          ? 'Failed to list documents'
           : isRunning(status)
-            ? 'Listing deliverables…'
+            ? 'Listing documents…'
             : count != null
-              ? `Listed ${count} deliverable${count === 1 ? '' : 's'}`
-              : 'Listed deliverables'}
+              ? `Listed ${count} document${count === 1 ? '' : 's'}`
+              : 'Listed documents'}
       </ToolStatusLine>
     );
   },
@@ -748,6 +758,121 @@ const LoadSkillToolUI = makeAssistantToolUI<{ name: string }, unknown>({
   ),
 });
 
+const LoadSkillReferenceToolUI = makeAssistantToolUI<{ skillName: string; path: string }, unknown>({
+  toolName: 'load_skill_reference',
+  render: ({ args, status, isError }) => (
+    <ToolStatusLine
+      icon={<StatusIcon status={status} isError={isError} fallback={<FileText size={13} />} />}
+      tone={getTone(status, isError)}
+    >
+      {isError
+        ? `Failed to load reference: ${args.path}`
+        : isRunning(status)
+          ? `Loading reference: ${args.path}…`
+          : `Loaded reference: ${args.path}`}
+    </ToolStatusLine>
+  ),
+});
+
+const CreateSkillToolUI = makeAssistantToolUI<{ name: string }, unknown>({
+  toolName: 'create_skill',
+  render: ({ args, status, isError }) => (
+    <ToolStatusLine
+      icon={<StatusIcon status={status} isError={isError} fallback={<BookOpenText size={13} />} />}
+      tone={getTone(status, isError)}
+    >
+      {isError
+        ? `Failed to create skill: ${args.name}`
+        : isRunning(status)
+          ? `Creating skill: ${args.name}…`
+          : `Created skill: ${args.name}`}
+    </ToolStatusLine>
+  ),
+});
+
+const UpdateSkillToolUI = makeAssistantToolUI<{ skillName: string; name?: string }, unknown>({
+  toolName: 'update_skill',
+  render: ({ args, status, isError }) => {
+    const name = args.name ?? args.skillName;
+    return (
+      <ToolStatusLine
+        icon={<StatusIcon status={status} isError={isError} fallback={<Pencil size={13} />} />}
+        tone={getTone(status, isError)}
+      >
+        {isError
+          ? `Failed to update skill: ${args.skillName}`
+          : isRunning(status)
+            ? `Updating skill: ${args.skillName}…`
+            : `Updated skill: ${name}`}
+      </ToolStatusLine>
+    );
+  },
+});
+
+const AddSkillReferenceToolUI = makeAssistantToolUI<{ skillName: string; path: string }, unknown>({
+  toolName: 'add_skill_reference',
+  render: ({ args, status, isError }) => (
+    <ToolStatusLine
+      icon={<StatusIcon status={status} isError={isError} fallback={<FileStack size={13} />} />}
+      tone={getTone(status, isError)}
+    >
+      {isError
+        ? `Failed to add reference: ${args.path}`
+        : isRunning(status)
+          ? `Adding reference: ${args.path}…`
+          : `Added reference: ${args.path}`}
+    </ToolStatusLine>
+  ),
+});
+
+const UpdateSkillReferenceToolUI = makeAssistantToolUI<{ skillName: string; path: string }, unknown>({
+  toolName: 'update_skill_reference',
+  render: ({ args, status, isError }) => (
+    <ToolStatusLine
+      icon={<StatusIcon status={status} isError={isError} fallback={<Pencil size={13} />} />}
+      tone={getTone(status, isError)}
+    >
+      {isError
+        ? `Failed to update reference: ${args.path}`
+        : isRunning(status)
+          ? `Updating reference: ${args.path}…`
+          : `Updated reference: ${args.path}`}
+    </ToolStatusLine>
+  ),
+});
+
+const DeleteSkillReferenceToolUI = makeAssistantToolUI<{ skillName: string; path: string }, unknown>({
+  toolName: 'delete_skill_reference',
+  render: ({ args, status, isError }) => (
+    <ToolStatusLine
+      icon={<StatusIcon status={status} isError={isError} fallback={<Trash2 size={13} />} />}
+      tone={getTone(status, isError)}
+    >
+      {isError
+        ? `Failed to delete reference: ${args.path}`
+        : isRunning(status)
+          ? `Deleting reference: ${args.path}…`
+          : `Deleted reference: ${args.path}`}
+    </ToolStatusLine>
+  ),
+});
+
+const DeleteSkillToolUI = makeAssistantToolUI<{ skillName: string }, unknown>({
+  toolName: 'delete_skill',
+  render: ({ args, status, isError }) => (
+    <ToolStatusLine
+      icon={<StatusIcon status={status} isError={isError} fallback={<Trash2 size={13} />} />}
+      tone={getTone(status, isError)}
+    >
+      {isError
+        ? `Failed to delete skill: ${args.skillName}`
+        : isRunning(status)
+          ? `Deleting skill: ${args.skillName}…`
+          : `Deleted skill: ${args.skillName}`}
+    </ToolStatusLine>
+  ),
+});
+
 // ---------- Ask user question (client-resolved) ----------
 
 const AskUserQuestionToolUI = makeAssistantToolUI<
@@ -769,15 +894,6 @@ function FilteringUserMessage() {
     return null;
   }
   return <DefaultUserMessage />;
-}
-
-// DEV DIAG: log the tool UI registry once at module evaluation. We have a
-// production bug where the AskUserQuestionToolUI fallback fires intermittently
-// despite the bundle containing the registration. This confirms whether the
-// array is built correctly at module load.
-function logRegisteredToolNames(uis: ReadonlyArray<{ unstable_tool: { toolName: string } }>) {
-  // eslint-disable-next-line no-console
-  console.info('[ask-user-question] tool UIs registered at module load:', uis.map((u) => u.unstable_tool.toolName));
 }
 
 export const nativeChatToolUIs = [
@@ -808,18 +924,23 @@ export const nativeChatToolUIs = [
   SaveDeliverableToolUI,
   UpdateDeliverableToolUI,
   ReadDeliverableToolUI,
-  ListDeliverablesToolUI,
+  ListDocumentsToolUI,
   // Research
   WebSearchExaToolUI,
   FetchUrlContentToolUI,
   YoutubeTranscriptToolUI,
   // Skills
   LoadSkillToolUI,
+  LoadSkillReferenceToolUI,
+  CreateSkillToolUI,
+  UpdateSkillToolUI,
+  AddSkillReferenceToolUI,
+  UpdateSkillReferenceToolUI,
+  DeleteSkillReferenceToolUI,
+  DeleteSkillToolUI,
   // Ask user
   AskUserQuestionToolUI,
 ];
-
-logRegisteredToolNames(nativeChatToolUIs);
 
 export function buildNativeChatThreadConfig() {
   return {

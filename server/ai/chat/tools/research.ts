@@ -1,45 +1,28 @@
 import { tool } from 'ai';
 import { z } from 'zod';
+import { brandId } from '../../../brand';
 import { extractContent } from '../../../services/content-extractor';
+import {
+  DEFAULT_SEARCH_RESULT_COUNT,
+  MAX_SEARCH_RESULT_COUNT,
+  normalizeUrl,
+  searchWeb,
+  truncateText,
+} from '../../../services/web-research';
 import { fetchYouTubeTranscript } from '../../../services/youtube-transcript';
 
-const EXA_SEARCH_URL = 'https://api.exa.ai/search';
-const DEFAULT_SEARCH_RESULT_COUNT = 5;
-const MAX_SEARCH_RESULT_COUNT = 10;
 const MAX_FETCH_MARKDOWN_CHARS = 20_000;
 const MAX_TRANSCRIPT_CHARS = 40_000;
 
-type ExaResult = {
-  id?: string;
-  title?: string;
-  url?: string;
-  publishedDate?: string;
-  author?: string;
-  score?: number;
-  text?: string;
-  highlights?: string[];
-};
+const isAlphaX = brandId === 'alphax';
 
-function requireExaApiKey(): string {
-  const apiKey = process.env.EXA_API_KEY;
-  if (!apiKey) {
-    throw new Error('EXA_API_KEY environment variable is not set');
-  }
-  return apiKey;
-}
+const FETCH_URL_DESCRIPTION = isAlphaX
+  ? "Fetch a URL into readable content. The content this returns is for READING WITH the student, not silently mining. After the fetch lands, your next move is to quote 2–3 of the most load-bearing passages back to the student verbatim, tell them which parts caught your eye, and ask what stands out, what surprises them, what pushes back, what lines up with what they already thought. DOK1 fact extraction comes AFTER the student has engaged with the source. DOK2/3/4 prose must come from the student's articulation in the conversation that follows — never directly from this fetched content. If the fetch returns insufficient content (login wall, paywall, JS-only page, blocked bot, captcha, etc.), pivot: try mirror or archive URLs (archive.org, Google cache), search for the same material on freely accessible sites, or substitute another source that covers the same ground. Keep the research moving on your own — you have the tools to find an angle in. When you summarise findings, you can drop a one-line aside about any sources you couldn't reach, in case they want to peek at them directly. Light mention only, never a request for help."
+  : "Fetch a URL into readable content. Uses existing content extraction: article text via Exa Contents, PDF/embed detection, and fallback diagnostics. If the fetch returns insufficient content (login wall, paywall, JS-only page, blocked bot, captcha, etc.), pivot: try mirror or archive URLs (archive.org, Google cache), search for the same material on freely accessible sites, or substitute another source that covers the same ground. Keep the research moving on your own — you have the tools to find an angle in. When you summarise findings, you can drop a one-line aside about any sources you couldn't reach, in case they want to peek at them directly. Light mention only, never a request for help.";
 
-function truncateText(value: string, maxChars: number): string {
-  if (value.length <= maxChars) {
-    return value;
-  }
-  return `${value.slice(0, maxChars).trimEnd()}\n\n[truncated to ${maxChars} characters]`;
-}
-
-function normalizeUrl(value: string): string {
-  const trimmed = value.trim();
-  const url = new URL(trimmed);
-  return url.toString();
-}
+const YOUTUBE_TRANSCRIPT_DESCRIPTION = isAlphaX
+  ? "Fetch the transcript for a YouTube video when captions are available. Accepts a YouTube URL or raw video ID. The transcript this returns is for READING WITH the student, not silently mining. Surface 2–3 of the most striking passages back to the student verbatim, tell them what caught your ear, and ask what stands out or pushes back before extracting DOK1 facts. DOK2/3/4 prose must come from the student's reactions in the conversation, never directly from the transcript. If captions are unavailable or the transcript fails to retrieve, pivot to other coverage of the same material — articles, blog posts, recap pieces, related videos with captions, or summaries of the talk. Keep the research moving on your own. When you summarise findings, you can casually mention the original video as something the user might enjoy watching directly. Light mention only, never a request for help."
+  : "Fetch the transcript for a YouTube video when captions are available. Accepts a YouTube URL or raw video ID. If captions are unavailable or the transcript fails to retrieve, pivot to other coverage of the same material — articles, blog posts, recap pieces, related videos with captions, or summaries of the talk. Keep the research moving on your own. When you summarise findings, you can casually mention the original video as something the user might enjoy watching directly. Light mention only, never a request for help.";
 
 export function extractYouTubeVideoId(input: string): string | null {
   const trimmed = input.trim();
@@ -107,37 +90,22 @@ export function buildResearchChatTools() {
         'Search the web using Exa. Use this for fresh research, source discovery, experts, articles, papers, videos, and market context. Fetch promising URLs before relying on them.',
       inputSchema: webSearchInputSchema,
       execute: async ({ query, numResults, includeDomains, excludeDomains }) => {
-        const response = await fetch(EXA_SEARCH_URL, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'x-api-key': requireExaApiKey(),
-          },
-          body: JSON.stringify({
-            query,
-            numResults: numResults ?? DEFAULT_SEARCH_RESULT_COUNT,
-            ...(includeDomains?.length ? { includeDomains } : {}),
-            ...(excludeDomains?.length ? { excludeDomains } : {}),
-          }),
-          signal: AbortSignal.timeout(15_000),
+        const results = await searchWeb(query, {
+          numResults: numResults ?? DEFAULT_SEARCH_RESULT_COUNT,
+          includeDomains,
+          excludeDomains,
         });
 
-        if (!response.ok) {
-          const body = await response.text();
-          throw new Error(`Exa search failed (${response.status}): ${body}`);
-        }
-
-        const payload = await response.json() as { results?: ExaResult[] };
         return {
           query,
-          results: (payload.results ?? []).map((result) => ({
+          results: results.map((result) => ({
             id: result.id,
             title: result.title ?? null,
-            url: result.url ?? null,
+            url: result.url,
             publishedDate: result.publishedDate ?? null,
             author: result.author ?? null,
             score: result.score ?? null,
-            text: result.text ? truncateText(result.text, 1_000) : undefined,
+            text: result.text ?? undefined,
             highlights: result.highlights,
           })),
         };
@@ -145,8 +113,7 @@ export function buildResearchChatTools() {
     }),
 
     fetch_url_content: tool({
-      description:
-        'Fetch a URL into readable content. Uses existing content extraction: article markdown via Jina, PDF/embed detection, and fallback diagnostics. If the fetch returns insufficient content (login wall, paywall, JS-only page, blocked bot, captcha, etc.), do NOT improvise around the gap or fall back on memory — ask the student to open the URL themselves and paste back the specific information you needed. Keeping the human in the loop is coaching, not failing.',
+      description: FETCH_URL_DESCRIPTION,
       inputSchema: fetchUrlInputSchema,
       execute: async ({ url }) => {
         const normalizedUrl = normalizeUrl(url);
@@ -170,8 +137,7 @@ export function buildResearchChatTools() {
     }),
 
     get_youtube_transcript: tool({
-      description:
-        'Fetch the transcript for a YouTube video when captions are available. Accepts a YouTube URL or raw video ID. If captions are unavailable or the transcript fails to retrieve, do NOT summarize from memory — ask the student to share the relevant timestamps, quotes, or notes from the video themselves.',
+      description: YOUTUBE_TRANSCRIPT_DESCRIPTION,
       inputSchema: youtubeTranscriptInputSchema,
       execute: async ({ urlOrVideoId }) => {
         const videoId = extractYouTubeVideoId(urlOrVideoId);

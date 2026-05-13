@@ -65,6 +65,23 @@ describe('validateApiKey', () => {
     expect(result!.id).toBe(activeKeyId);
     expect(result!.name).toBe('test-active-key');
     expect(result!.rateLimit).toBe(60);
+    expect(result!.scopes).toEqual(['*']);
+  });
+
+  it('returns scopes for a scoped active key', async () => {
+    const [scoped] = await db.insert(apiKeys).values({
+      key: TEST_KEY_PREFIX + '-scoped',
+      name: 'test-scoped-key',
+      rateLimit: 60,
+      isActive: true,
+      scopes: ['brainlifts:list', 'brainlifts:read'],
+    }).returning();
+
+    const result = await validateApiKey(TEST_KEY_PREFIX + '-scoped');
+
+    expect(result).not.toBeNull();
+    expect(result!.id).toBe(scoped.id);
+    expect(result!.scopes).toEqual(['brainlifts:list', 'brainlifts:read']);
   });
 
   it('returns null for non-existent key', async () => {

@@ -310,7 +310,7 @@ export async function setHumanOverrideForBrainlift(
 }
 
 /**
- * Update a fact's grading fields in place (for agent import cascade).
+ * Update a fact's grading fields in place.
  * Uses brainliftId in WHERE clause for IDOR safety.
  */
 export async function updateFactGrading(

@@ -10,14 +10,12 @@ import { CHAT_HOME_ROUTE_PATH, LIBRARY_ROUTE_PATH } from "@/components/chat/chat
 // Lazy load pages for code splitting
 const ChatHome = lazy(() => import("@/pages/ChatHome"));
 const Home = lazy(() => import("@/pages/Home"));
+const Skills = lazy(() => import("@/pages/Skills"));
 const Dashboard = lazy(() => import("@/pages/Dashboard"));
 const Analytics = lazy(() => import("@/pages/Analytics"));
 const AdminProviders = lazy(() => import("@/pages/AdminProviders"));
 const Login = lazy(() => import("@/pages/Login"));
 const NotFound = lazy(() => import("@/pages/not-found"));
-const DevImportAgentTest = lazy(() => import("@/pages/DevImportAgentTest"));
-const PreformatTestPage = lazy(() => import("@/pages/dev/PreformatTestPage"));
-const PreformatBatchPage = lazy(() => import("@/pages/dev/PreformatBatchPage"));
 
 // Loading fallback
 function PageLoader() {
@@ -32,21 +30,6 @@ function Router() {
   return (
     <Switch>
       <Route path="/login" component={Login} />
-      <Route path="/dev/import-agent">
-        <ProtectedRoute>
-          <DevImportAgentTest />
-        </ProtectedRoute>
-      </Route>
-      <Route path="/dev/preformat-test">
-        <ProtectedRoute>
-          <PreformatTestPage />
-        </ProtectedRoute>
-      </Route>
-      <Route path="/dev/preformat-batch">
-        <ProtectedRoute>
-          <PreformatBatchPage />
-        </ProtectedRoute>
-      </Route>
       <Route path={CHAT_HOME_ROUTE_PATH}>
         <ProtectedRoute>
           <ChatHome />
@@ -55,6 +38,11 @@ function Router() {
       <Route path="/analytics">
         <ProtectedRoute>
           <Analytics />
+        </ProtectedRoute>
+      </Route>
+      <Route path="/skills">
+        <ProtectedRoute>
+          <Skills />
         </ProtectedRoute>
       </Route>
       <Route path="/admin/providers">

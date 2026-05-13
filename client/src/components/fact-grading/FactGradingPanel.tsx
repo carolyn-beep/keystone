@@ -130,6 +130,7 @@ export function FactGradingPanel({
 
   // Extra filters for Facts tab
   const extraFilters = useMemo<ExtraFilter<Fact>[]>(() => [
+    { key: 'non-gradeable', label: 'Non-gradeable', predicate: (f: Fact) => !f.isGradeable, color: { bg: tokens.muted, text: tokens.textMuted } },
     { key: 'flagged', label: 'Flagged', predicate: (f: Fact) => (f.flags?.length ?? 0) > 0 },
     { key: 'redundant', label: 'Redundant', predicate: (f: Fact) => factsInRedundancyGroups.has(f.id) },
   ], [factsInRedundancyGroups]);
@@ -188,7 +189,7 @@ export function FactGradingPanel({
   const redundantFactCount = redundancyData?.stats?.redundantFactCount ?? 0;
 
   return (
-    <div className="max-w-[1200px] mx-auto min-h-[200vh]">
+    <div className="max-w-[1420px] mx-auto min-h-[200vh]">
       {/* Panel Header */}
       <div className="flex flex-col gap-4 mb-6 pb-4">
         <div className="flex items-start justify-between gap-6">

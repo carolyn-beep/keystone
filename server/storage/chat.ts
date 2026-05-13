@@ -438,24 +438,45 @@ export async function getChatUserContext(userId: string): Promise<ChatUserContex
     .from(user)
     .where(eq(user.id, userId));
 
-  const [countRow] = await db
-    .select({
-      count: sql<number>`count(*)`,
-    })
-    .from(brainlifts)
-    .where(eq(brainlifts.createdByUserId, userId));
+  // Count both owned brainlifts and brainlifts shared with the user (any permission).
+  const countResult = await db.execute<{ count: string | number }>(sql`
+    SELECT (
+      (SELECT count(*) FROM brainlifts WHERE created_by_user_id = ${userId})
+      +
+      (SELECT count(*) FROM brainlift_shares
+        WHERE user_id = ${userId} AND type = 'user')
+    )::int AS count
+  `);
+  const countRow = countResult.rows?.[0] ?? (countResult as unknown as Array<{ count: string | number }>)[0];
 
-  const recentBrainlifts = await db
-    .select({
-      id: brainlifts.id,
-      slug: brainlifts.slug,
-      title: brainlifts.title,
-      createdAt: brainlifts.createdAt,
-    })
-    .from(brainlifts)
-    .where(eq(brainlifts.createdByUserId, userId))
-    .orderBy(desc(brainlifts.createdAt), asc(brainlifts.id))
-    .limit(5);
+  // Recent brainlifts: combine owned + shared, tag each with the user's permission level
+  // ('owner' for self-created, 'editor' or 'viewer' for shared). Ordered by recency, top 5.
+  const recentBrainliftsResult = await db.execute<{
+    slug: string;
+    title: string;
+    createdAt: Date | string;
+    permission: 'owner' | 'editor' | 'viewer';
+  }>(sql`
+    SELECT slug, title, created_at AS "createdAt", permission
+    FROM (
+      SELECT id, slug, title, created_at, 'owner'::text AS permission
+      FROM brainlifts
+      WHERE created_by_user_id = ${userId}
+      UNION ALL
+      SELECT b.id, b.slug, b.title, b.created_at, s.permission AS permission
+      FROM brainlifts b
+      JOIN brainlift_shares s ON s.brainlift_id = b.id
+      WHERE s.user_id = ${userId} AND s.type = 'user'
+    ) AS combined
+    ORDER BY "createdAt" DESC, id ASC
+    LIMIT 5
+  `);
+  const recentBrainlifts = (recentBrainliftsResult.rows ?? (recentBrainliftsResult as unknown as Array<{
+    slug: string;
+    title: string;
+    createdAt: Date | string;
+    permission: 'owner' | 'editor' | 'viewer';
+  }>));
 
   const activePlans = await loadActivePlanSnapshots(userId);
 
@@ -480,7 +501,10 @@ export async function getChatUserContext(userId: string): Promise<ChatUserContex
     recentBrainlifts: recentBrainlifts.map((brainlift) => ({
       slug: brainlift.slug,
       title: brainlift.title,
-      updatedAt: brainlift.createdAt,
+      updatedAt: brainlift.createdAt instanceof Date
+        ? brainlift.createdAt
+        : new Date(brainlift.createdAt),
+      permission: brainlift.permission,
     })),
     recentConversations: recentConversations.map((conversation) => ({
       id: conversation.id,

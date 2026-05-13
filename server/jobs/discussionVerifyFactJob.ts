@@ -1,7 +1,7 @@
 import type { JobHelpers } from 'graphile-worker';
 import { db, eq, facts } from '../storage/base';
 import { verifyFactWithAllModels } from '../ai/factVerifier';
-import { fetchEvidenceForFact } from '../ai/evidenceFetcher';
+import { fetchEvidenceForFact, type EvidenceResult } from '../ai/evidenceFetcher';
 import { storage } from '../storage';
 import { resolveYouTubeTranscript } from '../utils/resolve-youtube-transcript';
 import { persistFactVerification } from '../services/persist-fact-verification';
@@ -25,11 +25,13 @@ export async function discussionVerifyFactJob(
   }
 
   // Fetch evidence
-  let evidence = {
+  let evidence: EvidenceResult = {
     url: fact.source || null,
     content: null as string | null,
     error: null as string | null,
     fetchedAt: new Date(),
+    mode: 'none',
+    originalSourceUrl: fact.source || null,
   };
   let linkFailed = false;
   if (fact.source) {
@@ -37,12 +39,7 @@ export async function discussionVerifyFactJob(
       const transcriptCache = new Map<string, string | null>();
       const cachedTranscript = await resolveYouTubeTranscript(fact.source, transcriptCache);
       const evidenceResult = await fetchEvidenceForFact(fact.fact, fact.source, undefined, cachedTranscript);
-      evidence = {
-        url: evidenceResult.url ?? fact.source,
-        content: evidenceResult.content || null,
-        error: evidenceResult.error || null,
-        fetchedAt: evidenceResult.fetchedAt ? new Date(evidenceResult.fetchedAt) : new Date(),
-      };
+      evidence = evidenceResult;
       linkFailed = !!evidence.error;
     } catch (err) {
       helpers.logger.error(`[Discussion Verify] Evidence fetch failed for fact ${factId}:`, { err });
@@ -51,6 +48,8 @@ export async function discussionVerifyFactJob(
         content: null,
         error: err instanceof Error ? err.message : String(err),
         fetchedAt: new Date(),
+        mode: 'none',
+        originalSourceUrl: fact.source || null,
       };
       linkFailed = true;
     }
@@ -61,7 +60,7 @@ export async function discussionVerifyFactJob(
     const verification = await verifyFactWithAllModels(
       fact.fact,
       fact.source || '',
-      evidence.content || '',
+      evidence,
       linkFailed
     );
 

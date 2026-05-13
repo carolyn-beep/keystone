@@ -13,6 +13,7 @@
 
 import { promptBuilders } from '../../brand';
 import type { ChatUserContext } from '../../storage/base';
+import type { AuthContext } from '@shared/schema';
 import {
   getDefaultChatSkillRegistry,
   type SkillRegistry,
@@ -26,6 +27,7 @@ export interface BuildChatSystemPromptArgs {
 
 export interface BuildChatSystemPromptFromRegistryArgs {
   userContext: ChatUserContext;
+  authContext: AuthContext;
   skillRegistry?: SkillRegistry;
 }
 
@@ -37,7 +39,7 @@ export async function buildChatSystemPromptFromRegistry(
   args: BuildChatSystemPromptFromRegistryArgs,
 ): Promise<string> {
   const skillRegistry = args.skillRegistry ?? getDefaultChatSkillRegistry();
-  const skills = await skillRegistry.listSkills();
+  const skills = await skillRegistry.listSkills(args.authContext);
 
   return buildChatSystemPrompt({
     userContext: args.userContext,

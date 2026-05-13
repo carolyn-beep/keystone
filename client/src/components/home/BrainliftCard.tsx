@@ -71,6 +71,7 @@ function getGrifoColor(score: number): string {
 
 interface BrainliftCardProps {
   brainlift: Brainlift & {
+    creatorName?: string | null;
     shareInfo?: {
       permission?: 'viewer' | 'editor';
       sharedWithCount?: number;
@@ -84,7 +85,11 @@ interface BrainliftCardProps {
 export function BrainliftCard({ brainlift, adminView, canDelete, onDelete }: BrainliftCardProps) {
   const summary = brainlift.summary || { meanScore: '0', totalFacts: 0, score5Count: 0, contradictionCount: 0 };
   const meanScore = parseFloat(summary.meanScore || '0');
-  const ownerName = brainlift.author || 'Unknown Owner';
+  const projectName = brainlift.title || 'Untitled Project';
+  // Sub-line: "by <author>" with the document author (legacy field) preferred;
+  // falls back to the platform user who created it so admins still see
+  // attribution on imports that never set an author manually.
+  const byName = brainlift.author || brainlift.creatorName || null;
   const profileImage = getProfileImage(brainlift.id, brainlift.coverImageUrl);
   const deleteButton = (
     <button
@@ -158,17 +163,27 @@ export function BrainliftCard({ brainlift, adminView, canDelete, onDelete }: Bra
 
       {/* Right Side - Content */}
       <div className="flex flex-col justify-between p-5 flex-1 min-w-0">
-        {/* Owner Name - Bold, Big */}
+        {/* Project Name - Bold, Big */}
         <h3
-          className="text-xl font-bold m-0 leading-tight truncate pr-8"
+          className="text-base font-bold m-0 leading-tight truncate pr-8"
           style={{ color: tokens.textPrimary }}
         >
-          {ownerName}
+          {projectName}
         </h3>
+
+        {/* "by <name>" — author when set, otherwise platform creator. */}
+        {byName && (
+          <p
+            className="text-xs m-0 mt-1 truncate"
+            style={{ color: tokens.textSecondary }}
+          >
+            by {byName}
+          </p>
+        )}
 
         {/* Date - Regular, Non-bold */}
         <p
-          className="text-base m-0 mt-3"
+          className="text-xs m-0 mt-2"
           style={{ color: tokens.textSecondary }}
         >
           {formatDate(brainlift.createdAt)}
@@ -176,7 +191,7 @@ export function BrainliftCard({ brainlift, adminView, canDelete, onDelete }: Bra
 
         {/* Mean Score - Semi-bold with engraved grifo */}
         <p
-          className="text-lg font-semibold m-0 mt-3 font-serif"
+          className="text-sm font-semibold m-0 mt-2 font-serif"
           style={{ color: tokens.textPrimary }}
         >
           Mean Score:{' '}

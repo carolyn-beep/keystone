@@ -2,8 +2,8 @@
 
 ## Overview
 
-- **Total Endpoints:** 59
-- **Production Endpoints:** 53
+- **Total Endpoints:** 60
+- **Production Endpoints:** 54
 - **Development-Only Endpoints:** 6
 - **Domain Routers:** 11
 
@@ -236,11 +236,14 @@ All routes nested under `/api/brainlifts/:slug/learning-stream` for authorizatio
 
 > **Note:** Service-to-service only — requires `X-Service-Key` header (validated via `requireServiceAuth` middleware). Used by the Brainlift MCP server.
 
+Service authentication also requires `X-User-Email`, which is trusted as the caller-asserted end user for downstream BrainLift access checks. API key scopes restrict which internal endpoints a service key can reach, but they do not constrain which user email a partner can assert. Restricted partner keys should be issued only to trusted operators.
+
 | Method | Endpoint | Auth | Description |
 |--------|----------|------|-------------|
 | `GET` | `/api/internal/template` | Service Key | Returns the Brainlift markdown template |
 | `POST` | `/api/internal/grade` | Service Key | Submit markdown for grading, returns slug |
-| `GET` | `/api/internal/brainlifts` | Service Key | Paginated list of user's brainlifts |
+| `GET` | `/api/internal/brainlifts` | Service Key + `brainlifts:list` | Paginated list of user's brainlifts |
+| `GET` | `/api/internal/brainlifts/:slug` | Service Key + `brainlifts:read` | Canonical normalized BrainLift detail contract |
 | `GET` | `/api/internal/brainlifts/:slug/status` | Service Key | Grading progress with per-DOK counts |
 | `GET` | `/api/internal/brainlifts/:slug/assessment` | Service Key | Paginated assessment results by DOK level |
 | `GET` | `/api/internal/brainlifts/:slug/experts` | Service Key | List imported experts for one owned brainlift |
@@ -257,6 +260,99 @@ All routes nested under `/api/brainlifts/:slug/learning-stream` for authorizatio
 
 - **Query:** `page` (default 1), `pageSize` (default 10, max 20)
 - **Response (200):** `{ brainlifts: [...], pagination: { page, pageSize, totalItems, totalPages } }`
+
+### GET /api/internal/brainlifts/:slug
+
+Canonical read-only BrainLift detail response for partner integrations. Returns current normalized state only; it does not include original imported content, classification, summary, or contradiction clusters.
+
+- **Headers:** `X-Service-Key` is required. `X-User-Email` identifies the asserted user for BrainLift access checks.
+- **Query:** `include` optional comma-separated allowlist. Supported value: `grading`.
+- **Freshness:** no freshness signal is provided in this release. Clients should fetch on a cadence appropriate to their use case.
+- **Trust model:** service auth trusts `X-User-Email` as the caller-asserted user. API key scopes limit endpoint access when scopes are enabled, but do not prevent asserted-user impersonation by a trusted service key.
+- **Errors:** 400 for unknown include values, 401 for invalid service key, 404 for unknown slug or inaccessible BrainLift.
+
+**Response (200):**
+```json
+{
+  "id": 123,
+  "slug": "example-brainlift",
+  "title": "Example BrainLift",
+  "purpose": "Short purpose, or description fallback",
+  "author": "Author Name",
+  "createdAt": "2026-01-01T00:00:00.000Z",
+  "experts": [
+    {
+      "id": 1,
+      "name": "Expert Name",
+      "who": "Researcher",
+      "focus": "Topic",
+      "why": "Relevant",
+      "where": "@expert",
+      "rankScore": 8,
+      "rationale": "High-signal source",
+      "twitterHandle": "@expert",
+      "isFollowing": true
+    }
+  ],
+  "dok1": [
+    {
+      "id": 10,
+      "originalId": "1.1",
+      "text": "Fact text",
+      "category": "Category",
+      "source": "Source citation",
+      "note": "Grading note"
+    }
+  ],
+  "dok2": [
+    {
+      "id": 20,
+      "sourceName": "Source name",
+      "sourceUrl": "https://example.com",
+      "displayTitle": "Source synthesis",
+      "category": "Category",
+      "points": [{ "id": 21, "text": "Point text", "sortOrder": 0 }],
+      "linkedDok1Ids": [10]
+    }
+  ],
+  "dok3": [
+    {
+      "id": 30,
+      "text": "Insight text",
+      "status": "linked",
+      "frameworkName": null,
+      "frameworkDescription": null,
+      "linkedDok2Ids": [20]
+    }
+  ],
+  "dok4": [
+    {
+      "id": 40,
+      "text": "SPOV text",
+      "status": "graded",
+      "linkedDok3Ids": [30],
+      "primaryDok3Id": 30,
+      "positionSummary": "Concise position"
+    }
+  ]
+}
+```
+
+When `?include=grading` is present, every DOK item includes a `grading` key. Items without grading output return `"grading": null`; items with grading output nest grading fields under that key. DOK3/DOK4 `status` remains top-level because it is content state, not grading metadata.
+
+```json
+{
+  "dok1": [{ "id": 10, "text": "Fact text", "grading": { "score": 5, "status": "graded" } }],
+  "dok2": [{ "id": 20, "points": [], "linkedDok1Ids": [10], "grading": { "grade": 4, "feedback": "Good synthesis", "status": "graded" } }],
+  "dok3": [{ "id": 30, "text": "Insight", "status": "graded", "linkedDok2Ids": [20], "grading": { "score": 4, "rationale": "Reason", "feedback": "Feedback", "criteriaBreakdown": null } }],
+  "dok4": [{ "id": 40, "text": "SPOV", "status": "rejected", "linkedDok3Ids": [30], "primaryDok3Id": 30, "positionSummary": null, "grading": { "score": null, "rationale": null, "feedback": null, "criteriaBreakdown": null, "rejectionReason": "Reason", "rejectionCategory": "not_spiky" } }]
+}
+```
+
+**Status enum values:**
+
+- DOK3: `pending_linking`, `linked`, `grading`, `graded`, `error`, `scratchpadded`
+- DOK4: `pending_linking`, `linked`, `grading`, `graded`, `rejected`, `error`
 
 ### GET /api/internal/brainlifts/:slug/status
 

@@ -7,13 +7,11 @@ import { analyticsRouter } from "./routes/analytics";
 import { adminRouter } from "./routes/admin";
 import { brainliftsRouter } from "./routes/brainlifts";
 import { sharesRouter } from "./routes/shares";
-import { devRouter } from "./routes/dev";
 import { jobsRouter } from "./routes/jobs";
 import { learningStreamRouter } from "./routes/learning-stream";
 import { discussionRouter } from "./routes/discussion";
 import { dok3Router } from "./routes/dok3";
 import { dok4Router } from "./routes/dok4";
-import { importAgentRouter } from "./routes/import-agent";
 import { chatRouter } from "./routes/chat";
 import { knowledgeCheckRouter } from "./routes/knowledge-check";
 import { nativeBrainliftsRouter } from "./routes/native-brainlifts";
@@ -24,6 +22,7 @@ import { internalRouter } from "./routes/internal";
 import { dok1CrudRouter } from "./routes/dok1-crud";
 import { dok2CrudRouter } from "./routes/dok2-crud";
 import { sprintsRouter } from "./routes/sprints";
+import { skillsRouter } from "./routes/skills";
 import { errorHandler } from "./middleware/error-handler";
 import { seedDatabase, backfillOriginalContent } from "./seed";
 
@@ -39,13 +38,11 @@ export async function registerRoutes(
   app.use(adminRouter);
   app.use(brainliftsRouter);
   app.use(sharesRouter);
-  app.use(devRouter);
   app.use(jobsRouter);
   app.use(learningStreamRouter);
   app.use(discussionRouter);
   app.use(dok3Router);
   app.use(dok4Router);
-  app.use(importAgentRouter);
   app.use(chatRouter);
   app.use(knowledgeCheckRouter);
   app.use(nativeBrainliftsRouter);
@@ -56,6 +53,7 @@ export async function registerRoutes(
   app.use(dok1CrudRouter);
   app.use(dok2CrudRouter);
   app.use(sprintsRouter);
+  app.use(skillsRouter);
 
   // Global error handler - must be after all routes
   app.use(errorHandler);

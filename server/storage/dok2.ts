@@ -212,7 +212,7 @@ export async function getDOK2Summaries(brainliftId: number): Promise<DOK2Summary
 }
 
 /**
- * Update a DOK2 summary's grading fields in place (for agent import cascade).
+ * Update a DOK2 summary's grading fields in place.
  * Uses brainliftId in WHERE clause for IDOR safety.
  */
 export async function updateDOK2Grading(

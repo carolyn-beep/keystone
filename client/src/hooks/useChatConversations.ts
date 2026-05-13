@@ -50,7 +50,7 @@ function asDate(value: JsonDate | null): Date | null {
   return value instanceof Date ? value : new Date(value);
 }
 
-function normalizeChatConversation(conversation: ChatConversationDto): ChatConversation {
+export function normalizeChatConversation(conversation: ChatConversationDto): ChatConversation {
   return {
     ...conversation,
     createdAt: asDate(conversation.createdAt) ?? new Date(),
@@ -115,24 +115,24 @@ export function resolveChatConversationSelection({
   search: string;
   conversations: readonly ChatConversation[];
 }): ChatConversationSelection {
-  const sortedConversations = sortChatConversationsByRecency(conversations);
   const requestedConversationId = parseSelectedConversationId(search);
 
-  if (
-    requestedConversationId != null
-    && sortedConversations.some((conversation) => conversation.id === requestedConversationId)
-  ) {
+  // Trust the URL: if `?c=ID` is present, select it. The detail query handles
+  // 404s for invalid IDs via the existing "Thread unavailable" error state.
+  // Checking against the cached conversations list here caused a race with
+  // mutations that create the conversation server-side (e.g. skills "Try it
+  // out") — the cache hadn't refetched yet, so we'd auto-create a second
+  // conversation and drop other query params like `&send=`.
+  if (requestedConversationId != null) {
     return {
       selectedConversationId: requestedConversationId,
       shouldCreateConversation: false,
     };
   }
 
-  // Bare `/` (no `?c=` in the URL) is the homepage landing surface. The user
-  // explicitly opted into being greeted every time they land here, even if
-  // they have prior conversations. ChatHome consumes `shouldCreateConversation`
-  // and uses it as both "create a fresh conversation" and "fire the opener
-  // into it". See client/src/chat/chat-opener.ts.
+  // Bare `/` (no `?c=` in the URL) is the homepage landing surface. ChatHome
+  // consumes `shouldCreateConversation` to create a fresh empty conversation;
+  // NativeChatThread decides whether the opener is due for this user.
   return {
     selectedConversationId: null,
     shouldCreateConversation: true,

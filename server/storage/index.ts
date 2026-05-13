@@ -12,10 +12,8 @@ import * as learningStreamStorage from './learning-stream';
 import * as dok3Storage from './dok3';
 import * as dok4Storage from './dok4';
 import * as analyticsDashboardStorage from './analytics-dashboard';
-import * as importAgentStorage from './import-agent';
 import * as chatStorage from './chat';
 import * as qaBatchesStorage from './qa-batches';
-import * as brainliftSourcesStorage from './brainlift-sources';
 import * as graderMonitoringStorage from './grader-monitoring';
 import * as knowledgeCheckStorage from './knowledge-check';
 import * as nativeBrainliftsStorage from './native-brainlifts';
@@ -30,6 +28,7 @@ import * as dok2CrudStorage from './dok2-crud';
 import * as dok3CrudStorage from './dok3-crud';
 import * as dok4CrudStorage from './dok4-crud';
 import * as sprintsStorage from './sprints';
+import * as skillsStorage from './skills';
 
 // Re-export types from base
 export type {
@@ -45,11 +44,26 @@ export type {
   BuilderExpert, InsertBuilderExpert,
   NativePhaseProgress, BuilderPhaseStatus, BuilderSuggestionStatus,
   Category, InsertCategory, CategorySuggestionState,
+  Skill, InsertSkill,
+  SkillResource, InsertSkillResource,
+  SkillShare, InsertSkillShare,
+  SkillUserDisabled, InsertSkillUserDisabled,
+  SkillVisibility,
   SprintPlan, InsertSprintPlan,
   SprintTask, InsertSprintTask,
   Deliverable, InsertDeliverable,
   PlatformConfig, InsertPlatformConfig,
 } from './base';
+
+export type {
+  DeletedSkillListItem,
+  SaveSkillInput,
+  SkillDetail,
+  SkillListItem,
+  SkillReferenceInput,
+  SkillReferenceItem,
+  SkillShareListItem,
+} from './skills';
 
 /**
  * Unified storage object that combines all domain-specific storage functions.
@@ -58,13 +72,17 @@ export type {
 export const storage = {
   // Brainlifts
   getBrainliftBySlug: brainliftsStorage.getBrainliftBySlug,
+  getBrainliftRecordBySlug: brainliftsStorage.getBrainliftRecordBySlug,
+  getContradictionClustersByBrainliftId: brainliftsStorage.getContradictionClustersByBrainliftId,
   getBrainliftById: brainliftsStorage.getBrainliftById,
+  getBrainliftDetailById: brainliftsStorage.getBrainliftDetailById,
   getBrainliftDataById: brainliftsStorage.getBrainliftDataById,
   getBrainliftsByOwnerId: brainliftsStorage.getBrainliftsByOwnerId,
   createBrainlift: brainliftsStorage.createBrainlift,
   updateBrainlift: brainliftsStorage.updateBrainlift,
   deleteBrainlift: brainliftsStorage.deleteBrainlift,
   updateBrainliftFields: brainliftsStorage.updateBrainliftFields,
+  updateImportStatus: brainliftsStorage.updateImportStatus,
   updateBrainliftCoverImage: brainliftsStorage.updateBrainliftCoverImage,
   getVersionsByBrainliftId: brainliftsStorage.getVersionsByBrainliftId,
   getBrainliftsForUserPaginated: brainliftsStorage.getBrainliftsForUserPaginated,
@@ -87,6 +105,19 @@ export const storage = {
   getUserByEmailOrUsername: sharesStorage.getUserByEmailOrUsername,
   getSharedBrainlifts: sharesStorage.getSharedBrainlifts,
   transferOwnershipToFirstEditor: sharesStorage.transferOwnershipToFirstEditor,
+
+  // Runtime Skills
+  listSkillsForUser: skillsStorage.listSkillsForUser,
+  getSkillForUserByName: skillsStorage.getSkillForUserByName,
+  createSkill: skillsStorage.createSkill,
+  updateSkill: skillsStorage.updateSkill,
+  softDeleteSkill: skillsStorage.softDeleteSkill,
+  restoreSkill: skillsStorage.restoreSkill,
+  listDeletedSkills: skillsStorage.listDeletedSkills,
+  setSkillEnabledForUser: skillsStorage.setSkillEnabledForUser,
+  grantSkillShare: skillsStorage.grantSkillShare,
+  revokeSkillShare: skillsStorage.revokeSkillShare,
+  hardDeleteExpiredDeletedSkills: skillsStorage.hardDeleteExpiredDeletedSkills,
 
   // Experts
   getExpertsByBrainliftId: expertsStorage.getExpertsByBrainliftId,
@@ -211,12 +242,6 @@ export const storage = {
   triggerDependentDOK4Grading: dok4Storage.triggerDependentDOK4Grading,
   setDOK4InsightRankings: dok4Storage.setDOK4InsightRankings,
 
-  // Import Agent
-  getImportConversation: importAgentStorage.getImportConversation,
-  saveImportConversation: importAgentStorage.saveImportConversation,
-  deleteImportConversation: importAgentStorage.deleteImportConversation,
-  updateImportStatus: importAgentStorage.updateImportStatus,
-
   // Native chat
   listChatConversations: chatStorage.listChatConversations,
   createChatConversation: chatStorage.createChatConversation,
@@ -227,11 +252,6 @@ export const storage = {
   listChatMessages: chatStorage.listChatMessages,
   syncChatMessages: chatStorage.syncChatMessages,
   getChatUserContext: chatStorage.getChatUserContext,
-
-  // Brainlift Sources
-  saveBrainliftSources: brainliftSourcesStorage.saveBrainliftSources,
-  getBrainliftSources: brainliftSourcesStorage.getBrainliftSources,
-  deleteBrainliftSources: brainliftSourcesStorage.deleteBrainliftSources,
 
   // Knowledge Check
   getQuizByItemId: knowledgeCheckStorage.getQuizByItemId,
@@ -330,8 +350,10 @@ export const storage = {
   listTasksForUser: sprintsStorage.listTasksForUser,
   getTaskForBrainlift: sprintsStorage.getTaskForBrainlift,
   getDeliverableByTaskId: sprintsStorage.getDeliverableByTaskId,
+  getDeliverableByIdForBrainlift: sprintsStorage.getDeliverableByIdForBrainlift,
   createDeliverable: sprintsStorage.createDeliverable,
   listDeliverablesForBrainlift: sprintsStorage.listDeliverablesForBrainlift,
+  listDocuments: sprintsStorage.listDocuments,
   markPlanCompleteIfAllDelivered: sprintsStorage.markPlanCompleteIfAllDelivered,
   setPlanGdriveFolder: sprintsStorage.setPlanGdriveFolder,
   setBrainliftGdriveRootFolder: sprintsStorage.setBrainliftGdriveRootFolder,
@@ -339,4 +361,4 @@ export const storage = {
 };
 
 // Export individual modules for direct access if needed
-export { brainliftsStorage, expertsStorage, verificationsStorage, redundancyStorage, analyticsStorage, dok2Storage, sharesStorage, learningStreamStorage, dok3Storage, dok4Storage, importAgentStorage, brainliftSourcesStorage, knowledgeCheckStorage, nativeBrainliftsStorage, builderExpertsStorage, knowledgeTreeStorage, apiKeysStorage, internalStorage, versionsStorage, staleStorage, dok1CrudStorage, dok2CrudStorage, dok3CrudStorage, dok4CrudStorage, sprintsStorage };
+export { brainliftsStorage, expertsStorage, verificationsStorage, redundancyStorage, analyticsStorage, dok2Storage, sharesStorage, learningStreamStorage, dok3Storage, dok4Storage, knowledgeCheckStorage, nativeBrainliftsStorage, builderExpertsStorage, knowledgeTreeStorage, apiKeysStorage, internalStorage, versionsStorage, staleStorage, dok1CrudStorage, dok2CrudStorage, dok3CrudStorage, dok4CrudStorage, sprintsStorage };

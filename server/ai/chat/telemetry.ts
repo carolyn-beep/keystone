@@ -400,6 +400,43 @@ export async function consumeChatUiMessageStream(
   }
 }
 
+export interface AskUserSubmitBlockedQuestion {
+  id: string;
+  optional: boolean;
+  optionCount: number;
+  multiSelect: boolean;
+  allowFreeText: boolean;
+  selectedCount: number;
+  freeTextLength: number;
+  freeTextTrimmedLength: number;
+  answered: boolean;
+  promptPreview: string;
+}
+
+export interface AskUserSubmitBlockedPayload {
+  userId: string;
+  conversationId: number | null;
+  toolCallId: string;
+  questions: AskUserSubmitBlockedQuestion[];
+  timestamp?: Date;
+}
+
+/**
+ * Logged when a user clicks Submit on an `ask_user_question` form but the
+ * client-side gate refuses (at least one required question unanswered). The
+ * UI shows nothing diagnostic — this log is the source of truth for support
+ * tickets like "I filled everything in but couldn't submit." Grep keys:
+ * `event=ask_user_submit_blocked`, `userId`, `conversationId`, `toolCallId`.
+ */
+export function logAskUserSubmitBlocked(payload: AskUserSubmitBlockedPayload): void {
+  emitChatLog(console.log, 'ask_user_submit_blocked', {
+    userId: payload.userId,
+    conversationId: payload.conversationId,
+    toolCallId: payload.toolCallId,
+    questions: payload.questions,
+  }, payload.timestamp);
+}
+
 export function logChatTurn(payload: ChatTurnLogPayload): void {
   emitChatLog(console.log, 'chat_turn', {
     userId: payload.userId,

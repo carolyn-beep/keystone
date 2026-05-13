@@ -1,4 +1,3 @@
-import { exampleJob } from './exampleJob';
 import { learningStreamResearchJob } from './learningStreamResearchJob';
 import { brainliftImageJob } from './brainliftImageJob';
 import { contentExtractJob } from './contentExtractJob';
@@ -19,6 +18,7 @@ import { runVerificationBatchJob } from './run-verification-batch';
 import { runWeeklyGraderConsistencyJob } from './run-weekly-grader-consistency';
 import { sprintGenerateJob } from './sprintGenerateJob';
 import { rerankExpertsJob } from './rerankExpertsJob';
+import { purgeDeletedSkillsJob } from './purgeDeletedSkillsJob';
 
 /**
  * Central registry of all background jobs.
@@ -30,7 +30,6 @@ import { rerankExpertsJob } from './rerankExpertsJob';
  * 3. Type safety is automatic via withJob() utility
  */
 const tasks = {
-  'example:hello': exampleJob,
   'learning-stream:research': learningStreamResearchJob,
   'learning-stream:extract-content': contentExtractJob,
   'learning-stream:generate-quiz': quizGenerateJob,
@@ -51,6 +50,7 @@ const tasks = {
   'analytics:run-verification-batch': runVerificationBatchJob,
   'analytics:run-weekly-grader-consistency': runWeeklyGraderConsistencyJob,
   'sprint:generate': sprintGenerateJob,
+  'skills:purge-deleted': purgeDeletedSkillsJob,
 } as const;
 
 export default tasks;

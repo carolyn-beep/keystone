@@ -4,7 +4,7 @@ import { useLocation, useSearch } from 'wouter';
 import { Brainlift } from '@shared/schema';
 import { queryClient } from '@/lib/queryClient';
 import { authClient } from '@/lib/auth-client';
-import { Loader2, Upload, Plus, Shield } from 'lucide-react';
+import { Loader2, Upload, Plus, Shield, Search, X } from 'lucide-react';
 import { tokens } from '@/lib/colors';
 import { AppShell, AppSidebar, PageHeader } from '@/components/layout';
 import { TactileButton } from '@/components/ui/tactile-button';
@@ -43,8 +43,19 @@ export default function Home() {
     return (filterParam === 'owned' || filterParam === 'shared') ? filterParam : 'all';
   }, [searchString]);
 
+  // Search input state. We debounce the value before it hits the API so
+  // typing doesn't fire a request per keystroke.
+  const [searchInput, setSearchInput] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedSearch(searchInput.trim()), 250);
+    return () => clearTimeout(timer);
+  }, [searchInput]);
+
+  type BrainliftWithCreator = Brainlift & { creatorName: string | null };
+
   interface PaginatedResponse {
-    brainlifts: Brainlift[];
+    brainlifts: BrainliftWithCreator[];
     pagination: {
       page: number;
       pageSize: number;
@@ -60,11 +71,12 @@ export default function Home() {
     hasNextPage,
     isFetchingNextPage,
   } = useInfiniteQuery({
-    queryKey: ['/api/brainlifts', adminView, filter] as const,
+    queryKey: ['/api/brainlifts', adminView, filter, debouncedSearch] as const,
     queryFn: async ({ pageParam }) => {
       const params = new URLSearchParams();
       if (adminView) params.set('all', 'true');
       if (filter !== 'all') params.set('filter', filter);
+      if (debouncedSearch) params.set('search', debouncedSearch);
       params.set('page', String(pageParam));
       const res = await fetch(`/api/brainlifts?${params}`);
       if (!res.ok) throw new Error('Failed to fetch');
@@ -263,21 +275,56 @@ export default function Home() {
   return (
     <AppShell
       sidebar={<AppSidebar contextualBody={null} />}
-      header={<PageHeader title="Brainlift Library" actions={headerActions} />}
+      header={<PageHeader title="Projects" actions={headerActions} />}
     >
-      <div className="px-4 sm:px-6 md:px-8 py-4 max-w-[1200px] mx-auto">
+      <div className="px-4 sm:px-6 md:px-8 py-4 max-w-[1420px] mx-auto">
         {/* Filter Tabs */}
         <FilterTabs
           activeFilter={filter}
           onFilterChange={handleFilterChange}
         />
 
+        {/* Search input — filters by title, document author, or creator name. */}
+        <div className="relative mb-4">
+          <Search
+            size={16}
+            className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none"
+          />
+          <input
+            type="text"
+            value={searchInput}
+            onChange={(e) => setSearchInput(e.target.value)}
+            placeholder="Search by title or author..."
+            data-testid="input-search-projects"
+            className="w-full pl-9 pr-9 py-2 text-sm rounded-lg border bg-card text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/40"
+            style={{
+              borderColor: tokens.border,
+            }}
+          />
+          {searchInput && (
+            <button
+              type="button"
+              onClick={() => setSearchInput('')}
+              className="absolute right-2 top-1/2 -translate-y-1/2 p-1 rounded-md text-muted-foreground hover:text-foreground"
+              aria-label="Clear search"
+            >
+              <X size={14} />
+            </button>
+          )}
+        </div>
+
         {isLoading ? (
           <div className="flex justify-center p-10">
             <Loader2 size={32} className="animate-spin text-muted-foreground" />
           </div>
         ) : brainlifts.length === 0 ? (
-          <EmptyState />
+          debouncedSearch ? (
+            <div className="text-center py-12 text-muted-foreground">
+              No projects match <span className="font-semibold">"{debouncedSearch}"</span>.
+            </div>
+          ) : (
+            <EmptyState />
+          )
         ) : (
           <>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 items-stretch">
@@ -307,7 +354,7 @@ export default function Home() {
             {/* End of list indicator */}
             {!hasNextPage && brainlifts.length > 0 && (
               <p className="text-center text-muted-foreground text-sm mt-8">
-                Showing all {totalCount} brainlifts
+                Showing all {totalCount} projects
               </p>
             )}
           </>

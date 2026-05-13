@@ -34,7 +34,7 @@ const PROVIDERS_ALLOWED_EMAIL = 'caina.barbosa@trilogy.com';
 
 export function getChatHomeNavLinks(options: { isAdmin: boolean; email?: string | null }): ChatHomeNavLink[] {
   const links: ChatHomeNavLink[] = [
-    { href: LIBRARY_ROUTE_PATH, label: 'Brainlift Library' },
+    { href: LIBRARY_ROUTE_PATH, label: 'Projects' },
   ];
 
   if (options.isAdmin) {
