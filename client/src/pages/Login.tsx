@@ -119,7 +119,7 @@ export default function Login() {
               Continue with Google
             </Button>
 
-            {process.env.NODE_ENV !== 'production' && (
+            {(process.env.NODE_ENV !== 'production' || import.meta.env.VITE_ENABLE_DEV_LOGIN === 'true') && (
               <>
                 <div className="login-dev-divider">
                   <span className="login-dev-divider-rule" />
