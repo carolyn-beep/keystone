@@ -6,6 +6,9 @@ const {
   mockBuildAdminSkillManagementTools,
   mockBuildChatCurationTools,
   mockBuildResearchChatTools,
+  mockBuildResearchOnlyProjectChatTools,
+  mockBuildSharedProjectChatTools,
+  mockBuildSecondBrainChatTools,
   mockBuildSprintChatTools,
 } = vi.hoisted(() => ({
   mockBuildChatGradingTools: vi.fn(),
@@ -13,6 +16,9 @@ const {
   mockBuildAdminSkillManagementTools: vi.fn(),
   mockBuildChatCurationTools: vi.fn(),
   mockBuildResearchChatTools: vi.fn(),
+  mockBuildResearchOnlyProjectChatTools: vi.fn(),
+  mockBuildSharedProjectChatTools: vi.fn(),
+  mockBuildSecondBrainChatTools: vi.fn(),
   mockBuildSprintChatTools: vi.fn(),
 }));
 
@@ -33,69 +39,168 @@ vi.mock('../research', () => ({
   buildResearchChatTools: (...args: unknown[]) => mockBuildResearchChatTools(...args),
 }));
 
+vi.mock('../project', () => ({
+  buildResearchOnlyProjectChatTools: (...args: unknown[]) =>
+    mockBuildResearchOnlyProjectChatTools(...args),
+  buildSharedProjectChatTools: (...args: unknown[]) =>
+    mockBuildSharedProjectChatTools(...args),
+}));
+
+vi.mock('../second-brain', () => ({
+  buildSecondBrainChatTools: (...args: unknown[]) => mockBuildSecondBrainChatTools(...args),
+}));
+
 vi.mock('../sprint', () => ({
   buildSprintChatTools: (...args: unknown[]) => mockBuildSprintChatTools(...args),
 }));
 
+const authContext = {
+  userId: 'user-1',
+  role: 'user',
+  isAdmin: false,
+} as const;
+
+const adminAuthContext = {
+  userId: 'admin-1',
+  role: 'admin',
+  isAdmin: true,
+} as const;
+
+const unboundConversation = {
+  conversationId: 10,
+  brainliftId: null,
+  brainlift: null,
+};
+
+const boundResearchConversation = {
+  conversationId: 10,
+  brainliftId: 7,
+  brainlift: { id: 7, phase: 'research' } as any,
+};
+
+const boundAuthoringConversation = {
+  conversationId: 10,
+  brainliftId: 8,
+  brainlift: { id: 8, phase: 'authoring' } as any,
+};
+
 beforeEach(() => {
   vi.clearAllMocks();
+  mockBuildChatGradingTools.mockReturnValue({
+    get_template: 'template',
+    create_brainlift: 'create-brainlift',
+    list_brainlifts: 'list-brainlifts',
+    get_brainlift_assessment: 'assessment',
+  });
+  mockBuildChatSkillTools.mockReturnValue({
+    load_skill: 'skills',
+    load_skill_reference: 'skill-reference',
+  });
+  mockBuildAdminSkillManagementTools.mockReturnValue({ create_skill: 'admin-skills' });
+  mockBuildResearchChatTools.mockReturnValue({
+    web_search_exa: 'search',
+    fetch_url_content: 'fetch',
+    get_youtube_transcript: 'youtube',
+  });
+  mockBuildResearchOnlyProjectChatTools.mockReturnValue({
+    create_blank_project: 'blank-project',
+  });
+  mockBuildSharedProjectChatTools.mockReturnValue({
+    change_conversation_project: 'change-project',
+  });
+  mockBuildSecondBrainChatTools.mockReturnValue({
+    save_source: 'save-source',
+    save_note: 'save-note',
+    create_category: 'create-category',
+  });
+  mockBuildChatCurationTools.mockReturnValue({ create_dok1: 'curation' });
+  mockBuildSprintChatTools.mockReturnValue({ generate_plan: 'sprint' });
 });
 
 describe('buildNativeChatTools', () => {
-  it('composes universal tools for non-admins without management tools', async () => {
-    mockBuildChatGradingTools.mockReturnValue({ get_template: 'grading' });
-    mockBuildChatSkillTools.mockReturnValue({ load_skill: 'skills', load_skill_reference: 'skill-reference' });
-    mockBuildAdminSkillManagementTools.mockReturnValue({ create_skill: 'admin-skills' });
-    mockBuildResearchChatTools.mockReturnValue({ web_search_exa: 'research' });
-    mockBuildChatCurationTools.mockReturnValue({ create_dok1: 'curation' });
-    mockBuildSprintChatTools.mockReturnValue({ generate_plan: 'sprint' });
-
+  it('exposes project and shared tools for unbound research conversations but no authoring or Second Brain tools', async () => {
     const { buildNativeChatTools } = await import('../index');
-    const authContext = {
-      userId: 'user-1',
-      role: 'user',
-      isAdmin: false,
-    } as const;
 
-    expect(buildNativeChatTools(authContext)).toEqual({
-      get_template: 'grading',
+    const tools = buildNativeChatTools(authContext, 'research', unboundConversation);
+
+    expect(tools).toMatchObject({
       load_skill: 'skills',
-      load_skill_reference: 'skill-reference',
-      web_search_exa: 'research',
+      web_search_exa: 'search',
+      fetch_url_content: 'fetch',
+      ask_user_question: expect.any(Object),
+      list_brainlifts: 'list-brainlifts',
+      create_blank_project: 'blank-project',
+      change_conversation_project: 'change-project',
+    });
+    expect(tools).not.toHaveProperty('save_source');
+    expect(tools).not.toHaveProperty('create_dok1');
+    expect(tools).not.toHaveProperty('create_brainlift');
+    expect(tools).not.toHaveProperty('get_brainlift_assessment');
+    expect(mockBuildResearchOnlyProjectChatTools).toHaveBeenCalledWith(
+      authContext,
+      unboundConversation,
+    );
+    expect(mockBuildSharedProjectChatTools).toHaveBeenCalledWith(
+      authContext,
+      unboundConversation,
+    );
+    expect(mockBuildSecondBrainChatTools).not.toHaveBeenCalled();
+    expect(mockBuildChatCurationTools).not.toHaveBeenCalled();
+    expect(mockBuildSprintChatTools).not.toHaveBeenCalled();
+  });
+
+  it('adds Second Brain tools for bound research conversations', async () => {
+    const { buildNativeChatTools } = await import('../index');
+
+    const tools = buildNativeChatTools(authContext, 'research', boundResearchConversation);
+
+    expect(tools).toMatchObject({
+      create_blank_project: 'blank-project',
+      save_source: 'save-source',
+      save_note: 'save-note',
+      create_category: 'create-category',
+    });
+    expect(tools).not.toHaveProperty('create_dok1');
+    expect(tools).not.toHaveProperty('get_brainlift_assessment');
+    expect(mockBuildSecondBrainChatTools).toHaveBeenCalledWith(authContext, boundResearchConversation);
+  });
+
+  it('exposes authoring tools in authoring mode and excludes research-only tools', async () => {
+    const { buildNativeChatTools } = await import('../index');
+
+    const tools = buildNativeChatTools(authContext, 'authoring', boundAuthoringConversation);
+
+    expect(tools).toMatchObject({
+      get_template: 'template',
+      create_brainlift: 'create-brainlift',
+      list_brainlifts: 'list-brainlifts',
+      get_brainlift_assessment: 'assessment',
       create_dok1: 'curation',
       generate_plan: 'sprint',
-      ask_user_question: expect.any(Object),
+      // change_conversation_project must be available in BOTH modes so the
+      // agent can switch off a legacy/imported authoring brainlift without
+      // forcing the user to leave chat for the picker.
+      change_conversation_project: 'change-project',
     });
-
-    expect(mockBuildChatGradingTools).toHaveBeenCalledWith('user-1');
-    expect(mockBuildChatSkillTools).toHaveBeenCalledWith({ authContext });
-    expect(mockBuildAdminSkillManagementTools).not.toHaveBeenCalled();
-    expect(mockBuildResearchChatTools).toHaveBeenCalledWith();
+    expect(tools).not.toHaveProperty('create_blank_project');
+    expect(tools).not.toHaveProperty('save_source');
+    expect(mockBuildResearchOnlyProjectChatTools).not.toHaveBeenCalled();
+    expect(mockBuildSharedProjectChatTools).toHaveBeenCalledWith(
+      authContext,
+      boundAuthoringConversation,
+    );
     expect(mockBuildChatCurationTools).toHaveBeenCalledWith(authContext);
     expect(mockBuildSprintChatTools).toHaveBeenCalledWith({ authContext });
   });
 
-  it('adds admin skill management tools for admins', async () => {
-    mockBuildChatGradingTools.mockReturnValue({});
-    mockBuildChatSkillTools.mockReturnValue({ load_skill: 'skills' });
-    mockBuildAdminSkillManagementTools.mockReturnValue({ create_skill: 'admin-skills' });
-    mockBuildResearchChatTools.mockReturnValue({});
-    mockBuildChatCurationTools.mockReturnValue({});
-    mockBuildSprintChatTools.mockReturnValue({});
-
+  it('adds admin skill management tools in both modes', async () => {
     const { buildNativeChatTools } = await import('../index');
-    const authContext = {
-      userId: 'admin-1',
-      role: 'admin',
-      isAdmin: true,
-    } as const;
 
-    expect(buildNativeChatTools(authContext)).toMatchObject({
-      load_skill: 'skills',
+    expect(buildNativeChatTools(adminAuthContext, 'research', unboundConversation)).toMatchObject({
       create_skill: 'admin-skills',
     });
-
-    expect(mockBuildChatSkillTools).toHaveBeenCalledWith({ authContext });
-    expect(mockBuildAdminSkillManagementTools).toHaveBeenCalledWith({ authContext });
+    expect(buildNativeChatTools(adminAuthContext, 'authoring', boundAuthoringConversation)).toMatchObject({
+      create_skill: 'admin-skills',
+    });
   });
 });

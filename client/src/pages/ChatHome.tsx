@@ -418,20 +418,25 @@ export default function ChatHome() {
         ) : selectedConversationId == null ? (
           // Draft mode: no chat_conversations row exists yet. The runtime
           // will lazy-create one on the first user submit; until then,
-          // the composer renders with an empty thread. The `key` here
-          // matches the `key` used on the real-conversation branch below
-          // so that the draft → real promotion (when the URL flips to
-          // `/?c=<id>`) does NOT unmount the runtime mid-stream.
-          <NativeChatThread
-            key={chatSessionKey}
-            conversationId={null}
-            initialMessages={null}
-            modelId={selectedModelId}
-            onModelIdChange={setSelectedModelId}
-            needsOpener={false}
-            initialAskMessage={null}
-            onLazyCreated={handleLazyCreated}
-          />
+          // the composer renders with an empty thread. The wrapper div +
+          // `key` here must match the real-conversation branch below so
+          // that React reconciles the two as the same element when the
+          // URL flips from `/` to `/?c=<id>` after lazy-create. Without
+          // the matching wrapper, React sees different child element
+          // types at the same position and unmounts the runtime
+          // mid-stream — dropping the user's first message.
+          <div className="min-h-0 flex-1">
+            <NativeChatThread
+              key={chatSessionKey}
+              conversationId={null}
+              initialMessages={null}
+              modelId={selectedModelId}
+              onModelIdChange={setSelectedModelId}
+              needsOpener={false}
+              initialAskMessage={null}
+              onLazyCreated={handleLazyCreated}
+            />
+          </div>
         ) : selectedConversationQuery.isLoading ? (
           <CenteredState
             icon={<Loader2 className="h-6 w-6 animate-spin" />}
@@ -453,18 +458,20 @@ export default function ChatHome() {
             }
           />
         ) : (
-          <NativeChatThread
-            key={chatSessionKey}
-            conversationId={selectedConversationId}
-            initialMessages={selectedConversationQuery.data?.messages}
-            modelId={selectedModelId}
-            onModelIdChange={setSelectedModelId}
-            needsOpener={openerPendingForId === selectedConversationId && !initialUserMessage}
-            initialUserMessage={initialUserMessage}
-            initialAskMessage={
-              askPending && askPending.id === selectedConversationId ? askPending.text : null
-            }
-          />
+          <div className="min-h-0 flex-1">
+            <NativeChatThread
+              key={chatSessionKey}
+              conversationId={selectedConversationId}
+              initialMessages={selectedConversationQuery.data?.messages}
+              modelId={selectedModelId}
+              onModelIdChange={setSelectedModelId}
+              needsOpener={openerPendingForId === selectedConversationId && !initialUserMessage}
+              initialUserMessage={initialUserMessage}
+              initialAskMessage={
+                askPending && askPending.id === selectedConversationId ? askPending.text : null
+              }
+            />
+          </div>
         )}
       </div>
 

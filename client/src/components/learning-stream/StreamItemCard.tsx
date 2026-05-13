@@ -1,10 +1,11 @@
 import { createContext, useContext, useState, ReactNode } from 'react';
 import { motion } from 'framer-motion';
-import { ChevronDown, ChevronUp, Bookmark, Star, Trash2, User, Clock } from 'lucide-react';
+import { Bookmark, BookmarkCheck, ChevronDown, ChevronUp, Clock, Star, Trash2, User } from 'lucide-react';
 import { tokens } from '@/lib/colors';
 import { TactileButton } from '@/components/ui/tactile-button';
 import { ResourceTypeBadge } from './ResourceTypeBadge';
 import type { LearningStreamItem } from '@/hooks/useLearningStream';
+import type { BrainliftPhase } from '@shared/schema';
 
 // Source label mapping
 const SOURCE_LABELS: Record<string, string> = {
@@ -27,6 +28,7 @@ function getRelevanceInfo(score: string | null) {
 // Context for compound component
 interface StreamItemContextValue {
   item: LearningStreamItem;
+  phase: BrainliftPhase;
   isExpandedRationale: boolean;
   setIsExpandedRationale: (expanded: boolean) => void;
 }
@@ -42,12 +44,13 @@ function useStreamItemContext() {
 // Root component
 interface RootProps {
   item: LearningStreamItem;
+  phase: BrainliftPhase;
   children: ReactNode;
   exitAnimation?: 'bookmark' | 'grade' | 'discard' | null;
   onAnimationEnd?: () => void;
 }
 
-function Root({ item, children, exitAnimation, onAnimationEnd }: RootProps) {
+function Root({ item, phase, children, exitAnimation, onAnimationEnd }: RootProps) {
   const [isExpandedRationale, setIsExpandedRationale] = useState(false);
 
   const animationClass = exitAnimation
@@ -59,7 +62,7 @@ function Root({ item, children, exitAnimation, onAnimationEnd }: RootProps) {
     : '';
 
   return (
-    <StreamItemContext.Provider value={{ item, isExpandedRationale, setIsExpandedRationale }}>
+    <StreamItemContext.Provider value={{ item, phase, isExpandedRationale, setIsExpandedRationale }}>
       <div
         className={`bg-card-elevated rounded-xl shadow-card overflow-hidden transition-all duration-200 ${animationClass}`}
         onAnimationEnd={onAnimationEnd}
@@ -77,6 +80,7 @@ function Header() {
   const resourceType = item.type || 'Unknown';
   const relevance = getRelevanceInfo(item.relevanceScore);
   const sourceLabel = SOURCE_LABELS[item.source] || item.source;
+  const isInSecondBrain = item.status === 'bookmarked';
 
   // Parse time string to display (e.g., "5 min")
   const readTime = item.time;
@@ -88,6 +92,12 @@ function Header() {
         {/* Type badge + metadata row */}
         <div className="flex items-center gap-3 mb-4 flex-wrap">
           <ResourceTypeBadge type={resourceType} />
+          {isInSecondBrain && (
+            <span className="inline-flex items-center gap-1.5 px-[6px] py-[2px] rounded bg-success-soft text-success text-[9px] uppercase tracking-[0.25em] font-semibold">
+              <BookmarkCheck size={12} />
+              In Second Brain
+            </span>
+          )}
 
           {item.author && (
             <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
@@ -215,6 +225,7 @@ interface ActionsProps {
 function Actions({ onBookmark, onGrade, onDiscard, onOpen, isBookmarking, isProcessing }: ActionsProps) {
   const { item } = useStreamItemContext();
   const disabled = isBookmarking || isProcessing;
+  const saveAriaLabel = 'Save to Second Brain';
 
   return (
     <div className="px-10 py-5 border-t border-border flex items-center justify-between bg-sidebar/30" onClick={(e) => e.stopPropagation()}>
@@ -224,7 +235,7 @@ function Actions({ onBookmark, onGrade, onDiscard, onOpen, isBookmarking, isProc
             variant="raised"
             onClick={onBookmark}
             disabled={disabled}
-            aria-label="Save to reading list"
+            aria-label={saveAriaLabel}
             className="flex items-center gap-2 text-[13px]"
           >
             <Bookmark size={15} />

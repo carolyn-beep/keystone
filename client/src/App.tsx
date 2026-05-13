@@ -55,13 +55,6 @@ function Router() {
           <Home />
         </ProtectedRoute>
       </Route>
-      <Route path="/brainlifts/:slug">
-        {(params) => (
-          <ProtectedRoute>
-            <Dashboard slug={params.slug} />
-          </ProtectedRoute>
-        )}
-      </Route>
       <Route path="/grading/:slug">
         {(params) => (
           <ProtectedRoute>

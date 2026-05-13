@@ -13,13 +13,11 @@
 
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { queryClient, apiRequest } from '@/lib/queryClient';
+import type { Category } from '@/types/second-brain';
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
-export interface CategoryResponse {
-  id: number;
-  name: string;
-  sortOrder: number | null;
+export interface CategoryResponse extends Category {
   sourceCount: number;
 }
 
@@ -28,6 +26,15 @@ export interface CategoryResponse {
 function invalidateCategoryQueries(slug: string) {
   queryClient.invalidateQueries({ queryKey: ['categories', slug] });
   queryClient.invalidateQueries({ queryKey: ['knowledge-tree', slug] });
+  queryClient.invalidateQueries({ queryKey: ['sources', slug] });
+}
+
+function normalizeCategory(category: Category): CategoryResponse {
+  return {
+    ...category,
+    sortOrder: category.sortOrder ?? null,
+    sourceCount: category.sourceCount ?? 0,
+  };
 }
 
 // ─── Hook ───────────────────────────────────────────────────────────────────
@@ -38,7 +45,9 @@ export function useCategories(slug: string) {
     queryFn: async () => {
       const res = await fetch(`/api/brainlifts/${slug}/categories`);
       if (!res.ok) throw new Error('Failed to fetch categories');
-      return res.json();
+      const payload = await res.json();
+      const categories = Array.isArray(payload) ? payload : payload.categories ?? [];
+      return categories.map(normalizeCategory);
     },
     enabled: !!slug,
   });
@@ -47,15 +56,16 @@ export function useCategories(slug: string) {
   const createMutation = useMutation({
     mutationFn: async (name: string): Promise<CategoryResponse> => {
       const res = await apiRequest('POST', `/api/brainlifts/${slug}/categories`, { name });
-      return res.json();
+      return normalizeCategory(await res.json());
     },
     onSuccess: () => invalidateCategoryQueries(slug),
   });
 
   // Update (rename/reorder) a category
   const updateMutation = useMutation({
-    mutationFn: async ({ id, fields }: { id: number; fields: { name?: string; sortOrder?: number | null } }) => {
-      return apiRequest('PATCH', `/api/brainlifts/${slug}/categories/${id}`, fields);
+    mutationFn: async ({ id, fields }: { id: number; fields: { name?: string; sortOrder?: number | null } }): Promise<CategoryResponse> => {
+      const res = await apiRequest('PATCH', `/api/brainlifts/${slug}/categories/${id}`, fields);
+      return normalizeCategory(await res.json());
     },
     onSuccess: () => invalidateCategoryQueries(slug),
   });
@@ -79,11 +89,19 @@ export function useCategories(slug: string) {
   return {
     // Data
     categories: query.data ?? [],
+    data: query.data,
     isLoading: query.isLoading,
     error: query.error,
 
     // Mutations
     createCategory: async (name: string) => createMutation.mutateAsync(name),
+    renameCategory: async (id: number, name: string) => updateMutation.mutateAsync({ id, fields: { name } }),
+    reorderCategories: async (ids: number[]) => {
+      await Promise.all(ids.map((id, sortOrder) => updateMutation.mutateAsync({ id, fields: { sortOrder } })));
+    },
+    deleteCategory: async (id: number) => {
+      await removeMutation.mutateAsync(id);
+    },
     update: async (id: number, fields: { name?: string; sortOrder?: number | null }) => {
       await updateMutation.mutateAsync({ id, fields });
     },

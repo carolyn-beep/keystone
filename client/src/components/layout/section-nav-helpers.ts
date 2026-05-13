@@ -17,7 +17,7 @@ import {
  * The set of top-level sections reachable from the unified sidebar's SectionNav.
  *
  * - 'chat'      -- `/`
- * - 'library'   -- `/library` and child routes (`/grading/...`, `/brainlifts/...`)
+ * - 'library'   -- `/library` and child routes (`/grading/...`)
  * - 'skills'    -- `/skills`
  * - 'analytics' -- `/analytics` (admin only)
  * - 'providers' -- `/admin/providers` (allow-listed email only)
@@ -65,7 +65,6 @@ export function resolveSectionNavActive(pathname: string): SectionNavSection | n
 
   if (pathname === '/library' || pathname === '/library/') return 'library';
   if (pathname.startsWith('/grading/')) return 'library';
-  if (pathname.startsWith('/brainlifts/')) return 'library';
 
   if (pathname === '/skills' || pathname === '/skills/') return 'skills';
 

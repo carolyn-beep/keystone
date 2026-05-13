@@ -1,10 +1,13 @@
-import { Router } from 'express';
+import { Router, type Request, type Response } from 'express';
 import { storage } from '../storage';
 import { requireAuth } from '../middleware/auth';
 import { asyncHandler, BadRequestError, NotFoundError } from '../middleware/error-handler';
 import { requireBrainliftAccess, requireBrainliftModify } from '../middleware/brainlift-auth';
 import { z } from 'zod';
 import { swarmEmitter } from '../ai/learning-stream-swarm';
+import { db } from '../db';
+import { and, eq } from 'drizzle-orm';
+import { categories, learningStreamItems, sources } from '@shared/schema';
 
 export const learningStreamRouter = Router();
 
@@ -27,6 +30,119 @@ async function maybeRefillStream(brainliftId: number): Promise<void> {
     // Non-critical - log and continue
     console.error('[Learning Stream] Failed to auto-queue refill:', err);
   }
+}
+
+function parseBookmarkItemId(rawValue: string | undefined): number {
+  const itemId = parseInt(String(rawValue), 10);
+  if (isNaN(itemId)) {
+    throw new BadRequestError('Invalid item ID');
+  }
+  return itemId;
+}
+
+function parseBookmarkCategoryId(rawValue: unknown): number {
+  if (typeof rawValue !== 'number' || !Number.isFinite(rawValue)) {
+    throw new BadRequestError('categoryId required before save to Second Brain');
+  }
+  return rawValue;
+}
+
+async function bookmarkResearchItemWithSource(args: {
+  brainliftId: number;
+  itemId: number;
+  categoryId: number;
+}) {
+  return db.transaction(async (tx) => {
+    const [category] = await tx
+      .select({ id: categories.id })
+      .from(categories)
+      .where(and(
+        eq(categories.id, args.categoryId),
+        eq(categories.brainliftId, args.brainliftId),
+      ))
+      .limit(1);
+
+    if (!category) {
+      throw new BadRequestError('Category does not belong to this brainlift');
+    }
+
+    const [item] = await tx
+      .select()
+      .from(learningStreamItems)
+      .where(and(
+        eq(learningStreamItems.id, args.itemId),
+        eq(learningStreamItems.brainliftId, args.brainliftId),
+      ))
+      .limit(1);
+
+    if (!item) {
+      throw new NotFoundError('Item not found or does not belong to this brainlift');
+    }
+
+    const [updatedItem] = await tx
+      .update(learningStreamItems)
+      .set({
+        status: 'bookmarked',
+        updatedAt: new Date(),
+      })
+      .where(and(
+        eq(learningStreamItems.id, args.itemId),
+        eq(learningStreamItems.brainliftId, args.brainliftId),
+      ))
+      .returning();
+
+    if (!updatedItem) {
+      throw new NotFoundError('Item not found or does not belong to this brainlift');
+    }
+
+    const [insertedSource] = await tx
+      .insert(sources)
+      .values({
+        brainliftId: args.brainliftId,
+        title: item.topic,
+        url: item.url,
+        author: item.author,
+        categoryId: args.categoryId,
+        extractedContent: item.extractedContent,
+        learningStreamItemId: item.id,
+      })
+      .onConflictDoNothing({
+        target: [sources.brainliftId, sources.url],
+      })
+      .returning();
+
+    const source = insertedSource ?? (await tx
+      .select()
+      .from(sources)
+      .where(and(
+        eq(sources.brainliftId, args.brainliftId),
+        eq(sources.url, item.url),
+      ))
+      .limit(1))[0];
+
+    if (!source) {
+      throw new NotFoundError('Source not found after bookmark mirror');
+    }
+
+    return {
+      item: updatedItem,
+      source,
+    };
+  });
+}
+
+export async function bookmarkLearningStreamItemHandler(req: Request, res: Response): Promise<void> {
+  const brainlift = req.brainlift!;
+  const itemId = parseBookmarkItemId(req.params.itemId);
+  const categoryId = parseBookmarkCategoryId(req.body?.categoryId);
+
+  const result = await bookmarkResearchItemWithSource({
+    brainliftId: brainlift.id,
+    itemId,
+    categoryId,
+  });
+
+  res.json(result);
 }
 
 /**
@@ -85,30 +201,7 @@ learningStreamRouter.patch(
   '/api/brainlifts/:slug/learning-stream/:itemId/bookmark',
   requireAuth,
   requireBrainliftModify,
-  asyncHandler(async (req, res) => {
-    const brainlift = req.brainlift!;
-    const itemId = parseInt(req.params.itemId);
-
-    if (isNaN(itemId)) {
-      throw new BadRequestError('Invalid item ID');
-    }
-
-    const updated = await storage.updateLearningStreamItemStatus(
-      itemId,
-      brainlift.id,
-      'bookmarked'
-    );
-
-    if (!updated) {
-      throw new NotFoundError('Item not found or does not belong to this brainlift');
-    }
-
-    // Auto-refill stream if this was the last pending item
-    // DISABLED: Temporarily commented out for testing
-    // maybeRefillStream(brainlift.id);
-
-    res.json(updated);
-  })
+  asyncHandler(bookmarkLearningStreamItemHandler)
 );
 
 /**
@@ -360,4 +453,3 @@ learningStreamRouter.get(
     });
   }
 );
-

@@ -31,6 +31,12 @@ const authContext = {
   isAdmin: false,
 } as const;
 
+const conversation = {
+  conversationId: 1,
+  brainliftId: null,
+  brainlift: null,
+};
+
 beforeEach(() => {
   vi.resetModules();
 });
@@ -44,11 +50,31 @@ describe('dispatcher: BRAND=alphax', () => {
   it('routes buildChatSystemPrompt to the AlphaX builder', async () => {
     vi.stubEnv('BRAND', 'alphax');
     const mod = await import('../system-prompt');
-    const prompt = mod.buildChatSystemPrompt({ userContext: baseContext, skills: [] });
+    const prompt = mod.buildChatSystemPrompt({
+      userContext: baseContext,
+      skills: [],
+      mode: 'authoring',
+      conversation,
+    });
 
     expect(prompt).toContain('You are AlphaX Buddy');
     expect(prompt).toContain('=== START OF THE ALPHAX JOURNEY ===');
     expect(prompt).not.toContain('=== START OF THE BRAINLIFT LOOP ===');
+  });
+
+  it('routes research mode to the AlphaX research builder', async () => {
+    vi.stubEnv('BRAND', 'alphax');
+    const mod = await import('../system-prompt');
+    const prompt = mod.buildChatSystemPrompt({
+      userContext: baseContext,
+      skills: [],
+      mode: 'research',
+      conversation,
+    });
+
+    expect(prompt).toContain('AlphaX Buddy in research mode');
+    expect(prompt).toContain('=== START OF SECOND BRAIN MODEL ===');
+    expect(prompt).not.toContain('=== START OF THE ALPHAX JOURNEY ===');
   });
 });
 
@@ -56,7 +82,12 @@ describe('dispatcher: BRAND=brainlift', () => {
   it('routes buildChatSystemPrompt to the Brainlift Central builder', async () => {
     vi.stubEnv('BRAND', 'brainlift');
     const mod = await import('../system-prompt');
-    const prompt = mod.buildChatSystemPrompt({ userContext: baseContext, skills: [] });
+    const prompt = mod.buildChatSystemPrompt({
+      userContext: baseContext,
+      skills: [],
+      mode: 'research',
+      conversation,
+    });
 
     expect(prompt).toContain('Brainlift Central');
     expect(prompt).toContain('=== START OF THE BRAINLIFT LOOP ===');
@@ -84,6 +115,8 @@ describe('buildChatSystemPromptFromRegistry', () => {
     const prompt = await mod.buildChatSystemPromptFromRegistry({
       userContext: baseContext,
       authContext,
+      mode: 'research',
+      conversation,
       skillRegistry: registry,
     });
 

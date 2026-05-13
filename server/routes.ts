@@ -23,6 +23,7 @@ import { dok1CrudRouter } from "./routes/dok1-crud";
 import { dok2CrudRouter } from "./routes/dok2-crud";
 import { sprintsRouter } from "./routes/sprints";
 import { skillsRouter } from "./routes/skills";
+import { secondBrainRouter } from "./routes/second-brain";
 import { errorHandler } from "./middleware/error-handler";
 import { seedDatabase, backfillOriginalContent } from "./seed";
 
@@ -48,6 +49,7 @@ export async function registerRoutes(
   app.use(nativeBrainliftsRouter);
   app.use(purposeSuggestionsRouter);
   app.use(builderExpertsRouter);
+  app.use(secondBrainRouter);
   app.use(knowledgeTreeRouter);
   app.use(internalRouter);
   app.use(dok1CrudRouter);

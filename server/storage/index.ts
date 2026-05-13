@@ -29,6 +29,7 @@ import * as dok3CrudStorage from './dok3-crud';
 import * as dok4CrudStorage from './dok4-crud';
 import * as sprintsStorage from './sprints';
 import * as skillsStorage from './skills';
+import * as secondBrainStorage from './second-brain';
 
 // Re-export types from base
 export type {
@@ -56,6 +57,13 @@ export type {
 } from './base';
 
 export type {
+  Source,
+  InsertSource,
+  Note,
+  InsertNote,
+} from '@shared/schema';
+
+export type {
   DeletedSkillListItem,
   SaveSkillInput,
   SkillDetail,
@@ -79,6 +87,8 @@ export const storage = {
   getBrainliftDataById: brainliftsStorage.getBrainliftDataById,
   getBrainliftsByOwnerId: brainliftsStorage.getBrainliftsByOwnerId,
   createBrainlift: brainliftsStorage.createBrainlift,
+  createBlankBrainlift: brainliftsStorage.createBlankBrainlift,
+  setBrainliftPhase: brainliftsStorage.setBrainliftPhase,
   updateBrainlift: brainliftsStorage.updateBrainlift,
   deleteBrainlift: brainliftsStorage.deleteBrainlift,
   updateBrainliftFields: brainliftsStorage.updateBrainliftFields,
@@ -211,6 +221,18 @@ export const storage = {
   getSwarmUsageToday: learningStreamStorage.getSwarmUsageToday,
   recordSwarmUsage: learningStreamStorage.recordSwarmUsage,
 
+  // Second Brain
+  createSource: secondBrainStorage.createSource,
+  getSourcesByBrainlift: secondBrainStorage.getSourcesByBrainlift,
+  getSourceForBrainlift: secondBrainStorage.getSourceForBrainlift,
+  updateSourceForBrainlift: secondBrainStorage.updateSourceForBrainlift,
+  deleteSourceForBrainlift: secondBrainStorage.deleteSourceForBrainlift,
+  createNote: secondBrainStorage.createNote,
+  getNotesByBrainlift: secondBrainStorage.getNotesByBrainlift,
+  getNoteForBrainlift: secondBrainStorage.getNoteForBrainlift,
+  updateNoteForBrainlift: secondBrainStorage.updateNoteForBrainlift,
+  deleteNoteForBrainlift: secondBrainStorage.deleteNoteForBrainlift,
+
   // DOK3 Insights
   saveDOK3Insights: dok3Storage.saveDOK3Insights,
   getDOK3Insights: dok3Storage.getDOK3Insights,
@@ -251,6 +273,8 @@ export const storage = {
   deleteChatConversation: chatStorage.deleteChatConversation,
   listChatMessages: chatStorage.listChatMessages,
   syncChatMessages: chatStorage.syncChatMessages,
+  setConversationBrainlift: chatStorage.setConversationBrainlift,
+  getConversationBrainlift: chatStorage.getConversationBrainlift,
   getChatUserContext: chatStorage.getChatUserContext,
 
   // Knowledge Check

@@ -120,6 +120,80 @@ describe('createLazyConversationPrepareSend', () => {
     expect(convId).toBe(42);
   });
 
+  it('applies a pending draft brainlift binding via PATCH after lazy-create, before resolving', async () => {
+    let convId: number | null = null;
+    const createConversation = vi.fn().mockResolvedValue(99);
+    const applyPendingBinding = vi.fn().mockResolvedValue(undefined);
+    const order: string[] = [];
+    createConversation.mockImplementation(async () => {
+      order.push('create');
+      return 99;
+    });
+    applyPendingBinding.mockImplementation(async () => {
+      order.push('bind');
+    });
+
+    const { prepareSendMessagesRequest } = createLazyConversationPrepareSend({
+      getConversationId: () => convId,
+      setConversationId: (id) => {
+        convId = id;
+      },
+      getModelId: () => 'gpt-test',
+      createConversation,
+      applyPendingBinding,
+      getPendingDraftBrainliftId: () => 7,
+    });
+
+    const prepared = await prepareSendMessagesRequest({ messages: [{ id: 'm' }] });
+
+    expect(createConversation).toHaveBeenCalledTimes(1);
+    expect(applyPendingBinding).toHaveBeenCalledWith(99, 7);
+    expect(order).toEqual(['create', 'bind']);
+    expect(prepared.body.conversationId).toBe(99);
+  });
+
+  it('skips the PATCH when there is no pending draft brainlift binding', async () => {
+    let convId: number | null = null;
+    const applyPendingBinding = vi.fn();
+
+    const { prepareSendMessagesRequest } = createLazyConversationPrepareSend({
+      getConversationId: () => convId,
+      setConversationId: (id) => {
+        convId = id;
+      },
+      getModelId: () => 'gpt-test',
+      createConversation: () => Promise.resolve(101),
+      applyPendingBinding,
+      getPendingDraftBrainliftId: () => null,
+    });
+
+    await prepareSendMessagesRequest({ messages: [{ id: 'm' }] });
+    expect(applyPendingBinding).not.toHaveBeenCalled();
+    expect(convId).toBe(101);
+  });
+
+  it('logs but does not throw if the lazy-bind PATCH fails (chat still sends)', async () => {
+    let convId: number | null = null;
+    const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const applyPendingBinding = vi.fn().mockRejectedValue(new Error('boom'));
+
+    const { prepareSendMessagesRequest } = createLazyConversationPrepareSend({
+      getConversationId: () => convId,
+      setConversationId: (id) => {
+        convId = id;
+      },
+      getModelId: () => 'gpt-test',
+      createConversation: () => Promise.resolve(202),
+      applyPendingBinding,
+      getPendingDraftBrainliftId: () => 5,
+    });
+
+    const prepared = await prepareSendMessagesRequest({ messages: [{ id: 'm' }] });
+    expect(prepared.body.conversationId).toBe(202);
+    expect(consoleSpy).toHaveBeenCalled();
+    consoleSpy.mockRestore();
+  });
+
   it('reads the current modelId at send time (not at factory creation)', async () => {
     let modelId = 'old-model';
     let convId: number | null = 17;

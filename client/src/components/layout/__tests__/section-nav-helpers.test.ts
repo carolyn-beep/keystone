@@ -23,9 +23,8 @@ describe('resolveSectionNavActive', () => {
     expect(resolveSectionNavActive('/grading/another/with/segments')).toBe<SectionNavSection>('library');
   });
 
-  it('maps "/brainlifts/<slug>" to "library"', () => {
-    expect(resolveSectionNavActive('/brainlifts/some-slug')).toBe<SectionNavSection>('library');
-    expect(resolveSectionNavActive('/brainlifts/x')).toBe<SectionNavSection>('library');
+  it('no longer matches "/brainlifts/<slug>" (canonical path is /grading/<slug>)', () => {
+    expect(resolveSectionNavActive('/brainlifts/some-slug')).toBeNull();
   });
 
   it('maps "/analytics" to "analytics"', () => {

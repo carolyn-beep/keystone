@@ -43,9 +43,16 @@ describe('buildAskUserQuestionTool', () => {
 
 describe('buildNativeChatTools', () => {
   it('exposes ask_user_question alongside the existing toolkits', () => {
-    const tools = buildNativeChatTools({
+    const authContext = {
       userId: 'test-user',
-    } as Parameters<typeof buildNativeChatTools>[0]);
+      role: 'user',
+      isAdmin: false,
+    } as const;
+    const tools = buildNativeChatTools(authContext, 'research', {
+      conversationId: 1,
+      brainliftId: null,
+      brainlift: null,
+    });
 
     expect(tools).toHaveProperty('ask_user_question');
     expect((tools.ask_user_question as { execute?: unknown }).execute).toBeUndefined();
