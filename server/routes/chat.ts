@@ -1,5 +1,13 @@
 import { Router, type Request, type Response } from 'express';
-import { convertToModelMessages, generateId, stepCountIs, streamText, type UIMessage } from 'ai';
+import {
+  convertToModelMessages,
+  createUIMessageStream,
+  generateId,
+  pipeUIMessageStreamToResponse,
+  stepCountIs,
+  streamText,
+  type UIMessage,
+} from 'ai';
 import { DEFAULT_CHAT_MODEL_ID, isChatModelId } from '@shared/chat-models';
 import { requireAuth } from '../middleware/auth';
 import { asyncHandler, BadRequestError, NotFoundError } from '../middleware/error-handler';
@@ -186,6 +194,24 @@ export async function streamChatHandler(req: Request, res: Response): Promise<vo
   }
 
   const messages = body.messages as UIMessage[];
+
+  // Opener short-circuit: when the client appends a synthetic assistant
+  // message (the AlphaX welcome), assistant-ui's `onNew` still issues a
+  // request here. The last message is assistant — there's nothing for the
+  // model to respond to, and we don't want to invent a follow-up turn. Reply
+  // with an empty UI-message stream so the client receives a clean finish
+  // and the synthetic stays put in `chatHelpers.messages`.
+  const lastMessage = messages.at(-1);
+  if (lastMessage?.role === 'assistant') {
+    const stream = createUIMessageStream({
+      execute: async () => {
+        // Intentionally empty — no model call, no parts written.
+      },
+    });
+    pipeUIMessageStreamToResponse({ response: res, stream });
+    return;
+  }
+
   const binding = await storage.getConversationBrainlift(conversation.id);
   const conversationContext: ConversationContext = {
     conversationId: conversation.id,
