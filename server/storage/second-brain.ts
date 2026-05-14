@@ -2,9 +2,12 @@ import {
   and,
   asc,
   db,
+  desc,
   eq,
   isNull,
+  sql,
 } from './base';
+import { ilike, or } from 'drizzle-orm';
 import {
   categories,
   learningStreamItems,
@@ -23,6 +26,64 @@ export type SourceWithCategoryName = Source & { categoryName: string };
 
 export type CreateNoteInput = Omit<InsertNote, 'id' | 'brainliftId' | 'createdAt' | 'updatedAt'>;
 export type UpdateNoteInput = Partial<CreateNoteInput>;
+
+export const SECOND_BRAIN_LIST_PAGE_SIZE = 30;
+
+export interface PaginationMeta {
+  page: number;
+  pageSize: number;
+  totalItems: number;
+  hasMore: boolean;
+}
+
+export interface ListSourcesOptions {
+  page?: number;
+  q?: string;
+}
+
+export interface ListSourcesResult {
+  items: SourceWithCategoryName[];
+  pagination: PaginationMeta;
+}
+
+export interface ListNotesOptions {
+  page?: number;
+  q?: string;
+  sourceId?: number;
+  unlinkedOnly?: boolean;
+}
+
+export interface ListNotesResult {
+  items: Note[];
+  pagination: PaginationMeta;
+}
+
+export interface CategorySummary {
+  id: number;
+  name: string;
+  sortOrder: number | null;
+  sourceCount: number;
+}
+
+export interface SecondBrainSummary {
+  sourceCount: number;
+  noteCount: number;
+  linkedNoteCount: number;
+  unlinkedNoteCount: number;
+  categoryCount: number;
+  categories: Array<{ id: number; name: string; sourceCount: number }>;
+}
+
+function escapeLikePattern(value: string): string {
+  return value.replace(/\\/g, '\\\\').replace(/%/g, '\\%').replace(/_/g, '\\_');
+}
+
+function normalizePage(page: number | undefined): number {
+  if (page == null || !Number.isFinite(page) || page < 1) {
+    return 1;
+  }
+  return Math.floor(page);
+}
 
 function stripUndefined<T extends Record<string, unknown>>(input: T): Partial<T> {
   return Object.fromEntries(
@@ -288,4 +349,184 @@ export async function deleteNoteForBrainlift(
     .returning({ id: notes.id });
 
   return deleted.length > 0;
+}
+
+export async function listSources(
+  brainliftId: number,
+  opts: ListSourcesOptions = {},
+): Promise<ListSourcesResult> {
+  const page = normalizePage(opts.page);
+  const pageSize = SECOND_BRAIN_LIST_PAGE_SIZE;
+  const offset = (page - 1) * pageSize;
+
+  const trimmedQ = opts.q?.trim();
+  const qPattern = trimmedQ ? `%${escapeLikePattern(trimmedQ)}%` : null;
+
+  const filters = [eq(sources.brainliftId, brainliftId)];
+  if (qPattern) {
+    const matcher = or(
+      ilike(sources.title, qPattern),
+      ilike(sources.url, qPattern),
+      ilike(sources.author, qPattern),
+      ilike(categories.name, qPattern),
+    );
+    if (matcher) {
+      filters.push(matcher);
+    }
+  }
+
+  const whereClause = and(...filters);
+
+  const [rows, totalRow] = await Promise.all([
+    db
+      .select({
+        id: sources.id,
+        brainliftId: sources.brainliftId,
+        title: sources.title,
+        url: sources.url,
+        author: sources.author,
+        categoryId: sources.categoryId,
+        extractedContent: sources.extractedContent,
+        learningStreamItemId: sources.learningStreamItemId,
+        createdAt: sources.createdAt,
+        updatedAt: sources.updatedAt,
+        categoryName: categories.name,
+      })
+      .from(sources)
+      .innerJoin(categories, eq(sources.categoryId, categories.id))
+      .where(whereClause)
+      .orderBy(desc(sources.createdAt), desc(sources.id))
+      .limit(pageSize)
+      .offset(offset),
+    db
+      .select({ count: sql<number>`count(*)::int` })
+      .from(sources)
+      .innerJoin(categories, eq(sources.categoryId, categories.id))
+      .where(whereClause),
+  ]);
+
+  const totalItems = totalRow[0]?.count ?? 0;
+
+  return {
+    items: rows,
+    pagination: {
+      page,
+      pageSize,
+      totalItems,
+      hasMore: offset + rows.length < totalItems,
+    },
+  };
+}
+
+export async function listNotes(
+  brainliftId: number,
+  opts: ListNotesOptions = {},
+): Promise<ListNotesResult> {
+  const page = normalizePage(opts.page);
+  const pageSize = SECOND_BRAIN_LIST_PAGE_SIZE;
+  const offset = (page - 1) * pageSize;
+
+  const trimmedQ = opts.q?.trim();
+  const qPattern = trimmedQ ? `%${escapeLikePattern(trimmedQ)}%` : null;
+
+  const filters = [eq(notes.brainliftId, brainliftId)];
+  if (opts.sourceId != null) {
+    filters.push(eq(notes.sourceId, opts.sourceId));
+  } else if (opts.unlinkedOnly) {
+    filters.push(isNull(notes.sourceId));
+  }
+  if (qPattern) {
+    filters.push(ilike(notes.content, qPattern));
+  }
+
+  const whereClause = and(...filters);
+
+  const [rows, totalRow] = await Promise.all([
+    db
+      .select()
+      .from(notes)
+      .where(whereClause)
+      .orderBy(desc(notes.createdAt), desc(notes.id))
+      .limit(pageSize)
+      .offset(offset),
+    db
+      .select({ count: sql<number>`count(*)::int` })
+      .from(notes)
+      .where(whereClause),
+  ]);
+
+  const totalItems = totalRow[0]?.count ?? 0;
+
+  return {
+    items: rows,
+    pagination: {
+      page,
+      pageSize,
+      totalItems,
+      hasMore: offset + rows.length < totalItems,
+    },
+  };
+}
+
+export async function listCategories(brainliftId: number): Promise<CategorySummary[]> {
+  const rows = await db
+    .select({
+      id: categories.id,
+      name: categories.name,
+      sortOrder: categories.sortOrder,
+      sourceCount: sql<number>`count(${sources.id})::int`,
+    })
+    .from(categories)
+    .leftJoin(sources, eq(sources.categoryId, categories.id))
+    .where(eq(categories.brainliftId, brainliftId))
+    .groupBy(categories.id, categories.name, categories.sortOrder)
+    .orderBy(sql`${categories.sortOrder} asc nulls last`, asc(categories.name));
+
+  return rows;
+}
+
+export async function getSecondBrainSummary(brainliftId: number): Promise<SecondBrainSummary> {
+  const [sourceCountRow, noteCountsRow, categoriesRows] = await Promise.all([
+    db
+      .select({ count: sql<number>`count(*)::int` })
+      .from(sources)
+      .where(eq(sources.brainliftId, brainliftId)),
+    db
+      .select({
+        total: sql<number>`count(*)::int`,
+        linked: sql<number>`count(${notes.sourceId})::int`,
+      })
+      .from(notes)
+      .where(eq(notes.brainliftId, brainliftId)),
+    db
+      .select({
+        id: categories.id,
+        name: categories.name,
+        sourceCount: sql<number>`count(${sources.id})::int`,
+      })
+      .from(categories)
+      .leftJoin(sources, eq(sources.categoryId, categories.id))
+      .where(eq(categories.brainliftId, brainliftId))
+      .groupBy(categories.id, categories.name),
+  ]);
+
+  const sourceCount = sourceCountRow[0]?.count ?? 0;
+  const noteCount = noteCountsRow[0]?.total ?? 0;
+  const linkedNoteCount = noteCountsRow[0]?.linked ?? 0;
+  const unlinkedNoteCount = noteCount - linkedNoteCount;
+
+  return {
+    sourceCount,
+    noteCount,
+    linkedNoteCount,
+    unlinkedNoteCount,
+    categoryCount: categoriesRows.length,
+    categories: sourceCount > 0
+      ? categoriesRows.map((row) => ({
+          id: row.id,
+          name: row.name,
+          sourceCount: row.sourceCount,
+        }))
+      : [],
+  };
 }

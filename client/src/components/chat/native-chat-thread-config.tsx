@@ -17,6 +17,7 @@ import {
   FileText,
   FolderGit2,
   FolderPlus,
+  FolderTree,
   Library,
   Link2,
   Loader2,
@@ -483,6 +484,90 @@ function makeDeleteSecondBrainToolUI(
 const DeleteSourceToolUI = makeDeleteSecondBrainToolUI('delete_source', 'source');
 const DeleteNoteToolUI = makeDeleteSecondBrainToolUI('delete_note', 'note');
 const DeleteCategoryToolUI = makeDeleteSecondBrainToolUI('delete_category', 'category');
+
+type ListSourcesArgs = { q?: string; page?: number };
+type ListSourcesResult = {
+  items?: unknown[];
+  pagination?: { totalItems?: number };
+};
+
+const ListSourcesToolUI = makeAssistantToolUI<ListSourcesArgs, ListSourcesResult>({
+  toolName: 'list_sources',
+  render: ({ args, result, status, isError }) => {
+    const total = result?.pagination?.totalItems ?? result?.items?.length;
+    const qSuffix = args?.q ? ` matching "${args.q}"` : '';
+    return (
+      <ToolStatusLine
+        icon={<StatusIcon status={status} isError={isError} fallback={<BookOpenText size={13} />} />}
+        tone={getTone(status, isError)}
+      >
+        {isError
+          ? 'Failed to list sources'
+          : isRunning(status)
+            ? `Listing sources${qSuffix}…`
+            : total != null
+              ? `Listed ${total} source${total === 1 ? '' : 's'}${qSuffix}`
+              : `Listed sources${qSuffix}`}
+      </ToolStatusLine>
+    );
+  },
+});
+
+type ListNotesArgs = {
+  q?: string;
+  page?: number;
+  sourceId?: number;
+  unlinkedOnly?: boolean;
+};
+type ListNotesResult = {
+  items?: unknown[];
+  pagination?: { totalItems?: number };
+};
+
+const ListNotesToolUI = makeAssistantToolUI<ListNotesArgs, ListNotesResult>({
+  toolName: 'list_notes',
+  render: ({ args, result, status, isError }) => {
+    const total = result?.pagination?.totalItems ?? result?.items?.length;
+    const qSuffix = args?.q ? ` matching "${args.q}"` : '';
+    return (
+      <ToolStatusLine
+        icon={<StatusIcon status={status} isError={isError} fallback={<StickyNote size={13} />} />}
+        tone={getTone(status, isError)}
+      >
+        {isError
+          ? 'Failed to list notes'
+          : isRunning(status)
+            ? `Listing notes${qSuffix}…`
+            : total != null
+              ? `Listed ${total} note${total === 1 ? '' : 's'}${qSuffix}`
+              : `Listed notes${qSuffix}`}
+      </ToolStatusLine>
+    );
+  },
+});
+
+type ListCategoriesResult = { items?: unknown[] };
+
+const ListCategoriesToolUI = makeAssistantToolUI<Record<string, never>, ListCategoriesResult>({
+  toolName: 'list_categories',
+  render: ({ result, status, isError }) => {
+    const total = result?.items?.length;
+    return (
+      <ToolStatusLine
+        icon={<StatusIcon status={status} isError={isError} fallback={<FolderTree size={13} />} />}
+        tone={getTone(status, isError)}
+      >
+        {isError
+          ? 'Failed to list categories'
+          : isRunning(status)
+            ? 'Listing categories…'
+            : total != null
+              ? `Listed ${total} categor${total === 1 ? 'y' : 'ies'}`
+              : 'Listed categories'}
+      </ToolStatusLine>
+    );
+  },
+});
 
 type GradeBrainliftArgs = { markdown: string; title?: string };
 type GradeBrainliftResult = { slug: string; brainliftId: number; status: string; retryAfter: number };
@@ -1167,6 +1252,9 @@ export const nativeChatToolUIs = [
   DeleteSourceToolUI,
   DeleteNoteToolUI,
   DeleteCategoryToolUI,
+  ListSourcesToolUI,
+  ListNotesToolUI,
+  ListCategoriesToolUI,
   // Curation
   CreateDok1ToolUI,
   CreateDok2ToolUI,

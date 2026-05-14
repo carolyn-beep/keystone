@@ -195,6 +195,12 @@ export async function streamChatHandler(req: Request, res: Response): Promise<vo
   const mode: ChatMode = conversationContext.brainlift?.phase === 'authoring'
     ? 'authoring'
     : 'research';
+
+  if (mode === 'research' && conversationContext.brainliftId != null) {
+    conversationContext.secondBrainSummary = await storage.getSecondBrainSummary(
+      conversationContext.brainliftId,
+    );
+  }
   const userContext = await storage.getChatUserContext(userId);
   const systemPrompt = await buildChatSystemPromptFromRegistry({
     userContext,

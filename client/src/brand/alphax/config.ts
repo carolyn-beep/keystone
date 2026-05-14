@@ -27,14 +27,6 @@ export const config: BrandConfig = {
     title: 'Builds at night',
   },
   chatOpenerInstruction:
-    'This is the user landing on the chat homepage. Open the conversation by '
-    + 'briefly introducing yourself as AlphaX Buddy, then meet the student exactly where they '
-    + 'are in their AlphaX journey. Follow the brainlift heuristics in your system prompt and '
-    + 'use the User Context block (brainlift count, recent brainlifts, recent conversations, '
-    + 'and `activePlans` -- every active sprint plan across ALL brainlifts with today/overdue '
-    + 'tasks) to tailor the opener. If `activePlans` shows pending work, lead with that. '
-    + 'Newcomers with no brainlifts get the capability preview; returning students get a '
-    + 'personalized intro grounded in their brainlift, plan, and current tasks -- straight from '
-    + 'the User Context, no extra tool calls needed for the opener. Do not give a generic '
-    + 'platform pitch to a returning student.',
+    'The user just landed on the AlphaX chat homepage with a fresh empty conversation. '
+    + 'Open per your system prompt. The User Context block is your ground truth for who they are.',
 };

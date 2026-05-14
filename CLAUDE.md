@@ -56,6 +56,8 @@ Express + TypeScript backend in `server/`. Uses Drizzle ORM, domain-based routin
 > - **Before starting backend work:** Review the API map to understand existing endpoints
 > - **After completing backend work:** Update the API map with any new/modified endpoints
 
+> **Chat system prompts:** When changing anything in `server/brand/*` (builders, helpers, types, or section markers), use the local Prompt Explorer to verify the rendered output against actual runtime — never reason about prompt contents from memory. See [`tools/prompt-explorer/README.md`](tools/prompt-explorer/README.md). The directory is gitignored (local-only dev tool); the README lists the staleness vectors that backend changes can introduce.
+
 **Key directories:**
 - `server/routes/` - Express routers, one per domain
 - `server/services/` - Business logic (e.g., `saveBrainliftFromAI`)

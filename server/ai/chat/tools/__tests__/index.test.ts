@@ -112,13 +112,16 @@ beforeEach(() => {
     save_source: 'save-source',
     save_note: 'save-note',
     create_category: 'create-category',
+    list_sources: 'list-sources',
+    list_notes: 'list-notes',
+    list_categories: 'list-categories',
   });
   mockBuildChatCurationTools.mockReturnValue({ create_dok1: 'curation' });
   mockBuildSprintChatTools.mockReturnValue({ generate_plan: 'sprint' });
 });
 
 describe('buildNativeChatTools', () => {
-  it('exposes project and shared tools for unbound research conversations but no authoring or Second Brain tools', async () => {
+  it('exposes Second Brain tools even for unbound research conversations (agent discovers capabilities + prerequisites upfront)', async () => {
     const { buildNativeChatTools } = await import('../index');
 
     const tools = buildNativeChatTools(authContext, 'research', unboundConversation);
@@ -131,8 +134,13 @@ describe('buildNativeChatTools', () => {
       list_brainlifts: 'list-brainlifts',
       create_blank_project: 'blank-project',
       change_conversation_project: 'change-project',
+      save_source: 'save-source',
+      save_note: 'save-note',
+      create_category: 'create-category',
+      list_sources: 'list-sources',
+      list_notes: 'list-notes',
+      list_categories: 'list-categories',
     });
-    expect(tools).not.toHaveProperty('save_source');
     expect(tools).not.toHaveProperty('create_dok1');
     expect(tools).not.toHaveProperty('create_brainlift');
     expect(tools).not.toHaveProperty('get_brainlift_assessment');
@@ -144,7 +152,10 @@ describe('buildNativeChatTools', () => {
       authContext,
       unboundConversation,
     );
-    expect(mockBuildSecondBrainChatTools).not.toHaveBeenCalled();
+    expect(mockBuildSecondBrainChatTools).toHaveBeenCalledWith(
+      authContext,
+      unboundConversation,
+    );
     expect(mockBuildChatCurationTools).not.toHaveBeenCalled();
     expect(mockBuildSprintChatTools).not.toHaveBeenCalled();
   });
@@ -159,6 +170,9 @@ describe('buildNativeChatTools', () => {
       save_source: 'save-source',
       save_note: 'save-note',
       create_category: 'create-category',
+      list_sources: 'list-sources',
+      list_notes: 'list-notes',
+      list_categories: 'list-categories',
     });
     expect(tools).not.toHaveProperty('create_dok1');
     expect(tools).not.toHaveProperty('get_brainlift_assessment');
@@ -184,6 +198,9 @@ describe('buildNativeChatTools', () => {
     });
     expect(tools).not.toHaveProperty('create_blank_project');
     expect(tools).not.toHaveProperty('save_source');
+    expect(tools).not.toHaveProperty('list_sources');
+    expect(tools).not.toHaveProperty('list_notes');
+    expect(tools).not.toHaveProperty('list_categories');
     expect(mockBuildResearchOnlyProjectChatTools).not.toHaveBeenCalled();
     expect(mockBuildSharedProjectChatTools).toHaveBeenCalledWith(
       authContext,

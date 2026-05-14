@@ -31,6 +31,7 @@ const {
     syncChatMessages: vi.fn(),
     getChatUserContext: vi.fn(),
     getConversationBrainlift: vi.fn(),
+    getSecondBrainSummary: vi.fn(),
   },
   mockGetChatModel: vi.fn(),
   mockBuildChatSystemPromptFromRegistry: vi.fn(),
@@ -127,6 +128,14 @@ beforeEach(() => {
     conversationId: 42,
     brainliftId: null,
     brainlift: null,
+  });
+  mockStorage.getSecondBrainSummary.mockResolvedValue({
+    sourceCount: 0,
+    noteCount: 0,
+    linkedNoteCount: 0,
+    unlinkedNoteCount: 0,
+    categoryCount: 0,
+    categories: [],
   });
 });
 
@@ -336,12 +345,26 @@ describe('chat route handlers', () => {
 
     await streamChatHandler(req, res);
 
+    const expectsSecondBrainFetch = expectedMode === 'research' && binding.brainliftId != null;
+    const expectedConversation = expectsSecondBrainFetch
+      ? { ...binding, secondBrainSummary: expect.any(Object) }
+      : binding;
+
     expect(mockStorage.getConversationBrainlift).toHaveBeenCalledWith(42);
+    if (expectsSecondBrainFetch) {
+      expect(mockStorage.getSecondBrainSummary).toHaveBeenCalledWith(binding.brainliftId);
+    } else {
+      expect(mockStorage.getSecondBrainSummary).not.toHaveBeenCalled();
+    }
     expect(mockBuildChatSystemPromptFromRegistry).toHaveBeenCalledWith(expect.objectContaining({
       mode: expectedMode,
-      conversation: binding,
+      conversation: expectedConversation,
     }));
-    expect(mockBuildNativeChatTools).toHaveBeenCalledWith(req.authContext, expectedMode, binding);
+    expect(mockBuildNativeChatTools).toHaveBeenCalledWith(
+      req.authContext,
+      expectedMode,
+      expectedConversation,
+    );
   });
 
   it('streamChatHandler passes original messages through and persists finalized messages on finish', async () => {

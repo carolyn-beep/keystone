@@ -12,6 +12,9 @@ const { mockStorage } = vi.hoisted(() => ({
     createCategory: vi.fn(),
     updateCategory: vi.fn(),
     deleteCategory: vi.fn(),
+    listSources: vi.fn(),
+    listNotes: vi.fn(),
+    listCategories: vi.fn(),
   },
 }));
 
@@ -57,14 +60,34 @@ describe('buildSecondBrainChatTools', () => {
     vi.clearAllMocks();
   });
 
-  it('requires a bound brainlift at build time', async () => {
+  it('builds tools unbound (agent sees them with a runtime guard)', async () => {
     const { buildSecondBrainChatTools } = await import('../second-brain');
 
-    expect(() => buildSecondBrainChatTools(authContext, {
+    const tools = buildSecondBrainChatTools(authContext, {
       conversationId: 42,
       brainliftId: null,
       brainlift: null,
-    })).toThrow('A research project must be bound');
+    });
+
+    // Tools exist in the registry so the agent is aware of them from turn 1.
+    expect(tools).toHaveProperty('save_source');
+    expect(tools).toHaveProperty('save_note');
+    expect(tools).toHaveProperty('create_category');
+    expect(tools).toHaveProperty('list_sources');
+    expect(tools).toHaveProperty('list_notes');
+    expect(tools).toHaveProperty('list_categories');
+
+    // But calling without a bound project errors with a directive message.
+    await expect(
+      (tools.save_source as any).execute({
+        title: 'Battery Paper',
+        url: 'https://example.com/battery',
+        author: 'example.com',
+        categoryId: 3,
+      }),
+    ).rejects.toThrow('create_blank_project');
+    await expect((tools.list_sources as any).execute({})).rejects.toThrow('create_blank_project');
+    await expect((tools.list_categories as any).execute({})).rejects.toThrow('create_blank_project');
   });
 
   it('save_source persists source fields through IDOR-safe storage', async () => {
@@ -187,6 +210,122 @@ describe('buildSecondBrainChatTools', () => {
       .toEqual(expect.objectContaining({ issues: expect.any(Array) }));
     expect(standardValidate(tools.edit_category, { id: 1, patch: {} }))
       .toEqual(expect.objectContaining({ issues: expect.any(Array) }));
+  });
+
+  it('list_sources strips brainliftId and extractedContent from rows', async () => {
+    const createdAt = new Date('2026-05-01T12:00:00Z');
+    mockStorage.listSources.mockResolvedValue({
+      items: [
+        {
+          id: 11,
+          brainliftId: 7,
+          title: 'Battery Paper',
+          url: 'https://example.com/battery',
+          author: 'example.com',
+          categoryId: 3,
+          categoryName: 'Chemistry',
+          extractedContent: { markdown: 'huge cached blob' },
+          learningStreamItemId: null,
+          createdAt,
+          updatedAt: createdAt,
+        },
+      ],
+      pagination: { page: 1, pageSize: 30, totalItems: 1, hasMore: false },
+    });
+
+    const { buildSecondBrainChatTools } = await import('../second-brain');
+    const tools = buildSecondBrainChatTools(authContext, boundConversation);
+    const result = await (tools.list_sources as any).execute({ q: 'battery', page: 1 });
+
+    expect(mockStorage.listSources).toHaveBeenCalledWith(7, { q: 'battery', page: 1 });
+    expect(result).toEqual({
+      items: [
+        {
+          id: 11,
+          title: 'Battery Paper',
+          url: 'https://example.com/battery',
+          author: 'example.com',
+          categoryId: 3,
+          categoryName: 'Chemistry',
+          createdAt: createdAt.toISOString(),
+        },
+      ],
+      pagination: { page: 1, pageSize: 30, totalItems: 1, hasMore: false },
+    });
+    expect(result.items[0]).not.toHaveProperty('brainliftId');
+    expect(result.items[0]).not.toHaveProperty('extractedContent');
+  });
+
+  it('list_notes strips brainliftId, forwards filters, and serializes dates', async () => {
+    const createdAt = new Date('2026-05-02T09:30:00Z');
+    mockStorage.listNotes.mockResolvedValue({
+      items: [
+        {
+          id: 22,
+          brainliftId: 7,
+          sourceId: 11,
+          categoryId: 3,
+          content: 'My reflection',
+          createdAt,
+          updatedAt: createdAt,
+        },
+      ],
+      pagination: { page: 2, pageSize: 30, totalItems: 31, hasMore: false },
+    });
+
+    const { buildSecondBrainChatTools } = await import('../second-brain');
+    const tools = buildSecondBrainChatTools(authContext, boundConversation);
+    const result = await (tools.list_notes as any).execute({
+      q: 'reflection',
+      page: 2,
+      sourceId: 11,
+      unlinkedOnly: false,
+    });
+
+    expect(mockStorage.listNotes).toHaveBeenCalledWith(7, {
+      q: 'reflection',
+      page: 2,
+      sourceId: 11,
+      unlinkedOnly: false,
+    });
+    expect(result.items[0]).toEqual({
+      id: 22,
+      content: 'My reflection',
+      sourceId: 11,
+      categoryId: 3,
+      createdAt: createdAt.toISOString(),
+    });
+    expect(result.items[0]).not.toHaveProperty('brainliftId');
+  });
+
+  it('list_categories returns id/name/sortOrder/sourceCount only', async () => {
+    mockStorage.listCategories.mockResolvedValue([
+      { id: 1, name: 'Chemistry', sortOrder: 0, sourceCount: 4 },
+      { id: 2, name: 'Policy', sortOrder: null, sourceCount: 1 },
+    ]);
+
+    const { buildSecondBrainChatTools } = await import('../second-brain');
+    const tools = buildSecondBrainChatTools(authContext, boundConversation);
+    const result = await (tools.list_categories as any).execute({});
+
+    expect(mockStorage.listCategories).toHaveBeenCalledWith(7);
+    expect(result).toEqual({
+      items: [
+        { id: 1, name: 'Chemistry', sortOrder: 0, sourceCount: 4 },
+        { id: 2, name: 'Policy', sortOrder: null, sourceCount: 1 },
+      ],
+    });
+  });
+
+  it('list tools error at runtime when conversation is unbound, pointing at create_blank_project', async () => {
+    const { buildSecondBrainChatTools } = await import('../second-brain');
+    const tools = buildSecondBrainChatTools(authContext, {
+      conversationId: 1,
+      brainliftId: null,
+      brainlift: null,
+    });
+
+    await expect((tools.list_notes as any).execute({})).rejects.toThrow('create_blank_project');
   });
 
   it('edit and delete operations call brainlift-scoped storage helpers', async () => {

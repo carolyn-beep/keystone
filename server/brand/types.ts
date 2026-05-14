@@ -9,6 +9,9 @@
 
 import type { Brainlift, ChatUserContext } from '../storage/base';
 import type { SkillSummary } from '../ai/chat/skills';
+import type { SecondBrainSummary } from '../storage/second-brain';
+
+export type { SecondBrainSummary };
 
 export type BrandId = 'alphax' | 'brainlift';
 
@@ -26,6 +29,7 @@ export interface ConversationContext {
   conversationId: number;
   brainliftId: number | null;
   brainlift: Brainlift | null;
+  secondBrainSummary?: SecondBrainSummary | null;
 }
 
 export interface BuildSystemPromptArgs {

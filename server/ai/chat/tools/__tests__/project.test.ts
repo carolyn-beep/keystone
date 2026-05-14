@@ -52,6 +52,11 @@ function createTransactionHarness(options: { failConversationUpdate?: boolean } 
   const updates: unknown[] = [];
 
   const tx = {
+    select: vi.fn(() => ({
+      from: vi.fn(() => ({
+        where: vi.fn(async () => [{ name: 'Test Student' }]),
+      })),
+    })),
     insert: vi.fn(() => ({
       values: vi.fn((value) => ({
         returning: vi.fn(async () => {
@@ -60,6 +65,7 @@ function createTransactionHarness(options: { failConversationUpdate?: boolean } 
             slug: value.slug,
             title: value.title,
             phase: value.phase,
+            author: value.author,
           };
           insertedBrainlifts.push(brainlift);
           return [brainlift];
