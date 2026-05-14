@@ -16,7 +16,50 @@
 
 import type { ChatUserContext } from '../../storage/base';
 import type { SkillSummary } from '../../ai/chat/skills';
-import type { ConversationContext } from '../types';
+import type { ConversationContext, SecondBrainSummary } from '../types';
+
+const CATEGORY_BREAKDOWN_LIMIT = 5;
+
+export function formatSecondBrainSummary(
+  summary: SecondBrainSummary | null | undefined,
+): string | null {
+  if (!summary) {
+    return null;
+  }
+
+  const {
+    sourceCount,
+    noteCount,
+    linkedNoteCount,
+    unlinkedNoteCount,
+    categoryCount,
+    categories: categoryBreakdown,
+  } = summary;
+
+  if (sourceCount === 0 && noteCount === 0) {
+    return 'Second Brain state: empty (no sources or notes yet).';
+  }
+
+  const sourceLabel = `${sourceCount} source${sourceCount === 1 ? '' : 's'}`;
+  const categoryLabel = `${categoryCount} categor${categoryCount === 1 ? 'y' : 'ies'}`;
+  const noteLabel = `${noteCount} note${noteCount === 1 ? '' : 's'}`;
+
+  let categoryBreakdownStr = '';
+  if (sourceCount > 0 && categoryBreakdown.length > 0) {
+    const sortedCategories = [...categoryBreakdown].sort(
+      (a, b) => b.sourceCount - a.sourceCount,
+    );
+    const shown = sortedCategories.slice(0, CATEGORY_BREAKDOWN_LIMIT);
+    const remaining = sortedCategories.length - shown.length;
+    const parts = shown.map((cat) => `${cat.name}: ${cat.sourceCount}`);
+    if (remaining > 0) {
+      parts.push(`...and ${remaining} more`);
+    }
+    categoryBreakdownStr = ` (${parts.join(', ')})`;
+  }
+
+  return `Second Brain state: ${sourceLabel} across ${categoryLabel}${categoryBreakdownStr}, ${noteLabel} (${linkedNoteCount} linked to a source, ${unlinkedNoteCount} free-form).`;
+}
 
 export function formatDate(date: Date): string {
   return date.toISOString().slice(0, 10);
@@ -43,6 +86,10 @@ export function formatCurrentProject(
     return [];
   }
 
+  const summaryLine = brainlift.phase === 'research'
+    ? formatSecondBrainSummary(conversation?.secondBrainSummary)
+    : null;
+
   return [
     '=== START OF CURRENT PROJECT ===',
     '## CURRENT PROJECT',
@@ -50,6 +97,7 @@ export function formatCurrentProject(
     'Refer to it by name. Do NOT ask the user which project they mean — the binding is unambiguous and visible to them in the project picker.',
     'Do NOT call `list_brainlifts` when the user is asking about THIS project. Only call `list_brainlifts` when the user explicitly wants to switch projects or work across projects.',
     'Every research / authoring action you take in this turn (categories, sources, notes, DOK items, grading, sprint, deliverables — whichever apply in the current mode) is scoped to this project.',
+    ...(summaryLine ? ['', summaryLine] : []),
     '',
     '### SWITCHING PROJECTS FROM CHAT',
     'You CAN switch the conversation to a different project yourself. You have the `change_conversation_project` tool for this — do not tell the user they have to use the UI picker.',

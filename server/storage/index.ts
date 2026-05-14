@@ -232,6 +232,10 @@ export const storage = {
   getNoteForBrainlift: secondBrainStorage.getNoteForBrainlift,
   updateNoteForBrainlift: secondBrainStorage.updateNoteForBrainlift,
   deleteNoteForBrainlift: secondBrainStorage.deleteNoteForBrainlift,
+  listSources: secondBrainStorage.listSources,
+  listNotes: secondBrainStorage.listNotes,
+  listCategories: secondBrainStorage.listCategories,
+  getSecondBrainSummary: secondBrainStorage.getSecondBrainSummary,
 
   // DOK3 Insights
   saveDOK3Insights: dok3Storage.saveDOK3Insights,

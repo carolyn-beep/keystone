@@ -4,7 +4,7 @@ import { z } from 'zod';
 import type { ConversationContext } from '../../../brand/types';
 import { NotFoundError } from '../../../middleware/error-handler';
 import type { AuthContext } from '../../../storage/base';
-import { brainlifts, chatConversations } from '@shared/schema';
+import { brainlifts, chatConversations, user } from '@shared/schema';
 
 const CREATE_BLANK_PROJECT_DESCRIPTION = [
   'Create a new blank research project and bind this conversation to it.',
@@ -56,12 +56,19 @@ async function createBlankProjectAndBind(args: {
     try {
       const { db } = await import('../../../db');
       return await db.transaction(async (tx) => {
+        const [userRow] = await tx
+          .select({ name: user.name })
+          .from(user)
+          .where(eq(user.id, args.userId));
+        const authorName = userRow?.name?.trim() || 'Student';
+
         const [brainlift] = await tx
           .insert(brainlifts)
           .values({
             slug: slugForAttempt(baseSlug, attempt),
             title,
             description,
+            author: authorName,
             createdByUserId: args.userId,
             phase: 'research',
             summary: {
@@ -121,12 +128,22 @@ export function buildResearchOnlyProjectChatTools(
         title: z.string().trim().min(1).describe('Working title for the research project.'),
         description: z.string().trim().optional().describe('Optional one-line description of the research direction.'),
       }),
-      execute: async ({ title, description }) => createBlankProjectAndBind({
-        userId: authContext.userId,
-        conversationId: conversation.conversationId,
-        title,
-        description,
-      }),
+      execute: async ({ title, description }) => {
+        const result = await createBlankProjectAndBind({
+          userId: authContext.userId,
+          conversationId: conversation.conversationId,
+          title,
+          description,
+        });
+        conversation.brainliftId = result.brainliftId;
+        conversation.brainlift = {
+          id: result.brainliftId,
+          slug: result.slug,
+          title: result.title,
+          phase: result.phase,
+        } as ConversationContext['brainlift'];
+        return result;
+      },
     }),
   };
 }
@@ -177,9 +194,12 @@ export function buildSharedProjectChatTools(
         );
         const binding = await storage.getConversationBrainlift(conversation.conversationId);
 
+        conversation.brainliftId = binding?.brainliftId ?? updated.brainliftId ?? null;
+        conversation.brainlift = binding?.brainlift ?? null;
+
         return {
           conversationId: updated.id,
-          brainliftId: binding?.brainliftId ?? updated.brainliftId,
+          brainliftId: conversation.brainliftId,
           slug: binding?.brainlift?.slug ?? null,
           phase: binding?.brainlift?.phase ?? null,
         };

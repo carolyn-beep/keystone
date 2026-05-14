@@ -23,3 +23,6 @@ client/src/assets/inspo/
 
 # Generated images
 generated-images/
+
+# Local-only dev tools (not part of the shipped app)
+tools/prompt-explorer/

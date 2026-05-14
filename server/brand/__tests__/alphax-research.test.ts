@@ -174,5 +174,111 @@ describe('AlphaX research prompt', () => {
     });
 
     expect(prompt).not.toContain('CURRENT PROJECT');
+    expect(prompt).not.toContain('Second Brain state');
+  });
+
+  it('renders the ambient Second Brain summary when bound with populated state', () => {
+    const conversation: ConversationContext = {
+      ...boundConversation,
+      secondBrainSummary: {
+        sourceCount: 12,
+        noteCount: 8,
+        linkedNoteCount: 5,
+        unlinkedNoteCount: 3,
+        categoryCount: 3,
+        categories: [
+          { id: 1, name: 'Industry Players', sourceCount: 5 },
+          { id: 2, name: 'Chemistry Basics', sourceCount: 4 },
+          { id: 3, name: 'Policy Landscape', sourceCount: 3 },
+        ],
+      },
+    };
+
+    const prompt = buildAlphaXResearchSystemPrompt({
+      userContext: baseUserContext,
+      skills: [],
+      mode: 'research',
+      conversation,
+    });
+
+    expect(prompt).toContain('Second Brain state: 12 sources across 3 categories');
+    expect(prompt).toContain('Industry Players: 5');
+    expect(prompt).toContain('Chemistry Basics: 4');
+    expect(prompt).toContain('Policy Landscape: 3');
+    expect(prompt).toContain('8 notes (5 linked to a source, 3 free-form)');
+  });
+
+  it('renders the empty Second Brain variant when zero sources and zero notes', () => {
+    const conversation: ConversationContext = {
+      ...boundConversation,
+      secondBrainSummary: {
+        sourceCount: 0,
+        noteCount: 0,
+        linkedNoteCount: 0,
+        unlinkedNoteCount: 0,
+        categoryCount: 2,
+        categories: [],
+      },
+    };
+
+    const prompt = buildAlphaXResearchSystemPrompt({
+      userContext: baseUserContext,
+      skills: [],
+      mode: 'research',
+      conversation,
+    });
+
+    expect(prompt).toContain('Second Brain state: empty (no sources or notes yet).');
+  });
+
+  it('does NOT render the Second Brain summary when the conversation is unbound', () => {
+    const prompt = buildAlphaXResearchSystemPrompt({
+      userContext: baseUserContext,
+      skills: [],
+      mode: 'research',
+      conversation: {
+        ...unboundConversation,
+        secondBrainSummary: {
+          sourceCount: 12,
+          noteCount: 8,
+          linkedNoteCount: 5,
+          unlinkedNoteCount: 3,
+          categoryCount: 3,
+          categories: [],
+        },
+      },
+    });
+
+    expect(prompt).not.toContain('Second Brain state');
+  });
+
+  it('does NOT render the Second Brain summary when the bound brainlift is in authoring phase', () => {
+    const authoringConversation: ConversationContext = {
+      conversationId: 10,
+      brainliftId: 9,
+      brainlift: {
+        id: 9,
+        slug: 'authored-brainlift',
+        title: 'Authored Brainlift',
+        phase: 'authoring',
+      } as ConversationContext['brainlift'],
+      secondBrainSummary: {
+        sourceCount: 4,
+        noteCount: 2,
+        linkedNoteCount: 1,
+        unlinkedNoteCount: 1,
+        categoryCount: 2,
+        categories: [{ id: 1, name: 'Cat', sourceCount: 4 }],
+      },
+    };
+
+    const prompt = buildAlphaXResearchSystemPrompt({
+      userContext: baseUserContext,
+      skills: [],
+      mode: 'research',
+      conversation: authoringConversation,
+    });
+
+    expect(prompt).not.toContain('Second Brain state');
   });
 });

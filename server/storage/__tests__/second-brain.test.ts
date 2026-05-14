@@ -17,10 +17,15 @@ import {
   deleteSourceForBrainlift,
   getNoteForBrainlift,
   getNotesByBrainlift,
+  getSecondBrainSummary,
   getSourceForBrainlift,
   getSourcesByBrainlift,
+  listCategories,
+  listNotes,
+  listSources,
   updateNoteForBrainlift,
   updateSourceForBrainlift,
+  SECOND_BRAIN_LIST_PAGE_SIZE,
 } from '../second-brain';
 import { storage } from '../index';
 
@@ -325,10 +330,243 @@ describe('second brain storage', () => {
       getNoteForBrainlift: expect.any(Function),
       updateNoteForBrainlift: expect.any(Function),
       deleteNoteForBrainlift: expect.any(Function),
+      listSources: expect.any(Function),
+      listNotes: expect.any(Function),
+      listCategories: expect.any(Function),
+      getSecondBrainSummary: expect.any(Function),
       createBlankBrainlift: expect.any(Function),
       setBrainliftPhase: expect.any(Function),
       setConversationBrainlift: expect.any(Function),
       getConversationBrainlift: expect.any(Function),
     });
+  });
+
+  it('listSources paginates and respects newest-first ordering and q filtering', async () => {
+    const { brainlift, category } = await createBrainliftFixture('list-sources');
+
+    const totalSources = SECOND_BRAIN_LIST_PAGE_SIZE + 5;
+    for (let i = 0; i < totalSources; i += 1) {
+      await createSource(brainlift.id, {
+        title: `Source ${i.toString().padStart(2, '0')} Battery`,
+        url: `https://example.com/list-sources/${i}`,
+        author: `Author ${i}`,
+        categoryId: category.id,
+      });
+    }
+
+    const page1 = await listSources(brainlift.id);
+    expect(page1.items).toHaveLength(SECOND_BRAIN_LIST_PAGE_SIZE);
+    expect(page1.pagination).toMatchObject({
+      page: 1,
+      pageSize: SECOND_BRAIN_LIST_PAGE_SIZE,
+      totalItems: totalSources,
+      hasMore: true,
+    });
+    expect(page1.items[0].title).toBe(`Source ${(totalSources - 1).toString().padStart(2, '0')} Battery`);
+
+    const page2 = await listSources(brainlift.id, { page: 2 });
+    expect(page2.items).toHaveLength(totalSources - SECOND_BRAIN_LIST_PAGE_SIZE);
+    expect(page2.pagination.hasMore).toBe(false);
+
+    const titleMatch = await listSources(brainlift.id, { q: 'Source 03' });
+    expect(titleMatch.items).toHaveLength(1);
+    expect(titleMatch.items[0]).toMatchObject({
+      title: 'Source 03 Battery',
+      categoryName: category.name,
+    });
+
+    const categoryMatch = await listSources(brainlift.id, { q: category.name });
+    expect(categoryMatch.pagination.totalItems).toBe(totalSources);
+
+    const urlMatch = await listSources(brainlift.id, {
+      q: 'https://example.com/list-sources/7',
+    });
+    expect(urlMatch.items.some((s) => s.url === 'https://example.com/list-sources/7')).toBe(true);
+
+    const noMatch = await listSources(brainlift.id, { q: 'no-such-thing-zzz' });
+    expect(noMatch.items).toHaveLength(0);
+    expect(noMatch.pagination.totalItems).toBe(0);
+    expect(noMatch.pagination.hasMore).toBe(false);
+  });
+
+  it('listSources scopes results to one brainlift', async () => {
+    const { brainlift, category } = await createBrainliftFixture('list-sources-scope');
+    const { brainlift: otherBrainlift, category: otherCategory } =
+      await createBrainliftFixture('list-sources-scope-other', OTHER_USER_ID);
+
+    await createSource(brainlift.id, {
+      title: 'Mine',
+      url: 'https://example.com/mine',
+      author: 'Author',
+      categoryId: category.id,
+    });
+    await createSource(otherBrainlift.id, {
+      title: 'Theirs',
+      url: 'https://example.com/theirs',
+      author: 'Author',
+      categoryId: otherCategory.id,
+    });
+
+    const result = await listSources(brainlift.id);
+    expect(result.items.map((s) => s.title)).toEqual(['Mine']);
+  });
+
+  it('listNotes filters by sourceId, unlinkedOnly, and content search', async () => {
+    const { brainlift, category } = await createBrainliftFixture('list-notes');
+    const sourceA = await createSource(brainlift.id, {
+      title: 'Source A',
+      url: 'https://example.com/source-a',
+      author: 'Author',
+      categoryId: category.id,
+    });
+    const sourceB = await createSource(brainlift.id, {
+      title: 'Source B',
+      url: 'https://example.com/source-b',
+      author: 'Author',
+      categoryId: category.id,
+    });
+
+    await createNote(brainlift.id, { sourceId: sourceA.id, content: 'About cathodes in A' });
+    await createNote(brainlift.id, { sourceId: sourceB.id, content: 'About anodes in B' });
+    await createNote(brainlift.id, { sourceId: null, content: 'Free thought about cathodes' });
+
+    const all = await listNotes(brainlift.id);
+    expect(all.pagination.totalItems).toBe(3);
+
+    const aOnly = await listNotes(brainlift.id, { sourceId: sourceA.id });
+    expect(aOnly.items).toHaveLength(1);
+    expect(aOnly.items[0].sourceId).toBe(sourceA.id);
+
+    const unlinked = await listNotes(brainlift.id, { unlinkedOnly: true });
+    expect(unlinked.items).toHaveLength(1);
+    expect(unlinked.items[0].sourceId).toBeNull();
+
+    const cathodes = await listNotes(brainlift.id, { q: 'cathodes' });
+    expect(cathodes.items).toHaveLength(2);
+
+    const sourceIdOverridesUnlinked = await listNotes(brainlift.id, {
+      sourceId: sourceA.id,
+      unlinkedOnly: true,
+    });
+    expect(sourceIdOverridesUnlinked.items).toHaveLength(1);
+    expect(sourceIdOverridesUnlinked.items[0].sourceId).toBe(sourceA.id);
+  });
+
+  it('listNotes paginates at the configured page size', async () => {
+    const { brainlift, category } = await createBrainliftFixture('list-notes-page');
+    const source = await createSource(brainlift.id, {
+      title: 'Source for notes pagination',
+      url: 'https://example.com/notes-page',
+      author: 'Author',
+      categoryId: category.id,
+    });
+
+    const totalNotes = SECOND_BRAIN_LIST_PAGE_SIZE + 3;
+    for (let i = 0; i < totalNotes; i += 1) {
+      await createNote(brainlift.id, {
+        sourceId: source.id,
+        content: `Note ${i}`,
+      });
+    }
+
+    const page1 = await listNotes(brainlift.id);
+    expect(page1.items).toHaveLength(SECOND_BRAIN_LIST_PAGE_SIZE);
+    expect(page1.pagination.hasMore).toBe(true);
+
+    const page2 = await listNotes(brainlift.id, { page: 2 });
+    expect(page2.items).toHaveLength(totalNotes - SECOND_BRAIN_LIST_PAGE_SIZE);
+    expect(page2.pagination.hasMore).toBe(false);
+  });
+
+  it('listCategories returns sourceCount per category, ordered by sortOrder then name', async () => {
+    const { brainlift, category } = await createBrainliftFixture('list-categories');
+    const secondCategory = (await db.insert(categories).values({
+      brainliftId: brainlift.id,
+      name: 'Aardvark Topics',
+      sortOrder: null,
+    }).returning())[0];
+    const thirdCategory = (await db.insert(categories).values({
+      brainliftId: brainlift.id,
+      name: 'Top Priority',
+      sortOrder: 0,
+    }).returning())[0];
+
+    await createSource(brainlift.id, {
+      title: 'In default',
+      url: 'https://example.com/cat-a',
+      author: 'Author',
+      categoryId: category.id,
+    });
+    await createSource(brainlift.id, {
+      title: 'In default 2',
+      url: 'https://example.com/cat-b',
+      author: 'Author',
+      categoryId: category.id,
+    });
+    await createSource(brainlift.id, {
+      title: 'Priority source',
+      url: 'https://example.com/cat-c',
+      author: 'Author',
+      categoryId: thirdCategory.id,
+    });
+
+    const list = await listCategories(brainlift.id);
+    const byId = new Map(list.map((c) => [c.id, c]));
+
+    expect(byId.get(category.id)?.sourceCount).toBe(2);
+    expect(byId.get(thirdCategory.id)?.sourceCount).toBe(1);
+    expect(byId.get(secondCategory.id)?.sourceCount).toBe(0);
+
+    expect(list[0].id).toBe(thirdCategory.id);
+    expect(list[list.length - 1].id).toBe(secondCategory.id);
+  });
+
+  it('getSecondBrainSummary aggregates source, note, and category counts', async () => {
+    const { brainlift, category } = await createBrainliftFixture('summary');
+    const empty = await getSecondBrainSummary(brainlift.id);
+    expect(empty).toEqual({
+      sourceCount: 0,
+      noteCount: 0,
+      linkedNoteCount: 0,
+      unlinkedNoteCount: 0,
+      categoryCount: 1,
+      categories: [],
+    });
+
+    const secondCategory = (await db.insert(categories).values({
+      brainliftId: brainlift.id,
+      name: 'Chemistry',
+      sortOrder: 1,
+    }).returning())[0];
+
+    const sourceA = await createSource(brainlift.id, {
+      title: 'Source A',
+      url: 'https://example.com/summary-a',
+      author: 'Author',
+      categoryId: category.id,
+    });
+    await createSource(brainlift.id, {
+      title: 'Source B',
+      url: 'https://example.com/summary-b',
+      author: 'Author',
+      categoryId: secondCategory.id,
+    });
+
+    await createNote(brainlift.id, { sourceId: sourceA.id, content: 'Linked' });
+    await createNote(brainlift.id, { sourceId: null, content: 'Unlinked 1' });
+    await createNote(brainlift.id, { sourceId: null, content: 'Unlinked 2' });
+
+    const summary = await getSecondBrainSummary(brainlift.id);
+    expect(summary).toMatchObject({
+      sourceCount: 2,
+      noteCount: 3,
+      linkedNoteCount: 1,
+      unlinkedNoteCount: 2,
+      categoryCount: 2,
+    });
+    expect(summary.categories).toHaveLength(2);
+    const byName = new Map(summary.categories.map((c) => [c.name, c.sourceCount]));
+    expect(byName.get(category.name)).toBe(1);
+    expect(byName.get('Chemistry')).toBe(1);
   });
 });

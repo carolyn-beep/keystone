@@ -20,7 +20,6 @@ export function buildNativeChatTools(
   const gradingTools = buildChatGradingTools(authContext.userId);
   const isResearch = mode === 'research';
   const isAuthoring = mode === 'authoring';
-  const isBound = conversation.brainliftId != null;
   const researchBrainliftTools = {
     list_brainlifts: gradingTools.list_brainlifts,
   };
@@ -33,7 +32,7 @@ export function buildNativeChatTools(
     ...(isResearch ? researchBrainliftTools : gradingTools),
     ...buildSharedProjectChatTools(authContext, conversation),
     ...(isResearch ? buildResearchOnlyProjectChatTools(authContext, conversation) : {}),
-    ...(isResearch && isBound ? buildSecondBrainChatTools(authContext, conversation) : {}),
+    ...(isResearch ? buildSecondBrainChatTools(authContext, conversation) : {}),
     ...(isAuthoring ? buildChatCurationTools(authContext) : {}),
     ...(isAuthoring ? buildSprintChatTools({ authContext }) : {}),
   };

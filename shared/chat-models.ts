@@ -6,9 +6,24 @@ export interface ChatModelOption {
 
 export const CHAT_MODELS = [
   {
+    id: 'anthropic/claude-opus-4.7',
+    label: 'Claude Opus 4.7',
+    description: 'Top-tier reasoning for the hardest chat turns.',
+  },
+  {
     id: 'anthropic/claude-sonnet-4.6',
     label: 'Claude Sonnet 4.6',
     description: 'Best default for deep chat turns and multi-step reasoning.',
+  },
+  {
+    id: 'openai/gpt-5.5',
+    label: 'GPT-5.5',
+    description: 'OpenAI flagship for general-purpose chat.',
+  },
+  {
+    id: 'google/gemini-3-flash-preview',
+    label: 'Gemini 3 Flash (preview)',
+    description: 'Latest Gemini Flash preview, fast and capable.',
   },
   {
     id: 'qwen/qwen-plus',
