@@ -1,36 +1,24 @@
 import { Router, type Request, type Response } from 'express';
 import { storage } from '../storage';
 import { requireAuth } from '../middleware/auth';
-import { asyncHandler, BadRequestError, NotFoundError } from '../middleware/error-handler';
+import {
+  asyncHandler,
+  BadRequestError,
+  ConflictError,
+  NotFoundError,
+  RateLimitError,
+} from '../middleware/error-handler';
 import { requireBrainliftAccess, requireBrainliftModify } from '../middleware/brainlift-auth';
 import { z } from 'zod';
-import { swarmEmitter } from '../ai/learning-stream-swarm';
+import { swarmEmitter } from '../ai/learning-stream-swarm-v2/event-emitter';
 import { db } from '../db';
 import { and, eq } from 'drizzle-orm';
 import { categories, learningStreamItems, sources } from '@shared/schema';
+import { orchestrate } from '../ai/learning-stream-swarm-v2/orchestrator';
+import { withJob } from '../utils/withJob';
+import { runRequestSchema, type RunSpec } from '@shared/research-stream';
 
 export const learningStreamRouter = Router();
-
-/**
- * Auto-queue research job when all pending items have been processed.
- * Fire-and-forget - errors are logged but don't affect the response.
- * The job's idempotency check handles race conditions.
- */
-async function maybeRefillStream(brainliftId: number): Promise<void> {
-  try {
-    const stats = await storage.getLearningStreamStats(brainliftId);
-    if (stats.pending === 0) {
-      const { withJob } = await import('../utils/withJob');
-      await withJob('learning-stream:research')
-        .forPayload({ brainliftId })
-        .queue();
-      console.log(`[Learning Stream] Auto-queued refill for brainlift ${brainliftId}`);
-    }
-  } catch (err) {
-    // Non-critical - log and continue
-    console.error('[Learning Stream] Failed to auto-queue refill:', err);
-  }
-}
 
 function parseBookmarkItemId(rawValue: string | undefined): number {
   const itemId = parseInt(String(rawValue), 10);
@@ -230,10 +218,6 @@ learningStreamRouter.patch(
       throw new NotFoundError('Item not found or does not belong to this brainlift');
     }
 
-    // Auto-refill stream if this was the last pending item
-    // DISABLED: Temporarily commented out for testing
-    // maybeRefillStream(brainlift.id);
-
     res.json(updated);
   })
 );
@@ -270,10 +254,6 @@ learningStreamRouter.post(
     if (!updated) {
       throw new NotFoundError('Item not found or does not belong to this brainlift');
     }
-
-    // Auto-refill stream if this was the last pending item
-    // DISABLED: Temporarily commented out for testing
-    // maybeRefillStream(brainlift.id);
 
     res.json(updated);
   })
@@ -352,47 +332,97 @@ learningStreamRouter.post(
 );
 
 /**
- * POST /api/brainlifts/:slug/learning-stream/refresh
- * Trigger research to get new sources (only if no pending items)
+ * POST /api/brainlifts/:slug/learning-stream/launch
+ *
+ * Spec 03 endpoint. Validates a `RunRequest`, enforces concurrency (409)
+ * and the daily swarm cap (429), runs the orchestrator synchronously, records
+ * `swarm_usage` with the resolved `RunSpec`, queues the research job, and
+ * returns `{ runId }`.
+ *
+ * The body is the `RunRequest` at the top level (empty `{}` is valid for Path B).
+ * Exported as `launchResearchStreamHandler` so unit tests can invoke it directly.
  */
-learningStreamRouter.post(
-  '/api/brainlifts/:slug/learning-stream/refresh',
-  requireAuth,
-  requireBrainliftModify,
-  asyncHandler(async (req, res) => {
-    const brainlift = req.brainlift!;
-    const authContext = req.authContext!;
+export async function launchResearchStreamHandler(req: Request, res: Response): Promise<void> {
+  const startedAt = Date.now();
+  const brainlift = req.brainlift!;
+  const authContext = req.authContext!;
 
-    // Check if pending items exist
-    const stats = await storage.getLearningStreamStats(brainlift.id);
-    if (stats.pending > 0) {
-      throw new BadRequestError(
-        `Cannot refresh: ${stats.pending} pending items. Bookmark, grade, or discard them first.`
+  // 1. Parse + validate body.
+  const parsed = runRequestSchema.safeParse(req.body ?? {});
+  if (!parsed.success) {
+    throw new BadRequestError(
+      'RunRequest failed validation.',
+      'invalid_run_request',
+      { issues: parsed.error.issues },
+    );
+  }
+  const runRequest = parsed.data;
+
+  // 2. Concurrency check.
+  if (await storage.hasResearchJobPending(brainlift.id)) {
+    const existingRunId = await storage.getActiveRunIdForBrainlift(brainlift.id);
+    throw new ConflictError(
+      'A swarm is already running for this brainlift.',
+      'research_run_in_progress',
+      { existingRunId: existingRunId ?? undefined },
+    );
+  }
+
+  // 3. Daily cap (admins bypass).
+  if (!authContext.isAdmin) {
+    const quota = await storage.getSwarmUsageToday(authContext.userId);
+    if (quota.remaining <= 0) {
+      throw new RateLimitError(
+        `Daily swarm limit reached (${quota.used}/${quota.limit}). Resets at midnight UTC.`,
+        'daily_limit_reached',
+        { limit: quota.limit, used: quota.used },
       );
     }
+  }
 
-    // Rate limit check (admins exempt)
-    if (!authContext.isAdmin) {
-      const quota = await storage.getSwarmUsageToday(authContext.userId);
-      if (quota.remaining <= 0) {
-        throw new BadRequestError(
-          `Daily swarm limit reached (${quota.limit}/${quota.limit}). Try again tomorrow.`
-        );
-      }
-      await storage.recordSwarmUsage(authContext.userId, brainlift.id);
-    }
+  // 4. Orchestrate (synchronous). On throw, daily cap is NOT decremented because
+  //    recordSwarmUsage runs only after success — user can retry.
+  const orchestrated = await orchestrate(brainlift.id, runRequest);
+  const runSpec: RunSpec = orchestrated.runSpec;
 
-    // Queue research job
-    const { withJob } = await import('../utils/withJob');
-    await withJob('learning-stream:research')
-      .forPayload({ brainliftId: brainlift.id })
-      .queue();
+  // 5. Record usage.
+  const runId = await storage.recordSwarmUsage(authContext.userId, brainlift.id, runSpec);
 
-    res.json({
-      message: 'Research queued. New sources will appear shortly.',
-      stats,
-    });
-  })
+  // 6. Queue the research job.
+  await withJob('learning-stream:research')
+    .forPayload({
+      brainliftId: brainlift.id,
+      runSpec,
+      runId,
+      orchestratorUsage: {
+        model: orchestrated.modelUsed,
+        inputTokens: orchestrated.usage.inputTokens,
+        outputTokens: orchestrated.usage.outputTokens,
+      },
+    })
+    .queue();
+
+  // 7. Launch log line (single Render-searchable record).
+  const slotSummary = runSpec.agents.map((a) => a.type).join(',');
+  const elapsed = Date.now() - startedAt;
+  console.log(
+    `[/launch] brainlift=${brainlift.id} user=${authContext.userId} runId=${runId} ` +
+    `spec=[${slotSummary}] orchModel=${orchestrated.modelUsed} ms=${elapsed}`,
+  );
+  if (orchestrated.usedDefault) {
+    console.warn(
+      `[/launch] runId=${runId} used_default_runspec=true (orchestrator models failed)`,
+    );
+  }
+
+  res.status(200).json({ runId });
+}
+
+learningStreamRouter.post(
+  '/api/brainlifts/:slug/learning-stream/launch',
+  requireAuth,
+  requireBrainliftModify,
+  asyncHandler(launchResearchStreamHandler),
 );
 
 /**
