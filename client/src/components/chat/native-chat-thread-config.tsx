@@ -41,8 +41,14 @@ import type {
   AskUserQuestionToolInput,
   AskUserQuestionToolResult,
 } from '@shared/chat-ask-user';
+import type {
+  ProposeResearchRunToolExecuteResult,
+  ProposeResearchRunToolInput,
+  ProposeResearchRunToolResult,
+} from '@shared/chat-research-stream';
 import { AskUserQuestionCard } from './AskUserQuestionCard';
 import { ChatComposer } from './ChatComposer';
+import { ProposeResearchRunCard } from './ProposeResearchRunCard';
 
 const MarkdownText = makeMarkdownText({ remarkPlugins: [remarkGfm] });
 
@@ -1220,6 +1226,16 @@ const AskUserQuestionToolUI = makeAssistantToolUI<
   render: AskUserQuestionCard,
 });
 
+// ---------- Propose research run (server execute + interactive card) ----------
+
+const ProposeResearchRunToolUI = makeAssistantToolUI<
+  ProposeResearchRunToolInput,
+  ProposeResearchRunToolExecuteResult | ProposeResearchRunToolResult
+>({
+  toolName: 'propose_research_run',
+  render: ProposeResearchRunCard,
+});
+
 /**
  * UserMessage variant that hides the chat opener-prompt user message from
  * the visible thread. The message stays in the runtime state and the DB —
@@ -1293,6 +1309,8 @@ export const nativeChatToolUIs = [
   DeleteSkillToolUI,
   // Ask user
   AskUserQuestionToolUI,
+  // Research stream proposal
+  ProposeResearchRunToolUI,
 ];
 
 export function buildNativeChatThreadConfig() {
