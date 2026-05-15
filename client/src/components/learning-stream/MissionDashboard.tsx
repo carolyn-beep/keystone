@@ -7,6 +7,7 @@ import { AgentInspectModal } from './AgentInspectModal';
 import { ActivityLog } from './ActivityLog';
 import { DeploymentPanel } from './DeploymentPanel';
 import { TactileButton } from '@/components/ui/tactile-button';
+import { MissionControlLauncher } from '@/components/research-stream/MissionControlLauncher';
 import { cn } from '@/lib/utils';
 import queueClearedImg from '@/assets/textures/research_queue_cleared_bg.webp';
 import researchCompleteBgImg from '@/assets/textures/research_complete_bg.webp';
@@ -89,18 +90,23 @@ interface SwarmQuota {
 
 interface MissionDashboardProps {
   swarmState: SwarmEventState;
+  /** Legacy callback for the post-complete "New Swarm" button (live-run footer). */
   onLaunch?: () => Promise<void>;
   isLaunching?: boolean;
   hideWhenIdle?: boolean;
   pendingCount?: number;
   swarmQuota?: SwarmQuota | null;
+  /** Slug used by the idle-state MissionControlLauncher to POST /launch. */
+  slug?: string;
+  /** Called when the launcher reports a successful launch with the new runId. */
+  onLaunched?: (runId: number) => void;
 }
 
 /**
  * Research Observatory dashboard - three-column editorial layout.
  * Uses Framer Motion LayoutGroup for shared layout animations.
  */
-export function MissionDashboard({ swarmState, onLaunch, isLaunching, hideWhenIdle, pendingCount = 0, swarmQuota }: MissionDashboardProps) {
+export function MissionDashboard({ swarmState, onLaunch, isLaunching, hideWhenIdle, pendingCount = 0, swarmQuota, slug, onLaunched }: MissionDashboardProps) {
   const {
     status: sseStatus,
     agents,
@@ -275,7 +281,15 @@ export function MissionDashboard({ swarmState, onLaunch, isLaunching, hideWhenId
               exit={{ opacity: 0 }}
               transition={{ duration: 0.3 }}
             >
-              <IdleLaunchState onLaunch={handleLaunch} swarmQuota={swarmQuota} />
+              {slug && onLaunched ? (
+                <MissionControlLauncher
+                  slug={slug}
+                  swarmQuota={swarmQuota}
+                  onLaunched={onLaunched}
+                />
+              ) : (
+                <IdleLaunchState onLaunch={handleLaunch} swarmQuota={swarmQuota} />
+              )}
             </motion.div>
           )}
 
