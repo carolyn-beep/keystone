@@ -157,6 +157,42 @@ describe('getChatModel', () => {
     ]);
   });
 
+  it('preserves usage when OpenRouter streams it after the finish chunk', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      headers: new Headers({ 'content-type': 'text/event-stream' }),
+      body: makeSseStream([
+        'data: {"id":"resp-usage","model":"anthropic/claude-haiku-4.5","choices":[{"delta":{"content":"Done"}}]}\n\n',
+        'data: {"choices":[{"finish_reason":"stop"}]}\n\n',
+        'data: {"choices":[],"usage":{"prompt_tokens":13,"completion_tokens":4,"total_tokens":17}}\n\n',
+        'data: [DONE]\n\n',
+      ]),
+    });
+    globalThis.fetch = fetchMock as typeof globalThis.fetch;
+
+    const model = getChatModel('anthropic/claude-haiku-4.5');
+    const { stream } = await model.doStream({
+      prompt: [
+        {
+          role: 'user',
+          content: [{ type: 'text', text: 'Stream a usage chunk' }],
+        },
+      ],
+    });
+
+    const parts = await readStreamParts(stream);
+    expect(parts.at(-1)).toEqual({
+      type: 'finish',
+      finishReason: 'stop',
+      usage: {
+        inputTokens: 13,
+        outputTokens: 4,
+        totalTokens: 17,
+      },
+    });
+  });
+
   it('parses streamed tool calls into AI SDK tool input and tool call parts', async () => {
     const fetchMock = vi.fn().mockResolvedValue({
       ok: true,
