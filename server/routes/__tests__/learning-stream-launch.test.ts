@@ -19,13 +19,13 @@ const FIXED_RUN_SPEC: RunSpec = {
   ],
 };
 
-const { mockStorage, mockOrchestrate, mockWithJob, mockQueue } = vi.hoisted(() => {
-  const mockQueue = vi.fn(async () => 'job-uuid-1');
+const { mockStorage, mockOrchestrate, mockRunResearchSwarm, mockEstimateRunCostUsd, mockSwarmEmitter } = vi.hoisted(() => {
   return {
     mockStorage: {
       hasResearchJobPending: vi.fn(async () => false),
       getSwarmUsageToday: vi.fn(async () => ({ used: 0, limit: 3, remaining: 3 })),
       recordSwarmUsage: vi.fn(async () => 987),
+      updateSwarmUsageEstimatedUsd: vi.fn(async () => undefined),
       getActiveRunIdForBrainlift: vi.fn(async () => 555),
       // Unrelated functions referenced by route module — stub to keep imports happy.
       getLearningStreamItems: vi.fn(async () => []),
@@ -44,8 +44,21 @@ const { mockStorage, mockOrchestrate, mockWithJob, mockQueue } = vi.hoisted(() =
       usage: { inputTokens: 100, outputTokens: 50 },
       durationMs: 1234,
     })),
-    mockWithJob: vi.fn(),
-    mockQueue,
+    mockRunResearchSwarm: vi.fn(async () => ({
+      success: true,
+      totalSaved: 5,
+      duplicatesSkipped: 0,
+      failedCount: 0,
+      errors: [],
+      durationMs: 1000,
+      slotUsages: [],
+    })),
+    mockEstimateRunCostUsd: vi.fn(() => 0.1234),
+    mockSwarmEmitter: {
+      isSwarmActive: vi.fn(() => false),
+      subscribe: vi.fn(),
+      endSwarm: vi.fn(),
+    },
   };
 });
 
@@ -57,15 +70,16 @@ vi.mock('../../ai/learning-stream-swarm-v2/orchestrator', () => ({
   orchestrate: mockOrchestrate,
 }));
 
-vi.mock('../../utils/withJob', () => ({
-  withJob: mockWithJob,
+vi.mock('../../ai/learning-stream-swarm-v2/run', () => ({
+  runResearchSwarm: mockRunResearchSwarm,
+}));
+
+vi.mock('../../ai/learning-stream-swarm-v2/cost', () => ({
+  estimateRunCostUsd: mockEstimateRunCostUsd,
 }));
 
 vi.mock('../../ai/learning-stream-swarm-v2/event-emitter', () => ({
-  swarmEmitter: {
-    isSwarmActive: vi.fn(),
-    subscribe: vi.fn(),
-  },
+  swarmEmitter: mockSwarmEmitter,
 }));
 
 vi.mock('../../db', () => ({
@@ -97,6 +111,7 @@ beforeEach(() => {
   mockStorage.hasResearchJobPending.mockReset().mockResolvedValue(false);
   mockStorage.getSwarmUsageToday.mockReset().mockResolvedValue({ used: 0, limit: 3, remaining: 3 });
   mockStorage.recordSwarmUsage.mockReset().mockResolvedValue(987);
+  mockStorage.updateSwarmUsageEstimatedUsd.mockReset().mockResolvedValue(undefined);
   mockStorage.getActiveRunIdForBrainlift.mockReset().mockResolvedValue(555);
   mockOrchestrate.mockReset().mockResolvedValue({
     runSpec: FIXED_RUN_SPEC,
@@ -105,14 +120,19 @@ beforeEach(() => {
     usage: { inputTokens: 100, outputTokens: 50 },
     durationMs: 1234,
   });
-  mockWithJob.mockReset();
-
-  // withJob chain
-  const queueFn = vi.fn(async () => 'job-uuid-1');
-  const forPayloadFn = vi.fn(() => ({ queue: queueFn }));
-  mockWithJob.mockReturnValue({ forPayload: forPayloadFn });
-  (mockWithJob as any)._queue = queueFn;
-  (mockWithJob as any)._forPayload = forPayloadFn;
+  mockRunResearchSwarm.mockReset().mockResolvedValue({
+    success: true,
+    totalSaved: 5,
+    duplicatesSkipped: 0,
+    failedCount: 0,
+    errors: [],
+    durationMs: 1000,
+    slotUsages: [],
+  });
+  mockEstimateRunCostUsd.mockReset().mockReturnValue(0.1234);
+  mockSwarmEmitter.isSwarmActive.mockReset().mockReturnValue(false);
+  mockSwarmEmitter.subscribe.mockReset();
+  mockSwarmEmitter.endSwarm.mockReset();
 });
 
 describe('POST /launch - happy path', () => {
@@ -152,22 +172,14 @@ describe('POST /launch - happy path', () => {
     expect(mockStorage.recordSwarmUsage).toHaveBeenCalledWith('user-1', 42, FIXED_RUN_SPEC);
   });
 
-  it('queues learning-stream:research with { brainliftId, runSpec, runId }', async () => {
+  it('starts the interactive v2 swarm in-process so SSE sees telemetry', async () => {
     const { launchResearchStreamHandler } = await import('../learning-stream');
     await launchResearchStreamHandler(createReq(), createRes());
 
-    expect(mockWithJob).toHaveBeenCalledWith('learning-stream:research');
-    expect((mockWithJob as any)._forPayload).toHaveBeenCalledWith(
-      expect.objectContaining({
-        brainliftId: 42,
-        runSpec: FIXED_RUN_SPEC,
-        runId: 987,
-      }),
-    );
-    expect((mockWithJob as any)._queue).toHaveBeenCalled();
+    expect(mockRunResearchSwarm).toHaveBeenCalledWith(42, FIXED_RUN_SPEC, 987);
   });
 
-  it('runs orchestrate BEFORE recordSwarmUsage and recordSwarmUsage BEFORE withJob', async () => {
+  it('runs orchestrate BEFORE recordSwarmUsage and recordSwarmUsage BEFORE in-process swarm start', async () => {
     const { launchResearchStreamHandler } = await import('../learning-stream');
     const callOrder: string[] = [];
     mockOrchestrate.mockImplementation(async () => {
@@ -184,14 +196,22 @@ describe('POST /launch - happy path', () => {
       callOrder.push('record');
       return 987;
     });
-    (mockWithJob as any)._queue.mockImplementation(async () => {
-      callOrder.push('queue');
-      return 'job';
+    mockRunResearchSwarm.mockImplementation(async () => {
+      callOrder.push('run');
+      return {
+        success: true,
+        totalSaved: 1,
+        duplicatesSkipped: 0,
+        failedCount: 0,
+        errors: [],
+        durationMs: 1,
+        slotUsages: [],
+      };
     });
 
     await launchResearchStreamHandler(createReq(), createRes());
 
-    expect(callOrder).toEqual(['orchestrate', 'record', 'queue']);
+    expect(callOrder).toEqual(['orchestrate', 'record', 'run']);
   });
 
   it('emits a launch log line with runId, brainliftId, userId, and slot summary', async () => {
@@ -303,6 +323,20 @@ describe('POST /launch - 409 research_run_in_progress', () => {
     expect(caught.statusCode).toBe(409);
     expect(caught.details).toEqual({ existingRunId: 555 });
   });
+
+  it('returns 409 when an in-process SSE swarm is active', async () => {
+    const { launchResearchStreamHandler } = await import('../learning-stream');
+    mockSwarmEmitter.isSwarmActive.mockReturnValueOnce(true);
+    mockStorage.getActiveRunIdForBrainlift.mockResolvedValueOnce(777);
+
+    await expect(launchResearchStreamHandler(createReq(), createRes())).rejects.toMatchObject({
+      statusCode: 409,
+      code: 'research_run_in_progress',
+      details: { existingRunId: 777 },
+    });
+    expect(mockStorage.hasResearchJobPending).not.toHaveBeenCalled();
+    expect(mockOrchestrate).not.toHaveBeenCalled();
+  });
 });
 
 describe('POST /launch - 429 daily_limit_reached', () => {
@@ -344,7 +378,7 @@ describe('POST /launch - orchestrator failure', () => {
 
     await expect(launchResearchStreamHandler(createReq(), createRes())).rejects.toThrow('LLM timeout');
     expect(mockStorage.recordSwarmUsage).not.toHaveBeenCalled();
-    expect((mockWithJob as any)._queue).not.toHaveBeenCalled();
+    expect(mockRunResearchSwarm).not.toHaveBeenCalled();
   });
 });
 

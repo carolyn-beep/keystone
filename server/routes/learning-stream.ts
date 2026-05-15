@@ -11,11 +11,12 @@ import {
 import { requireBrainliftAccess, requireBrainliftModify } from '../middleware/brainlift-auth';
 import { z } from 'zod';
 import { swarmEmitter } from '../ai/learning-stream-swarm-v2/event-emitter';
+import { runResearchSwarm } from '../ai/learning-stream-swarm-v2/run';
+import { estimateRunCostUsd } from '../ai/learning-stream-swarm-v2/cost';
 import { db } from '../db';
 import { and, eq } from 'drizzle-orm';
 import { categories, learningStreamItems, sources } from '@shared/schema';
 import { orchestrate } from '../ai/learning-stream-swarm-v2/orchestrator';
-import { withJob } from '../utils/withJob';
 import { runRequestSchema, type RunSpec } from '@shared/research-stream';
 
 export const learningStreamRouter = Router();
@@ -177,7 +178,7 @@ learningStreamRouter.get(
         ? Promise.resolve(null)
         : storage.getSwarmUsageToday(authContext.userId),
     ]);
-    res.json({ ...stats, isResearching, swarmQuota });
+    res.json({ ...stats, isResearching: isResearching || swarmEmitter.isSwarmActive(brainlift.id), swarmQuota });
   })
 );
 
@@ -359,7 +360,7 @@ export async function launchResearchStreamHandler(req: Request, res: Response): 
   const runRequest = parsed.data;
 
   // 2. Concurrency check.
-  if (await storage.hasResearchJobPending(brainlift.id)) {
+  if (swarmEmitter.isSwarmActive(brainlift.id) || await storage.hasResearchJobPending(brainlift.id)) {
     const existingRunId = await storage.getActiveRunIdForBrainlift(brainlift.id);
     throw new ConflictError(
       'A swarm is already running for this brainlift.',
@@ -388,19 +389,38 @@ export async function launchResearchStreamHandler(req: Request, res: Response): 
   // 5. Record usage.
   const runId = await storage.recordSwarmUsage(authContext.userId, brainlift.id, runSpec);
 
-  // 6. Queue the research job.
-  await withJob('learning-stream:research')
-    .forPayload({
-      brainliftId: brainlift.id,
-      runSpec,
-      runId,
-      orchestratorUsage: {
-        model: orchestrated.modelUsed,
-        inputTokens: orchestrated.usage.inputTokens,
-        outputTokens: orchestrated.usage.outputTokens,
-      },
-    })
-    .queue();
+  // 6. Run the interactive swarm in this API process so the in-memory SSE
+  //    emitter is the same emitter the browser is subscribed to. Worker-backed
+  //    jobs can still run the same v2 runner for automated/non-interactive paths.
+  const orchestratorUsage = {
+    model: orchestrated.modelUsed,
+    inputTokens: orchestrated.usage.inputTokens,
+    outputTokens: orchestrated.usage.outputTokens,
+  };
+  void (async () => {
+    try {
+      const result = await runResearchSwarm(brainlift.id, runSpec, runId);
+      const estimatedUsd = estimateRunCostUsd([
+        ...result.slotUsages,
+        orchestratorUsage,
+      ]);
+      await storage.updateSwarmUsageEstimatedUsd(runId, estimatedUsd);
+      console.log(
+        `[/launch:run] brainlift=${brainlift.id} runId=${runId} ` +
+        `saved=${result.totalSaved} failed=${result.failedCount} usd=${estimatedUsd.toFixed(4)}`,
+      );
+    } catch (error: any) {
+      const message = error?.message ?? String(error);
+      console.error(`[/launch:run] brainlift=${brainlift.id} runId=${runId} failed`, error);
+      swarmEmitter.endSwarm(brainlift.id, {
+        success: false,
+        totalSaved: 0,
+        duplicatesSkipped: 0,
+        failedCount: runSpec.agents.length,
+        errors: [message],
+      });
+    }
+  })();
 
   // 7. Launch log line (single Render-searchable record).
   const slotSummary = runSpec.agents.map((a) => a.type).join(',');
