@@ -56,14 +56,13 @@ describe('chat research stream contract', () => {
     expect(gracefullyDegraded.existingRunId).toBe(0);
   });
 
-  it('FR5 ProposeResearchRunToolResult is a three-variant discriminated union on `kind`', () => {
+  it('FR5 ProposeResearchRunToolResult is a two-variant discriminated union on `kind`', () => {
+    // The card never launches — it hands off to the Customize panel — so the
+    // result union does not include a `launched` kind. The agent never gets a
+    // structured confirmation of what (or whether) the student ran.
     const pending: ProposeResearchRunToolResult = {
       kind: 'pending',
       runRequest: { topic: 'foo' },
-    };
-    const launched: ProposeResearchRunToolResult = {
-      kind: 'launched',
-      runId: 99,
     };
     const blocked: ProposeResearchRunToolResult = {
       kind: 'blocked',
@@ -71,19 +70,15 @@ describe('chat research stream contract', () => {
     };
 
     expect(pending.kind).toBe('pending');
-    expect(launched.kind).toBe('launched');
     expect(blocked.kind).toBe('blocked');
 
-    if (launched.kind === 'launched') {
-      expect(launched.runId).toBe(99);
-    }
     if (blocked.kind === 'blocked') {
       expect(blocked.existingRunId).toBe(12);
     }
   });
 
-  it('FR5 ProposeResearchRunToolResult.kind is constrained to the three known string literals', () => {
+  it('FR5 ProposeResearchRunToolResult.kind is constrained to the two known string literals', () => {
     type Kinds = ProposeResearchRunToolResult['kind'];
-    expectTypeOf<Kinds>().toEqualTypeOf<'pending' | 'launched' | 'blocked'>();
+    expectTypeOf<Kinds>().toEqualTypeOf<'pending' | 'blocked'>();
   });
 });

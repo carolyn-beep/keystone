@@ -9,30 +9,11 @@ const cardSource = fs.readFileSync(
 );
 
 const {
-  mockLaunch,
-  mockUseLaunchResearchStream,
   mockUseMessage,
   mockUseThread,
 } = vi.hoisted(() => ({
-  mockLaunch: vi.fn<(...args: unknown[]) => Promise<unknown>>(),
-  mockUseLaunchResearchStream: vi.fn(),
   mockUseMessage: vi.fn(),
   mockUseThread: vi.fn(),
-}));
-
-vi.mock('@/hooks/useLaunchResearchStream', () => ({
-  useLaunchResearchStream: (...args: unknown[]) => mockUseLaunchResearchStream(...args),
-  LaunchError: class LaunchError extends Error {
-    status: number;
-    code: string;
-    details?: Record<string, unknown>;
-    constructor(status: number, code: string, message: string, details?: Record<string, unknown>) {
-      super(message);
-      this.status = status;
-      this.code = code;
-      this.details = details;
-    }
-  },
 }));
 
 vi.mock('@assistant-ui/react', () => ({
@@ -72,18 +53,11 @@ function render(overrides: Partial<RenderProps>): string {
 
 beforeEach(() => {
   vi.clearAllMocks();
-  mockLaunch.mockReset();
-  mockUseLaunchResearchStream.mockReturnValue({
-    launch: mockLaunch,
-    isLaunching: false,
-    error: null,
-    reset: vi.fn(),
-  });
   mockUseMessage.mockReturnValue('msg-1');
   mockUseThread.mockReturnValue(false);
 });
 
-describe('FR2 ProposeResearchRunCard — streaming state', () => {
+describe('ProposeResearchRunCard — streaming state', () => {
   it('renders a skeleton when result is undefined and status is running', () => {
     const markup = render({
       args: undefined as unknown as RenderProps['args'],
@@ -94,7 +68,7 @@ describe('FR2 ProposeResearchRunCard — streaming state', () => {
   });
 });
 
-describe('FR2 ProposeResearchRunCard — blocked state', () => {
+describe('ProposeResearchRunCard — blocked state', () => {
   it('renders the blocked variant with a Watch progress link pointing at the research-stream tab', () => {
     const markup = render({
       args: { topic: 'irrelevant' },
@@ -102,11 +76,10 @@ describe('FR2 ProposeResearchRunCard — blocked state', () => {
       status: { type: 'complete' },
     });
     expect(markup.toLowerCase()).toContain('swarm');
-    expect(markup).toContain('href="/brainlifts/pioneer-slug?tab=research-stream"');
+    expect(markup).toContain('href="/grading/pioneer-slug?tab=research-stream"');
   });
 
-  it('calls addResult({ kind: blocked, existingRunId }) exactly once across re-renders', () => {
-    // Direct test of the ref-guard: render twice with the same props; addResult fires once.
+  it('does not invoke addResult synchronously during render (effect runs once on client only)', () => {
     const addResult = vi.fn();
     render({
       args: { topic: 'x' },
@@ -120,18 +93,14 @@ describe('FR2 ProposeResearchRunCard — blocked state', () => {
       status: { type: 'complete' },
       addResult,
     });
-    // The SSR pipeline only runs effects on the client; behavioral test for
-    // ref-guarded addResult requires a real React renderer with useEffect.
-    // We assert here that addResult was NOT called from render alone — the
-    // implementation must use useEffect to invoke it.
-    // (Behavioral once-only guarantee verified via the implementation's
-    // useRef + useEffect; we cover the structural guarantee here.)
+    // SSR pipeline doesn't run useEffect; behavioral once-only guarantee is
+    // verified via the source-level useRef + useEffect structure tests below.
     expect(addResult).not.toHaveBeenCalled();
   });
 });
 
-describe('FR2 ProposeResearchRunCard — editable state', () => {
-  it('seeds topic, slot rows, and notes from result.runRequest', () => {
+describe('ProposeResearchRunCard — preview state', () => {
+  it('renders the topic and a Review & Launch CTA', () => {
     const markup = render({
       args: undefined as unknown as RenderProps['args'],
       result: {
@@ -148,34 +117,54 @@ describe('FR2 ProposeResearchRunCard — editable state', () => {
       status: { type: 'complete' },
     });
 
-    // Topic appears as the input's value attribute.
     expect(markup).toContain('Carmack on AI compilers');
-    // Both slot focus values appear.
-    expect(markup).toContain('Lex Fridman interviews');
-    expect(markup).toContain('compiler superoptimization');
-    // Notes appear.
-    expect(markup).toContain('lean recent');
-    // Launch button is present.
+    expect(markup.toLowerCase()).toContain('review');
     expect(markup.toLowerCase()).toContain('launch');
+    expect(markup.toLowerCase()).toContain('research swarm proposal');
   });
 
-  it('renders all 5 slot rows even when fewer slotOverrides are provided', () => {
+  it('surfaces the notes verbatim as a preview line when present', () => {
     const markup = render({
       args: undefined as unknown as RenderProps['args'],
       result: {
         blocked: false,
-        runRequest: { topic: 'foo', slotOverrides: [{ type: 'Podcast', focus: 'a' }] },
+        runRequest: {
+          topic: 'foo',
+          notes: 'post-2022 only, avoid intro-level',
+        },
       },
       status: { type: 'complete' },
     });
-    // Count of slot focus inputs should be 5.
-    const focusInputCount = (markup.match(/data-slot-focus="/g) ?? []).length;
-    expect(focusInputCount).toBe(5);
+    expect(markup).toContain('post-2022 only, avoid intro-level');
+  });
+
+  it('renders an "auto-orchestrated" hint when no topic is supplied', () => {
+    const markup = render({
+      args: undefined as unknown as RenderProps['args'],
+      result: { blocked: false, runRequest: {} },
+      status: { type: 'complete' },
+    });
+    expect(markup.toLowerCase()).toContain('auto-orchestrated');
+  });
+
+  it('renders no editable input controls (editing happens in the Customize panel)', () => {
+    const markup = render({
+      args: undefined as unknown as RenderProps['args'],
+      result: {
+        blocked: false,
+        runRequest: { topic: 'foo', slotOverrides: [{ type: 'Podcast', focus: 'bar' }] },
+      },
+      status: { type: 'complete' },
+    });
+    expect(markup).not.toContain('<input');
+    expect(markup).not.toContain('<textarea');
+    expect(markup).not.toContain('<select');
+    expect(markup).not.toContain('data-slot-focus');
   });
 });
 
-describe('FR2 ProposeResearchRunCard — stale state', () => {
-  it('renders a read-only "earlier in conversation" variant and hides the Launch button when stale', () => {
+describe('ProposeResearchRunCard — stale state', () => {
+  it('renders a read-only "earlier in conversation" variant and hides the CTA when stale', () => {
     mockUseThread.mockReturnValue(true);
     const markup = render({
       args: undefined as unknown as RenderProps['args'],
@@ -187,96 +176,48 @@ describe('FR2 ProposeResearchRunCard — stale state', () => {
     });
 
     expect(markup.toLowerCase()).toContain('earlier');
-    // No Launch button.
-    expect(markup).not.toMatch(/<button[^>]*>\s*<[^>]*>?\s*Launch/i);
+    expect(markup.toLowerCase()).not.toContain('review &amp; launch');
+    expect(markup.toLowerCase()).not.toContain('review & launch');
   });
 });
 
-describe('FR2 ProposeResearchRunCard — launched state', () => {
-  it('renders a read-only "launched as run #N" variant with a link to the research-stream tab', () => {
+describe('ProposeResearchRunCard — legacy launched result (pre-handoff history)', () => {
+  it('renders historical proposals (kind: "launched") as an earlier-proposal stub without crashing', () => {
+    // Old conversations may carry { kind: 'launched', runId } from before the
+    // card stopped emitting that shape. The current card has no way to render
+    // it interactively, but it must degrade gracefully.
     const markup = render({
       args: undefined as unknown as RenderProps['args'],
-      result: { kind: 'launched', runId: 123 },
+      result: { kind: 'launched', runId: 123 } as unknown as RenderProps['result'],
       status: { type: 'complete' },
     });
-
-    expect(markup.toLowerCase()).toContain('launched');
-    expect(markup).toContain('#123');
-    expect(markup).toContain('href="/brainlifts/pioneer-slug?tab=research-stream"');
+    expect(markup.toLowerCase()).toContain('earlier');
   });
 });
 
-describe('FR2 ProposeResearchRunCard — error states from useLaunchResearchStream', () => {
-  it('renders a 429 daily-limit message and disables Launch', async () => {
-    const { LaunchError } = await import('@/hooks/useLaunchResearchStream');
-    mockUseLaunchResearchStream.mockReturnValue({
-      launch: mockLaunch,
-      isLaunching: false,
-      error: new (LaunchError as any)(429, 'daily_limit_reached', 'Daily swarm limit reached.', {
-        limit: 3,
-        used: 3,
-      }),
-      reset: vi.fn(),
-    });
-
-    const markup = render({
-      args: undefined as unknown as RenderProps['args'],
-      result: { blocked: false, runRequest: { topic: 'foo' } },
-      status: { type: 'complete' },
-    });
-
-    expect(markup.toLowerCase()).toContain('daily limit');
-    expect(markup).toMatch(/disabled/i);
-  });
-
-  it('renders a 409 inline conflict message and surfaces existing run id when available', async () => {
-    const { LaunchError } = await import('@/hooks/useLaunchResearchStream');
-    mockUseLaunchResearchStream.mockReturnValue({
-      launch: mockLaunch,
-      isLaunching: false,
-      error: new (LaunchError as any)(409, 'research_run_in_progress', 'Swarm already running.', {
-        existingRunId: 17,
-      }),
-      reset: vi.fn(),
-    });
-
-    const markup = render({
-      args: undefined as unknown as RenderProps['args'],
-      result: { blocked: false, runRequest: { topic: 'foo' } },
-      status: { type: 'complete' },
-    });
-
-    expect(markup.toLowerCase()).toContain('already running');
-    expect(markup).toContain('#17');
-  });
-});
-
-// --- Behavior-only unit on the launch flow (mocked launch resolves to runId) ---
-
-describe('FR2 ProposeResearchRunCard — launch path (unit on the hook surface)', () => {
-  it('useLaunchResearchStream is constructed with the brainlift slug from context', () => {
+describe('ProposeResearchRunCard — proposal handoff', () => {
+  it('does not import a launch hook; the Customize panel owns the actual POST', () => {
     render({
       args: undefined as unknown as RenderProps['args'],
       result: { blocked: false, runRequest: { topic: 'foo' } },
       status: { type: 'complete' },
     });
-    expect(mockUseLaunchResearchStream).toHaveBeenCalledWith('pioneer-slug');
+    expect(cardSource).not.toContain('useLaunchResearchStream');
+    expect(cardSource).not.toContain('/launch');
   });
 });
 
-describe('FR2 ProposeResearchRunCard — source-level structure (ref-guards + addResult shape)', () => {
+describe('ProposeResearchRunCard — source-level structure (ref-guards + handoff)', () => {
   it('uses a useRef-guarded useEffect to fire addResult exactly once on the blocked path', () => {
-    // The blocked-on-execute path must call addResult exactly once via a ref
-    // guard. Verifying this at runtime requires a full React renderer; here we
-    // verify the structural guarantee in the source.
     expect(cardSource).toMatch(/submittedRef\s*=\s*useRef\(false\)/);
     expect(cardSource).toMatch(/submittedRef\.current\s*=\s*true/);
     expect(cardSource).toMatch(/useEffect\(/);
   });
 
-  it('emits addResult with the launched-variant shape after the launch resolves', () => {
-    expect(cardSource).toMatch(/addResult\(\s*\{\s*kind:\s*['"]launched['"]/);
-    expect(cardSource).toMatch(/runId/);
+  it('stores the proposal and redirects to the configuration panel instead of launching', () => {
+    expect(cardSource).toContain('stashResearchStreamProposal');
+    expect(cardSource).toContain('window.location.assign');
+    expect(cardSource).toContain('buildResearchStreamConfigureUrl');
   });
 
   it('emits addResult with the blocked-variant shape on the blocked branch', () => {
@@ -284,12 +225,18 @@ describe('FR2 ProposeResearchRunCard — source-level structure (ref-guards + ad
     expect(cardSource).toMatch(/existingRunId/);
   });
 
+  it('never emits addResult with a launched-variant shape (card no longer launches)', () => {
+    expect(cardSource).not.toMatch(/kind:\s*['"]launched['"]/);
+  });
+
   it('reads the stale signal from useMessage + useThread (mirrors AskUserQuestionCard)', () => {
     expect(cardSource).toMatch(/useMessage\(/);
     expect(cardSource).toMatch(/useThread\(/);
   });
 
-  it('navigates to the research-stream tab after launch', () => {
-    expect(cardSource).toContain('?tab=research-stream');
+  it('navigates to the research-stream configuration tab and not the bare tab', () => {
+    expect(cardSource).toContain('buildResearchStreamConfigureUrl');
+    expect(cardSource).toContain('stashResearchStreamProposal');
+    expect(cardSource).not.toContain('/brainlifts/${slug}?tab=research-stream');
   });
 });

@@ -18,18 +18,20 @@ export type ProposeResearchRunToolExecuteResult =
   | { blocked: true; existingRunId: number };
 
 /**
- * Final two-stage result the card writes back via `addResult`. Replaces the
- * synchronous execute result in the message history so the next agent turn
- * can reason about whether the student actually launched.
+ * Final result the card writes back via `addResult`. Replaces the synchronous
+ * execute result in the message history so the next agent turn can reason
+ * about the proposal's outcome.
+ *
+ * The card itself never launches — it hands off to the Research Stream
+ * Customize panel, where the student edits and launches. So there's no
+ * `launched` kind here: the agent never gets a structured confirmation of
+ * what (or whether) the student ran.
  *
  * - `kind: 'pending'` is included for completeness; the card doesn't emit it
  *   today (the execute result already covers the pre-launch state).
- * - `kind: 'launched'` is emitted exactly once after the `/launch` POST
- *   returns 200.
  * - `kind: 'blocked'` is emitted exactly once when the card first renders
  *   in the blocked variant, so the conversation has a clean record.
  */
 export type ProposeResearchRunToolResult =
   | { kind: 'pending'; runRequest: RunRequest }
-  | { kind: 'launched'; runId: number }
   | { kind: 'blocked'; existingRunId: number };
