@@ -19,12 +19,12 @@ export interface LearningStreamItem {
   author: string;
   topic: string;                    // Title/topic of the resource
   time: string;                     // "5 min", "15 min"
-  facts: string;                    // Key insights summary (2-3 sentences)
+  facts: string;                    // Key Insights preview
   url: string;
   source: 'quick-search' | 'deep-research' | 'twitter' | 'swarm-research';
   status: 'pending' | 'bookmarked' | 'graded' | 'discarded';
   relevanceScore: string | null;    // AI relevance score "0.5" to "1.0"
-  aiRationale: string | null;       // Why AI suggested this
+  aiRationale: string | null;       // Project-specific "Why this matters"
   quality: number | null;           // Grade (1-5)
   alignment: 'yes' | 'no' | null;
   extractedContent: ExtractedContent | null;

@@ -39,6 +39,13 @@
   --danger-soft-hex: #FDECEC;
   --info-hex: #3B6E8F;
   --info-soft-hex: #E8F4FA;
+  /* Retrieval-type accents (used by the research swarm launcher).
+     Pastel backgrounds + saturated ink, all warm/desaturated to fit the
+     neo-editorial palette. */
+  --podcast-hex: #6B3F8C;
+  --podcast-soft-hex: #F1EAF5;
+  --news-hex: #5B6470;
+  --news-soft-hex: #EEF0F2;
   --overlay-hex: rgba(0, 0, 0, 0.5);
   --on-primary-hex: #FFFFFF;
   /* ===== END HEX TOKENS ===== */
@@ -231,6 +238,10 @@
   --danger-soft-hex: #7F1D1D;
   --info-hex: #38BDF8;
   --info-soft-hex: #0C4A6E;
+  --podcast-hex: #B68DD4;
+  --podcast-soft-hex: #3D2A4D;
+  --news-hex: #94A3B8;
+  --news-soft-hex: #2A3140;
   --overlay-hex: rgba(0, 0, 0, 0.7);
   --on-primary-hex: #FFFFFF;
   /* ===== END HEX TOKENS ===== */

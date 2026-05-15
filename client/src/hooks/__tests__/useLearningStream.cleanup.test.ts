@@ -55,11 +55,18 @@ describe('FR5 - ResearchStreamTab uses the new launch path', () => {
     expect(researchStreamTabSrc).toMatch(/useLaunchResearchStream/);
   });
 
-  it('updates the empty-state copy on the all-processed view', () => {
-    // New copy mandated by spec FR5 success criteria.
-    expect(researchStreamTabSrc).toMatch(
-      /Stream is empty.*ask AlphaX what to research next, or launch another swarm/,
-    );
+  it('opens MissionDashboard with a consumed chat proposal when configure=swarm is present', () => {
+    expect(researchStreamTabSrc).toMatch(/consumeResearchStreamProposal/);
+    expect(researchStreamTabSrc).toMatch(/initialRunRequest=\{initialProposal\}/);
+    expect(researchStreamTabSrc).toMatch(/initiallyExpanded=\{initialProposal != null\}/);
+  });
+
+  it('hides the items section when no pending items remain', () => {
+    // After the design feedback the dedicated "AllProcessedState" card was removed.
+    // When pending count reaches zero the items section fades out and the
+    // MissionDashboard's idle state (with its own launcher) reappears at full
+    // width, matching the pre-launch UI.
+    expect(researchStreamTabSrc).toMatch(/stats\.pending\s*>\s*0/);
   });
 
   it('no longer references a launching/disabled state via isRefreshing', () => {

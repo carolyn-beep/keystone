@@ -6,13 +6,21 @@ import {
   type Slot,
 } from '@shared/research-stream';
 
-export type Preset = 'mixed' | 'all-podcasts' | 'all-academic' | 'all-video' | 'custom';
+export type Preset =
+  | 'mixed'
+  | 'all-podcasts'
+  | 'all-academic'
+  | 'all-video'
+  | 'watch-listen'
+  | 'custom';
 
 export interface EditorState {
   topic: string;
   angles: string[];
   notes: string;
   slots: Array<Partial<Slot>>;
+  /** Number of agent rows currently active (1..MAX_SLOTS). */
+  agentCount: number;
 }
 
 export interface EditorErrors {
@@ -31,12 +39,19 @@ export interface UseRunSpecEditorReturn {
   angles: string[];
   notes: string;
   slots: Array<Partial<Slot>>;
+  /** Number of agent rows currently configured (1..MAX_SLOTS). */
+  agentCount: number;
 
   setTopic: (s: string) => void;
   setAngles: (a: string[]) => void;
   setNotes: (s: string) => void;
   setSlotType: (idx: number, type: RetrievalType) => void;
   setSlotFocus: (idx: number, focus: string) => void;
+
+  /** Add one more agent row (no-op if already at MAX_SLOTS). */
+  addAgent: () => void;
+  /** Remove the agent at the given index (no-op if only one remains). */
+  removeAgent: (idx: number) => void;
 
   applyPreset: (p: Preset) => void;
   reset: () => void;
@@ -57,11 +72,21 @@ export function buildInitialState(seed?: RunRequest): EditorState {
       slots[i] = { ...override };
     });
   }
+  // Resolve initial agentCount: explicit `agentCount` wins, otherwise infer
+  // from how many slots are configured. Default to MAX_SLOTS.
+  const inferred = seed?.slotOverrides?.length ?? 0;
+  const requested = seed?.agentCount;
+  const initialCount = typeof requested === 'number'
+    ? Math.min(Math.max(Math.trunc(requested), 1), MAX_SLOTS)
+    : inferred > 0
+      ? Math.min(inferred, MAX_SLOTS)
+      : MAX_SLOTS;
   return {
     topic: seed?.topic ?? '',
     angles: seed?.angles ? [...seed.angles] : [],
     notes: seed?.notes ?? '',
     slots,
+    agentCount: initialCount,
   };
 }
 
@@ -73,7 +98,18 @@ const PRESET_MIXED_TYPES: RetrievalType[] = [
   'News',
 ];
 
-/** Apply a preset's slot-type distribution while preserving existing focus text. */
+// Alternating Podcast / Video for the "Watch & Listen" preset — gives
+// listeners a balance of conversation and on-camera explanation.
+const PRESET_WATCH_LISTEN_TYPES: RetrievalType[] = [
+  'Podcast',
+  'Video',
+  'Podcast',
+  'Video',
+  'Podcast',
+];
+
+/** Apply a preset's slot-type distribution while preserving existing focus text.
+ *  Only the first `state.agentCount` slots are touched. */
 export function applyPresetToState(state: EditorState, preset: Preset): EditorState {
   const nextSlots = state.slots.map((slot) => ({ ...slot }));
 
@@ -87,9 +123,11 @@ export function applyPresetToState(state: EditorState, preset: Preset): EditorSt
     preset === 'all-video' ? 'Video' :
     null;
 
-  for (let i = 0; i < MAX_SLOTS; i++) {
+  for (let i = 0; i < state.agentCount; i++) {
     if (preset === 'mixed') {
       nextSlots[i] = { ...nextSlots[i], type: PRESET_MIXED_TYPES[i] };
+    } else if (preset === 'watch-listen') {
+      nextSlots[i] = { ...nextSlots[i], type: PRESET_WATCH_LISTEN_TYPES[i] };
     } else if (bulkType) {
       nextSlots[i] = { ...nextSlots[i], type: bulkType };
     }
@@ -112,7 +150,10 @@ export function toRunRequest(state: EditorState): RunRequest {
   const trimmedNotes = state.notes.trim();
   if (trimmedNotes) out.notes = trimmedNotes;
 
-  const serializedSlots: Array<Partial<Slot>> = state.slots.map((slot) => {
+  // Only serialize slots up to the user-chosen agentCount. Slots beyond that
+  // are inactive and must not be sent.
+  const activeSlots = state.slots.slice(0, state.agentCount);
+  const serializedSlots: Array<Partial<Slot>> = activeSlots.map((slot) => {
     const result: Partial<Slot> = {};
     if (slot.type) result.type = slot.type;
     if (slot.focus !== undefined) {
@@ -134,6 +175,12 @@ export function toRunRequest(state: EditorState): RunRequest {
   }
   if (lastUsedIndex >= 0) {
     out.slotOverrides = serializedSlots.slice(0, lastUsedIndex + 1);
+  }
+
+  // Always send agentCount when it differs from the default; this is the
+  // contract that lets the orchestrator return fewer than MAX_SLOTS agents.
+  if (state.agentCount !== MAX_SLOTS) {
+    out.agentCount = state.agentCount;
   }
 
   return out;
@@ -200,6 +247,27 @@ export function useRunSpecEditor(opts?: UseRunSpecEditorOptions): UseRunSpecEdit
   const applyPreset = useCallback((p: Preset) => {
     setState((prev) => applyPresetToState(prev, p));
   }, []);
+  const addAgent = useCallback(() => {
+    setState((prev) => {
+      if (prev.agentCount >= MAX_SLOTS) return prev;
+      // The slot at the new index already exists (we always allocate
+      // MAX_SLOTS); just bump the visible count and clear any stale data
+      // in case the slot was previously hidden with leftover state.
+      const nextSlots = prev.slots.map((s) => ({ ...s }));
+      nextSlots[prev.agentCount] = {};
+      return { ...prev, slots: nextSlots, agentCount: prev.agentCount + 1 };
+    });
+  }, []);
+  const removeAgent = useCallback((idx: number) => {
+    setState((prev) => {
+      if (prev.agentCount <= 1) return prev;
+      if (idx < 0 || idx >= prev.agentCount) return prev;
+      const remaining = prev.slots.slice(0, prev.agentCount).filter((_, i) => i !== idx);
+      // Re-pad to MAX_SLOTS so the underlying array shape stays stable.
+      while (remaining.length < MAX_SLOTS) remaining.push({});
+      return { ...prev, slots: remaining, agentCount: prev.agentCount - 1 };
+    });
+  }, []);
   const reset = useCallback(() => {
     setState(buildInitialState(seed));
   }, [seed]);
@@ -212,11 +280,14 @@ export function useRunSpecEditor(opts?: UseRunSpecEditorOptions): UseRunSpecEdit
     angles: state.angles,
     notes: state.notes,
     slots: state.slots,
+    agentCount: state.agentCount,
     setTopic,
     setAngles,
     setNotes,
     setSlotType,
     setSlotFocus,
+    addAgent,
+    removeAgent,
     applyPreset,
     reset,
     errors,

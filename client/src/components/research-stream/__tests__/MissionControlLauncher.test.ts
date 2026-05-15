@@ -177,6 +177,11 @@ describe('MissionDashboard - idle state integration', () => {
     expect(src).toMatch(/onLaunched=\{/);
   });
 
+  it('passes chat proposal seed props into MissionControlLauncher', () => {
+    expect(src).toMatch(/initialRunRequest=\{initialRunRequest\}/);
+    expect(src).toMatch(/initiallyExpanded=\{initiallyExpanded\}/);
+  });
+
   it('preserves the deploying state component', () => {
     expect(src).toMatch(/DeployingState/);
   });
