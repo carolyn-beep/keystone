@@ -7,7 +7,9 @@ import { AgentInspectModal } from './AgentInspectModal';
 import { ActivityLog } from './ActivityLog';
 import { DeploymentPanel } from './DeploymentPanel';
 import { TactileButton } from '@/components/ui/tactile-button';
+import { MissionControlLauncher } from '@/components/research-stream/MissionControlLauncher';
 import { cn } from '@/lib/utils';
+import type { RunRequest } from '@shared/research-stream';
 import queueClearedImg from '@/assets/textures/research_queue_cleared_bg.webp';
 import researchCompleteBgImg from '@/assets/textures/research_complete_bg.webp';
 
@@ -24,6 +26,7 @@ export type DashboardState =
 type DashboardAction =
   | { type: 'LAUNCH_START' }
   | { type: 'LAUNCH_COMPLETE' }
+  | { type: 'LAUNCH_FAILED' }
   | { type: 'SSE_CONNECTING' }
   | { type: 'SSE_RUNNING' }
   | { type: 'AGENTS_SPAWNED' }
@@ -42,6 +45,9 @@ function dashboardReducer(state: DashboardState, action: DashboardAction): Dashb
         return { phase: 'waiting' };
       }
       return state;
+
+    case 'LAUNCH_FAILED':
+      return { phase: 'idle' };
 
     case 'SSE_CONNECTING':
       if (state.phase === 'waiting' || state.phase === 'launching') {
@@ -89,18 +95,25 @@ interface SwarmQuota {
 
 interface MissionDashboardProps {
   swarmState: SwarmEventState;
+  /** Legacy callback for the post-complete "New Swarm" button (live-run footer). */
   onLaunch?: () => Promise<void>;
   isLaunching?: boolean;
   hideWhenIdle?: boolean;
   pendingCount?: number;
   swarmQuota?: SwarmQuota | null;
+  /** Slug used by the idle-state MissionControlLauncher to POST /launch. */
+  slug?: string;
+  /** Called when the launcher reports a successful launch with the new runId. */
+  onLaunched?: (runId: number) => void;
+  initialRunRequest?: RunRequest | null;
+  initiallyExpanded?: boolean;
 }
 
 /**
  * Research Observatory dashboard - three-column editorial layout.
  * Uses Framer Motion LayoutGroup for shared layout animations.
  */
-export function MissionDashboard({ swarmState, onLaunch, isLaunching, hideWhenIdle, pendingCount = 0, swarmQuota }: MissionDashboardProps) {
+export function MissionDashboard({ swarmState, onLaunch, isLaunching, hideWhenIdle, pendingCount = 0, swarmQuota, slug, onLaunched, initialRunRequest = null, initiallyExpanded = false }: MissionDashboardProps) {
   const {
     status: sseStatus,
     agents,
@@ -206,7 +219,7 @@ export function MissionDashboard({ swarmState, onLaunch, isLaunching, hideWhenId
   }, [fadePhase, pendingCount]);
 
   // Hide conditions (after all hooks)
-  if (hideWhenIdle && state.phase === 'idle' && agents.length === 0) {
+  if (hideWhenIdle && state.phase === 'idle' && agents.length === 0 && !initiallyExpanded && !initialRunRequest) {
     return null;
   }
 
@@ -237,13 +250,13 @@ export function MissionDashboard({ swarmState, onLaunch, isLaunching, hideWhenId
         )}
       >
         {/* Main Header */}
-        <header className="mb-8">
+        <header>
           <div className="flex items-center justify-between">
             <div>
               <h1 className="font-serif text-2xl font-bold text-foreground">
-                Research Swarm
+                Research Stream
               </h1>
-              <p className="text-sm text-muted-foreground mt-1 max-w-xl font-serif italic">
+              <p className="text-sm text-muted-foreground mt-1 font-serif italic whitespace-nowrap">
                 Unleash a swarm of specialized research agents to help you expand your brainlifts with a varied selection of high quality sources.
               </p>
             </div>
@@ -275,7 +288,20 @@ export function MissionDashboard({ swarmState, onLaunch, isLaunching, hideWhenId
               exit={{ opacity: 0 }}
               transition={{ duration: 0.3 }}
             >
-              <IdleLaunchState onLaunch={handleLaunch} swarmQuota={swarmQuota} />
+              {slug && onLaunched ? (
+                <MissionControlLauncher
+                  slug={slug}
+                  swarmQuota={swarmQuota}
+                  onLaunched={onLaunched}
+                  onLaunchStarted={() => dispatch({ type: 'LAUNCH_START' })}
+                  onLaunchSettled={() => dispatch({ type: 'LAUNCH_COMPLETE' })}
+                  onLaunchFailed={() => dispatch({ type: 'LAUNCH_FAILED' })}
+                  initialRunRequest={initialRunRequest}
+                  initiallyExpanded={initiallyExpanded}
+                />
+              ) : (
+                <IdleLaunchState onLaunch={handleLaunch} swarmQuota={swarmQuota} />
+              )}
             </motion.div>
           )}
 
@@ -548,8 +574,47 @@ function IdleLaunchState({ onLaunch, swarmQuota }: IdleLaunchStateProps) {
   );
 }
 
+// Rotating status messages shown beneath "Deploying Research Agents...".
+// Cycled every 3.5 seconds with a fade transition so the surface feels alive
+// while the orchestrator + agents do their work. Order is shuffled per mount
+// so repeat runs feel different.
+const DEPLOY_STATUS_MESSAGES = [
+  'Scanning knowledge gaps in your project',
+  'Analyzing your list of experts',
+  'Reading your Second Brain notes',
+  'Cross-referencing your DOK1 facts',
+  'Mapping unresolved questions in your brainlift',
+  'Reviewing your SPOV positions',
+  'Indexing your project context',
+  'Surfacing themes from your brainlift',
+  "Inventorying sources you've already saved",
+  "Charting the territory you've covered",
+  'Identifying blind spots in your research',
+  'Cataloguing what you already know',
+] as const;
+
+function shuffleMessages(): readonly string[] {
+  const next = [...DEPLOY_STATUS_MESSAGES];
+  for (let i = next.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [next[i], next[j]] = [next[j], next[i]];
+  }
+  return next;
+}
+
 // Deploying state
 function DeployingState() {
+  // Stable per-mount shuffle so the user sees a varied order each run.
+  const [messages] = useState<readonly string[]>(shuffleMessages);
+  const [idx, setIdx] = useState(0);
+
+  useEffect(() => {
+    const handle = window.setInterval(() => {
+      setIdx((current) => (current + 1) % messages.length);
+    }, 3500);
+    return () => window.clearInterval(handle);
+  }, [messages.length]);
+
   return (
     <div className="py-16 relative border-t border-border">
       <div className="relative flex flex-col items-center justify-center text-center">
@@ -577,9 +642,22 @@ function DeployingState() {
         <h3 className="font-serif text-3xl text-foreground mb-3">
           Deploying Research Agents...
         </h3>
-        <p className="text-sm text-muted-foreground max-w-sm leading-relaxed">
-          Initializing search. Agents will appear as they come online.
-        </p>
+        {/* Rotating status line — fades between messages so the swap reads as
+            "the system is busy doing things" not "the text just blinked". */}
+        <div className="h-6 max-w-sm leading-relaxed">
+          <AnimatePresence mode="wait">
+            <motion.p
+              key={messages[idx]}
+              initial={{ opacity: 0, y: 4 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -4 }}
+              transition={{ duration: 0.35, ease: 'easeOut' }}
+              className="text-sm text-muted-foreground italic font-serif"
+            >
+              {messages[idx]}
+            </motion.p>
+          </AnimatePresence>
+        </div>
       </div>
     </div>
   );
@@ -722,4 +800,3 @@ function ResearchCompleteFooter({ savedCount, failedCount, onNewMission, isLaunc
     </motion.div>
   );
 }
-

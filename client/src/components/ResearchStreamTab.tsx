@@ -1,11 +1,16 @@
 import { useState, useCallback, useEffect, useRef, useMemo } from 'react';
-import { LayoutGroup, motion } from 'framer-motion';
+import { AnimatePresence, LayoutGroup, motion } from 'framer-motion';
 import { Loader2 } from 'lucide-react';
 import type { BrainliftPhase } from '@shared/schema';
 import { useLearningStream, type LearningStreamItem } from '@/hooks/useLearningStream';
 import { useSwarmEvents } from '@/hooks/useSwarmEvents';
+import { useLaunchResearchStream } from '@/hooks/useLaunchResearchStream';
 import { StreamProgressBar, StreamItemCard, GradeModal, MissionDashboard, ExpandedItemView } from './learning-stream';
 import { BookmarkCategoryDialog } from './learning-stream/BookmarkCategoryDialog';
+import {
+  consumeResearchStreamProposal,
+  RESEARCH_STREAM_CONFIGURE_PARAM,
+} from './research-stream/proposal-handoff';
 
 interface ResearchStreamTabProps {
   slug: string;
@@ -26,17 +31,35 @@ export function ResearchStreamTab({ slug, phase, canModify = true, setActiveTab,
     bookmark,
     discard,
     grade,
-    refresh,
     refetch,
     isBookmarking,
     isDiscarding,
     isGrading,
-    isRefreshing,
   } = useLearningStream(slug);
+
+  // Launcher used by the AllProcessed "launch another" affordance. The MissionDashboard
+  // idle state has its own MissionControlLauncher with its own launch hook instance,
+  // so they don't share state — each owns its own RunRequest editor.
+  const { launch: launchEmpty, isLaunching: isLaunchingEmpty } = useLaunchResearchStream(slug);
 
   // Single SSE connection — passed down to MissionDashboard as props
   const swarmState = useSwarmEvents(slug, true);
   const hasRefetchedForCompletion = useRef(false);
+  const [initialProposal] = useState(() => {
+    if (typeof window === 'undefined') return null;
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('configure') !== RESEARCH_STREAM_CONFIGURE_PARAM) return null;
+    return consumeResearchStreamProposal(slug);
+  });
+
+  useEffect(() => {
+    if (!initialProposal || typeof window === 'undefined') return;
+    const params = new URLSearchParams(window.location.search);
+    params.delete('configure');
+    const nextSearch = params.toString();
+    const nextUrl = nextSearch ? `${window.location.pathname}?${nextSearch}` : window.location.pathname;
+    window.history.replaceState(null, '', nextUrl);
+  }, [initialProposal]);
 
   // Derive: when swarm completes, refetch data (once)
   if (swarmState.isComplete && !hasRefetchedForCompletion.current) {
@@ -182,8 +205,17 @@ export function ResearchStreamTab({ slug, phase, canModify = true, setActiveTab,
 
   const handleLaunch = useCallback(async () => {
     if (!canModify) return;
-    await refresh();
-  }, [refresh, canModify]);
+    try {
+      await launchEmpty({});
+    } catch {
+      // Errors surface via the hook's error field; the launcher renders inline copy.
+    }
+  }, [launchEmpty, canModify]);
+
+  const handleLaunched = useCallback((_runId: number) => {
+    // SSE transition picks up swarm:start; the dashboard reducer flips to deploying.
+    refetch();
+  }, [refetch]);
 
   const handleNavigate = useCallback((page: 'saved' | 'graded') => {
     setActiveTab(page === 'saved' ? 'learning-saved' : 'learning-graded');
@@ -228,40 +260,46 @@ export function ResearchStreamTab({ slug, phase, canModify = true, setActiveTab,
           <MissionDashboard
             swarmState={swarmState}
             onLaunch={handleLaunch}
-            isLaunching={isRefreshing}
-            hideWhenIdle={hasItems}
+            isLaunching={isLaunchingEmpty}
+            hideWhenIdle={stats.pending > 0}
             pendingCount={stats.pending}
             swarmQuota={stats.swarmQuota}
+            slug={slug}
+            onLaunched={handleLaunched}
+            initialRunRequest={initialProposal}
+            initiallyExpanded={initialProposal != null}
           />
         </motion.div>
 
-        {hasItems && (
-          <div className={viewingItem ? '' : 'max-w-3xl mx-auto'} data-learning-items>
-            {/* Progress bar - collapses when expanded */}
+        {/* Items section: shows only while there are pending items to review.
+            Once cleared, this fades out and MissionDashboard's idle state takes
+            over the full-width canvas (with its own MissionControlLauncher). */}
+        <AnimatePresence>
+          {stats.pending > 0 && (
             <motion.div
-              animate={viewingItem
-                ? { opacity: 0, height: 0, marginBottom: 0 }
-                : { opacity: 1, height: 'auto', marginBottom: 16 }}
-              transition={sectionCollapse}
-              style={{ overflow: viewingItem ? 'hidden' : 'visible', pointerEvents: viewingItem ? 'none' : 'auto' }}
+              key="items-section"
+              initial={{ opacity: 1, height: 'auto' }}
+              animate={{ opacity: 1, height: 'auto' }}
+              exit={{ opacity: 0, height: 0, marginBottom: 0 }}
+              transition={{ duration: 0.45, ease: 'easeOut' }}
+              className={viewingItem ? '' : 'max-w-3xl mx-auto'}
+              data-learning-items
+              style={{ overflow: 'hidden' }}
             >
-              <StreamProgressBar
-                stats={stats}
-                onNavigate={handleNavigate}
-              />
-            </motion.div>
-
-            {stats.pending === 0 ? (
+              {/* Progress bar - collapses when expanded */}
               <motion.div
                 animate={viewingItem
                   ? { opacity: 0, height: 0, marginBottom: 0 }
-                  : { opacity: 1, height: 'auto', marginBottom: 0 }}
+                  : { opacity: 1, height: 'auto', marginBottom: 16 }}
                 transition={sectionCollapse}
                 style={{ overflow: viewingItem ? 'hidden' : 'visible', pointerEvents: viewingItem ? 'none' : 'auto' }}
               >
-                <AllProcessedState onNewMission={handleLaunch} isLaunching={isRefreshing} swarmQuota={stats.swarmQuota} />
+                <StreamProgressBar
+                  stats={stats}
+                  onNavigate={handleNavigate}
+                />
               </motion.div>
-            ) : (
+
               <>
                 <div className="sr-only" aria-live="polite" aria-atomic="true">
                   {stats.pending} items remaining to process
@@ -328,9 +366,9 @@ export function ResearchStreamTab({ slug, phase, canModify = true, setActiveTab,
                   })}
                 </div>
               </>
-            )}
-          </div>
-        )}
+            </motion.div>
+          )}
+        </AnimatePresence>
 
         <GradeModal
           show={!!gradeModalItem}
@@ -355,74 +393,3 @@ export function ResearchStreamTab({ slug, phase, canModify = true, setActiveTab,
 }
 
 export default ResearchStreamTab;
-
-// All processed state - editorial print aesthetic
-import { CheckCircle, Search, Loader2 as Loader } from 'lucide-react';
-import telescopeImg from '@/assets/bl_profile/telescope.webp';
-import { TactileButton } from '@/components/ui/tactile-button';
-
-function AllProcessedState({ onNewMission, isLaunching, swarmQuota }: { onNewMission: () => void; isLaunching?: boolean; swarmQuota?: { used: number; limit: number; remaining: number } | null }) {
-  const isAtLimit = swarmQuota?.remaining === 0;
-
-  return (
-    <div className="bg-card-elevated rounded-xl shadow-card overflow-hidden relative">
-      {/* Subtle background image */}
-      <div
-        className="absolute inset-0 opacity-[0.06] bg-no-repeat bg-center bg-contain pointer-events-none"
-        style={{ backgroundImage: `url(${telescopeImg})` }}
-      />
-
-      <div className="relative p-12">
-        <div className="flex flex-col items-center justify-center text-center">
-          {/* Success indicator */}
-          <div className="relative mb-8">
-            <div
-              className="w-16 h-16 rounded-full flex items-center justify-center"
-              style={{ border: '1px solid var(--border-hex)' }}
-            >
-              <CheckCircle size={32} className="text-success" />
-            </div>
-          </div>
-
-          <h3 className="font-serif text-[28px] text-foreground mb-3">
-            All Resources Reviewed
-          </h3>
-          <p className="text-sm text-muted-foreground max-w-md mb-10 leading-relaxed">
-            {isAtLimit
-              ? 'You\'ve used all your daily swarm runs. Come back tomorrow for more research.'
-              : 'You\'ve processed all the research resources in your queue. Launch a new swarm to discover more content.'}
-          </p>
-
-          {/* New swarm button */}
-          <TactileButton
-            variant="raised"
-            onClick={onNewMission}
-            disabled={isLaunching || isAtLimit}
-            className="flex items-center gap-3 px-8 py-4 text-[14px]"
-          >
-            {isLaunching ? (
-              <>
-                <Loader size={18} className="animate-spin" />
-                Launching Swarm...
-              </>
-            ) : isAtLimit ? (
-              'Daily Limit Reached'
-            ) : (
-              <>
-                <Search size={18} />
-                New Research Swarm
-              </>
-            )}
-          </TactileButton>
-
-          {/* Quota indicator */}
-          {swarmQuota && (
-            <p className="mt-4 text-xs text-muted-foreground">
-              {swarmQuota.used}/{swarmQuota.limit} daily runs used
-            </p>
-          )}
-        </div>
-      </div>
-    </div>
-  );
-}

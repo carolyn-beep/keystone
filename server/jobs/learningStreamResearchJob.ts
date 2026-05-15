@@ -1,17 +1,32 @@
 import type { JobHelpers } from 'graphile-worker';
 import { storage } from '../storage';
-import { runLearningStreamSwarm } from '../ai/learning-stream-swarm';
+import type { RunSpec } from '@shared/research-stream';
+import { runResearchSwarm } from '../ai/learning-stream-swarm-v2/run';
+import { estimateRunCostUsd, type UsageEntry } from '../ai/learning-stream-swarm-v2/cost';
+import { orchestrate } from '../ai/learning-stream-swarm-v2/orchestrator';
+
+type LearningStreamResearchPayload =
+  | {
+      brainliftId: number;
+      runSpec: RunSpec;
+      runId: number;
+      orchestratorUsage?: UsageEntry;
+    }
+  | {
+      brainliftId: number;
+      runSpec?: never;
+      runId?: never;
+      orchestratorUsage?: never;
+    };
 
 /**
  * Automated learning stream research job.
- * Uses a Claude Agent SDK swarm with 20 parallel web-researcher agents.
+ * Uses the v2 Vercel AI SDK fan-out runner.
  *
  * Queued from: runPostProcessingPipeline() after expert extraction
  */
 export async function learningStreamResearchJob(
-  payload: {
-    brainliftId: number;
-  },
+  payload: LearningStreamResearchPayload,
   helpers: JobHelpers
 ) {
   const { brainliftId } = payload;
@@ -19,19 +34,21 @@ export async function learningStreamResearchJob(
   helpers.logger.info('Starting learning stream swarm research', { brainliftId });
 
   try {
-    // Skip if pending items already exist (prevents duplicate AI calls)
-    const stats = await storage.getLearningStreamStats(brainliftId);
-    if (stats.pending > 0) {
-      helpers.logger.info('Skipping - pending items exist', {
-        brainliftId,
-        pendingCount: stats.pending
-      });
-      return {
-        success: true,
-        skipped: true,
-        reason: 'pending_items_exist',
-        pendingCount: stats.pending,
-      };
+    if (!payload.runSpec) {
+      const stats = await storage.getLearningStreamStats(brainliftId);
+      if (stats.pending > 0) {
+        helpers.logger.info('Skipping legacy research payload - pending items exist', {
+          brainliftId,
+          pendingCount: stats.pending,
+        });
+        return {
+          success: true,
+          skipped: true,
+          reason: 'pending_items_exist',
+          pendingCount: stats.pending,
+          estimatedUsd: 0,
+        };
+      }
     }
 
     // Verify brainlift exists
@@ -40,11 +57,27 @@ export async function learningStreamResearchJob(
       throw new Error(`Brainlift not found: ${brainliftId}`);
     }
 
-    // Run the swarm
-    const result = await runLearningStreamSwarm(brainliftId, {
-      maxTurns: 60,
-      maxBudgetUsd: 5.0,
-    });
+    const resolved = payload.runSpec
+      ? {
+          runSpec: payload.runSpec,
+          runId: payload.runId,
+          orchestratorUsage: payload.orchestratorUsage,
+          persistUsage: true,
+        }
+      : {
+          ...(await orchestrate(brainliftId, {})),
+          runId: Date.now(),
+          persistUsage: false,
+        };
+
+    const result = await runResearchSwarm(brainliftId, resolved.runSpec, resolved.runId);
+    const estimatedUsd = estimateRunCostUsd([
+      ...result.slotUsages,
+      ...(resolved.orchestratorUsage ? [resolved.orchestratorUsage] : []),
+    ]);
+    if (resolved.persistUsage) {
+      await storage.updateSwarmUsageEstimatedUsd(resolved.runId, estimatedUsd);
+    }
 
     helpers.logger.info('Learning stream swarm research completed', {
       brainliftId,
@@ -54,6 +87,7 @@ export async function learningStreamResearchJob(
       duplicatesSkipped: result.duplicatesSkipped,
       errorCount: result.errors.length,
       durationMs: result.durationMs,
+      estimatedUsd,
     });
 
     if (result.errors.length > 0) {
@@ -66,10 +100,7 @@ export async function learningStreamResearchJob(
     return {
       success: result.success,
       totalSaved: result.totalSaved,
-      duplicatesSkipped: result.duplicatesSkipped,
-      errors: result.errors,
-      durationMs: result.durationMs,
-      completedAt: new Date().toISOString(),
+      estimatedUsd,
     };
 
   } catch (error: any) {

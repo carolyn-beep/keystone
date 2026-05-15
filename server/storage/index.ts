@@ -216,10 +216,13 @@ export const storage = {
   getLearningStreamStats: learningStreamStorage.getLearningStreamStats,
   hasResearchJobPending: learningStreamStorage.hasResearchJobPending,
   checkLearningStreamDuplicate: learningStreamStorage.checkLearningStreamDuplicate,
+  getLearningStreamUrls: learningStreamStorage.getLearningStreamUrls,
   cacheExtractedContent: learningStreamStorage.cacheExtractedContent,
   clearExtractedContent: learningStreamStorage.clearExtractedContent,
   getSwarmUsageToday: learningStreamStorage.getSwarmUsageToday,
   recordSwarmUsage: learningStreamStorage.recordSwarmUsage,
+  updateSwarmUsageEstimatedUsd: learningStreamStorage.updateSwarmUsageEstimatedUsd,
+  getActiveRunIdForBrainlift: learningStreamStorage.getActiveRunIdForBrainlift,
 
   // Second Brain
   createSource: secondBrainStorage.createSource,

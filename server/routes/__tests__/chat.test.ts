@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { buildAlphaXSyntheticOpenerText } from '@shared/alphax-synthetic-opener';
 import { DEFAULT_CHAT_MODEL_ID } from '@shared/chat-models';
 
 const {
@@ -17,6 +18,8 @@ const {
   mockConvertToModelMessages,
   mockGenerateId,
   mockStepCountIs,
+  mockCreateUIMessageStream,
+  mockPipeUIMessageStreamToResponse,
 } = vi.hoisted(() => ({
   mockStorage: {
     listChatConversations: vi.fn(),
@@ -47,6 +50,8 @@ const {
   mockConvertToModelMessages: vi.fn(),
   mockGenerateId: vi.fn(() => 'generated-assistant-id'),
   mockStepCountIs: vi.fn(),
+  mockCreateUIMessageStream: vi.fn(),
+  mockPipeUIMessageStreamToResponse: vi.fn(),
 }));
 
 vi.mock('../../storage', () => ({
@@ -82,7 +87,9 @@ vi.mock('../../ai/chat/telemetry', () => ({
 vi.mock('ai', () => ({
   streamText: (...args: unknown[]) => mockStreamText(...args),
   convertToModelMessages: (...args: unknown[]) => mockConvertToModelMessages(...args),
+  createUIMessageStream: (...args: unknown[]) => mockCreateUIMessageStream(...args),
   generateId: (...args: unknown[]) => mockGenerateId(...args),
+  pipeUIMessageStreamToResponse: (...args: unknown[]) => mockPipeUIMessageStreamToResponse(...args),
   stepCountIs: (...args: unknown[]) => mockStepCountIs(...args),
 }));
 
@@ -116,6 +123,7 @@ function createRes(): any {
 beforeEach(() => {
   vi.clearAllMocks();
   mockStepCountIs.mockReturnValue(Symbol('stop'));
+  mockCreateUIMessageStream.mockReturnValue({ empty: true });
   mockConvertToModelMessages.mockResolvedValue([{ role: 'user', content: [{ type: 'text', text: 'Hello' }] }]);
   mockGetChatModel.mockReturnValue({ modelId: DEFAULT_CHAT_MODEL_ID });
   mockBuildChatSystemPromptFromRegistry.mockResolvedValue('prompt-from-registry');
@@ -365,6 +373,126 @@ describe('chat route handlers', () => {
       expectedMode,
       expectedConversation,
     );
+  });
+
+  it('streamChatHandler short-circuits only the synthetic AlphaX assistant opener without calling a model', async () => {
+    const { streamChatHandler } = await import('../chat');
+    const req = createReq({
+      body: {
+        conversationId: 42,
+        messages: [{
+          id: 'welcome',
+          role: 'assistant',
+          parts: [{ type: 'text', text: buildAlphaXSyntheticOpenerText('James') }],
+        }],
+      },
+    });
+    const res = createRes();
+
+    mockStorage.getChatConversation.mockResolvedValue({
+      id: 42,
+      userId: 'user-1',
+      title: 'Native chat',
+    });
+
+    await streamChatHandler(req, res);
+
+    expect(mockCreateUIMessageStream).toHaveBeenCalled();
+    expect(mockPipeUIMessageStreamToResponse).toHaveBeenCalledWith({
+      response: res,
+      stream: { empty: true },
+    });
+    expect(mockStreamText).not.toHaveBeenCalled();
+    expect(mockStorage.getConversationBrainlift).not.toHaveBeenCalled();
+  });
+
+  it('streamChatHandler does not short-circuit arbitrary assistant-only messages', async () => {
+    const { streamChatHandler } = await import('../chat');
+    const inputMessages = [{
+      id: 'ordinary-assistant-message',
+      role: 'assistant',
+      parts: [{ type: 'text', text: 'Welcome to AlphaX.' }],
+    }];
+    const req = createReq({
+      body: {
+        conversationId: 42,
+        messages: inputMessages,
+      },
+    });
+    const res = createRes();
+
+    mockStorage.getChatConversation.mockResolvedValue({
+      id: 42,
+      userId: 'user-1',
+      title: 'Native chat',
+    });
+    mockStorage.getChatUserContext.mockResolvedValue({
+      userId: 'user-1',
+      userName: 'Route Test User',
+      isAdmin: false,
+      brainliftCount: 0,
+      recentBrainlifts: [],
+    });
+    mockStreamText.mockReturnValue({
+      pipeUIMessageStreamToResponse: vi.fn(),
+    });
+
+    await streamChatHandler(req, res);
+
+    expect(mockCreateUIMessageStream).not.toHaveBeenCalled();
+    expect(mockPipeUIMessageStreamToResponse).not.toHaveBeenCalled();
+    expect(mockConvertToModelMessages).toHaveBeenCalledWith(inputMessages);
+    expect(mockStreamText).toHaveBeenCalled();
+  });
+
+  it('streamChatHandler continues assistant tool-result messages instead of opener short-circuiting', async () => {
+    const { streamChatHandler } = await import('../chat');
+    const inputMessages = [{
+      id: 'assistant-with-client-tool-result',
+      role: 'assistant',
+      parts: [{
+        type: 'tool-ask_user_question',
+        toolCallId: 'toolu_123',
+        state: 'output-available',
+        input: { questions: [{ id: 'angle', prompt: 'Which angle?' }] },
+        output: { answers: [{ id: 'angle', freeText: 'pain prevention' }] },
+      }],
+    }];
+    const req = createReq({
+      body: {
+        conversationId: 42,
+        messages: inputMessages,
+      },
+    });
+    const res = createRes();
+
+    mockStorage.getChatConversation.mockResolvedValue({
+      id: 42,
+      userId: 'user-1',
+      title: 'Native chat',
+    });
+    mockStorage.getChatUserContext.mockResolvedValue({
+      userId: 'user-1',
+      userName: 'Route Test User',
+      isAdmin: false,
+      brainliftCount: 0,
+      recentBrainlifts: [],
+    });
+    mockStreamText.mockReturnValue({
+      pipeUIMessageStreamToResponse: vi.fn(),
+    });
+
+    await streamChatHandler(req, res);
+
+    expect(mockCreateUIMessageStream).not.toHaveBeenCalled();
+    expect(mockPipeUIMessageStreamToResponse).not.toHaveBeenCalled();
+    expect(mockConvertToModelMessages).toHaveBeenCalledWith(inputMessages);
+    expect(mockStreamText).toHaveBeenCalledWith(expect.objectContaining({
+      system: 'prompt-from-registry',
+      tools: {
+        load_skill: { name: 'load_skill' },
+      },
+    }));
   });
 
   it('streamChatHandler passes original messages through and persists finalized messages on finish', async () => {

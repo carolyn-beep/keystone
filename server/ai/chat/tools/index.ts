@@ -1,4 +1,5 @@
 import type { AuthContext } from '@shared/schema';
+import { brandId } from '../../../brand';
 import type { ChatMode, ConversationContext } from '../../../brand/types';
 import { buildAskUserQuestionTool } from './ask-user';
 import { buildChatCurationTools } from './curation';
@@ -9,6 +10,7 @@ import {
   buildSharedProjectChatTools,
 } from './project';
 import { buildResearchChatTools } from './research';
+import { buildResearchStreamChatTools } from './research-stream';
 import { buildSecondBrainChatTools } from './second-brain';
 import { buildSprintChatTools } from './sprint';
 
@@ -24,6 +26,16 @@ export function buildNativeChatTools(
     list_brainlifts: gradingTools.list_brainlifts,
   };
 
+  // `propose_research_run` is AlphaX-only (FEATURE.md D13: Brainlift Central
+  // has no chat changes). It also requires a bound brainlift because the tool
+  // execute checks `hasResearchJobPending(brainliftId)`; without a brainlift
+  // there's nothing for the agent to propose a swarm against, so we skip it.
+  const isAlphaX = brandId === 'alphax';
+  const researchStreamTools =
+    isAlphaX && conversation.brainliftId != null
+      ? buildResearchStreamChatTools({ brainliftId: conversation.brainliftId })
+      : {};
+
   return {
     ...buildChatSkillTools({ authContext }),
     ...(authContext.isAdmin ? buildAdminSkillManagementTools({ authContext }) : {}),
@@ -35,5 +47,6 @@ export function buildNativeChatTools(
     ...(isResearch ? buildSecondBrainChatTools(authContext, conversation) : {}),
     ...(isAuthoring ? buildChatCurationTools(authContext) : {}),
     ...(isAuthoring ? buildSprintChatTools({ authContext }) : {}),
+    ...researchStreamTools,
   };
 }

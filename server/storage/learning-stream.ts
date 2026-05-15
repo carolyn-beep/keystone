@@ -4,6 +4,7 @@ import {
   type LearningStreamItem, type NewLearningStreamItem
 } from './base';
 import type { ExtractedContent } from '@shared/schema';
+import type { RunSpec } from '@shared/research-stream';
 import { withJob } from '../utils/withJob';
 import { pool } from '../db';
 import { z } from 'zod';
@@ -225,6 +226,18 @@ export async function checkLearningStreamDuplicate(
 }
 
 /**
+ * Get existing learning stream URLs for downstream research deduplication.
+ */
+export async function getLearningStreamUrls(brainliftId: number): Promise<string[]> {
+  const rows = await db
+    .selectDistinct({ url: learningStreamItems.url })
+    .from(learningStreamItems)
+    .where(eq(learningStreamItems.brainliftId, brainliftId));
+
+  return Array.from(new Set(rows.map((row) => row.url).filter((url): url is string => Boolean(url))));
+}
+
+/**
  * Get a single learning stream item by ID (IDOR-safe via brainliftId check).
  */
 export async function getLearningStreamItemById(
@@ -324,7 +337,39 @@ export async function getSwarmUsageToday(userId: string): Promise<{
 
 /**
  * Record a swarm usage event.
+ *
+ * Note: `runSpec` is required by the new /launch contract (spec 03) but kept
+ * optional in the signature so legacy callers that haven't migrated still
+ * compile. The column is nullable in the DB.
  */
-export async function recordSwarmUsage(userId: string, brainliftId: number): Promise<void> {
-  await db.insert(swarmUsage).values({ userId, brainliftId });
+export async function recordSwarmUsage(userId: string, brainliftId: number, runSpec?: RunSpec): Promise<number> {
+  const [inserted] = await db.insert(swarmUsage).values({ userId, brainliftId, runSpec }).returning({ id: swarmUsage.id });
+  return inserted.id;
+}
+
+/**
+ * Return the runId of the most recent swarm_usage row for this brainlift.
+ * Used to surface `existingRunId` in 409 responses when a research job is
+ * already in flight. The pairing with `hasResearchJobPending` is an
+ * acceptable approximation (a freshly-launched job inserts swarm_usage before
+ * queueing — see spec 03 Decision 6).
+ */
+export async function getActiveRunIdForBrainlift(brainliftId: number): Promise<number | null> {
+  const [row] = await db
+    .select({ id: swarmUsage.id })
+    .from(swarmUsage)
+    .where(eq(swarmUsage.brainliftId, brainliftId))
+    .orderBy(sql`${swarmUsage.createdAt} DESC`)
+    .limit(1);
+  return row?.id ?? null;
+}
+
+/**
+ * Update post-run estimated cost for a swarm usage event.
+ */
+export async function updateSwarmUsageEstimatedUsd(runId: number, usd: number): Promise<void> {
+  await db
+    .update(swarmUsage)
+    .set({ estimatedUsd: usd.toFixed(4) })
+    .where(eq(swarmUsage.id, runId));
 }

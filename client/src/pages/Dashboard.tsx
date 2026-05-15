@@ -365,9 +365,13 @@ const { downloadBrainliftPDF } = usePDFExport();
   // aligned with the author byline). The banner collapses on scroll via
   // .header-collapsed (header-collapse.css) toggled by an IntersectionObserver
   // watching a sentinel placed at the top of <main>.
+  // Research Stream tab forces the header into its compact form regardless
+  // of scroll position — the two-card hero owns the surface and the full
+  // brainlift banner would dominate it.
+  const forceCompactHeader = activeTab === 'learning';
   const brainliftHeader = (
     <header
-      className={`bg-card border-b border-border transition-shadow ${isHeaderCollapsed ? 'header-collapsed shadow-sm' : ''}`}
+      className={`bg-card border-b border-border transition-shadow ${isHeaderCollapsed || forceCompactHeader ? 'header-collapsed shadow-sm' : ''}`}
     >
       <DashboardHeader
         data={data}

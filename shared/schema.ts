@@ -1,4 +1,4 @@
-import { pgTable, text, serial, integer, jsonb, boolean, timestamp, varchar, date, index, unique, uniqueIndex, check } from "drizzle-orm/pg-core";
+import { pgTable, text, serial, integer, jsonb, boolean, timestamp, varchar, date, numeric, index, unique, uniqueIndex, check } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 import { relations, sql } from "drizzle-orm";
@@ -15,6 +15,7 @@ import type {
   WeeklyModelDriftMetrics,
   WeeklyResultLevel,
 } from "./analytics-types";
+import type { RunSpec } from "./research-stream";
 
 
 // === AUTH TABLES (Better Auth) ===
@@ -1158,6 +1159,8 @@ export const swarmUsage = pgTable("swarm_usage", {
   userId: text("user_id").notNull().references(() => user.id, { onDelete: "cascade" }),
   brainliftId: integer("brainlift_id").notNull().references(() => brainlifts.id, { onDelete: "cascade" }),
   createdAt: timestamp("created_at").defaultNow().notNull(),
+  runSpec: jsonb("run_spec").$type<RunSpec>(),
+  estimatedUsd: numeric("estimated_usd", { precision: 10, scale: 4 }),
 }, (table) => [
   index("idx_swarm_usage_user_date").on(table.userId, table.createdAt),
 ]);
