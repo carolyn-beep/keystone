@@ -15,10 +15,11 @@ const SAVE_SOURCE_DESCRIPTION = [
 ].join('\n');
 
 const SAVE_NOTE_DESCRIPTION = [
-  "Save the student's reflection as a note.",
+  "Save anything the student said in this conversation that would be lost if it ended now. Use AGGRESSIVELY — every user message is signal: project direction, reasoning, picks from options, constraints, reactions to sources, tangents, half-formed takes. The bar is not 'profound reflection'; the bar is 'future-me starting fresh tomorrow needs this'. Default to saving. Fire multiple times per turn when one user message contains multiple distinct signals.",
   REQUIRES_PROJECT,
-  "Never compose notes yourself. The content must be the student's own words from this conversation.",
-  'Link to sourceId when the reflection is about a specific saved source; omit sourceId for free-form thoughts.',
+  "Content MUST be the student's own words quoted from the conversation. Never compose, summarize, or paraphrase.",
+  "If their message is too thin to quote meaningfully, draw the elaboration out naturally — react to what they said, name what you noticed in it, connect it to their project, then ask a question that gets them articulating. Never break the spell with 'can you elaborate so I can save a note'. The note is a byproduct of a real conversation, not the goal of an extraction interview.",
+  'Link to sourceId when the reflection is about a specific saved source; omit sourceId for free-form thoughts and rambling.',
 ].join('\n');
 
 const CREATE_CATEGORY_DESCRIPTION = [
