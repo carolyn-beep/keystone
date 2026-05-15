@@ -4,6 +4,7 @@ import { Loader2 } from 'lucide-react';
 import type { BrainliftPhase } from '@shared/schema';
 import { useLearningStream, type LearningStreamItem } from '@/hooks/useLearningStream';
 import { useSwarmEvents } from '@/hooks/useSwarmEvents';
+import { useLaunchResearchStream } from '@/hooks/useLaunchResearchStream';
 import { StreamProgressBar, StreamItemCard, GradeModal, MissionDashboard, ExpandedItemView } from './learning-stream';
 import { BookmarkCategoryDialog } from './learning-stream/BookmarkCategoryDialog';
 
@@ -26,13 +27,16 @@ export function ResearchStreamTab({ slug, phase, canModify = true, setActiveTab,
     bookmark,
     discard,
     grade,
-    refresh,
     refetch,
     isBookmarking,
     isDiscarding,
     isGrading,
-    isRefreshing,
   } = useLearningStream(slug);
+
+  // Launcher used by the AllProcessed "launch another" affordance. The MissionDashboard
+  // idle state has its own MissionControlLauncher with its own launch hook instance,
+  // so they don't share state — each owns its own RunRequest editor.
+  const { launch: launchEmpty, isLaunching: isLaunchingEmpty } = useLaunchResearchStream(slug);
 
   // Single SSE connection — passed down to MissionDashboard as props
   const swarmState = useSwarmEvents(slug, true);
@@ -182,8 +186,17 @@ export function ResearchStreamTab({ slug, phase, canModify = true, setActiveTab,
 
   const handleLaunch = useCallback(async () => {
     if (!canModify) return;
-    await refresh();
-  }, [refresh, canModify]);
+    try {
+      await launchEmpty({});
+    } catch {
+      // Errors surface via the hook's error field; the launcher renders inline copy.
+    }
+  }, [launchEmpty, canModify]);
+
+  const handleLaunched = useCallback((_runId: number) => {
+    // SSE transition picks up swarm:start; the dashboard reducer flips to deploying.
+    refetch();
+  }, [refetch]);
 
   const handleNavigate = useCallback((page: 'saved' | 'graded') => {
     setActiveTab(page === 'saved' ? 'learning-saved' : 'learning-graded');
@@ -228,10 +241,12 @@ export function ResearchStreamTab({ slug, phase, canModify = true, setActiveTab,
           <MissionDashboard
             swarmState={swarmState}
             onLaunch={handleLaunch}
-            isLaunching={isRefreshing}
+            isLaunching={isLaunchingEmpty}
             hideWhenIdle={hasItems}
             pendingCount={stats.pending}
             swarmQuota={stats.swarmQuota}
+            slug={slug}
+            onLaunched={handleLaunched}
           />
         </motion.div>
 
@@ -259,7 +274,7 @@ export function ResearchStreamTab({ slug, phase, canModify = true, setActiveTab,
                 transition={sectionCollapse}
                 style={{ overflow: viewingItem ? 'hidden' : 'visible', pointerEvents: viewingItem ? 'none' : 'auto' }}
               >
-                <AllProcessedState onNewMission={handleLaunch} isLaunching={isRefreshing} swarmQuota={stats.swarmQuota} />
+                <AllProcessedState onNewMission={handleLaunch} isLaunching={isLaunchingEmpty} swarmQuota={stats.swarmQuota} />
               </motion.div>
             ) : (
               <>
@@ -390,30 +405,30 @@ function AllProcessedState({ onNewMission, isLaunching, swarmQuota }: { onNewMis
           <p className="text-sm text-muted-foreground max-w-md mb-10 leading-relaxed">
             {isAtLimit
               ? 'You\'ve used all your daily swarm runs. Come back tomorrow for more research.'
-              : 'You\'ve processed all the research resources in your queue. Launch a new swarm to discover more content.'}
+              : 'Stream is empty - ask AlphaX what to research next, or launch another swarm.'}
           </p>
 
-          {/* New swarm button */}
-          <TactileButton
-            variant="raised"
-            onClick={onNewMission}
-            disabled={isLaunching || isAtLimit}
-            className="flex items-center gap-3 px-8 py-4 text-[14px]"
-          >
-            {isLaunching ? (
-              <>
-                <Loader size={18} className="animate-spin" />
-                Launching Swarm...
-              </>
-            ) : isAtLimit ? (
-              'Daily Limit Reached'
-            ) : (
-              <>
-                <Search size={18} />
-                New Research Swarm
-              </>
-            )}
-          </TactileButton>
+          {/* Launch another swarm */}
+          {!isAtLimit && (
+            <TactileButton
+              variant="raised"
+              onClick={onNewMission}
+              disabled={isLaunching}
+              className="flex items-center gap-3 px-8 py-4 text-[14px]"
+            >
+              {isLaunching ? (
+                <>
+                  <Loader size={18} className="animate-spin" />
+                  Launching Swarm...
+                </>
+              ) : (
+                <>
+                  <Search size={18} />
+                  Launch Another Swarm
+                </>
+              )}
+            </TactileButton>
+          )}
 
           {/* Quota indicator */}
           {swarmQuota && (

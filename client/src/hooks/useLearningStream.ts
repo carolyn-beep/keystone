@@ -105,14 +105,6 @@ export function useLearningStream(slug: string) {
     onSuccess: invalidateAll,
   });
 
-  // Refresh mutation (trigger new research)
-  const refreshMutation = useMutation({
-    mutationFn: async () => {
-      return apiRequest('POST', `/api/brainlifts/${slug}/learning-stream/refresh`);
-    },
-    onSuccess: invalidateAll,
-  });
-
   return {
     // Data
     items: itemsQuery.data ?? [],
@@ -124,7 +116,6 @@ export function useLearningStream(slug: string) {
     bookmark: bookmarkMutation.mutateAsync,
     discard: discardMutation.mutateAsync,
     grade: gradeMutation.mutateAsync,
-    refresh: refreshMutation.mutateAsync,
 
     // Refetch data (e.g., after swarm completes)
     refetch: invalidateAll,
@@ -133,6 +124,5 @@ export function useLearningStream(slug: string) {
     isBookmarking: bookmarkMutation.isPending,
     isDiscarding: discardMutation.isPending,
     isGrading: gradeMutation.isPending,
-    isRefreshing: refreshMutation.isPending,
   };
 }
