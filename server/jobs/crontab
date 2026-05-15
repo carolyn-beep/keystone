@@ -4,3 +4,5 @@
 30 3 * * * skills:purge-deleted {}
 # Hourly guard for Sao Paulo Saturday 23:59 weekly consistency run
 59 * * * * analytics:run-weekly-grader-consistency {"triggerKind":"cron"}
+# Monthly OpenRouter model price refresh
+0 0 1 * * models:refresh-prices {}

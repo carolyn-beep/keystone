@@ -19,6 +19,7 @@ import { runWeeklyGraderConsistencyJob } from './run-weekly-grader-consistency';
 import { sprintGenerateJob } from './sprintGenerateJob';
 import { rerankExpertsJob } from './rerankExpertsJob';
 import { purgeDeletedSkillsJob } from './purgeDeletedSkillsJob';
+import { refreshModelPricesJob } from './refreshModelPricesJob';
 
 /**
  * Central registry of all background jobs.
@@ -51,6 +52,7 @@ const tasks = {
   'analytics:run-weekly-grader-consistency': runWeeklyGraderConsistencyJob,
   'sprint:generate': sprintGenerateJob,
   'skills:purge-deleted': purgeDeletedSkillsJob,
+  'models:refresh-prices': refreshModelPricesJob,
 } as const;
 
 export default tasks;
