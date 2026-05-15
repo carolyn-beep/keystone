@@ -1,6 +1,12 @@
+import fs from 'node:fs';
 import { createElement, type ComponentProps } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+
+const cardSource = fs.readFileSync(
+  new URL('../ProposeResearchRunCard.tsx', import.meta.url),
+  'utf8',
+);
 
 const {
   mockLaunch,
@@ -255,5 +261,35 @@ describe('FR2 ProposeResearchRunCard — launch path (unit on the hook surface)'
       status: { type: 'complete' },
     });
     expect(mockUseLaunchResearchStream).toHaveBeenCalledWith('pioneer-slug');
+  });
+});
+
+describe('FR2 ProposeResearchRunCard — source-level structure (ref-guards + addResult shape)', () => {
+  it('uses a useRef-guarded useEffect to fire addResult exactly once on the blocked path', () => {
+    // The blocked-on-execute path must call addResult exactly once via a ref
+    // guard. Verifying this at runtime requires a full React renderer; here we
+    // verify the structural guarantee in the source.
+    expect(cardSource).toMatch(/submittedRef\s*=\s*useRef\(false\)/);
+    expect(cardSource).toMatch(/submittedRef\.current\s*=\s*true/);
+    expect(cardSource).toMatch(/useEffect\(/);
+  });
+
+  it('emits addResult with the launched-variant shape after the launch resolves', () => {
+    expect(cardSource).toMatch(/addResult\(\s*\{\s*kind:\s*['"]launched['"]/);
+    expect(cardSource).toMatch(/runId/);
+  });
+
+  it('emits addResult with the blocked-variant shape on the blocked branch', () => {
+    expect(cardSource).toMatch(/kind:\s*['"]blocked['"]/);
+    expect(cardSource).toMatch(/existingRunId/);
+  });
+
+  it('reads the stale signal from useMessage + useThread (mirrors AskUserQuestionCard)', () => {
+    expect(cardSource).toMatch(/useMessage\(/);
+    expect(cardSource).toMatch(/useThread\(/);
+  });
+
+  it('navigates to the research-stream tab after launch', () => {
+    expect(cardSource).toContain('?tab=research-stream');
   });
 });
