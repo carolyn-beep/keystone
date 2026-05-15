@@ -75,6 +75,11 @@ describe('native chat thread config', () => {
     expect(config.assistantMessage.components.ToolFallback).toBe(GenericToolCallCard);
   });
 
+  it('FR4 registers propose_research_run inside nativeChatToolUIs', () => {
+    const toolNames = nativeChatToolUIs.map((tool) => tool.unstable_tool.toolName);
+    expect(toolNames).toContain('propose_research_run');
+  });
+
   it('renders an error-style fallback card with reportable details for unknown tools', () => {
     const markup = renderToStaticMarkup(
       createElement(GenericToolCallCard, {
