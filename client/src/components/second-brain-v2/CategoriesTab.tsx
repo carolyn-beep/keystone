@@ -19,20 +19,13 @@
  * Reorder is optimistic via useReorderCategories. The reorder buttons
  * only appear when sortBy === 'manual' AND the row count exceeds 1.
  *
- * MERGE-TIME INTEGRATION NOTE
- *   Spec 03 owns the canonical <AddCategoryModal> at
- *   `…/second-brain-v2/modals/AddCategoryModal`. That spec is running in
- *   parallel with this one; if it has not landed at merge time, the
- *   inline `InlineAddCategoryModal` below keeps this tab functional. The
- *   inline fallback is a strict subset (name input + submit) of the
- *   richer modal spec 03 will ship; swap the import + render call once
- *   spec 03 is in.
  */
 
-import { FormEvent, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Plus } from 'lucide-react';
 import { TactileButton } from '@/components/ui/tactile-button';
 import { FilterBar } from '@/components/second-brain-v2/shared/FilterBar';
+import { AddCategoryModal } from '@/components/second-brain-v2/modals/AddCategoryModal';
 import {
   useCategories,
   useReorderCategories,
@@ -105,7 +98,6 @@ export function CategoriesTab({ slug }: CategoriesTabProps) {
   const {
     categories,
     isLoading,
-    createCategory,
     renameCategory,
     deleteCategory,
   } = useCategories(slug);
@@ -160,11 +152,6 @@ export function CategoriesTab({ slug }: CategoriesTabProps) {
     } catch (error) {
       setDeleteError(extractDeleteErrorMessage(error));
     }
-  };
-
-  const handleAdd = async (name: string) => {
-    await createCategory(name);
-    setIsAddOpen(false);
   };
 
   const totalCount = categories.length;
@@ -261,87 +248,12 @@ export function CategoriesTab({ slug }: CategoriesTabProps) {
         </ul>
       ) : null}
 
-      {isAddOpen ? (
-        <InlineAddCategoryModal
-          onClose={() => setIsAddOpen(false)}
-          onSubmit={handleAdd}
-        />
-      ) : null}
+      <AddCategoryModal
+        slug={slug}
+        open={isAddOpen}
+        onClose={() => setIsAddOpen(false)}
+      />
     </section>
   );
 }
 
-// ─── Inline AddCategoryModal placeholder (merge-time swap) ──────────────────
-
-/**
- * Lightweight stand-in for spec 03's `<AddCategoryModal>`. Once spec 03
- * lands, swap the import + render in <CategoriesTab> with:
- *   import { AddCategoryModal } from './modals/AddCategoryModal';
- *   <AddCategoryModal show={isAddOpen} onClose={...} onCreated={...} />
- */
-interface InlineAddCategoryModalProps {
-  onClose: () => void;
-  onSubmit: (name: string) => Promise<void> | void;
-}
-
-function InlineAddCategoryModal({ onClose, onSubmit }: InlineAddCategoryModalProps) {
-  const [name, setName] = useState('');
-  const [submitting, setSubmitting] = useState(false);
-
-  const handleSubmit = async (event: FormEvent) => {
-    event.preventDefault();
-    const trimmed = name.trim();
-    if (trimmed.length === 0 || submitting) return;
-    setSubmitting(true);
-    try {
-      await onSubmit(trimmed);
-      setName('');
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
-  return (
-    <div
-      role="dialog"
-      aria-label="Add category"
-      className="fixed inset-0 z-50 flex items-center justify-center bg-background/60 backdrop-blur-sm"
-      onClick={onClose}
-    >
-      <form
-        onSubmit={handleSubmit}
-        onClick={(event) => event.stopPropagation()}
-        className="flex w-[420px] max-w-[90vw] flex-col gap-4 rounded-xl bg-card-elevated p-6 shadow-card"
-      >
-        <h3 className="m-0 font-serif text-[18px] font-semibold text-foreground">
-          Add Category
-        </h3>
-        <input
-          autoFocus
-          value={name}
-          onChange={(event) => setName(event.target.value)}
-          placeholder="Category name"
-          aria-label="Category name"
-          className="w-full rounded-md bg-card px-3 py-2 font-serif text-[15px] text-foreground outline-none ring-1 ring-border focus:ring-primary/40"
-        />
-        <div className="flex items-center justify-end gap-2">
-          <button
-            type="button"
-            onClick={onClose}
-            className="rounded-md bg-transparent px-3 py-1.5 text-[12px] font-semibold uppercase tracking-[0.25em] text-muted-foreground hover:text-foreground"
-          >
-            Cancel
-          </button>
-          <TactileButton
-            type="submit"
-            variant="raised"
-            className="text-[12px]"
-            disabled={name.trim().length === 0 || submitting}
-          >
-            {submitting ? 'Adding…' : 'Add'}
-          </TactileButton>
-        </div>
-      </form>
-    </div>
-  );
-}
