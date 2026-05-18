@@ -1,0 +1,30 @@
+{
+  "anthropic/claude-opus-4.7": {
+    "promptUsdPer1k": 0.015,
+    "completionUsdPer1k": 0.075
+  },
+  "anthropic/claude-sonnet-4.6": {
+    "promptUsdPer1k": 0.003,
+    "completionUsdPer1k": 0.015
+  },
+  "anthropic/claude-haiku-4.5": {
+    "promptUsdPer1k": 0.001,
+    "completionUsdPer1k": 0.005
+  },
+  "qwen/qwen-plus": {
+    "promptUsdPer1k": 0.0004,
+    "completionUsdPer1k": 0.0012
+  },
+  "accounts/fireworks/models/minimax-m2p1": {
+    "promptUsdPer1k": 0.0003,
+    "completionUsdPer1k": 0.0012
+  },
+  "accounts/fireworks/models/gpt-oss-20b": {
+    "promptUsdPer1k": 0.00007,
+    "completionUsdPer1k": 0.0003
+  },
+  "accounts/fireworks/models/llama-v3p3-70b-instruct": {
+    "promptUsdPer1k": 0.0009,
+    "completionUsdPer1k": 0.0009
+  }
+}

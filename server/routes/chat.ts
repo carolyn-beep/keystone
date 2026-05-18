@@ -1,5 +1,14 @@
 import { Router, type Request, type Response } from 'express';
-import { convertToModelMessages, generateId, stepCountIs, streamText, type UIMessage } from 'ai';
+import {
+  convertToModelMessages,
+  createUIMessageStream,
+  generateId,
+  pipeUIMessageStreamToResponse,
+  stepCountIs,
+  streamText,
+  type UIMessage,
+} from 'ai';
+import { isSyntheticAlphaXAssistantOpener } from '@shared/alphax-synthetic-opener';
 import { DEFAULT_CHAT_MODEL_ID, isChatModelId } from '@shared/chat-models';
 import { requireAuth } from '../middleware/auth';
 import { asyncHandler, BadRequestError, NotFoundError } from '../middleware/error-handler';
@@ -17,6 +26,7 @@ import {
   type AskUserSubmitBlockedQuestion,
 } from '../ai/chat/telemetry';
 import { buildNativeChatTools } from '../ai/chat/tools';
+import type { ChatMode, ConversationContext } from '../brand/types';
 
 export const chatRouter = Router();
 
@@ -122,6 +132,35 @@ export async function deleteChatConversationHandler(req: Request, res: Response)
   res.json({ deleted: true });
 }
 
+export async function setConversationBrainliftHandler(req: Request, res: Response): Promise<void> {
+  const conversationId = parseConversationId(req.params.id);
+  const rawBrainliftId = (req.body as { brainliftId?: unknown }).brainliftId;
+
+  if (rawBrainliftId !== null && typeof rawBrainliftId !== 'number') {
+    throw new BadRequestError('brainliftId must be a number or null');
+  }
+
+  if (typeof rawBrainliftId === 'number' && !Number.isFinite(rawBrainliftId)) {
+    throw new BadRequestError('brainliftId must be a number or null');
+  }
+
+  const brainliftId = rawBrainliftId === null ? null : rawBrainliftId;
+  if (brainliftId !== null) {
+    const targetBrainlift = await storage.getBrainliftById(brainliftId);
+    if (!targetBrainlift) {
+      throw new BadRequestError('Brainlift not found');
+    }
+  }
+
+  const conversation = await storage.setConversationBrainlift(
+    conversationId,
+    brainliftId,
+    req.authContext!.userId,
+  );
+
+  res.json(conversation);
+}
+
 export async function streamChatHandler(req: Request, res: Response): Promise<void> {
   const body = req.body as {
     conversationId?: unknown;
@@ -156,12 +195,45 @@ export async function streamChatHandler(req: Request, res: Response): Promise<vo
   }
 
   const messages = body.messages as UIMessage[];
+
+  // Opener short-circuit: only the exact synthetic AlphaX welcome should be
+  // swallowed here. Any other assistant-last message must continue normally;
+  // client-resolved tools resume with assistant-last `tool-*` messages, and
+  // future plain assistant messages should not be silently dropped.
+  const lastMessage = messages.at(-1);
+  if (isSyntheticAlphaXAssistantOpener(lastMessage)) {
+    const stream = createUIMessageStream({
+      execute: async () => {
+        // Intentionally empty — no model call, no parts written.
+      },
+    });
+    pipeUIMessageStreamToResponse({ response: res, stream });
+    return;
+  }
+
+  const binding = await storage.getConversationBrainlift(conversation.id);
+  const conversationContext: ConversationContext = {
+    conversationId: conversation.id,
+    brainliftId: binding?.brainliftId ?? null,
+    brainlift: binding?.brainlift ?? null,
+  };
+  const mode: ChatMode = conversationContext.brainlift?.phase === 'authoring'
+    ? 'authoring'
+    : 'research';
+
+  if (mode === 'research' && conversationContext.brainliftId != null) {
+    conversationContext.secondBrainSummary = await storage.getSecondBrainSummary(
+      conversationContext.brainliftId,
+    );
+  }
   const userContext = await storage.getChatUserContext(userId);
   const systemPrompt = await buildChatSystemPromptFromRegistry({
     userContext,
     authContext: req.authContext!,
+    mode,
+    conversation: conversationContext,
   });
-  const tools = buildNativeChatTools(req.authContext!);
+  const tools = buildNativeChatTools(req.authContext!, mode, conversationContext);
   const traceContext = {
     userId,
     conversationId: conversation.id,
@@ -302,6 +374,12 @@ chatRouter.patch(
   '/api/chat/conversations/:id',
   requireAuth,
   asyncHandler(renameChatConversationHandler),
+);
+
+chatRouter.patch(
+  '/api/chat/conversations/:id/brainlift',
+  requireAuth,
+  asyncHandler(setConversationBrainliftHandler),
 );
 
 chatRouter.delete(

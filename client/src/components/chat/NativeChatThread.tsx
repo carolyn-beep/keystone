@@ -4,6 +4,9 @@ import { Thread } from '@assistant-ui/react-ui';
 import type { UIMessage } from 'ai';
 import type { ChatModelId } from '@shared/chat-models';
 import { OPENER_PROMPT } from '@/chat/chat-opener';
+import { brand } from '@/brand';
+import { buildAlphaXOpenerText } from '@/brand/alphax/opener-text';
+import { authClient } from '@/lib/auth-client';
 import { queryClient } from '@/lib/queryClient';
 import {
   CHAT_CONVERSATIONS_QUERY_KEY,
@@ -34,14 +37,25 @@ const firedAutoSendForConversation = new Set<number>();
 const firedAskForConversation = new Set<number>();
 
 /**
- * Renders nothing. Fires `runtime.append(OPENER_PROMPT)` exactly once when
- * three conditions hold:
+ * Renders nothing. Fires the opener exactly once when three conditions hold:
  *
  *   1. The conversation is flagged `needsOpener` server-side (set at
  *      conversation-creation time when the user had zero prior conversations).
  *   2. No initial messages are present (the conversation is brand-new).
  *   3. We have not already fired for this conversation in the current session
  *      (module-level Set guard).
+ *
+ * Brand behaviour differs:
+ *   - AlphaX: appends a synthetic ASSISTANT message with hardcoded welcome
+ *     text personalized with the student's first name. The AI SDK adapter's
+ *     `onNew` callback still fires a request to `/api/chat/stream`, but the
+ *     server detects "last message is assistant" and short-circuits without
+ *     calling a model — so no extra paragraph follows. The synthetic stays
+ *     in `chatHelpers.messages` so the student's next reply ships with it
+ *     in the request payload.
+ *   - Brainlift Central: appends an invisible USER message (`[OPENER]`) which
+ *     the model responds to per its system prompt's journey-stage heuristics.
+ *     `FilteringUserMessage` hides the user message from the visible thread.
  *
  * Lives inside the runtime provider so it can call `useThreadRuntime()`.
  * See client/src/chat/chat-opener.ts.
@@ -56,6 +70,8 @@ function OpenerTrigger({
   needsOpener: boolean;
 }) {
   const threadRuntime = useThreadRuntime();
+  const { data: session } = authClient.useSession();
+  const fullName = session?.user?.name ?? null;
 
   useEffect(() => {
     if (!needsOpener) return;
@@ -63,11 +79,20 @@ function OpenerTrigger({
     if (firedOpenerForConversation.has(conversationId)) return;
     firedOpenerForConversation.add(conversationId);
 
+    if (brand.config.id === 'alphax') {
+      const firstName = fullName?.trim().split(/\s+/)[0] ?? null;
+      threadRuntime.append({
+        role: 'assistant',
+        content: [{ type: 'text', text: buildAlphaXOpenerText(firstName) }],
+      });
+      return;
+    }
+
     threadRuntime.append({
       role: 'user',
       content: [{ type: 'text', text: OPENER_PROMPT }],
     });
-  }, [conversationId, hasInitialMessages, needsOpener, threadRuntime]);
+  }, [conversationId, hasInitialMessages, needsOpener, threadRuntime, fullName]);
 
   return null;
 }
@@ -224,14 +249,28 @@ export function NativeChatThread({
     }
   }, [conversationId]);
 
+  // Draft-mode pending brainlift binding. Held locally so the picker can
+  // be set BEFORE any DB row exists; the runtime PATCHes it onto the new
+  // conversation immediately after lazy-create (before the first message
+  // is sent) so the chat route's mode resolver sees the binding from turn
+  // one. Cleared on draft -> bound promotion to avoid re-binding on
+  // subsequent picker changes (those go through the normal PATCH path).
+  const [pendingDraftBrainliftId, setPendingDraftBrainliftId] = useState<number | null>(null);
+  const pendingDraftBrainliftIdRef = useRef<number | null>(null);
+  useEffect(() => {
+    pendingDraftBrainliftIdRef.current = pendingDraftBrainliftId;
+  }, [pendingDraftBrainliftId]);
+
   const runtime = useNativeChatRuntime({
     conversationId,
     initialMessages,
     modelId,
     onLazyCreated: (id) => {
       setEffectiveConvId(id);
+      setPendingDraftBrainliftId(null);
       onLazyCreated?.(id);
     },
+    getPendingDraftBrainliftId: () => pendingDraftBrainliftIdRef.current,
   });
 
   const hasInitialMessages = Boolean(initialMessages && initialMessages.length > 0);
@@ -241,6 +280,9 @@ export function NativeChatThread({
       <ChatComposerSettingsProvider
         modelId={modelId}
         onModelIdChange={onModelIdChange}
+        conversationId={effectiveConvId}
+        pendingDraftBrainliftId={pendingDraftBrainliftId}
+        setPendingDraftBrainliftId={setPendingDraftBrainliftId}
       >
         <div className="native-chat-thread flex h-full min-h-0 flex-col bg-transparent">
           <ConversationQueryInvalidator conversationId={effectiveConvId} />

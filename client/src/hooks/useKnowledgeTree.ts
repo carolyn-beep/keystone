@@ -123,10 +123,10 @@ export function useKnowledgeTree(slug: string) {
     onSuccess: () => invalidateKnowledgeTree(slug),
   });
 
-  // Re-launch research swarm
+  // Re-launch research swarm (empty body = let orchestrator plan from project data).
   const relaunchMutation = useMutation({
     mutationFn: async () => {
-      return apiRequest('POST', `/api/brainlifts/${slug}/learning-stream/refresh`);
+      return apiRequest('POST', `/api/brainlifts/${slug}/learning-stream/launch`, {});
     },
     onSuccess: () => invalidateAll(slug),
   });

@@ -29,6 +29,7 @@ import * as dok3CrudStorage from './dok3-crud';
 import * as dok4CrudStorage from './dok4-crud';
 import * as sprintsStorage from './sprints';
 import * as skillsStorage from './skills';
+import * as secondBrainStorage from './second-brain';
 
 // Re-export types from base
 export type {
@@ -56,6 +57,13 @@ export type {
 } from './base';
 
 export type {
+  Source,
+  InsertSource,
+  Note,
+  InsertNote,
+} from '@shared/schema';
+
+export type {
   DeletedSkillListItem,
   SaveSkillInput,
   SkillDetail,
@@ -79,6 +87,8 @@ export const storage = {
   getBrainliftDataById: brainliftsStorage.getBrainliftDataById,
   getBrainliftsByOwnerId: brainliftsStorage.getBrainliftsByOwnerId,
   createBrainlift: brainliftsStorage.createBrainlift,
+  createBlankBrainlift: brainliftsStorage.createBlankBrainlift,
+  setBrainliftPhase: brainliftsStorage.setBrainliftPhase,
   updateBrainlift: brainliftsStorage.updateBrainlift,
   deleteBrainlift: brainliftsStorage.deleteBrainlift,
   updateBrainliftFields: brainliftsStorage.updateBrainliftFields,
@@ -206,10 +216,35 @@ export const storage = {
   getLearningStreamStats: learningStreamStorage.getLearningStreamStats,
   hasResearchJobPending: learningStreamStorage.hasResearchJobPending,
   checkLearningStreamDuplicate: learningStreamStorage.checkLearningStreamDuplicate,
+  getLearningStreamUrls: learningStreamStorage.getLearningStreamUrls,
   cacheExtractedContent: learningStreamStorage.cacheExtractedContent,
   clearExtractedContent: learningStreamStorage.clearExtractedContent,
   getSwarmUsageToday: learningStreamStorage.getSwarmUsageToday,
   recordSwarmUsage: learningStreamStorage.recordSwarmUsage,
+  updateSwarmUsageEstimatedUsd: learningStreamStorage.updateSwarmUsageEstimatedUsd,
+  getActiveRunIdForBrainlift: learningStreamStorage.getActiveRunIdForBrainlift,
+
+  // Second Brain
+  createSource: secondBrainStorage.createSource,
+  getSourcesByBrainlift: secondBrainStorage.getSourcesByBrainlift,
+  getSourceForBrainlift: secondBrainStorage.getSourceForBrainlift,
+  updateSourceForBrainlift: secondBrainStorage.updateSourceForBrainlift,
+  deleteSourceForBrainlift: secondBrainStorage.deleteSourceForBrainlift,
+  bulkDeleteSources: secondBrainStorage.bulkDeleteSources,
+  bulkUpdateSourceCategories: secondBrainStorage.bulkUpdateSourceCategories,
+  createNote: secondBrainStorage.createNote,
+  getNotesByBrainlift: secondBrainStorage.getNotesByBrainlift,
+  getNoteForBrainlift: secondBrainStorage.getNoteForBrainlift,
+  updateNoteForBrainlift: secondBrainStorage.updateNoteForBrainlift,
+  deleteNoteForBrainlift: secondBrainStorage.deleteNoteForBrainlift,
+  bulkDeleteNotes: secondBrainStorage.bulkDeleteNotes,
+  bulkUpdateNoteCategories: secondBrainStorage.bulkUpdateNoteCategories,
+  listSources: secondBrainStorage.listSources,
+  listNotes: secondBrainStorage.listNotes,
+  listCategories: secondBrainStorage.listCategories,
+  getSecondBrainSummary: secondBrainStorage.getSecondBrainSummary,
+  getCategoriesWithCountsForSecondBrain: secondBrainStorage.getCategoriesWithCountsForSecondBrain,
+  reorderCategories: secondBrainStorage.reorderCategories,
 
   // DOK3 Insights
   saveDOK3Insights: dok3Storage.saveDOK3Insights,
@@ -251,6 +286,8 @@ export const storage = {
   deleteChatConversation: chatStorage.deleteChatConversation,
   listChatMessages: chatStorage.listChatMessages,
   syncChatMessages: chatStorage.syncChatMessages,
+  setConversationBrainlift: chatStorage.setConversationBrainlift,
+  getConversationBrainlift: chatStorage.getConversationBrainlift,
   getChatUserContext: chatStorage.getChatUserContext,
 
   // Knowledge Check

@@ -9,7 +9,12 @@ import {
   facts,
   user,
 } from '@shared/schema';
-import { deleteBrainlift, getBrainliftRecordBySlug } from '../brainlifts';
+import {
+  createBlankBrainlift,
+  deleteBrainlift,
+  getBrainliftRecordBySlug,
+  setBrainliftPhase,
+} from '../brainlifts';
 
 const TEST_USER_ID = `brainlift-record-owner-${Date.now()}`;
 const createdBrainliftIds: number[] = [];
@@ -127,5 +132,84 @@ describe('getBrainliftRecordBySlug', () => {
     expect(record).not.toHaveProperty('experts');
     expect(record).not.toHaveProperty('contradictionClusters');
     expect(record).not.toHaveProperty('dok2Summaries');
+  });
+});
+
+describe('research-first brainlift storage helpers', () => {
+  it('createBlankBrainlift creates a research brainlift with zeroed summary and empty description (FR4)', async () => {
+    const brainlift = await createBlankBrainlift({
+      userId: TEST_USER_ID,
+      title: 'Research Project Fixture',
+    });
+    createdBrainliftIds.push(brainlift.id);
+
+    expect(brainlift).toMatchObject({
+      title: 'Research Project Fixture',
+      description: '',
+      phase: 'research',
+      createdByUserId: TEST_USER_ID,
+      summary: {
+        totalFacts: 0,
+        meanScore: '0',
+        score5Count: 0,
+        contradictionCount: 0,
+      },
+    });
+    expect(brainlift.slug).toMatch(/^research-project-fixture/);
+  });
+
+  it('createBlankBrainlift retries slug collisions and keeps existing inserts defaulting to authoring (FR4)', async () => {
+    const title = `Collision Fixture ${Date.now()}`;
+    const expectedBaseSlug = title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
+    const first = await createBlankBrainlift({
+      userId: TEST_USER_ID,
+      title,
+      description: 'First',
+    });
+    const second = await createBlankBrainlift({
+      userId: TEST_USER_ID,
+      title,
+      description: 'Second',
+    });
+    createdBrainliftIds.push(first.id, second.id);
+
+    expect(first.slug).toBe(expectedBaseSlug);
+    expect(second.slug).not.toBe(first.slug);
+    expect(second.slug).toMatch(new RegExp(`^${expectedBaseSlug}-`));
+
+    const [legacy] = await db.insert(brainlifts).values({
+      slug: `legacy-authoring-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      title: 'Legacy Authoring Default',
+      description: 'Existing insert path',
+      summary: DEFAULT_SUMMARY,
+      createdByUserId: TEST_USER_ID,
+    }).returning();
+    createdBrainliftIds.push(legacy.id);
+
+    expect(legacy.phase).toBe('authoring');
+  });
+
+  it('setBrainliftPhase updates the phase and returns the updated row (FR4)', async () => {
+    const brainlift = await createBlankBrainlift({
+      userId: TEST_USER_ID,
+      title: 'Phase Toggle Fixture',
+    });
+    createdBrainliftIds.push(brainlift.id);
+
+    const updated = await setBrainliftPhase(brainlift.id, 'authoring');
+
+    expect(updated.id).toBe(brainlift.id);
+    expect(updated.phase).toBe('authoring');
+  });
+
+  it('database rejects invalid phase values (FR1, FR4)', async () => {
+    await expect(db.insert(brainlifts).values({
+      slug: `invalid-phase-${Date.now()}`,
+      title: 'Invalid Phase',
+      description: 'Should fail',
+      summary: DEFAULT_SUMMARY,
+      createdByUserId: TEST_USER_ID,
+      phase: 'invalid' as any,
+    })).rejects.toMatchObject({ cause: { code: '23514' } });
   });
 });

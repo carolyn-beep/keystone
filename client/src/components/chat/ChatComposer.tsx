@@ -4,10 +4,21 @@ import { ComposerPrimitive, useThread } from '@assistant-ui/react';
 import type { ChatModelId } from '@shared/chat-models';
 import { brand } from '@/brand';
 import { ChatModelPicker } from './ChatModelPicker';
+import { ProjectPicker } from './ProjectPicker';
 
 interface ChatComposerSettings {
   modelId: ChatModelId;
   onModelIdChange: (next: ChatModelId) => void;
+  /** Current conversation id; null while in draft mode. */
+  conversationId: number | null;
+  /**
+   * In draft mode the user can pick a project before any conversation
+   * exists; the choice is held here and applied by the runtime PATCH right
+   * after the lazy-create resolves (so the first chat request already sees
+   * the binding when resolving mode).
+   */
+  pendingDraftBrainliftId: number | null;
+  setPendingDraftBrainliftId: (id: number | null) => void;
 }
 
 const ChatComposerSettingsContext = createContext<ChatComposerSettings | null>(null);
@@ -15,10 +26,21 @@ const ChatComposerSettingsContext = createContext<ChatComposerSettings | null>(n
 export function ChatComposerSettingsProvider({
   modelId,
   onModelIdChange,
+  conversationId,
+  pendingDraftBrainliftId,
+  setPendingDraftBrainliftId,
   children,
 }: ChatComposerSettings & { children: ReactNode }) {
   return (
-    <ChatComposerSettingsContext.Provider value={{ modelId, onModelIdChange }}>
+    <ChatComposerSettingsContext.Provider
+      value={{
+        modelId,
+        onModelIdChange,
+        conversationId,
+        pendingDraftBrainliftId,
+        setPendingDraftBrainliftId,
+      }}
+    >
       {children}
     </ChatComposerSettingsContext.Provider>
   );
@@ -33,7 +55,13 @@ function useChatComposerSettings(): ChatComposerSettings {
 }
 
 export function ChatComposer() {
-  const { modelId, onModelIdChange } = useChatComposerSettings();
+  const {
+    modelId,
+    onModelIdChange,
+    conversationId,
+    pendingDraftBrainliftId,
+    setPendingDraftBrainliftId,
+  } = useChatComposerSettings();
   const isRunning = useThread((t) => t.isRunning);
 
   return (
@@ -46,7 +74,13 @@ export function ChatComposer() {
       />
 
       <div className="chat-composer-toolbar">
-        <div className="chat-composer-toolbar-left" />
+        <div className="chat-composer-toolbar-left">
+          <ProjectPicker
+            conversationId={conversationId}
+            pendingDraftBrainliftId={pendingDraftBrainliftId}
+            onPendingDraftBrainliftChange={setPendingDraftBrainliftId}
+          />
+        </div>
 
         <div className="chat-composer-toolbar-right">
           <ChatModelPicker value={modelId} onValueChange={onModelIdChange} />

@@ -38,6 +38,20 @@ describe('native chat thread config', () => {
       'list_brainlifts',
       'create_brainlift',
       'get_brainlift_assessment',
+      'change_conversation_project',
+      'create_blank_project',
+      'save_source',
+      'save_note',
+      'create_category',
+      'edit_source',
+      'edit_note',
+      'edit_category',
+      'delete_source',
+      'delete_note',
+      'delete_category',
+      'list_sources',
+      'list_notes',
+      'list_categories',
       'create_dok1',
       'delete_dok_item',
       'list_experts',
@@ -59,6 +73,11 @@ describe('native chat thread config', () => {
     ]));
     expect(toolNames).not.toContain('list_deliverables');
     expect(config.assistantMessage.components.ToolFallback).toBe(GenericToolCallCard);
+  });
+
+  it('FR4 registers propose_research_run inside nativeChatToolUIs', () => {
+    const toolNames = nativeChatToolUIs.map((tool) => tool.unstable_tool.toolName);
+    expect(toolNames).toContain('propose_research_run');
   });
 
   it('renders an error-style fallback card with reportable details for unknown tools', () => {

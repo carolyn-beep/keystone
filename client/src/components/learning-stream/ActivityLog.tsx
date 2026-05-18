@@ -18,21 +18,34 @@ export const ActivityLog = memo(function ActivityLog({
 }: ActivityLogProps) {
   return (
     <div>
-      {/* Timeline */}
+      {/* Timeline — capped to a fixed height. As new entries arrive the older
+          ones are pushed off the top (clipped via overflow-hidden, softened
+          with a mask gradient). No scrollbar, no user scroll: the newest log
+          is always pinned to the bottom. */}
       {logs.length === 0 ? (
         <div className="text-sm text-muted-foreground italic font-serif">
           Awaiting mission data...
         </div>
       ) : (
-        <div className="relative space-y-8 pl-4 border-l border-border ml-2">
-          {logs.map((log, idx) => (
-            <LogEntry
-              key={`${log.timestamp}-${idx}`}
-              log={log}
-              index={idx}
-              isLatest={idx === logs.length - 1}
-            />
-          ))}
+        <div
+          className="max-h-[420px] overflow-hidden flex flex-col justify-end"
+          style={{
+            maskImage:
+              'linear-gradient(to bottom, transparent 0px, black 56px, black 100%)',
+            WebkitMaskImage:
+              'linear-gradient(to bottom, transparent 0px, black 56px, black 100%)',
+          }}
+        >
+          <div className="relative space-y-8 pl-4 border-l border-border ml-2">
+            {logs.map((log, idx) => (
+              <LogEntry
+                key={`${log.timestamp}-${idx}`}
+                log={log}
+                index={idx}
+                isLatest={idx === logs.length - 1}
+              />
+            ))}
+          </div>
         </div>
       )}
 

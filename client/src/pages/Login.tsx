@@ -6,6 +6,11 @@ import { brand, Wordmark, Avatar, LoginIllustration } from "@/brand";
 
 export default function Login() {
   const [, setLocation] = useLocation();
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [passwordError, setPasswordError] = useState<string | null>(null);
+  const [passwordLoading, setPasswordLoading] = useState(false);
+
   const [devEmail, setDevEmail] = useState("");
   const [devPassword, setDevPassword] = useState("devpassword123");
   const [devError, setDevError] = useState<string | null>(null);
@@ -20,6 +25,22 @@ export default function Login() {
       provider: "google",
       callbackURL: redirectTo,
     });
+  };
+
+  const handlePasswordSignIn = async () => {
+    if (!email || password.length < 8) return;
+    setPasswordError(null);
+    setPasswordLoading(true);
+    try {
+      const signIn = await authClient.signIn.email({ email, password });
+      if (signIn.error) {
+        setPasswordError(signIn.error.message ?? "Invalid email or password");
+        return;
+      }
+      setLocation(redirectTo);
+    } finally {
+      setPasswordLoading(false);
+    }
   };
 
   const handleDevLogin = async () => {
@@ -119,7 +140,49 @@ export default function Login() {
               Continue with Google
             </Button>
 
-            {process.env.NODE_ENV !== 'production' && (
+            <div className="login-dev-divider">
+              <span className="login-dev-divider-rule" />
+              <span className="login-dev-toggle">or sign in with password</span>
+              <span className="login-dev-divider-rule" />
+            </div>
+
+            <form
+              className="login-dev-fields"
+              onSubmit={(e) => {
+                e.preventDefault();
+                handlePasswordSignIn();
+              }}
+            >
+              <input
+                type="email"
+                placeholder="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                className="login-dev-input"
+                autoComplete="username"
+              />
+              <input
+                type="password"
+                placeholder="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                className="login-dev-input"
+                autoComplete="current-password"
+              />
+              {passwordError ? (
+                <p className="text-xs text-destructive">{passwordError}</p>
+              ) : null}
+              <Button
+                type="submit"
+                disabled={passwordLoading || !email || password.length < 8}
+                className="w-full"
+                variant="secondary"
+              >
+                {passwordLoading ? "Signing in..." : "Sign in"}
+              </Button>
+            </form>
+
+            {(process.env.NODE_ENV !== 'production' || import.meta.env.VITE_ENABLE_DEV_LOGIN === 'true') && (
               <>
                 <div className="login-dev-divider">
                   <span className="login-dev-divider-rule" />

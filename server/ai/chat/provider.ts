@@ -9,6 +9,7 @@ import type {
   SharedV2Headers,
 } from '@ai-sdk/provider';
 import { CHAT_MODELS, DEFAULT_CHAT_MODEL_ID, isChatModelId, type ChatModelId } from '@shared/chat-models';
+import { MODEL_REGISTRY } from '../client/registry';
 
 const OPENROUTER_URL = 'https://openrouter.ai/api/v1/chat/completions';
 
@@ -412,6 +413,8 @@ class OpenRouterChatLanguageModel implements LanguageModelV2 {
         let textEnded = false;
         let responseMetadataSent = false;
         let finishSent = false;
+        let pendingFinishReason: LanguageModelV2FinishReason | undefined;
+        let pendingUsage: LanguageModelV2Usage | undefined;
         const textId = 'text-1';
         const pendingToolCalls = new Map<number, {
           id: string;
@@ -490,6 +493,19 @@ class OpenRouterChatLanguageModel implements LanguageModelV2 {
           }
         };
 
+        const emitFinish = (
+          finishReason: LanguageModelV2FinishReason,
+          usage: LanguageModelV2Usage | undefined,
+        ) => {
+          if (finishSent) return;
+          finishSent = true;
+          controller.enqueue({
+            type: 'finish',
+            finishReason,
+            usage: usage ?? normalizeUsage(undefined),
+          });
+        };
+
         const processRawEvent = (rawEvent: string) => {
           const dataLines = rawEvent
             .split('\n')
@@ -506,6 +522,13 @@ class OpenRouterChatLanguageModel implements LanguageModelV2 {
           }
 
           const payload = JSON.parse(event) as Record<string, unknown>;
+          if (payload.usage && typeof payload.usage === 'object') {
+            pendingUsage = normalizeUsage(payload.usage as Record<string, unknown>);
+            if (pendingFinishReason) {
+              emitFinish(pendingFinishReason, pendingUsage);
+            }
+          }
+
           const choice = Array.isArray(payload.choices)
             ? (payload.choices[0] as Record<string, unknown> | undefined)
             : undefined;
@@ -602,7 +625,7 @@ class OpenRouterChatLanguageModel implements LanguageModelV2 {
             : undefined;
 
           if (finishReason && !finishSent) {
-            finishSent = true;
+            pendingFinishReason = mapFinishReason(finishReason);
 
             if (textStarted && !textEnded) {
               controller.enqueue({
@@ -613,11 +636,9 @@ class OpenRouterChatLanguageModel implements LanguageModelV2 {
             }
 
             finalizePendingToolCalls();
-            controller.enqueue({
-              type: 'finish',
-              finishReason: mapFinishReason(finishReason),
-              usage: normalizeUsage(payload.usage as Record<string, unknown> | undefined),
-            });
+            if (pendingUsage) {
+              emitFinish(pendingFinishReason, pendingUsage);
+            }
           }
         };
 
@@ -663,11 +684,10 @@ class OpenRouterChatLanguageModel implements LanguageModelV2 {
             }
 
             finalizePendingToolCalls();
-            controller.enqueue({
-              type: 'finish',
-              finishReason: pendingToolCalls.size > 0 ? 'tool-calls' : 'unknown',
-              usage: normalizeUsage(undefined),
-            });
+            emitFinish(
+              pendingFinishReason ?? (pendingToolCalls.size > 0 ? 'tool-calls' : 'unknown'),
+              pendingUsage,
+            );
           }
 
           controller.close();
@@ -690,10 +710,11 @@ class OpenRouterChatLanguageModel implements LanguageModelV2 {
 }
 
 export function getChatModel(modelId: string = DEFAULT_CHAT_MODEL_ID): LanguageModelV2 {
-  if (!isChatModelId(modelId)) {
-    const supported = CHAT_MODELS.map((model) => model.id).join(', ');
+  const isAllowedHiddenModel = MODEL_REGISTRY[modelId]?.provider === 'fireworks';
+  if (!isChatModelId(modelId) && !isAllowedHiddenModel) {
+    const supported = [...CHAT_MODELS.map((model) => model.id), ...Object.keys(MODEL_REGISTRY).filter((id) => MODEL_REGISTRY[id].provider === 'fireworks')].join(', ');
     throw new Error(`Unsupported chat model "${modelId}". Supported models: ${supported}`);
   }
 
-  return new OpenRouterChatLanguageModel(modelId);
+  return new OpenRouterChatLanguageModel(modelId as ChatModelId);
 }

@@ -6,7 +6,7 @@
  * the user landed, which produced an empty/throwaway "Personalized
  * Onboarding Chat" conversation each visit. We now gate the opener
  * behind a localStorage timestamp: the opener fires only when the user
- * hasn't seen it in the last 72 hours.
+ * hasn't seen it in the last 7 days.
  *
  * Storage shape:
  *   - Key: `chat-opener-last-fired-ms`
@@ -23,7 +23,7 @@
  */
 
 const STORAGE_KEY = 'chat-opener-last-fired-ms';
-const OPENER_COOLDOWN_MS = 72 * 60 * 60 * 1000; // 72 hours
+const OPENER_COOLDOWN_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
 
 // One-time migration: an earlier iteration of this gate briefly wrote the
 // timestamp under `alphax-opener-last-fired-ms` before the brand-neutrality
@@ -60,7 +60,7 @@ function readLastFiredMs(): number | null {
 
 /**
  * Returns true when the opener was fired within the cooldown window
- * (default 72h) and should therefore NOT fire again for this user.
+ * (default 7d) and should therefore NOT fire again for this user.
  *
  * Kept under the legacy "hasBeenGreetedThisSession" name so existing
  * callers don't churn; the semantics are now cooldown-based, not

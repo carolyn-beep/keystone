@@ -46,7 +46,7 @@ discussionRouter.post(
     }
 
     const systemPrompt = buildDiscussionSystemPrompt(item, brainlift, builderContext);
-    const tools = buildDiscussionTools(item, brainlift, builderContext);
+    const tools = buildDiscussionTools(item, brainlift, req.authContext!, builderContext);
 
     const result = streamText({
       model: anthropic('claude-sonnet-4-5'),

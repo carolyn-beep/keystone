@@ -22,12 +22,14 @@ import type { ModelDef } from '../types';
 
 describe('MODEL_REGISTRY', () => {
   const OPENROUTER_MODELS = [
+    'anthropic/claude-opus-4.7',
     'anthropic/claude-opus-4.6',
     'anthropic/claude-sonnet-4.6',
     'anthropic/claude-sonnet-4.5',
     'anthropic/claude-sonnet-4',
     'anthropic/claude-haiku-4.5',
     'google/gemini-2.0-flash-001',
+    'qwen/qwen-plus',
     'qwen/qwen3-32b',
     'meta-llama/llama-3.1-8b-instruct',
   ];
@@ -39,7 +41,7 @@ describe('MODEL_REGISTRY', () => {
     for (const modelId of EXPECTED_MODELS) {
       expect(registeredIds).toContain(modelId);
     }
-    expect(registeredIds).toHaveLength(12);
+    expect(registeredIds).toHaveLength(14);
   });
 
   it.each(OPENROUTER_MODELS)('OpenRouter model "%s" has required metadata fields', (modelId) => {
@@ -66,12 +68,14 @@ describe('MODEL_REGISTRY', () => {
   });
 
   it('assigns correct tiers', () => {
+    expect(MODEL_REGISTRY['anthropic/claude-opus-4.7'].tier).toBe('premium');
     expect(MODEL_REGISTRY['anthropic/claude-opus-4.6'].tier).toBe('premium');
     expect(MODEL_REGISTRY['anthropic/claude-sonnet-4.6'].tier).toBe('standard');
     expect(MODEL_REGISTRY['anthropic/claude-sonnet-4.5'].tier).toBe('standard');
     expect(MODEL_REGISTRY['anthropic/claude-sonnet-4'].tier).toBe('standard');
     expect(MODEL_REGISTRY['anthropic/claude-haiku-4.5'].tier).toBe('fast');
     expect(MODEL_REGISTRY['google/gemini-2.0-flash-001'].tier).toBe('fast');
+    expect(MODEL_REGISTRY['qwen/qwen-plus'].tier).toBe('fast');
     expect(MODEL_REGISTRY['qwen/qwen3-32b'].tier).toBe('budget');
     expect(MODEL_REGISTRY['meta-llama/llama-3.1-8b-instruct'].tier).toBe('budget');
     expect(MODEL_REGISTRY[FIREWORKS_TIER_MODELS.premium].tier).toBe('premium');

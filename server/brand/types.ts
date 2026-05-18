@@ -7,8 +7,11 @@
  * sprint-plans block that BC omits.
  */
 
-import type { ChatUserContext } from '../storage/base';
+import type { Brainlift, ChatUserContext } from '../storage/base';
 import type { SkillSummary } from '../ai/chat/skills';
+import type { SecondBrainSummary } from '../storage/second-brain';
+
+export type { SecondBrainSummary };
 
 export type BrandId = 'alphax' | 'brainlift';
 
@@ -20,13 +23,27 @@ export interface ServerBrandConfig {
   platformName: string;
 }
 
+export type ChatMode = 'research' | 'authoring';
+
+export interface ConversationContext {
+  conversationId: number;
+  brainliftId: number | null;
+  brainlift: Brainlift | null;
+  secondBrainSummary?: SecondBrainSummary | null;
+}
+
 export interface BuildSystemPromptArgs {
   userContext: ChatUserContext;
   skills: SkillSummary[];
+  mode: ChatMode;
+  conversation: ConversationContext;
 }
 
 export interface BrandPromptBuilders {
   buildSystemPrompt: (args: BuildSystemPromptArgs) => string;
-  buildBrainliftHeuristics: (userContext: ChatUserContext) => string[];
+  buildBrainliftHeuristics: (args: {
+    userContext: ChatUserContext;
+    conversation: ConversationContext;
+  }) => string[];
   formatUserContext: (userContext: ChatUserContext) => string[];
 }

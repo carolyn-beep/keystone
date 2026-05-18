@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { buildAlphaXSyntheticOpenerText } from '@shared/alphax-synthetic-opener';
 import { DEFAULT_CHAT_MODEL_ID } from '@shared/chat-models';
 
 const {
@@ -17,6 +18,8 @@ const {
   mockConvertToModelMessages,
   mockGenerateId,
   mockStepCountIs,
+  mockCreateUIMessageStream,
+  mockPipeUIMessageStreamToResponse,
 } = vi.hoisted(() => ({
   mockStorage: {
     listChatConversations: vi.fn(),
@@ -25,9 +28,13 @@ const {
     renameChatConversation: vi.fn(),
     renameChatConversationIfTitle: vi.fn(),
     deleteChatConversation: vi.fn(),
+    setConversationBrainlift: vi.fn(),
+    getBrainliftById: vi.fn(),
     listChatMessages: vi.fn(),
     syncChatMessages: vi.fn(),
     getChatUserContext: vi.fn(),
+    getConversationBrainlift: vi.fn(),
+    getSecondBrainSummary: vi.fn(),
   },
   mockGetChatModel: vi.fn(),
   mockBuildChatSystemPromptFromRegistry: vi.fn(),
@@ -43,6 +50,8 @@ const {
   mockConvertToModelMessages: vi.fn(),
   mockGenerateId: vi.fn(() => 'generated-assistant-id'),
   mockStepCountIs: vi.fn(),
+  mockCreateUIMessageStream: vi.fn(),
+  mockPipeUIMessageStreamToResponse: vi.fn(),
 }));
 
 vi.mock('../../storage', () => ({
@@ -78,7 +87,9 @@ vi.mock('../../ai/chat/telemetry', () => ({
 vi.mock('ai', () => ({
   streamText: (...args: unknown[]) => mockStreamText(...args),
   convertToModelMessages: (...args: unknown[]) => mockConvertToModelMessages(...args),
+  createUIMessageStream: (...args: unknown[]) => mockCreateUIMessageStream(...args),
   generateId: (...args: unknown[]) => mockGenerateId(...args),
+  pipeUIMessageStreamToResponse: (...args: unknown[]) => mockPipeUIMessageStreamToResponse(...args),
   stepCountIs: (...args: unknown[]) => mockStepCountIs(...args),
 }));
 
@@ -112,6 +123,7 @@ function createRes(): any {
 beforeEach(() => {
   vi.clearAllMocks();
   mockStepCountIs.mockReturnValue(Symbol('stop'));
+  mockCreateUIMessageStream.mockReturnValue({ empty: true });
   mockConvertToModelMessages.mockResolvedValue([{ role: 'user', content: [{ type: 'text', text: 'Hello' }] }]);
   mockGetChatModel.mockReturnValue({ modelId: DEFAULT_CHAT_MODEL_ID });
   mockBuildChatSystemPromptFromRegistry.mockResolvedValue('prompt-from-registry');
@@ -119,6 +131,19 @@ beforeEach(() => {
   mockShouldGenerateChatTitle.mockReturnValue(false);
   mockBuildNativeChatTools.mockReturnValue({
     load_skill: { name: 'load_skill' },
+  });
+  mockStorage.getConversationBrainlift.mockResolvedValue({
+    conversationId: 42,
+    brainliftId: null,
+    brainlift: null,
+  });
+  mockStorage.getSecondBrainSummary.mockResolvedValue({
+    sourceCount: 0,
+    noteCount: 0,
+    linkedNoteCount: 0,
+    unlinkedNoteCount: 0,
+    categoryCount: 0,
+    categories: [],
   });
 });
 
@@ -170,6 +195,69 @@ describe('chat route handlers', () => {
     await expect(deleteChatConversationHandler(req, res)).rejects.toThrow('Conversation not found');
   });
 
+  it('setConversationBrainliftHandler binds a conversation to an accessible brainlift', async () => {
+    const { setConversationBrainliftHandler } = await import('../chat');
+    const req = createReq({
+      params: { id: '42' },
+      body: { brainliftId: 7 },
+    });
+    const res = createRes();
+
+    mockStorage.setConversationBrainlift.mockResolvedValue({
+      id: 42,
+      userId: 'user-1',
+      title: 'Native chat',
+      brainliftId: 7,
+    });
+    mockStorage.getBrainliftById.mockResolvedValue({ id: 7 });
+
+    await setConversationBrainliftHandler(req, res);
+
+    expect(mockStorage.setConversationBrainlift).toHaveBeenCalledWith(42, 7, 'user-1');
+    expect(res.json).toHaveBeenCalledWith({
+      id: 42,
+      userId: 'user-1',
+      title: 'Native chat',
+      brainliftId: 7,
+    });
+  });
+
+  it('setConversationBrainliftHandler accepts null to unbind the conversation', async () => {
+    const { setConversationBrainliftHandler } = await import('../chat');
+    const req = createReq({
+      params: { id: '42' },
+      body: { brainliftId: null },
+    });
+    const res = createRes();
+
+    mockStorage.setConversationBrainlift.mockResolvedValue({
+      id: 42,
+      userId: 'user-1',
+      title: 'Native chat',
+      brainliftId: null,
+    });
+
+    await setConversationBrainliftHandler(req, res);
+
+    expect(mockStorage.setConversationBrainlift).toHaveBeenCalledWith(42, null, 'user-1');
+  });
+
+  it('setConversationBrainliftHandler validates IDs before calling storage', async () => {
+    const { setConversationBrainliftHandler } = await import('../chat');
+
+    await expect(setConversationBrainliftHandler(
+      createReq({ params: { id: 'nope' }, body: { brainliftId: 7 } }),
+      createRes(),
+    )).rejects.toThrow('Invalid conversation ID');
+
+    await expect(setConversationBrainliftHandler(
+      createReq({ params: { id: '42' }, body: { brainliftId: 'seven' } }),
+      createRes(),
+    )).rejects.toThrow('brainliftId must be a number or null');
+
+    expect(mockStorage.setConversationBrainlift).not.toHaveBeenCalled();
+  });
+
   it('streamChatHandler rejects unknown conversations before invoking the provider', async () => {
     const { streamChatHandler } = await import('../chat');
     const req = createReq({
@@ -208,6 +296,203 @@ describe('chat route handlers', () => {
 
     await expect(streamChatHandler(req, res)).rejects.toThrow('Unsupported chat model');
     expect(mockGetChatModel).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    [
+      'unbound conversation',
+      { conversationId: 42, brainliftId: null, brainlift: null },
+      'research',
+    ],
+    [
+      'research-phase brainlift',
+      {
+        conversationId: 42,
+        brainliftId: 7,
+        brainlift: { id: 7, slug: 'research-project', phase: 'research' },
+      },
+      'research',
+    ],
+    [
+      'authoring-phase brainlift',
+      {
+        conversationId: 42,
+        brainliftId: 8,
+        brainlift: { id: 8, slug: 'legacy-project', phase: 'authoring' },
+      },
+      'authoring',
+    ],
+  ])('streamChatHandler resolves %s to %s mode per request', async (_label, binding, expectedMode) => {
+    const { streamChatHandler } = await import('../chat');
+    const req = createReq({
+      body: {
+        conversationId: 42,
+        messages: [{ id: 'msg-1', role: 'user', parts: [{ type: 'text', text: 'Hello' }] }],
+      },
+    });
+    const res = createRes();
+
+    mockStorage.getChatConversation.mockResolvedValue({
+      id: 42,
+      userId: 'user-1',
+      title: 'Native chat',
+    });
+    mockStorage.getConversationBrainlift.mockResolvedValue(binding);
+    mockStorage.getChatUserContext.mockResolvedValue({
+      userId: 'user-1',
+      userName: 'Route Test User',
+      isAdmin: false,
+      brainliftCount: 1,
+      recentBrainlifts: [],
+      recentConversations: [],
+      activePlans: [],
+    });
+    mockStreamText.mockReturnValue({
+      pipeUIMessageStreamToResponse: vi.fn(),
+    });
+
+    await streamChatHandler(req, res);
+
+    const expectsSecondBrainFetch = expectedMode === 'research' && binding.brainliftId != null;
+    const expectedConversation = expectsSecondBrainFetch
+      ? { ...binding, secondBrainSummary: expect.any(Object) }
+      : binding;
+
+    expect(mockStorage.getConversationBrainlift).toHaveBeenCalledWith(42);
+    if (expectsSecondBrainFetch) {
+      expect(mockStorage.getSecondBrainSummary).toHaveBeenCalledWith(binding.brainliftId);
+    } else {
+      expect(mockStorage.getSecondBrainSummary).not.toHaveBeenCalled();
+    }
+    expect(mockBuildChatSystemPromptFromRegistry).toHaveBeenCalledWith(expect.objectContaining({
+      mode: expectedMode,
+      conversation: expectedConversation,
+    }));
+    expect(mockBuildNativeChatTools).toHaveBeenCalledWith(
+      req.authContext,
+      expectedMode,
+      expectedConversation,
+    );
+  });
+
+  it('streamChatHandler short-circuits only the synthetic AlphaX assistant opener without calling a model', async () => {
+    const { streamChatHandler } = await import('../chat');
+    const req = createReq({
+      body: {
+        conversationId: 42,
+        messages: [{
+          id: 'welcome',
+          role: 'assistant',
+          parts: [{ type: 'text', text: buildAlphaXSyntheticOpenerText('James') }],
+        }],
+      },
+    });
+    const res = createRes();
+
+    mockStorage.getChatConversation.mockResolvedValue({
+      id: 42,
+      userId: 'user-1',
+      title: 'Native chat',
+    });
+
+    await streamChatHandler(req, res);
+
+    expect(mockCreateUIMessageStream).toHaveBeenCalled();
+    expect(mockPipeUIMessageStreamToResponse).toHaveBeenCalledWith({
+      response: res,
+      stream: { empty: true },
+    });
+    expect(mockStreamText).not.toHaveBeenCalled();
+    expect(mockStorage.getConversationBrainlift).not.toHaveBeenCalled();
+  });
+
+  it('streamChatHandler does not short-circuit arbitrary assistant-only messages', async () => {
+    const { streamChatHandler } = await import('../chat');
+    const inputMessages = [{
+      id: 'ordinary-assistant-message',
+      role: 'assistant',
+      parts: [{ type: 'text', text: 'Welcome to AlphaX.' }],
+    }];
+    const req = createReq({
+      body: {
+        conversationId: 42,
+        messages: inputMessages,
+      },
+    });
+    const res = createRes();
+
+    mockStorage.getChatConversation.mockResolvedValue({
+      id: 42,
+      userId: 'user-1',
+      title: 'Native chat',
+    });
+    mockStorage.getChatUserContext.mockResolvedValue({
+      userId: 'user-1',
+      userName: 'Route Test User',
+      isAdmin: false,
+      brainliftCount: 0,
+      recentBrainlifts: [],
+    });
+    mockStreamText.mockReturnValue({
+      pipeUIMessageStreamToResponse: vi.fn(),
+    });
+
+    await streamChatHandler(req, res);
+
+    expect(mockCreateUIMessageStream).not.toHaveBeenCalled();
+    expect(mockPipeUIMessageStreamToResponse).not.toHaveBeenCalled();
+    expect(mockConvertToModelMessages).toHaveBeenCalledWith(inputMessages);
+    expect(mockStreamText).toHaveBeenCalled();
+  });
+
+  it('streamChatHandler continues assistant tool-result messages instead of opener short-circuiting', async () => {
+    const { streamChatHandler } = await import('../chat');
+    const inputMessages = [{
+      id: 'assistant-with-client-tool-result',
+      role: 'assistant',
+      parts: [{
+        type: 'tool-ask_user_question',
+        toolCallId: 'toolu_123',
+        state: 'output-available',
+        input: { questions: [{ id: 'angle', prompt: 'Which angle?' }] },
+        output: { answers: [{ id: 'angle', freeText: 'pain prevention' }] },
+      }],
+    }];
+    const req = createReq({
+      body: {
+        conversationId: 42,
+        messages: inputMessages,
+      },
+    });
+    const res = createRes();
+
+    mockStorage.getChatConversation.mockResolvedValue({
+      id: 42,
+      userId: 'user-1',
+      title: 'Native chat',
+    });
+    mockStorage.getChatUserContext.mockResolvedValue({
+      userId: 'user-1',
+      userName: 'Route Test User',
+      isAdmin: false,
+      brainliftCount: 0,
+      recentBrainlifts: [],
+    });
+    mockStreamText.mockReturnValue({
+      pipeUIMessageStreamToResponse: vi.fn(),
+    });
+
+    await streamChatHandler(req, res);
+
+    expect(mockCreateUIMessageStream).not.toHaveBeenCalled();
+    expect(mockPipeUIMessageStreamToResponse).not.toHaveBeenCalled();
+    expect(mockConvertToModelMessages).toHaveBeenCalledWith(inputMessages);
+    expect(mockStreamText).toHaveBeenCalledWith(expect.objectContaining({
+      system: 'prompt-from-registry',
+      tools: {
+        load_skill: { name: 'load_skill' },
+      },
+    }));
   });
 
   it('streamChatHandler passes original messages through and persists finalized messages on finish', async () => {
@@ -286,7 +571,7 @@ describe('chat route handlers', () => {
     await streamChatHandler(req, res);
 
     expect(mockGetChatModel).toHaveBeenCalledWith('qwen/qwen-plus');
-    expect(mockBuildChatSystemPromptFromRegistry).toHaveBeenCalledWith({
+    expect(mockBuildChatSystemPromptFromRegistry).toHaveBeenCalledWith(expect.objectContaining({
       userContext: {
         userId: 'user-1',
         userName: 'Route Test User',
@@ -294,8 +579,19 @@ describe('chat route handlers', () => {
         brainliftCount: 0,
         recentBrainlifts: [],
       },
+      authContext: req.authContext,
+      mode: 'research',
+      conversation: {
+        conversationId: 42,
+        brainliftId: null,
+        brainlift: null,
+      },
+    }));
+    expect(mockBuildNativeChatTools).toHaveBeenCalledWith(req.authContext, 'research', {
+      conversationId: 42,
+      brainliftId: null,
+      brainlift: null,
     });
-    expect(mockBuildNativeChatTools).toHaveBeenCalledWith(req.authContext);
     expect(mockLogChatStreamStart).toHaveBeenCalledWith({
       userId: 'user-1',
       conversationId: 42,

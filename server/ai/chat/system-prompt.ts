@@ -11,9 +11,10 @@
  * modification.
  */
 
-import { promptBuilders } from '../../brand';
+import { getPromptBuilders } from '../../brand';
 import type { ChatUserContext } from '../../storage/base';
 import type { AuthContext } from '@shared/schema';
+import type { ChatMode, ConversationContext } from '../../brand/types';
 import {
   getDefaultChatSkillRegistry,
   type SkillRegistry,
@@ -23,16 +24,20 @@ import {
 export interface BuildChatSystemPromptArgs {
   userContext: ChatUserContext;
   skills: SkillSummary[];
+  mode: ChatMode;
+  conversation: ConversationContext;
 }
 
 export interface BuildChatSystemPromptFromRegistryArgs {
   userContext: ChatUserContext;
   authContext: AuthContext;
+  mode: ChatMode;
+  conversation: ConversationContext;
   skillRegistry?: SkillRegistry;
 }
 
 export function buildChatSystemPrompt(args: BuildChatSystemPromptArgs): string {
-  return promptBuilders.buildSystemPrompt(args);
+  return getPromptBuilders(args.mode).buildSystemPrompt(args);
 }
 
 export async function buildChatSystemPromptFromRegistry(
@@ -44,5 +49,7 @@ export async function buildChatSystemPromptFromRegistry(
   return buildChatSystemPrompt({
     userContext: args.userContext,
     skills,
+    mode: args.mode,
+    conversation: args.conversation,
   });
 }

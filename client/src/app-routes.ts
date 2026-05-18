@@ -8,7 +8,6 @@ export const APP_PROTECTED_ROUTE_ORDER = [
   '/analytics',
   '/admin/providers',
   LIBRARY_ROUTE_PATH,
-  '/brainlifts/:slug',
   '/grading/:slug',
   '/:slug',
 ] as const;

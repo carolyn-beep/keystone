@@ -7,7 +7,8 @@ export class AppError extends Error {
   constructor(
     public statusCode: number,
     message: string,
-    public code?: string
+    public code?: string,
+    public details?: Record<string, unknown>
   ) {
     super(message);
     this.name = 'AppError';
@@ -39,9 +40,30 @@ export class ForbiddenError extends AppError {
  * 400 Bad Request error
  */
 export class BadRequestError extends AppError {
-  constructor(message = 'Bad request', code?: string) {
-    super(400, message, code);
+  constructor(message = 'Bad request', code?: string, details?: Record<string, unknown>) {
+    super(400, message, code, details);
     this.name = 'BadRequestError';
+  }
+}
+
+/**
+ * 409 Conflict error - resource state prevents the request (e.g. a research
+ * run is already in progress for the same brainlift).
+ */
+export class ConflictError extends AppError {
+  constructor(message = 'Conflict', code?: string, details?: Record<string, unknown>) {
+    super(409, message, code, details);
+    this.name = 'ConflictError';
+  }
+}
+
+/**
+ * 429 Too Many Requests error - rate or quota limit reached.
+ */
+export class RateLimitError extends AppError {
+  constructor(message = 'Too many requests', code?: string, details?: Record<string, unknown>) {
+    super(429, message, code, details);
+    this.name = 'RateLimitError';
   }
 }
 
@@ -60,10 +82,18 @@ export function errorHandler(
 
   // Handle AppError instances (safe to expose - these are intentional user-facing errors)
   if (err instanceof AppError) {
-    res.status(err.statusCode).json({
+    // The /launch endpoint (and any other handler that throws AppError with
+    // a structured `code` + `details`) uses a contract where the response body
+    // is `{ error: <code>, message, ...details }`. Spread details at the top
+    // level so clients can read `existingRunId`, `limit`, `used`, `issues`
+    // without an extra nesting layer.
+    const body: Record<string, unknown> = {
       message: err.message,
-      code: err.code,
-    });
+    };
+    if (err.code) body.error = err.code;
+    if (err.code) body.code = err.code;
+    if (err.details) Object.assign(body, err.details);
+    res.status(err.statusCode).json(body);
     return;
   }
 

@@ -16,6 +16,8 @@ import {
   FileStack,
   FileText,
   FolderGit2,
+  FolderPlus,
+  FolderTree,
   Library,
   Link2,
   Loader2,
@@ -25,6 +27,8 @@ import {
   Radar,
   Search,
   Sparkles,
+  StickyNote,
+  Tags,
   Trash2,
   UserPlus,
   UserMinus,
@@ -33,12 +37,19 @@ import {
 } from 'lucide-react';
 import remarkGfm from 'remark-gfm';
 import { cn } from '@/lib/utils';
+import { queryClient } from '@/lib/queryClient';
 import type {
   AskUserQuestionToolInput,
   AskUserQuestionToolResult,
 } from '@shared/chat-ask-user';
+import type {
+  ProposeResearchRunToolExecuteResult,
+  ProposeResearchRunToolInput,
+  ProposeResearchRunToolResult,
+} from '@shared/chat-research-stream';
 import { AskUserQuestionCard } from './AskUserQuestionCard';
 import { ChatComposer } from './ChatComposer';
+import { ProposeResearchRunCard } from './ProposeResearchRunCard';
 
 const MarkdownText = makeMarkdownText({ remarkPlugins: [remarkGfm] });
 
@@ -111,6 +122,24 @@ function getTone(status: ToolCallStatus, isError?: boolean): 'default' | 'error'
   if (isError) return 'error';
   if (status.type === 'requires-action' || status.type === 'incomplete') return 'warning';
   return 'default';
+}
+
+// Tool result UIs fire on every render. Use this set to ensure each toolCallId
+// only invalidates query caches once — otherwise we'd refetch on every keystroke.
+const invalidatedToolCalls = new Set<string>();
+
+type SecondBrainQueryKey = 'sources' | 'notes' | 'categories';
+
+function invalidateSecondBrainQueries(
+  toolCallId: string,
+  hasResult: boolean,
+  keys: readonly SecondBrainQueryKey[],
+) {
+  if (!hasResult || invalidatedToolCalls.has(toolCallId)) return;
+  invalidatedToolCalls.add(toolCallId);
+  for (const key of keys) {
+    queryClient.invalidateQueries({ queryKey: [key] });
+  }
 }
 
 // ---------- Generic fallback (= an error in our app) ----------
@@ -221,12 +250,362 @@ const ListBrainliftsToolUI = makeAssistantToolUI<Record<string, unknown>, ListBr
         tone={getTone(status, isError)}
       >
         {isError
-          ? 'Failed to list brainlifts'
+          ? 'Failed to list projects'
           : isRunning(status)
-            ? 'Listing brainlifts…'
+            ? 'Listing projects…'
             : total != null
-              ? `Listed ${total} brainlift${total === 1 ? '' : 's'}`
-              : 'Listed brainlifts'}
+              ? `Listed ${total} project${total === 1 ? '' : 's'}`
+              : 'Listed projects'}
+      </ToolStatusLine>
+    );
+  },
+});
+
+type ChangeConversationProjectArgs = { slug?: string; brainliftId?: number };
+type ChangeConversationProjectResult = {
+  conversationId: number;
+  brainliftId: number | null;
+  slug: string | null;
+  phase: 'research' | 'authoring' | null;
+};
+
+const ChangeConversationProjectToolUI = makeAssistantToolUI<
+  ChangeConversationProjectArgs,
+  ChangeConversationProjectResult
+>({
+  toolName: 'change_conversation_project',
+  render: ({ args, result, status, isError }) => {
+    // Prefer the slug returned by the server (canonical, post-switch). Fall
+    // back to whatever slug the agent passed in args so we still render a
+    // meaningful label during the running phase.
+    const resolvedSlug = result?.slug ?? args?.slug ?? null;
+    const label = isError
+      ? 'Failed to switch project'
+      : isRunning(status)
+        ? resolvedSlug
+          ? `Switching to ${resolvedSlug}…`
+          : 'Switching project…'
+        : resolvedSlug
+          ? `Switched to ${resolvedSlug}`
+          : 'Switched project';
+
+    return (
+      <ToolStatusLine
+        icon={<StatusIcon status={status} isError={isError} fallback={<FolderGit2 size={13} />} />}
+        tone={getTone(status, isError)}
+      >
+        {label}
+      </ToolStatusLine>
+    );
+  },
+});
+
+// ---------- Project + Second Brain tools (research mode) ----------
+
+type CreateBlankProjectArgs = { title: string; description?: string };
+type CreateBlankProjectResult = {
+  brainliftId: number;
+  slug: string;
+  title: string;
+  phase: 'research' | 'authoring';
+};
+
+const CreateBlankProjectToolUI = makeAssistantToolUI<
+  CreateBlankProjectArgs,
+  CreateBlankProjectResult
+>({
+  toolName: 'create_blank_project',
+  render: ({ args, result, status, isError }) => {
+    const title = result?.title ?? args?.title ?? null;
+    const label = isError
+      ? 'Failed to create project'
+      : isRunning(status)
+        ? title
+          ? `Creating project "${title}"…`
+          : 'Creating project…'
+        : title
+          ? `Created project "${title}"`
+          : 'Created project';
+
+    return (
+      <ToolStatusLine
+        icon={<StatusIcon status={status} isError={isError} fallback={<FolderPlus size={13} />} />}
+        tone={getTone(status, isError)}
+      >
+        {label}
+      </ToolStatusLine>
+    );
+  },
+});
+
+type SaveSourceArgs = {
+  title?: string;
+  url?: string;
+  author?: string;
+  categoryId?: number;
+};
+type SaveSourceResult = {
+  id: number;
+  title?: string;
+  url?: string;
+};
+
+export const SaveSourceToolUI = makeAssistantToolUI<SaveSourceArgs, SaveSourceResult>({
+  toolName: 'save_source',
+  render: ({ args, result, status, isError, toolCallId }) => {
+    invalidateSecondBrainQueries(toolCallId, !!result, ['sources', 'categories']);
+    const title = result?.title ?? args?.title ?? null;
+    const url = result?.url ?? args?.url ?? null;
+    const label = isError
+      ? 'Failed to save source'
+      : isRunning(status)
+        ? title
+          ? `Saving source "${title}"…`
+          : 'Saving source…'
+        : title
+          ? `Saved source "${title}"`
+          : 'Saved source';
+
+    return (
+      <ToolStatusLine
+        icon={<StatusIcon status={status} isError={isError} fallback={<BookOpenText size={13} />} />}
+        tone={getTone(status, isError)}
+        action={
+          !isError && !isRunning(status) && url ? (
+            <a
+              href={url}
+              target="_blank"
+              rel="noreferrer"
+              className="inline-flex items-center gap-1 text-primary hover:underline"
+            >
+              Open
+              <ExternalLink size={11} />
+            </a>
+          ) : null
+        }
+      >
+        {label}
+      </ToolStatusLine>
+    );
+  },
+});
+
+type SaveNoteArgs = { content?: string; sourceId?: number; categoryId?: number };
+type SaveNoteResult = { id: number };
+
+export const SaveNoteToolUI = makeAssistantToolUI<SaveNoteArgs, SaveNoteResult>({
+  toolName: 'save_note',
+  render: ({ args, result, status, isError, toolCallId }) => {
+    invalidateSecondBrainQueries(toolCallId, !!result, ['notes']);
+    const linked = args?.sourceId != null;
+    const label = isError
+      ? 'Failed to save note'
+      : isRunning(status)
+        ? 'Saving note…'
+        : linked
+          ? 'Saved note (linked to a source)'
+          : 'Saved note';
+
+    return (
+      <ToolStatusLine
+        icon={<StatusIcon status={status} isError={isError} fallback={<StickyNote size={13} />} />}
+        tone={getTone(status, isError)}
+      >
+        {label}
+      </ToolStatusLine>
+    );
+  },
+});
+
+type CreateCategoryArgs = { name?: string; sortOrder?: number };
+type CreateCategoryResult = { id: number; name?: string };
+
+export const CreateCategoryToolUI = makeAssistantToolUI<CreateCategoryArgs, CreateCategoryResult>({
+  toolName: 'create_category',
+  render: ({ args, result, status, isError, toolCallId }) => {
+    invalidateSecondBrainQueries(toolCallId, !!result, ['categories']);
+    const name = result?.name ?? args?.name ?? null;
+    const label = isError
+      ? 'Failed to create category'
+      : isRunning(status)
+        ? name
+          ? `Creating category "${name}"…`
+          : 'Creating category…'
+        : name
+          ? `Created category "${name}"`
+          : 'Created category';
+
+    return (
+      <ToolStatusLine
+        icon={<StatusIcon status={status} isError={isError} fallback={<Tags size={13} />} />}
+        tone={getTone(status, isError)}
+      >
+        {label}
+      </ToolStatusLine>
+    );
+  },
+});
+
+type EditSecondBrainArgs = { id?: number; patch?: Record<string, unknown> };
+
+function makeEditSecondBrainToolUI(
+  toolName: string,
+  noun: 'source' | 'note' | 'category',
+  fallbackIcon: ReactNode,
+) {
+  // Edits to source/category can change the entries that notes reference, so
+  // invalidate broadly for those two; a note edit only affects notes.
+  const keysToInvalidate: readonly SecondBrainQueryKey[] =
+    noun === 'note' ? ['notes'] : ['sources', 'notes', 'categories'];
+  return makeAssistantToolUI<EditSecondBrainArgs, unknown>({
+    toolName,
+    render: ({ status, isError, toolCallId, result }) => {
+      invalidateSecondBrainQueries(toolCallId, result !== undefined, keysToInvalidate);
+      return (
+        <ToolStatusLine
+          icon={<StatusIcon status={status} isError={isError} fallback={fallbackIcon} />}
+          tone={getTone(status, isError)}
+        >
+          {isError
+            ? `Failed to update ${noun}`
+            : isRunning(status)
+              ? `Updating ${noun}…`
+              : `Updated ${noun}`}
+        </ToolStatusLine>
+      );
+    },
+  });
+}
+
+export const EditSourceToolUI = makeEditSecondBrainToolUI(
+  'edit_source',
+  'source',
+  <Pencil size={13} />,
+);
+export const EditNoteToolUI = makeEditSecondBrainToolUI(
+  'edit_note',
+  'note',
+  <Pencil size={13} />,
+);
+export const EditCategoryToolUI = makeEditSecondBrainToolUI(
+  'edit_category',
+  'category',
+  <Pencil size={13} />,
+);
+
+type DeleteSecondBrainArgs = { id?: number };
+
+function makeDeleteSecondBrainToolUI(
+  toolName: string,
+  noun: 'source' | 'note' | 'category',
+) {
+  // Deleting a source unlinks its notes; deleting a category may cascade across
+  // sources and notes. Invalidate all three on those two; notes-only on note.
+  const keysToInvalidate: readonly SecondBrainQueryKey[] =
+    noun === 'note' ? ['notes'] : ['sources', 'notes', 'categories'];
+  return makeAssistantToolUI<DeleteSecondBrainArgs, unknown>({
+    toolName,
+    render: ({ status, isError, toolCallId, result }) => {
+      invalidateSecondBrainQueries(toolCallId, result !== undefined, keysToInvalidate);
+      return (
+        <ToolStatusLine
+          icon={<StatusIcon status={status} isError={isError} fallback={<Trash2 size={13} />} />}
+          tone={getTone(status, isError)}
+        >
+          {isError
+            ? `Failed to delete ${noun}`
+            : isRunning(status)
+              ? `Deleting ${noun}…`
+              : `Deleted ${noun}`}
+        </ToolStatusLine>
+      );
+    },
+  });
+}
+
+export const DeleteSourceToolUI = makeDeleteSecondBrainToolUI('delete_source', 'source');
+export const DeleteNoteToolUI = makeDeleteSecondBrainToolUI('delete_note', 'note');
+export const DeleteCategoryToolUI = makeDeleteSecondBrainToolUI('delete_category', 'category');
+
+type ListSourcesArgs = { q?: string; page?: number };
+type ListSourcesResult = {
+  items?: unknown[];
+  pagination?: { totalItems?: number };
+};
+
+export const ListSourcesToolUI = makeAssistantToolUI<ListSourcesArgs, ListSourcesResult>({
+  toolName: 'list_sources',
+  render: ({ args, result, status, isError }) => {
+    const total = result?.pagination?.totalItems ?? result?.items?.length;
+    const qSuffix = args?.q ? ` matching "${args.q}"` : '';
+    return (
+      <ToolStatusLine
+        icon={<StatusIcon status={status} isError={isError} fallback={<BookOpenText size={13} />} />}
+        tone={getTone(status, isError)}
+      >
+        {isError
+          ? 'Failed to list sources'
+          : isRunning(status)
+            ? `Listing sources${qSuffix}…`
+            : total != null
+              ? `Listed ${total} source${total === 1 ? '' : 's'}${qSuffix}`
+              : `Listed sources${qSuffix}`}
+      </ToolStatusLine>
+    );
+  },
+});
+
+type ListNotesArgs = {
+  q?: string;
+  page?: number;
+  sourceId?: number;
+  unlinkedOnly?: boolean;
+};
+type ListNotesResult = {
+  items?: unknown[];
+  pagination?: { totalItems?: number };
+};
+
+export const ListNotesToolUI = makeAssistantToolUI<ListNotesArgs, ListNotesResult>({
+  toolName: 'list_notes',
+  render: ({ args, result, status, isError }) => {
+    const total = result?.pagination?.totalItems ?? result?.items?.length;
+    const qSuffix = args?.q ? ` matching "${args.q}"` : '';
+    return (
+      <ToolStatusLine
+        icon={<StatusIcon status={status} isError={isError} fallback={<StickyNote size={13} />} />}
+        tone={getTone(status, isError)}
+      >
+        {isError
+          ? 'Failed to list notes'
+          : isRunning(status)
+            ? `Listing notes${qSuffix}…`
+            : total != null
+              ? `Listed ${total} note${total === 1 ? '' : 's'}${qSuffix}`
+              : `Listed notes${qSuffix}`}
+      </ToolStatusLine>
+    );
+  },
+});
+
+type ListCategoriesResult = { items?: unknown[] };
+
+export const ListCategoriesToolUI = makeAssistantToolUI<Record<string, never>, ListCategoriesResult>({
+  toolName: 'list_categories',
+  render: ({ result, status, isError }) => {
+    const total = result?.items?.length;
+    return (
+      <ToolStatusLine
+        icon={<StatusIcon status={status} isError={isError} fallback={<FolderTree size={13} />} />}
+        tone={getTone(status, isError)}
+      >
+        {isError
+          ? 'Failed to list categories'
+          : isRunning(status)
+            ? 'Listing categories…'
+            : total != null
+              ? `Listed ${total} categor${total === 1 ? 'y' : 'ies'}`
+              : 'Listed categories'}
       </ToolStatusLine>
     );
   },
@@ -883,6 +1262,16 @@ const AskUserQuestionToolUI = makeAssistantToolUI<
   render: AskUserQuestionCard,
 });
 
+// ---------- Propose research run (server execute + interactive card) ----------
+
+const ProposeResearchRunToolUI = makeAssistantToolUI<
+  ProposeResearchRunToolInput,
+  ProposeResearchRunToolExecuteResult | ProposeResearchRunToolResult
+>({
+  toolName: 'propose_research_run',
+  render: ProposeResearchRunCard,
+});
+
 /**
  * UserMessage variant that hides the chat opener-prompt user message from
  * the visible thread. The message stays in the runtime state and the DB —
@@ -902,6 +1291,22 @@ export const nativeChatToolUIs = [
   ListBrainliftsToolUI,
   GradeBrainliftToolUI,
   AssessmentToolUI,
+  // Project binding
+  ChangeConversationProjectToolUI,
+  // Project + Second Brain (research mode)
+  CreateBlankProjectToolUI,
+  SaveSourceToolUI,
+  SaveNoteToolUI,
+  CreateCategoryToolUI,
+  EditSourceToolUI,
+  EditNoteToolUI,
+  EditCategoryToolUI,
+  DeleteSourceToolUI,
+  DeleteNoteToolUI,
+  DeleteCategoryToolUI,
+  ListSourcesToolUI,
+  ListNotesToolUI,
+  ListCategoriesToolUI,
   // Curation
   CreateDok1ToolUI,
   CreateDok2ToolUI,
@@ -940,6 +1345,8 @@ export const nativeChatToolUIs = [
   DeleteSkillToolUI,
   // Ask user
   AskUserQuestionToolUI,
+  // Research stream proposal
+  ProposeResearchRunToolUI,
 ];
 
 export function buildNativeChatThreadConfig() {

@@ -3,15 +3,18 @@ import type { UIMessage } from 'ai';
 import { eq, inArray } from 'drizzle-orm';
 import { db } from '../../db';
 import { brainlifts, brainliftShares, chatConversations, chatMessages, user } from '@shared/schema';
+import { ForbiddenError, NotFoundError } from '../../middleware/error-handler';
 import {
   createChatConversation,
   deleteChatConversation,
+  getConversationBrainlift,
   getChatConversation,
   getChatUserContext,
   listChatConversations,
   listChatMessages,
   renameChatConversationIfTitle,
   renameChatConversation,
+  setConversationBrainlift,
   syncChatMessages,
 } from '../chat';
 
@@ -453,5 +456,79 @@ describe('chat storage', () => {
     expect(entry).toBeDefined();
     expect(entry?.lastActivityAt).toBeInstanceOf(Date);
     expect(entry?.lastActivityAt.toISOString()).toBe(conversation.updatedAt.toISOString());
+  });
+
+  it('setConversationBrainlift binds and unbinds owned conversations to accessible brainlifts (FR5)', async () => {
+    const conversation = await createChatConversation(TEST_USER_ID, { title: 'Project-bound chat' });
+    const brainlift = await insertBrainlift({
+      slug: `chat-binding-owned-${Date.now()}`,
+      title: 'Owned binding brainlift',
+      userId: TEST_USER_ID,
+    });
+
+    const bound = await setConversationBrainlift(conversation.id, brainlift.id, TEST_USER_ID);
+
+    expect(bound.brainliftId).toBe(brainlift.id);
+
+    const joined = await getConversationBrainlift(conversation.id);
+    expect(joined).toEqual({
+      conversationId: conversation.id,
+      brainliftId: brainlift.id,
+      brainlift: expect.objectContaining({
+        id: brainlift.id,
+        slug: brainlift.slug,
+      }),
+    });
+
+    const unbound = await setConversationBrainlift(conversation.id, null, TEST_USER_ID);
+    expect(unbound.brainliftId).toBeNull();
+
+    await expect(getConversationBrainlift(conversation.id)).resolves.toEqual({
+      conversationId: conversation.id,
+      brainliftId: null,
+      brainlift: null,
+    });
+  });
+
+  it('setConversationBrainlift allows shared brainlifts and rejects inaccessible targets (FR5)', async () => {
+    const conversation = await createChatConversation(TEST_USER_ID, { title: 'Shared project chat' });
+    const shared = await insertBrainlift({
+      slug: `chat-binding-shared-${Date.now()}`,
+      title: 'Shared binding brainlift',
+      userId: OTHER_USER_ID,
+    });
+    const privateBrainlift = await insertBrainlift({
+      slug: `chat-binding-private-${Date.now()}`,
+      title: 'Private binding brainlift',
+      userId: TEST_USER_ID,
+    });
+
+    await db.insert(brainliftShares).values({
+      brainliftId: shared.id,
+      type: 'user',
+      permission: 'viewer',
+      userId: TEST_USER_ID,
+      createdByUserId: OTHER_USER_ID,
+    });
+
+    await expect(setConversationBrainlift(conversation.id, shared.id, TEST_USER_ID))
+      .resolves.toMatchObject({ brainliftId: shared.id });
+
+    const otherConversation = await createChatConversation(OTHER_USER_ID, { title: 'Forbidden project chat' });
+    await expect(setConversationBrainlift(otherConversation.id, privateBrainlift.id, OTHER_USER_ID))
+      .rejects.toBeInstanceOf(ForbiddenError);
+  });
+
+  it('setConversationBrainlift hides conversations not owned by the user (FR5)', async () => {
+    const conversation = await createChatConversation(OTHER_USER_ID, { title: 'Other owner chat' });
+
+    await expect(setConversationBrainlift(conversation.id, null, TEST_USER_ID))
+      .rejects.toBeInstanceOf(NotFoundError);
+    await expect(setConversationBrainlift(999_999_999, null, TEST_USER_ID))
+      .rejects.toBeInstanceOf(NotFoundError);
+  });
+
+  it('getConversationBrainlift returns null for missing conversations (FR5)', async () => {
+    await expect(getConversationBrainlift(999_999_999)).resolves.toBeNull();
   });
 });

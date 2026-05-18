@@ -87,7 +87,7 @@ export function buildResearchChatTools() {
   return {
     web_search_exa: tool({
       description:
-        'Search the web using Exa. Use this for fresh research, source discovery, experts, articles, papers, videos, and market context. Fetch promising URLs before relying on them.',
+        'Web search via Exa. Use for in-chat source discovery: a URL the student shared, a specific article or paper they named, a verification, or sources for the back-and-forth when the student prefers to keep searching in conversation rather than launch a swarm. For a broad investigative sweep across a topic/angle/domain, `propose_research_run` is the better default — it fans out a 5-slot parallel swarm which is what the platform is built for. The one anti-pattern: two searches on the same topic in one turn to compose your own analysis — stop and propose a swarm instead.',
       inputSchema: webSearchInputSchema,
       execute: async ({ query, numResults, includeDomains, excludeDomains }) => {
         const results = await searchWeb(query, {

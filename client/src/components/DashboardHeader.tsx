@@ -93,6 +93,11 @@ interface DashboardHeaderProps {
   titleInput?: string;
   setTitleInput?: (input: string) => void;
   onUpdateTitle?: (title: string) => void;
+  editingPurpose?: boolean;
+  setEditingPurpose?: (editing: boolean) => void;
+  purposeInput?: string;
+  setPurposeInput?: (input: string) => void;
+  onUpdatePurpose?: (purpose: string) => void;
   setShowHistoryModal: (show: boolean) => void;
   handleDownloadPDF: () => void;
   isOwner?: boolean;
@@ -118,6 +123,11 @@ export function DashboardHeader({
   titleInput = '',
   setTitleInput,
   onUpdateTitle,
+  editingPurpose = false,
+  setEditingPurpose,
+  purposeInput = '',
+  setPurposeInput,
+  onUpdatePurpose,
   setShowHistoryModal,
   handleDownloadPDF,
   isOwner,
@@ -130,6 +140,8 @@ export function DashboardHeader({
   const [, setLocation] = useLocation();
   const { title, description, displayPurpose, slug } = data;
   const canEditTitle = canModify && !!setEditingTitle && !!setTitleInput && !!onUpdateTitle;
+  const canEditPurpose = canModify && !!setEditingPurpose && !!setPurposeInput && !!onUpdatePurpose;
+  const purposeText = displayPurpose || description || '';
 
   const beginTitleEdit = () => {
     if (!canEditTitle) return;
@@ -145,6 +157,17 @@ export function DashboardHeader({
       return;
     }
     onUpdateTitle(next);
+  };
+
+  const beginPurposeEdit = () => {
+    if (!canEditPurpose) return;
+    setPurposeInput!(purposeText);
+    setEditingPurpose!(true);
+  };
+
+  const commitPurpose = () => {
+    if (!onUpdatePurpose) return;
+    onUpdatePurpose(purposeInput);
   };
 
   // "Chat About This BrainLift" — opens the chat homepage with an initial
@@ -213,10 +236,55 @@ export function DashboardHeader({
             </div>
           )}
 
-          {/* Subtitle */}
-          <p className="header-description text-muted-foreground text-base m-0">
-            {renderWithLinks(displayPurpose || description)}
-          </p>
+          {/* Subtitle (editable purpose / tagline) */}
+          {editingPurpose && canEditPurpose ? (
+            <div className="header-description flex items-start gap-2">
+              <textarea
+                value={purposeInput}
+                onChange={(e) => setPurposeInput!(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault();
+                    commitPurpose();
+                  }
+                  if (e.key === 'Escape') setEditingPurpose!(false);
+                }}
+                onBlur={commitPurpose}
+                autoFocus
+                maxLength={1000}
+                rows={Math.min(4, Math.max(1, purposeInput.split('\n').length))}
+                placeholder="Describe what this project is about..."
+                className="w-full max-w-[640px] min-w-0 resize-none bg-transparent outline-none border-0 border-b border-border focus:border-primary text-base text-muted-foreground py-0.5 px-0 leading-normal"
+                aria-label="Edit project purpose"
+              />
+            </div>
+          ) : (
+            <div className="header-description group flex items-start gap-2">
+              <p
+                className={`text-muted-foreground text-base m-0 min-w-0 ${canEditPurpose ? 'cursor-pointer' : ''}`}
+                onClick={canEditPurpose ? beginPurposeEdit : undefined}
+                title={canEditPurpose ? 'Click to edit project purpose' : undefined}
+              >
+                {purposeText
+                  ? renderWithLinks(purposeText)
+                  : canEditPurpose ? (
+                    <span className="italic text-gray-400 border-b border-dashed border-gray-300 pb-px">
+                      Set project purpose...
+                    </span>
+                  ) : null}
+              </p>
+              {canEditPurpose && (
+                <button
+                  type="button"
+                  onClick={beginPurposeEdit}
+                  aria-label="Edit project purpose"
+                  className="shrink-0 inline-flex items-center justify-center w-7 h-7 mt-0.5 rounded-md text-muted-light hover:text-foreground hover:bg-card border-0 bg-transparent cursor-pointer transition-colors duration-150 opacity-0 group-hover:opacity-100 focus-visible:opacity-100"
+                >
+                  <Pencil size={14} />
+                </button>
+              )}
+            </div>
+          )}
 
           {/* Author */}
           <div
@@ -271,7 +339,7 @@ export function DashboardHeader({
         <div className="header-actions flex gap-2 items-end flex-wrap shrink-0 self-end">
           {rightSlot}
 
-          {/* Primary Action: Chat About This BrainLift */}
+          {/* Primary Action: Chat About This Project */}
           {!hideDefaultActions && !isNotBrainlift && (
             <TactileButton
               variant="raised"
@@ -280,7 +348,7 @@ export function DashboardHeader({
               className="flex items-center gap-1.5 px-4 py-2 text-[13px]"
             >
               <MessageSquare size={14} />
-              Chat About This BrainLift
+              Chat About This Project
             </TactileButton>
           )}
 

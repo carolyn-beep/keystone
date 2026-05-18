@@ -3,10 +3,11 @@ import { motion, AnimatePresence } from 'framer-motion';
 import type { AgentInfo, AgentStatus } from '@/hooks/useSwarmEvents';
 import { cn } from '@/lib/utils';
 
-// Resource type to display label mapping
+// Resource type to display label mapping. Keys MUST match the canonical
+// RetrievalType enum in shared/research-stream.ts (no spaces).
 const RESOURCE_LABELS: Record<string, string> = {
   Substack: 'Substack Analysis',
-  'Academic Paper': 'Research Paper',
+  AcademicPaper: 'Research Paper',
   Twitter: 'Twitter Scrape',
   Podcast: 'Podcast Analysis',
   Video: 'Video Analysis',
