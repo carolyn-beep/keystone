@@ -49,7 +49,7 @@ export function NoteGridCard({
     <article
       onClick={onOpenDetail}
       className={cn(
-        'group relative flex h-full cursor-pointer flex-col gap-3 overflow-hidden rounded-xl bg-card-elevated px-5 py-4 shadow-card transition-shadow duration-200 hover:shadow-card-hover',
+        'group relative flex h-full cursor-pointer flex-col rounded-xl bg-card-elevated px-5 py-4 shadow-card transition-shadow duration-200 hover:shadow-card-hover',
         isSelected ? 'ring-1 ring-primary/40' : null,
       )}
       data-testid="note-grid-card"
@@ -63,10 +63,7 @@ export function NoteGridCard({
       }}
     >
       <label
-        className={cn(
-          'absolute left-3 top-3 inline-flex h-5 w-5 cursor-pointer items-center justify-center rounded border border-border-strong/40 bg-card transition-opacity',
-          isSelected ? 'opacity-100' : 'opacity-0 group-hover:opacity-100 focus-within:opacity-100',
-        )}
+        className="absolute left-3 top-3 inline-flex h-[22px] w-[22px] cursor-pointer items-center justify-center rounded border border-border-strong/40 bg-card"
         onClick={(event) => event.stopPropagation()}
       >
         <input
@@ -75,33 +72,39 @@ export function NoteGridCard({
           onClick={handleCheckboxClick}
           onChange={handleCheckboxChange}
           aria-label={isSelected ? 'Deselect note' : 'Select note'}
-          className="h-3 w-3 cursor-pointer accent-primary"
+          className="h-[14px] w-[14px] cursor-pointer accent-primary"
         />
       </label>
 
-      <p className="m-0 line-clamp-3 whitespace-pre-wrap pl-7 font-serif text-[15px] leading-relaxed text-foreground">
-        {note.content}
-      </p>
+      {/* Body — grows, takes whatever vertical space is left after the
+          shrink-0 footer claims its own. min-h-0 lets the inner line-clamp
+          actually clip instead of overflowing past the footer. */}
+      <div className="min-h-0 flex-1 overflow-hidden pl-7">
+        <p className="m-0 line-clamp-3 whitespace-pre-wrap font-serif text-[15px] leading-relaxed text-foreground">
+          {note.content}
+        </p>
+      </div>
 
-      <div className="mt-auto flex items-center gap-2 pl-7 pt-1">
-        <span className="shrink-0 font-sans text-[10px] uppercase tracking-[0.22em] text-muted-foreground">
+      {/* Footer — never shrinks vertically; horizontal items can. The
+          category badge is the only variable-width element, so it gets
+          truncate + min-w-0 to give way when the row gets tight. The
+          link-status is icon-only to keep the footer fitting at any card
+          width. */}
+      <div className="mt-3 flex shrink-0 items-center gap-2 overflow-hidden pl-7">
+        <span className="shrink-0 font-sans text-[10px] tracking-wide text-muted-foreground">
           {formatNoteDate(note.createdAt)}
         </span>
         {category ? (
-          <span className="inline-flex shrink-0 items-center rounded-full bg-muted px-2 py-0.5 font-sans text-[10px] uppercase tracking-[0.18em] text-muted-foreground">
-            {category.name}
+          <span className="inline-flex min-w-0 max-w-[55%] items-center rounded-full bg-muted px-2 py-0.5 font-sans text-[10px] uppercase tracking-[0.1em] text-muted-foreground">
+            <span className="truncate">{category.name}</span>
           </span>
         ) : null}
-        <span className="ml-auto inline-flex shrink-0 items-center gap-1 rounded-full bg-card px-2 py-0.5 font-sans text-[10px] uppercase tracking-[0.18em] text-muted-foreground">
-          {isLinked ? (
-            <>
-              <Link2 size={10} aria-hidden /> Linked
-            </>
-          ) : (
-            <>
-              <Unlink size={10} aria-hidden /> Standalone
-            </>
-          )}
+        <span
+          aria-label={isLinked ? 'Linked note' : 'Standalone note'}
+          title={isLinked ? 'Linked to a source' : 'Standalone note'}
+          className="ml-auto inline-flex shrink-0 items-center justify-center rounded-full bg-card p-1.5 text-muted-foreground"
+        >
+          {isLinked ? <Link2 size={10} aria-hidden /> : <Unlink size={10} aria-hidden />}
         </span>
       </div>
     </article>
