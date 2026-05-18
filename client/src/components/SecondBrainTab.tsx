@@ -5,6 +5,7 @@ import { NotesPanel } from '@/components/second-brain/NotesPanel';
 import { CategoriesManager } from '@/components/second-brain/CategoriesManager';
 import { SubTabStrip } from '@/components/second-brain-v2/shared/SubTabStrip';
 import { ResearchMaterialsTab } from '@/components/second-brain-v2/ResearchMaterialsTab';
+import { NotesTab } from '@/components/second-brain-v2/NotesTab';
 
 export interface SecondBrainTabProps {
   slug: string;
@@ -98,11 +99,7 @@ function SubTabBody({ activeSubTab, slug, brainlift: _brainlift }: SubTabBodyPro
   }
 
   if (activeSubTab === 'notes') {
-    return (
-      <div className="grid grid-cols-1">
-        <NotesPanel slug={slug} filterSourceId={null} openAddTrigger={0} />
-      </div>
-    );
+    return <NotesTab slug={slug} />;
   }
 
   // categories

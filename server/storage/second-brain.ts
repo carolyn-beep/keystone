@@ -4,6 +4,7 @@ import {
   db,
   desc,
   eq,
+  inArray,
   isNull,
   sql,
 } from './base';
@@ -417,6 +418,67 @@ export async function deleteNoteForBrainlift(
     .returning({ id: notes.id });
 
   return deleted.length > 0;
+}
+
+/**
+ * Bulk delete notes by id, scoped to a single brainlift. Notes not owned
+ * by `brainliftId` are silently skipped (IDOR-safe). Returns the count
+ * of rows actually deleted.
+ *
+ * Uses a single `WHERE id IN (...) AND brainliftId = ?` query (no
+ * per-id round trips).
+ */
+export async function bulkDeleteNotes(
+  brainliftId: number,
+  ids: number[],
+): Promise<{ deleted: number }> {
+  if (!Array.isArray(ids) || ids.length === 0) {
+    return { deleted: 0 };
+  }
+
+  const deleted = await db
+    .delete(notes)
+    .where(and(
+      inArray(notes.id, ids),
+      eq(notes.brainliftId, brainliftId),
+    ))
+    .returning({ id: notes.id });
+
+  return { deleted: deleted.length };
+}
+
+/**
+ * Bulk update the `categoryId` of notes owned by a brainlift. Passing
+ * `categoryId: null` clears the category (notes allow nullable
+ * categories; sources do not). Returns the count of rows actually
+ * updated.
+ */
+export async function bulkUpdateNoteCategories(
+  brainliftId: number,
+  ids: number[],
+  categoryId: number | null,
+): Promise<{ updated: number }> {
+  if (!Array.isArray(ids) || ids.length === 0) {
+    return { updated: 0 };
+  }
+
+  if (categoryId !== null) {
+    await ensureCategoryBelongsToBrainlift(categoryId, brainliftId);
+  }
+
+  const updated = await db
+    .update(notes)
+    .set({
+      categoryId,
+      updatedAt: new Date(),
+    })
+    .where(and(
+      inArray(notes.id, ids),
+      eq(notes.brainliftId, brainliftId),
+    ))
+    .returning({ id: notes.id });
+
+  return { updated: updated.length };
 }
 
 export async function listSources(

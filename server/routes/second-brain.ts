@@ -302,6 +302,51 @@ export async function deleteNoteHandler(req: Request, res: Response): Promise<vo
   res.sendStatus(204);
 }
 
+function parseIdArray(body: Record<string, unknown>): number[] {
+  const raw = body.ids;
+  if (!Array.isArray(raw) || raw.length === 0) {
+    throw new BadRequestError('ids must be a non-empty array');
+  }
+  const ids: number[] = [];
+  for (const value of raw) {
+    if (typeof value !== 'number' || !Number.isFinite(value) || !Number.isInteger(value)) {
+      throw new BadRequestError('ids must contain only integers');
+    }
+    ids.push(value);
+  }
+  return ids;
+}
+
+export async function bulkDeleteNotesHandler(req: Request, res: Response): Promise<void> {
+  const body = req.body as Record<string, unknown>;
+  const ids = parseIdArray(body);
+  const result = await storage.bulkDeleteNotes(req.brainlift!.id, ids);
+  res.json(result);
+}
+
+export async function bulkRecategorizeNotesHandler(req: Request, res: Response): Promise<void> {
+  const body = req.body as Record<string, unknown>;
+  const ids = parseIdArray(body);
+
+  // categoryId must be present (number or null); undefined is invalid.
+  if (!('categoryId' in body)) {
+    throw new BadRequestError('categoryId is required (use null to clear)');
+  }
+
+  const categoryRaw = body.categoryId;
+  let categoryId: number | null;
+  if (categoryRaw === null) {
+    categoryId = null;
+  } else if (typeof categoryRaw === 'number' && Number.isFinite(categoryRaw) && Number.isInteger(categoryRaw)) {
+    categoryId = categoryRaw;
+  } else {
+    throw new BadRequestError('categoryId must be an integer or null');
+  }
+
+  const result = await storage.bulkUpdateNoteCategories(req.brainlift!.id, ids, categoryId);
+  res.json(result);
+}
+
 export async function listCategoriesHandler(req: Request, res: Response): Promise<void> {
   const categories = await storage.getCategoriesWithCounts(req.brainlift!.id);
   res.json({ categories });
@@ -476,6 +521,20 @@ secondBrainRouter.delete(
   requireAuth,
   requireBrainliftModify,
   asyncHandler(deleteNoteHandler),
+);
+
+secondBrainRouter.post(
+  '/api/brainlifts/:slug/notes/bulk-delete',
+  requireAuth,
+  requireBrainliftModify,
+  asyncHandler(bulkDeleteNotesHandler),
+);
+
+secondBrainRouter.post(
+  '/api/brainlifts/:slug/notes/bulk-recategorize',
+  requireAuth,
+  requireBrainliftModify,
+  asyncHandler(bulkRecategorizeNotesHandler),
 );
 
 secondBrainRouter.get(
