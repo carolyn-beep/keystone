@@ -141,30 +141,34 @@ export function NoteDetailPanel({
       </header>
 
       {mode === 'view' ? (
-        <div className="flex-1 overflow-y-auto px-6 py-5">
+        <div className="flex-1 overflow-y-auto overflow-x-hidden px-6 py-5">
           <p
-            className="m-0 whitespace-pre-wrap font-serif text-[16px] leading-relaxed text-foreground"
+            className="m-0 whitespace-pre-wrap break-words font-serif text-[16px] leading-relaxed text-foreground"
             data-testid="note-detail-body"
           >
             {note.content}
           </p>
 
-          <dl className="mt-8 grid grid-cols-[120px_1fr] gap-y-3 font-sans text-[12px]">
+          {/* `minmax(0,1fr)` (not bare `1fr`) is what lets the value column
+              actually shrink below its intrinsic content width — without it,
+              a long linked-source title forces the grid to overflow the
+              drawer and produce a horizontal scrollbar. */}
+          <dl className="mt-8 grid grid-cols-[120px_minmax(0,1fr)] gap-y-3 font-sans text-[12px]">
             <dt className="uppercase tracking-[0.18em] text-muted-foreground">Created on</dt>
-            <dd className="text-foreground">{formatLong(note.createdAt)}</dd>
+            <dd className="m-0 min-w-0 break-words text-foreground">{formatLong(note.createdAt)}</dd>
 
             <dt className="uppercase tracking-[0.18em] text-muted-foreground">Last edited</dt>
-            <dd className="text-foreground">{formatLong(note.updatedAt)}</dd>
+            <dd className="m-0 min-w-0 break-words text-foreground">{formatLong(note.updatedAt)}</dd>
 
             <dt className="uppercase tracking-[0.18em] text-muted-foreground">Category</dt>
-            <dd className="text-foreground">{category?.name ?? 'Uncategorized'}</dd>
+            <dd className="m-0 min-w-0 break-words text-foreground">{category?.name ?? 'Uncategorized'}</dd>
 
             <dt className="uppercase tracking-[0.18em] text-muted-foreground">Linked source</dt>
-            <dd className="flex items-center gap-2 text-foreground">
+            <dd className="m-0 flex min-w-0 items-center gap-2 text-foreground">
               {linkedSource ? (
                 <>
-                  <Link2 size={12} className="text-muted-foreground" aria-hidden />
-                  <span className="truncate" title={linkedSource.title}>{linkedSource.title}</span>
+                  <Link2 size={12} className="shrink-0 text-muted-foreground" aria-hidden />
+                  <span className="min-w-0 truncate" title={linkedSource.title}>{linkedSource.title}</span>
                 </>
               ) : (
                 <span className="italic text-muted-foreground">No source</span>
