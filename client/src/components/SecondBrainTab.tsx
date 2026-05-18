@@ -1,29 +1,64 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
+import { useSearch } from 'wouter';
 import type { BrainliftData } from '@shared/schema';
 import { NotesPanel } from '@/components/second-brain/NotesPanel';
 import { SourcesPanel } from '@/components/second-brain/SourcesPanel';
+import { CategoriesManager } from '@/components/second-brain/CategoriesManager';
+import { SubTabStrip } from '@/components/second-brain-v2/shared/SubTabStrip';
 
 export interface SecondBrainTabProps {
   slug: string;
   brainlift: BrainliftData;
 }
 
-export default function SecondBrainTab({ slug, brainlift: _brainlift }: SecondBrainTabProps) {
-  const [selectedSourceId, setSelectedSourceId] = useState<number | null>(null);
-  // Incrementing counter the NotesPanel watches in an effect — bumping it
-  // opens the add-note form scoped to the currently selected source.
-  // Counter (rather than boolean) so re-triggering on the same source
-  // still fires the effect.
-  const [addNoteTrigger, setAddNoteTrigger] = useState(0);
+const SUB_TABS = [
+  { id: 'research-materials', label: 'Research Materials' },
+  { id: 'notes', label: 'Notes' },
+  { id: 'categories', label: 'Categories' },
+] as const;
 
-  const handleAddNoteForSource = useCallback((sourceId: number) => {
-    setSelectedSourceId(sourceId);
-    setAddNoteTrigger((n) => n + 1);
+type SubTab = (typeof SUB_TABS)[number]['id'];
+const VALID_SUB_TABS = SUB_TABS.map((t) => t.id) as readonly SubTab[];
+
+function parseSubTab(searchString: string): SubTab {
+  const params = new URLSearchParams(searchString);
+  const raw = params.get('sb');
+  if (raw && VALID_SUB_TABS.includes(raw as SubTab)) {
+    return raw as SubTab;
+  }
+  return 'research-materials';
+}
+
+/**
+ * Shell for the Second Brain tab. Owns the `?sb=` URL param and renders
+ * the active sub-tab below the shared editorial header. The sub-tab
+ * bodies are placeholders that render the existing v1 panels so the
+ * shell can ship without UX regression. Specs 03/04/05 will replace
+ * each placeholder with the real v2 component.
+ *
+ * URL contract:
+ *   ?sb=research-materials  → Research Materials (default)
+ *   ?sb=notes               → Notes
+ *   ?sb=categories          → Categories
+ *
+ * Invalid or missing values fall back to the default.
+ */
+export default function SecondBrainTab({ slug, brainlift }: SecondBrainTabProps) {
+  const searchString = useSearch();
+  const activeSubTab = useMemo<SubTab>(() => parseSubTab(searchString), [searchString]);
+
+  const setActiveSubTab = useCallback((next: SubTab) => {
+    const params = new URLSearchParams(window.location.search);
+    params.set('sb', next);
+    const newSearch = params.toString();
+    const newUrl = newSearch ? `?${newSearch}` : window.location.pathname;
+    window.history.replaceState(null, '', newUrl);
+    window.dispatchEvent(new PopStateEvent('popstate'));
   }, []);
 
   return (
     <section className="mx-auto max-w-[1500px]">
-      <header className="mb-12 flex flex-col gap-3">
+      <header className="mb-8 flex flex-col gap-3">
         <h2 className="m-0 text-[34px] font-bold leading-[1.05] tracking-tight text-foreground">
           Second Brain
         </h2>
@@ -34,6 +69,48 @@ export default function SecondBrainTab({ slug, brainlift: _brainlift }: SecondBr
         </p>
       </header>
 
+      <SubTabStrip
+        tabs={SUB_TABS}
+        active={activeSubTab}
+        onChange={setActiveSubTab}
+        className="mb-8"
+      />
+
+      <SubTabBody activeSubTab={activeSubTab} slug={slug} brainlift={brainlift} />
+    </section>
+  );
+}
+
+interface SubTabBodyProps {
+  activeSubTab: SubTab;
+  slug: string;
+  brainlift: BrainliftData;
+}
+
+/**
+ * Placeholder body for spec 02. Renders v1 panels behind each sub-tab so
+ * the shell ships behind no feature flag. Specs 03/04/05 will swap each
+ * branch for the real v2 component:
+ *   - research-materials → <ResearchMaterialsTab /> (spec 03)
+ *   - notes              → <NotesTab />              (spec 04)
+ *   - categories         → <CategoriesTab />         (spec 05)
+ */
+function SubTabBody({ activeSubTab, slug, brainlift: _brainlift }: SubTabBodyProps) {
+  // The v1 SourcesPanel + NotesPanel used a shared selected-source state
+  // for cross-panel filtering. While the v2 Research Materials and Notes
+  // tabs each own their own filter UX (spec 03/04), the placeholder
+  // keeps the v1 two-pane wiring local to the research-materials tab so
+  // the legacy "click source → notes filter" still works for now.
+  const [selectedSourceId, setSelectedSourceId] = useState<number | null>(null);
+  const [addNoteTrigger, setAddNoteTrigger] = useState(0);
+
+  const handleAddNoteForSource = useCallback((sourceId: number) => {
+    setSelectedSourceId(sourceId);
+    setAddNoteTrigger((n) => n + 1);
+  }, []);
+
+  if (activeSubTab === 'research-materials') {
+    return (
       <div className="grid grid-cols-1 items-start gap-10 lg:grid-cols-[minmax(0,1.2fr)_minmax(360px,0.8fr)]">
         <SourcesPanel
           slug={slug}
@@ -47,6 +124,21 @@ export default function SecondBrainTab({ slug, brainlift: _brainlift }: SecondBr
           openAddTrigger={addNoteTrigger}
         />
       </div>
-    </section>
+    );
+  }
+
+  if (activeSubTab === 'notes') {
+    return (
+      <div className="grid grid-cols-1">
+        <NotesPanel slug={slug} filterSourceId={null} openAddTrigger={0} />
+      </div>
+    );
+  }
+
+  // categories
+  return (
+    <div className="grid grid-cols-1">
+      <CategoriesManager slug={slug} />
+    </div>
   );
 }
