@@ -2,7 +2,6 @@ import { useEffect, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { X, Link2 } from 'lucide-react';
 import { useNotes } from '@/hooks/useNotes';
-import { useCategories } from '@/hooks/useCategories';
 import type { Note } from '@/types/second-brain';
 import { SourceTypeahead } from '../shared/SourceTypeahead';
 
@@ -13,29 +12,24 @@ export interface NewNoteModalProps {
   /** Pre-fill source if opened from a source context. Auto-expands the
    *  Link-to-source section. */
   defaultSourceId?: number;
-  /** Pre-fill category if opened from a category chip context. */
-  defaultCategoryId?: number;
   onCreated?: (note: Note) => void;
 }
 
 /**
- * Modal for creating a new note. Body is required; category and source
- * are optional. The Link-to-source section is collapsed by default and
- * auto-expands when `defaultSourceId` is provided.
+ * Modal for creating a new note. Body is required; the linked source is
+ * optional. There is no category field — category is inherited from the
+ * linked source (or null for standalone notes).
  */
 export function NewNoteModal({
   slug,
   open,
   onClose,
   defaultSourceId,
-  defaultCategoryId,
   onCreated,
 }: NewNoteModalProps) {
   const { createNote, isCreating } = useNotes(slug);
-  const { data: categories } = useCategories(slug);
 
   const [content, setContent] = useState('');
-  const [categoryId, setCategoryId] = useState<number | null>(defaultCategoryId ?? null);
   const [sourceId, setSourceId] = useState<number | null>(defaultSourceId ?? null);
   const [linkExpanded, setLinkExpanded] = useState<boolean>(defaultSourceId != null);
   const [error, setError] = useState<string | null>(null);
@@ -47,10 +41,9 @@ export function NewNoteModal({
       setError(null);
       return;
     }
-    setCategoryId(defaultCategoryId ?? null);
     setSourceId(defaultSourceId ?? null);
     setLinkExpanded(defaultSourceId != null);
-  }, [open, defaultCategoryId, defaultSourceId]);
+  }, [open, defaultSourceId]);
 
   // Escape to close.
   useEffect(() => {
@@ -73,7 +66,6 @@ export function NewNoteModal({
     try {
       const note = await createNote({
         content: trimmed,
-        categoryId,
         sourceId,
       });
       onCreated?.(note);
@@ -97,7 +89,7 @@ export function NewNoteModal({
             data-testid="new-note-modal-backdrop"
           />
           <motion.div
-            className="relative w-full max-w-[560px] overflow-hidden rounded-2xl bg-card shadow-card-hover"
+            className="relative w-full max-w-[560px] rounded-2xl bg-card shadow-card-hover"
             initial={{ y: 24, opacity: 0 }}
             animate={{ y: 0, opacity: 1 }}
             exit={{ y: 24, opacity: 0 }}
@@ -130,25 +122,6 @@ export function NewNoteModal({
                   className="min-h-[180px] w-full resize-y rounded-lg bg-card-elevated px-3 py-2.5 font-serif text-[15px] leading-relaxed text-foreground shadow-card focus:outline-none focus:ring-1 focus:ring-primary/30"
                   autoFocus
                 />
-              </label>
-
-              <label className="mt-5 block">
-                <span className="mb-1 block font-sans text-[10px] uppercase tracking-[0.22em] text-muted-foreground">
-                  Category
-                </span>
-                <select
-                  value={categoryId ?? ''}
-                  onChange={(event) => {
-                    const next = event.target.value;
-                    setCategoryId(next === '' ? null : Number(next));
-                  }}
-                  className="w-full appearance-none rounded-lg bg-card-elevated px-3 py-2.5 font-serif text-[14px] text-foreground shadow-card focus:outline-none focus:ring-1 focus:ring-primary/30"
-                >
-                  <option value="">Uncategorized</option>
-                  {(categories ?? []).map((c) => (
-                    <option key={c.id} value={c.id}>{c.name}</option>
-                  ))}
-                </select>
               </label>
 
               <div className="mt-5">
