@@ -36,7 +36,7 @@ function parseBookmarkCategoryId(rawValue: unknown): number {
   return rawValue;
 }
 
-async function bookmarkResearchItemWithSource(args: {
+export async function bookmarkResearchItemWithSource(args: {
   brainliftId: number;
   itemId: number;
   categoryId: number;
@@ -94,8 +94,20 @@ async function bookmarkResearchItemWithSource(args: {
         categoryId: args.categoryId,
         extractedContent: item.extractedContent,
         learningStreamItemId: item.id,
+        // Second Brain v2 enrichment fields — mirrored 1:1 from the
+        // learning_stream_items row so saved sources carry the same shape
+        // as the Research Stream cards. All four are nullable on the LSI
+        // side too, so they may pass through as null.
+        type: item.type,
+        keyInsights: item.facts,
+        length: item.time,
+        whyMatters: item.aiRationale,
       })
       .onConflictDoNothing({
+        // Re-bookmark of an already-mirrored item returns the existing
+        // source row unchanged via the SELECT fallback below; enrichment
+        // fields are NOT overwritten on a second bookmark, so any
+        // user-edited values survive.
         target: [sources.brainliftId, sources.url],
       })
       .returning();

@@ -11,6 +11,7 @@ const SAVE_SOURCE_DESCRIPTION = [
   REQUIRES_PROJECT,
   'Required fields: title, url, author, categoryId. Category must already exist; call create_category first if no existing category fits.',
   "Do not use 'Unknown' for author. Infer from byline, organization, publication, or domain; ask the student only when authorship cannot be inferred.",
+  "When known, also pass `type`, `keyInsights`, `length`, and `whyMatters` so the saved source carries the same shape as the Research Stream cards.",
   'Idempotent: if this URL is already saved for the project, this returns the existing source.',
 ].join('\n');
 
@@ -115,8 +116,12 @@ export function buildSecondBrainChatTools(
         categoryId: z.number().int().positive(),
         extractedContent: z.unknown().optional(),
         learningStreamItemId: z.number().int().positive().optional(),
+        type: z.string().optional().describe("Source type if known: 'Podcast' | 'AcademicPaper' | 'Video' | 'Substack' | 'News' | 'Twitter'."),
+        keyInsights: z.string().optional().describe("1-3 sentence summary of the source's key insights, in your own words."),
+        length: z.string().optional().describe("Reading or watching time if known. Free-form: '5 min', '48 min', '2 hr'."),
+        whyMatters: z.string().optional().describe("Why this source is relevant to the student's project. Specific, not generic."),
       }),
-      execute: async ({ title, url, author, categoryId, extractedContent, learningStreamItemId }) => {
+      execute: async ({ title, url, author, categoryId, extractedContent, learningStreamItemId, type, keyInsights, length, whyMatters }) => {
         const brainliftId = requireBoundBrainlift(conversation);
         const storage = await getStorage();
         try {
@@ -127,6 +132,10 @@ export function buildSecondBrainChatTools(
             categoryId,
             extractedContent: extractedContent as any,
             learningStreamItemId,
+            type,
+            keyInsights,
+            length,
+            whyMatters,
           });
         } catch (error) {
           if (!isUniqueViolation(error)) {

@@ -139,6 +139,52 @@ describe('second brain storage', () => {
     expect(source.createdAt).toBeInstanceOf(Date);
   });
 
+  it('createSource persists Second Brain v2 enrichment fields and tolerates omission (FR2)', async () => {
+    const { brainlift, category } = await createBrainliftFixture('source-enrichment');
+
+    const enriched = await createSource(brainlift.id, {
+      title: 'Enriched Source',
+      url: 'https://example.com/enriched',
+      author: 'Researcher',
+      categoryId: category.id,
+      type: 'Podcast',
+      keyInsights: 'Battery cathode chemistry has shifted toward LFP for mid-range EVs.',
+      length: '48 min',
+      whyMatters: 'Directly informs the supply-chain angle the student picked.',
+    });
+
+    expect(enriched).toMatchObject({
+      type: 'Podcast',
+      keyInsights: 'Battery cathode chemistry has shifted toward LFP for mid-range EVs.',
+      length: '48 min',
+      whyMatters: 'Directly informs the supply-chain angle the student picked.',
+    });
+
+    const bare = await createSource(brainlift.id, {
+      title: 'Bare Source',
+      url: 'https://example.com/bare',
+      author: 'Researcher',
+      categoryId: category.id,
+    });
+
+    expect(bare).toMatchObject({
+      type: null,
+      keyInsights: null,
+      length: null,
+      whyMatters: null,
+    });
+
+    // Read-back via getSourceForBrainlift carries the enrichment fields too.
+    const fetched = await getSourceForBrainlift(enriched.id, brainlift.id);
+    expect(fetched).toMatchObject({
+      id: enriched.id,
+      type: 'Podcast',
+      keyInsights: 'Battery cathode chemistry has shifted toward LFP for mid-range EVs.',
+      length: '48 min',
+      whyMatters: 'Directly informs the supply-chain angle the student picked.',
+    });
+  });
+
   it('createSource rejects cross-brainlift categories and duplicate URLs (FR3)', async () => {
     const { brainlift, category } = await createBrainliftFixture('source-owner');
     const { brainlift: otherBrainlift, category: otherCategory } = await createBrainliftFixture('source-other', OTHER_USER_ID);

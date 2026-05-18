@@ -98,6 +98,28 @@ describe('AlphaX research prompt', () => {
     expect(prompt).toContain('project-idea-generator');
   });
 
+  it('nudges the agent to populate Second Brain v2 enrichment fields when saving sources (FR5)', () => {
+    const prompt = buildAlphaXResearchSystemPrompt({
+      userContext: baseUserContext,
+      skills: [],
+      mode: 'research',
+      conversation: boundConversation,
+    });
+
+    // The new sentence under "Surfacing a source for the student to read".
+    expect(prompt).toContain('save_source');
+    expect(prompt).toContain('keyInsights');
+    expect(prompt).toContain('whyMatters');
+    expect(prompt).toContain('length');
+    // All six retrieval-type tokens enumerated for the agent's reference.
+    expect(prompt).toContain('Podcast');
+    expect(prompt).toContain('AcademicPaper');
+    expect(prompt).toContain('Video');
+    expect(prompt).toContain('Substack');
+    expect(prompt).toContain('News');
+    expect(prompt).toContain('Twitter');
+  });
+
   it('uses the research-mode user-context formatter (sprint-plan suppressed)', () => {
     expect(alphaxResearchPromptBuilders.formatUserContext).toBe(formatAlphaXResearchUserContext);
   });

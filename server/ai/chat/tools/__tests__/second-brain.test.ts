@@ -116,8 +116,66 @@ describe('buildSecondBrainChatTools', () => {
       categoryId: 3,
       extractedContent: { markdown: 'content' },
       learningStreamItemId: undefined,
+      type: undefined,
+      keyInsights: undefined,
+      length: undefined,
+      whyMatters: undefined,
     });
     expect(result).toEqual(expect.objectContaining({ id: 11 }));
+  });
+
+  it('save_source forwards Second Brain v2 enrichment fields (type / keyInsights / length / whyMatters) to storage (FR4)', async () => {
+    mockStorage.createSource.mockResolvedValue({
+      id: 13,
+      title: 'Battery Podcast Episode',
+      url: 'https://example.com/podcast/ep1',
+      author: 'Acquired',
+      categoryId: 3,
+      type: 'Podcast',
+      keyInsights: 'LFP cathodes have overtaken NMC for mid-range EVs.',
+      length: '48 min',
+      whyMatters: 'Directly informs the supply-chain angle the student picked.',
+    });
+
+    const { buildSecondBrainChatTools } = await import('../second-brain');
+    const tools = buildSecondBrainChatTools(authContext, boundConversation);
+    const result = await (tools.save_source as any).execute({
+      title: 'Battery Podcast Episode',
+      url: 'https://example.com/podcast/ep1',
+      author: 'Acquired',
+      categoryId: 3,
+      type: 'Podcast',
+      keyInsights: 'LFP cathodes have overtaken NMC for mid-range EVs.',
+      length: '48 min',
+      whyMatters: 'Directly informs the supply-chain angle the student picked.',
+    });
+
+    expect(mockStorage.createSource).toHaveBeenCalledWith(7, {
+      title: 'Battery Podcast Episode',
+      url: 'https://example.com/podcast/ep1',
+      author: 'Acquired',
+      categoryId: 3,
+      extractedContent: undefined,
+      learningStreamItemId: undefined,
+      type: 'Podcast',
+      keyInsights: 'LFP cathodes have overtaken NMC for mid-range EVs.',
+      length: '48 min',
+      whyMatters: 'Directly informs the supply-chain angle the student picked.',
+    });
+    expect(result).toEqual(expect.objectContaining({ id: 13, type: 'Podcast' }));
+  });
+
+  it('save_source accepts a call with all enrichment fields absent (they remain optional in inputSchema)', async () => {
+    const { buildSecondBrainChatTools } = await import('../second-brain');
+    const tools = buildSecondBrainChatTools(authContext, boundConversation);
+    const parsed = (tools.save_source as any).inputSchema.safeParse({
+      title: 'Bare Source',
+      url: 'https://example.com/bare',
+      author: 'example.com',
+      categoryId: 3,
+    });
+
+    expect(parsed.success).toBe(true);
   });
 
   it('save_source returns the existing source on duplicate URL', async () => {

@@ -953,6 +953,13 @@ export const sources = pgTable("sources", {
   categoryId: integer("category_id").notNull().references(() => categories.id, { onDelete: "restrict" }),
   extractedContent: jsonb("extracted_content").$type<ExtractedContent | Record<string, unknown> | null>(),
   learningStreamItemId: integer("learning_stream_item_id").references(() => learningStreamItems.id, { onDelete: "set null" }),
+  // Second Brain v2 enrichment fields. All nullable; mirrored from
+  // learning_stream_items on bookmark, populated optionally by the
+  // `save_source` chat tool, or set via the manual AddSourceModal.
+  type: text("type"),
+  keyInsights: text("key_insights"),
+  length: text("length"),
+  whyMatters: text("why_matters"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().$onUpdate(() => new Date()).notNull(),
 }, (table) => [

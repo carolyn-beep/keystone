@@ -15,6 +15,11 @@ export interface Source {
   categoryId: number;
   extractedContent: JsonValue | null;
   learningStreamItemId: number | null;
+  // Second Brain v2 enrichment fields. Nullable on existing rows; tolerated by UI.
+  type: string | null;
+  keyInsights: string | null;
+  length: string | null;
+  whyMatters: string | null;
   createdAt: string;
   updatedAt: string;
   categoryName?: string;
@@ -46,6 +51,11 @@ export type CreateSourceInput = {
   categoryId: number;
   extractedContent?: JsonValue | null;
   learningStreamItemId?: number | null;
+  // Second Brain v2 enrichment fields.
+  type?: string | null;
+  keyInsights?: string | null;
+  length?: string | null;
+  whyMatters?: string | null;
 };
 
 export type UpdateSourceInput = Partial<CreateSourceInput>;
