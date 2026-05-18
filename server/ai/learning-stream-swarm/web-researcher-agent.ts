@@ -51,7 +51,7 @@ export const webResearcherAgent: AgentDefinition = {
 ## Resource Types
 - Substack: Long-form newsletters
 - Twitter: Threads with insights or single insightful tweets.
-- Academic Paper: Peer-reviewed or preprints from arXiv/SSRN
+- AcademicPaper: Peer-reviewed or preprints from arXiv/SSRN
 - Podcast/Video: Educational videos, lectures, how-to, video-essays.
 
 ## Saving Your Result
@@ -63,7 +63,7 @@ After saving, return ONLY this JSON:
   "found": true,
   "saved": true,
   "resource": {
-    "type": "Substack|Twitter|Academic Paper|Podcast|Video",
+    "type": "Substack|Twitter|AcademicPaper|Podcast|Video",
     "author": "Author name",
     "topic": "Brief title (max 100 chars)",
     "time": "5 min|10 min|15 min|30 min|1 hour",

@@ -65,7 +65,7 @@ function registerTools(mcpServer: McpServer) {
     'Save a researched learning resource to the learning stream',
     {
       brainliftId: z.number().describe('The brainlift ID'),
-      type: z.enum(['Substack', 'Twitter', 'Academic Paper', 'Podcast', 'Video', 'News']).describe('Type of resource'),
+      type: z.enum(['Substack', 'Twitter', 'AcademicPaper', 'Podcast', 'Video', 'News']).describe('Type of resource (must match RetrievalType enum from shared/research-stream.ts).'),
       author: z.string().describe('Author name'),
       topic: z.string().describe('Brief title or topic (max 100 chars)'),
       time: z.string().describe('Estimated consumption time (e.g., "5 min", "15 min", "1 hour")'),

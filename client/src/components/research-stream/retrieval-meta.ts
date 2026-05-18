@@ -4,6 +4,25 @@ import { FaGraduationCap, FaPodcast, FaNewspaper, FaYoutube } from 'react-icons/
 import { VscTwitter } from 'react-icons/vsc';
 import type { RetrievalType } from '@shared/research-stream';
 
+/**
+ * Resolve any free-text `type` string to a canonical RetrievalType.
+ * Strict match first; then keyword sniff (e.g. "Substack Essay" →
+ * "Substack", "News Report" → "News"). Lets legacy / agent-produced
+ * variants still hit the proper badge + icon + color.
+ */
+export function resolveRetrievalType(raw: string | null | undefined): RetrievalType | null {
+  if (!raw) return null;
+  if (raw in RETRIEVAL_TYPE_META) return raw as RetrievalType;
+  const lower = raw.toLowerCase();
+  if (lower.includes('podcast')) return 'Podcast';
+  if (lower.includes('substack') || lower.includes('essay') || lower.includes('newsletter')) return 'Substack';
+  if (lower.includes('academic') || lower.includes('paper') || lower.includes('arxiv') || lower.includes('preprint')) return 'AcademicPaper';
+  if (lower.includes('video') || lower.includes('youtube')) return 'Video';
+  if (lower.includes('news') || lower.includes('article') || lower.includes('headline')) return 'News';
+  if (lower.includes('twitter') || lower.includes('tweet') || lower === 'x') return 'Twitter';
+  return null;
+}
+
 export interface RetrievalTypeMeta {
   icon: IconType;
   label: string;

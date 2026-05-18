@@ -88,14 +88,13 @@ function buildBrainliftNavItems(phase: 'research' | 'authoring'): NavItem[] {
       id: 'learning',
       label: 'Research Stream',
       icon: MdDynamicFeed,
-      ...(isResearch
-        ? {}
-        : {
-            children: [
-              { id: 'learning-saved', label: 'Saved Items', icon: IoBookmarks },
-              { id: 'learning-graded', label: 'Graded Items', icon: IoRibbon },
-            ],
-          }),
+      // Saved + Graded sub-items are useful in research phase too — they're
+      // exactly where you go after bookmarking / grading items from the
+      // stream.
+      children: [
+        { id: 'learning-saved', label: 'Saved Items', icon: IoBookmarks },
+        { id: 'learning-graded', label: 'Graded Items', icon: IoRibbon },
+      ],
     },
     lock({ id: 'brainlift', label: 'Brainlift', icon: FileText as NavItem['icon'] }),
     lock({
@@ -191,35 +190,56 @@ export default function Dashboard({ slug, isSharedView = false }: DashboardProps
   const [showHistoryModal, setShowHistoryModal] = useState(false);
   const [showShareModal, setShowShareModal] = useState(false);
 
-  // Header collapse-on-scroll. A sentinel sits at the top of pageContent;
-  // when it scrolls above the viewport, the <header> chrome gets
-  // .header-collapsed (CSS in client/src/header-collapse.css drives the
-  // banner shrink animation, padding tightening, etc).
+  // Header collapse-on-scroll. The sentinel is attached to a scroll listener
+  // on its scrollable ancestor with HYSTERESIS thresholds so the layout shift
+  // caused by collapse can't bounce the scroll position back into the
+  // un-collapse trigger zone. Collapse at scrollTop > 140, uncollapse at
+  // scrollTop < 60 — the 80px deadzone absorbs the ~86px layout shift the
+  // CSS transition produces.
   //
-  // Using a callback ref instead of useRef + useEffect because the sentinel
-  // is rendered inside `pageContent`, which only appears after the
-  // loading / error / native-source early-returns above. A useEffect with
-  // empty deps would fire on mount when the sentinel doesn't exist yet, and
-  // never re-attach. The callback fires whenever the sentinel element is
-  // attached or detached, so the observer always tracks the live DOM node.
+  // Earlier this used an IntersectionObserver against the sentinel directly;
+  // that produced an infinite collapse/uncollapse loop because as soon as
+  // .header-collapsed shrunk the chrome by ~86px the sentinel re-entered the
+  // viewport, retriggering the observer mid-transition.
   const [isHeaderCollapsed, setIsHeaderCollapsed] = useState(false);
-  const headerObserverRef = useRef<IntersectionObserver | null>(null);
+  const headerScrollCleanupRef = useRef<(() => void) | null>(null);
   const headerSentinelRef = useCallback((el: HTMLDivElement | null) => {
-    headerObserverRef.current?.disconnect();
-    headerObserverRef.current = null;
+    headerScrollCleanupRef.current?.();
+    headerScrollCleanupRef.current = null;
     if (!el) return;
-    const observer = new IntersectionObserver(
-      ([entry]) => setIsHeaderCollapsed(!entry.isIntersecting),
-      { threshold: 0 },
-    );
-    observer.observe(el);
-    headerObserverRef.current = observer;
+    // Walk up to the nearest scrollable ancestor (the <main>).
+    let scrollEl: HTMLElement | null = el.parentElement;
+    while (scrollEl && scrollEl !== document.body) {
+      const overflowY = getComputedStyle(scrollEl).overflowY;
+      if (overflowY === 'auto' || overflowY === 'scroll') break;
+      scrollEl = scrollEl.parentElement;
+    }
+    if (!scrollEl || scrollEl === document.body) return;
+    const target = scrollEl;
+    const COLLAPSE_AT = 140;
+    const EXPAND_AT = 60;
+    let collapsed = false;
+    const onScroll = () => {
+      const y = target.scrollTop;
+      const next = collapsed ? y > EXPAND_AT : y > COLLAPSE_AT;
+      if (next !== collapsed) {
+        collapsed = next;
+        setIsHeaderCollapsed(next);
+      }
+    };
+    onScroll();
+    target.addEventListener('scroll', onScroll, { passive: true });
+    headerScrollCleanupRef.current = () => {
+      target.removeEventListener('scroll', onScroll);
+    };
   }, []);
   const [selectedFactForModal, setSelectedFactForModal] = useState<Fact | null>(null);
   const [editingAuthor, setEditingAuthor] = useState(false);
   const [authorInput, setAuthorInput] = useState('');
   const [editingTitle, setEditingTitle] = useState(false);
   const [titleInput, setTitleInput] = useState('');
+  const [editingPurpose, setEditingPurpose] = useState(false);
+  const [purposeInput, setPurposeInput] = useState('');
   const [showLinkingModal, setShowLinkingModal] = useState(false);
   const [showDok4LinkingModal, setShowDok4LinkingModal] = useState(false);
 
@@ -231,6 +251,7 @@ const { toast } = useToast();
     error,
     updateAuthor,
     updateTitle,
+    updatePurpose,
   } = useBrainlift(slug, isSharedView);
 
   // Check if user is admin for restricted features
@@ -262,6 +283,21 @@ const { downloadBrainliftPDF } = usePDFExport();
       .then(() => setEditingTitle(false))
       .catch((err: Error) => {
         toast({ title: 'Could not update project name', description: err.message, variant: 'destructive' });
+      });
+  };
+
+  const handleUpdatePurpose = (purpose: string) => {
+    const trimmed = purpose.trim();
+    // Empty input clears the override on the server (falls back to `description`).
+    const currentDisplayed = data?.displayPurpose ?? data?.description ?? '';
+    if (trimmed === currentDisplayed) {
+      setEditingPurpose(false);
+      return;
+    }
+    updatePurpose(trimmed)
+      .then(() => setEditingPurpose(false))
+      .catch((err: Error) => {
+        toast({ title: 'Could not update project purpose', description: err.message, variant: 'destructive' });
       });
   };
 
@@ -351,7 +387,7 @@ const { downloadBrainliftPDF } = usePDFExport();
   // `activeTab` falls back to the default because locked items refuse
   // navigation in the sidebar.
   const availableTabs: TabKey[] = isResearchPhase
-    ? ['second-brain', 'learning']
+    ? ['second-brain', 'learning', 'learning-saved', 'learning-graded']
     : ['second-brain', 'brainlift', 'facts', 'facts-redundancy', 'contradictions', 'summaries', 'insights', 'dok4', 'scratchpad', 'sprint', 'document-hub', 'learning', 'learning-saved', 'learning-graded'];
   const activeTab: TabKey = requestedTab && availableTabs.includes(requestedTab)
     ? requestedTab
@@ -388,6 +424,11 @@ const { downloadBrainliftPDF } = usePDFExport();
         titleInput={titleInput}
         setTitleInput={setTitleInput}
         onUpdateTitle={handleUpdateTitle}
+        editingPurpose={editingPurpose}
+        setEditingPurpose={setEditingPurpose}
+        purposeInput={purposeInput}
+        setPurposeInput={setPurposeInput}
+        onUpdatePurpose={handleUpdatePurpose}
         setShowHistoryModal={setShowHistoryModal}
         handleDownloadPDF={handleDownloadPDF}
         isOwner={isOwner}

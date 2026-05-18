@@ -36,7 +36,7 @@ function parseBookmarkCategoryId(rawValue: unknown): number {
   return rawValue;
 }
 
-async function bookmarkResearchItemWithSource(args: {
+export async function bookmarkResearchItemWithSource(args: {
   brainliftId: number;
   itemId: number;
   categoryId: number;
@@ -94,8 +94,20 @@ async function bookmarkResearchItemWithSource(args: {
         categoryId: args.categoryId,
         extractedContent: item.extractedContent,
         learningStreamItemId: item.id,
+        // Second Brain v2 enrichment fields — mirrored 1:1 from the
+        // learning_stream_items row so saved sources carry the same shape
+        // as the Research Stream cards. All four are nullable on the LSI
+        // side too, so they may pass through as null.
+        type: item.type,
+        keyInsights: item.facts,
+        length: item.time,
+        whyMatters: item.aiRationale,
       })
       .onConflictDoNothing({
+        // Re-bookmark of an already-mirrored item returns the existing
+        // source row unchanged via the SELECT fallback below; enrichment
+        // fields are NOT overwritten on a second bookmark, so any
+        // user-edited values survive.
         target: [sources.brainliftId, sources.url],
       })
       .returning();
@@ -157,6 +169,107 @@ learningStreamRouter.get(
     );
 
     res.json(items);
+  })
+);
+
+/**
+ * GET /api/brainlifts/:slug/learning-stream/by-id/:itemId
+ * Fetch a single learning stream item regardless of status. Used by the
+ * Second Brain source reader to pull the underlying item for the full
+ * <ExpandedItemView> (chat + quiz + content) when the user opens an
+ * already-bookmarked source.
+ */
+learningStreamRouter.get(
+  '/api/brainlifts/:slug/learning-stream/by-id/:itemId',
+  requireAuth,
+  requireBrainliftAccess,
+  asyncHandler(async (req, res) => {
+    const brainlift = req.brainlift!;
+    const itemId = parseInt(req.params.itemId);
+    if (isNaN(itemId)) {
+      throw new BadRequestError('Invalid item ID');
+    }
+    const item = await storage.getLearningStreamItemById(itemId, brainlift.id);
+    if (!item) {
+      throw new NotFoundError('Item not found');
+    }
+    res.json(item);
+  })
+);
+
+/**
+ * POST /api/brainlifts/:slug/sources/:sourceId/ensure-learning-stream-item
+ * Lazy-create a learning_stream_item for a Second Brain source that
+ * doesn't have one yet (manually-added sources, legacy rows). Returns
+ * the learning_stream_item so the reader can render the full
+ * <ExpandedItemView> with chat / quiz / content tabs.
+ *
+ * Idempotent: if the source already has a linked item, returns it.
+ * Otherwise creates a new item in status='bookmarked', writes the FK
+ * back onto the source, and queues content extraction.
+ */
+learningStreamRouter.post(
+  '/api/brainlifts/:slug/sources/:sourceId/ensure-learning-stream-item',
+  requireAuth,
+  requireBrainliftAccess,
+  asyncHandler(async (req, res) => {
+    const brainlift = req.brainlift!;
+    const sourceId = parseInt(req.params.sourceId);
+    if (isNaN(sourceId)) {
+      throw new BadRequestError('Invalid source ID');
+    }
+
+    const source = await storage.getSourceForBrainlift(sourceId, brainlift.id);
+    if (!source) throw new NotFoundError('Source not found');
+
+    // Already linked? Just return the item.
+    if (source.learningStreamItemId != null) {
+      const existing = await storage.getLearningStreamItemById(
+        source.learningStreamItemId,
+        brainlift.id,
+      );
+      if (existing) {
+        res.json(existing);
+        return;
+      }
+      // FK was stale (item deleted); fall through to create a fresh one.
+    }
+
+    // Try to find an existing item for the same URL on this brainlift
+    // (unique_brainlift_url constraint). If present, just adopt it.
+    let item = await storage.getLearningStreamItemByUrl(source.url, brainlift.id);
+
+    if (!item) {
+      item = await storage.addLearningStreamItem(brainlift.id, {
+        type: source.type ?? 'News',
+        author: source.author ?? 'Unknown',
+        topic: source.title,
+        time: source.length ?? '5 min',
+        facts: source.keyInsights ?? source.title,
+        url: source.url,
+        source: 'quick-search',
+        relevanceScore: null,
+        aiRationale: source.whyMatters ?? null,
+      });
+      // New items default to 'pending'; flip to 'bookmarked' since the
+      // source already lives in Second Brain.
+      const updated = await storage.updateLearningStreamItemStatus(item.id, brainlift.id, 'bookmarked');
+      if (updated) item = updated;
+    }
+
+    await storage.updateSourceForBrainlift(source.id, brainlift.id, { learningStreamItemId: item.id });
+
+    // Queue content extraction if there isn't any yet.
+    if (!item.extractedContent) {
+      const { withJob } = await import('../utils/withJob');
+      withJob('learning-stream:extract-content')
+        .forPayload({ itemId: item.id, brainliftId: brainlift.id, url: item.url })
+        .withOptions({ jobKey: `extract-content-${item.id}` })
+        .queue()
+        .catch(err => console.error('[Content Extract] Failed to queue on ensure:', err));
+    }
+
+    res.json(item);
   })
 );
 

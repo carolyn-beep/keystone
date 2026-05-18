@@ -103,3 +103,104 @@ export function useNotes(slug: string, opts: { sourceId?: number | null } = {}) 
     isDeleting: deleteMutation.isPending,
   };
 }
+
+// ─── Bulk mutations (spec 04) ─────────────────────────────────────────────
+
+/**
+ * useBulkDeleteNotes posts to `/notes/bulk-delete` with `{ ids }` and
+ * optimistically removes those ids from every `['notes', slug, *]`
+ * cache entry. Rolls back on error.
+ */
+export function useBulkDeleteNotes(slug: string) {
+  const mutation = useMutation({
+    mutationFn: async (ids: number[]): Promise<{ deleted: number }> => {
+      const res = await apiRequest('POST', `/api/brainlifts/${slug}/notes/bulk-delete`, { ids });
+      return res.json() as Promise<{ deleted: number }>;
+    },
+    onMutate: async (ids: number[]) => {
+      await queryClient.cancelQueries({ queryKey: ['notes', slug] });
+      const idSet = new Set(ids);
+      const snapshots: Array<[readonly unknown[], Note[] | undefined]> = [];
+
+      const entries = queryClient.getQueriesData<Note[]>({ queryKey: ['notes', slug] });
+      for (const [key, value] of entries) {
+        snapshots.push([key, value]);
+        if (Array.isArray(value)) {
+          queryClient.setQueryData<Note[]>(key, value.filter((n) => !idSet.has(n.id)));
+        }
+      }
+
+      return { snapshots };
+    },
+    onError: (_error, _ids, context) => {
+      if (!context) return;
+      for (const [key, value] of context.snapshots) {
+        queryClient.setQueryData(key, value);
+      }
+    },
+    onSuccess: () => {
+      invalidateNotes(slug);
+    },
+  });
+
+  return {
+    mutateAsync: (ids: number[]) => mutation.mutateAsync(ids),
+    isPending: mutation.isPending,
+  };
+}
+
+/**
+ * useBulkRecategorizeNotes posts to `/notes/bulk-recategorize` with
+ * `{ ids, categoryId }`. `categoryId: null` is valid for notes (clears
+ * the category; sources can't do this).
+ */
+export function useBulkRecategorizeNotes(slug: string) {
+  const mutation = useMutation({
+    mutationFn: async ({
+      ids,
+      categoryId,
+    }: {
+      ids: number[];
+      categoryId: number | null;
+    }): Promise<{ updated: number }> => {
+      const res = await apiRequest(
+        'POST',
+        `/api/brainlifts/${slug}/notes/bulk-recategorize`,
+        { ids, categoryId },
+      );
+      return res.json() as Promise<{ updated: number }>;
+    },
+    onMutate: async ({ ids, categoryId }) => {
+      await queryClient.cancelQueries({ queryKey: ['notes', slug] });
+      const idSet = new Set(ids);
+      const snapshots: Array<[readonly unknown[], Note[] | undefined]> = [];
+
+      const entries = queryClient.getQueriesData<Note[]>({ queryKey: ['notes', slug] });
+      for (const [key, value] of entries) {
+        snapshots.push([key, value]);
+        if (Array.isArray(value)) {
+          queryClient.setQueryData<Note[]>(
+            key,
+            value.map((n) => (idSet.has(n.id) ? { ...n, categoryId } : n)),
+          );
+        }
+      }
+
+      return { snapshots };
+    },
+    onError: (_error, _vars, context) => {
+      if (!context) return;
+      for (const [key, value] of context.snapshots) {
+        queryClient.setQueryData(key, value);
+      }
+    },
+    onSuccess: () => {
+      invalidateNotes(slug);
+    },
+  });
+
+  return {
+    mutateAsync: (args: { ids: number[]; categoryId: number | null }) => mutation.mutateAsync(args),
+    isPending: mutation.isPending,
+  };
+}

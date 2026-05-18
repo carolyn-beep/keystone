@@ -67,6 +67,46 @@ export function useSources(slug: string) {
     },
   });
 
+  // Spec 03 FR4 — bulk delete. Drops the selected ids from the cached
+  // list and invalidates the notes query so per-source linked-notes
+  // counts re-render (some notes may have been linked to deleted sources).
+  const bulkDeleteMutation = useMutation({
+    mutationFn: async (ids: number[]): Promise<void> => {
+      await apiRequest('POST', `/api/brainlifts/${slug}/sources/bulk-delete`, { ids });
+    },
+    onSuccess: (_result, ids) => {
+      const idSet = new Set(ids);
+      queryClient.setQueryData<Source[]>(getSourcesQueryKey(slug), (current = []) =>
+        current.filter((item) => !idSet.has(item.id)),
+      );
+      invalidateSources(slug);
+      queryClient.invalidateQueries({ queryKey: ['notes', slug] });
+    },
+  });
+
+  // Spec 03 FR4 — bulk recategorize. Patches categoryId on the cached
+  // rows in place, then invalidates sources + categories so per-category
+  // counts re-render.
+  const bulkRecategorizeMutation = useMutation({
+    mutationFn: async (
+      { ids, categoryId }: { ids: number[]; categoryId: number },
+    ): Promise<{ updated: number }> => {
+      const res = await apiRequest(
+        'POST',
+        `/api/brainlifts/${slug}/sources/bulk-recategorize`,
+        { ids, categoryId },
+      );
+      return readJson<{ updated: number }>(res);
+    },
+    onSuccess: (_result, { ids, categoryId }) => {
+      const idSet = new Set(ids);
+      queryClient.setQueryData<Source[]>(getSourcesQueryKey(slug), (current = []) =>
+        current.map((item) => (idSet.has(item.id) ? { ...item, categoryId } : item)),
+      );
+      invalidateSources(slug);
+    },
+  });
+
   return {
     data: query.data,
     isLoading: query.isLoading,
@@ -74,8 +114,13 @@ export function useSources(slug: string) {
     createSource: (input: CreateSourceInput) => createMutation.mutateAsync(input),
     updateSource: (id: number, patch: UpdateSourceInput) => updateMutation.mutateAsync({ id, patch }),
     deleteSource: (id: number) => deleteMutation.mutateAsync(id),
+    bulkDeleteSources: (ids: number[]) => bulkDeleteMutation.mutateAsync(ids),
+    bulkRecategorizeSources: ({ ids, categoryId }: { ids: number[]; categoryId: number }) =>
+      bulkRecategorizeMutation.mutateAsync({ ids, categoryId }),
     isCreating: createMutation.isPending,
     isUpdating: updateMutation.isPending,
     isDeleting: deleteMutation.isPending,
+    isBulkDeleting: bulkDeleteMutation.isPending,
+    isBulkRecategorizing: bulkRecategorizeMutation.isPending,
   };
 }

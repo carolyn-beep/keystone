@@ -6,29 +6,100 @@ import { saveSingleDOK2Summary } from '../../storage/dok2';
 import { autoBookmarkIfPending } from '../../storage/knowledge-tree';
 import { withJob } from '../../utils/withJob';
 import { ensureItemTextContent } from '../../utils/item-text-content';
-import type { LearningStreamItem, Brainlift } from '../../storage/base';
+import { buildSecondBrainChatTools } from '../chat/tools/second-brain';
+import type { AuthContext, LearningStreamItem, Brainlift } from '../../storage/base';
 
 interface BuilderContext {
   mode: 'builder';
 }
 
 /**
- * Build the 4 discussion tools, closing over request context.
- * When builderContext is provided, tools branch to builder-mode behavior:
+ * Build the discussion tools, closing over request context.
+ *
+ * Tool surface branches on `brainlift.phase`, mirroring the native chat agent
+ * (see server/ai/chat/tools/index.ts):
+ * - 'research' phase: drop the DOK extraction tools (save_dok1_fact,
+ *   save_dok2_summary). The student isn't doing DOK work yet; they're building
+ *   a Second Brain. Keep the context/read tools so the agent can still ground
+ *   the conversation in the source.
+ * - 'authoring' phase: keep all existing DOK extraction tools.
+ *
+ * Second Brain tools (save_source, save_note, create_category, list/edit/delete)
+ * are available in BOTH phases, same as native chat — students save notes and
+ * sources regardless of where they are in the pyramid.
+ *
+ * When builderContext is provided, DOK tools branch to builder-mode behavior:
  * - save_dok1_fact: sets learningStreamItemId, category optional
  * - save_dok2_summary: sets learningStreamItemId, category optional
  * - get_brainlift_context: includes item extraction state
  */
 export function buildDiscussionTools(
   item: LearningStreamItem,
-  brainlift: Pick<Brainlift, 'id' | 'displayPurpose' | 'description'>,
+  brainlift: Pick<Brainlift, 'id' | 'displayPurpose' | 'description' | 'phase'>,
+  authContext: AuthContext,
   builderContext?: BuilderContext
 ) {
   const isBuilder = builderContext?.mode === 'builder';
+  const isResearch = brainlift.phase === 'research';
   // Track DOK1 facts saved this session for originalId sequencing
   let sessionFactSeq = 0;
 
-  return {
+  // Second Brain tools reuse the native chat builder. The discussion agent has
+  // no real ConversationContext (no conversation row), so we synthesize one
+  // with the brainlift binding — that's all `requireBoundBrainlift` checks.
+  const rawSecondBrainTools = buildSecondBrainChatTools(authContext, {
+    conversationId: 0,
+    brainliftId: brainlift.id,
+    brainlift: null,
+  });
+
+  // Wrap save_source so it auto-links to the learning stream item the user is
+  // reading. The agent has the open item in context — never make it pass the
+  // item id manually.
+  const wrappedSaveSource = tool({
+    description: (rawSecondBrainTools.save_source as any).description,
+    inputSchema: (rawSecondBrainTools.save_source as any).inputSchema,
+    execute: async (args: any, ctx: any) => {
+      const merged = {
+        ...args,
+        learningStreamItemId: args?.learningStreamItemId ?? item.id,
+      };
+      return (rawSecondBrainTools.save_source as any).execute(merged, ctx);
+    },
+  });
+
+  // Wrap save_note so it auto-links to the Second Brain source for the current
+  // item when one exists. Without this, "save a note about this article" ends
+  // up as a free-floating note instead of landing on the source the user has
+  // open right in front of them.
+  const wrappedSaveNote = tool({
+    description: (rawSecondBrainTools.save_note as any).description,
+    inputSchema: (rawSecondBrainTools.save_note as any).inputSchema,
+    execute: async (args: any, ctx: any) => {
+      let sourceId = args?.sourceId;
+      if (sourceId == null) {
+        const sourcesForBrainlift = await storage.getSourcesByBrainlift(brainlift.id);
+        const linked = sourcesForBrainlift.find(
+          (s) => s.learningStreamItemId === item.id,
+        );
+        if (linked) {
+          sourceId = linked.id;
+        }
+      }
+      return (rawSecondBrainTools.save_note as any).execute(
+        { ...args, sourceId },
+        ctx,
+      );
+    },
+  });
+
+  const secondBrainTools = {
+    ...rawSecondBrainTools,
+    save_source: wrappedSaveSource,
+    save_note: wrappedSaveNote,
+  };
+
+  const dokTools = {
     save_dok1_fact: tool({
       description:
         'Save a DOK1 fact that the user has articulated. Only call this after the user agrees to save it.',
@@ -298,4 +369,12 @@ export function buildDiscussionTools(
       },
     }),
   };
+
+  if (isResearch) {
+    // Research phase: drop DOK extraction tools, keep context/read + Second Brain.
+    const { save_dok1_fact, save_dok2_summary, ...researchSafe } = dokTools;
+    return { ...researchSafe, ...secondBrainTools };
+  }
+
+  return { ...dokTools, ...secondBrainTools };
 }

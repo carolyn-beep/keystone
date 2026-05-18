@@ -467,6 +467,23 @@ brainliftsRouter.patch(
   })
 );
 
+// Update brainlift purpose / tagline (the short summary shown in the header)
+brainliftsRouter.patch(
+  '/api/brainlifts/:slug/purpose',
+  requireAuth,
+  requireBrainliftModify,
+  asyncHandler(async (req, res) => {
+    const raw = typeof req.body?.purpose === 'string' ? req.body.purpose.trim() : '';
+    if (raw.length > 1000) {
+      throw new BadRequestError('Purpose is too long (max 1000 characters)');
+    }
+    // Empty string clears the override and falls back to the underlying
+    // `description` field in the read response.
+    await storage.updateBrainliftFields(req.brainlift!.id, { displayPurpose: raw || null });
+    res.json({ success: true, displayPurpose: raw || null });
+  })
+);
+
 // Get version history for a brainlift
 brainliftsRouter.get(
   '/api/brainlifts/:slug/versions',

@@ -4,10 +4,11 @@ import {
   db,
   desc,
   eq,
+  inArray,
   isNull,
   sql,
 } from './base';
-import { ilike, or } from 'drizzle-orm';
+import { ilike, inArray, or } from 'drizzle-orm';
 import {
   categories,
   learningStreamItems,
@@ -18,7 +19,7 @@ import {
   type Note,
   type Source,
 } from '@shared/schema';
-import { BadRequestError } from '../middleware/error-handler';
+import { BadRequestError, NotFoundError } from '../middleware/error-handler';
 
 export type CreateSourceInput = Omit<InsertSource, 'id' | 'brainliftId' | 'createdAt' | 'updatedAt'>;
 export type UpdateSourceInput = Partial<CreateSourceInput>;
@@ -174,6 +175,12 @@ export async function getSourcesByBrainlift(brainliftId: number): Promise<Source
       categoryId: sources.categoryId,
       extractedContent: sources.extractedContent,
       learningStreamItemId: sources.learningStreamItemId,
+      // Spec 03 FR1: surface spec-01 enrichment fields. Without these the
+      // v2 cards have no metadata to render.
+      type: sources.type,
+      keyInsights: sources.keyInsights,
+      length: sources.length,
+      whyMatters: sources.whyMatters,
       createdAt: sources.createdAt,
       updatedAt: sources.updatedAt,
       categoryName: categories.name,
@@ -243,6 +250,68 @@ export async function deleteSourceForBrainlift(
     .returning({ id: sources.id });
 
   return deleted.length > 0;
+}
+
+/**
+ * Spec 03 FR2 — bulk delete sources scoped to a single brainlift.
+ *
+ * Returns the number of rows actually deleted. The route layer compares
+ * the requested count vs returned count to detect cross-brainlift ids
+ * and surface a 404 (IDOR-safe enumeration prevention).
+ *
+ * Empty `sourceIds` short-circuits to 0 (avoids a no-op `IN ()` query
+ * which some drivers reject).
+ */
+export async function bulkDeleteSources(
+  brainliftId: number,
+  sourceIds: number[],
+): Promise<number> {
+  if (sourceIds.length === 0) {
+    return 0;
+  }
+
+  const deleted = await db
+    .delete(sources)
+    .where(and(
+      inArray(sources.id, sourceIds),
+      eq(sources.brainliftId, brainliftId),
+    ))
+    .returning({ id: sources.id });
+
+  return deleted.length;
+}
+
+/**
+ * Spec 03 FR3 — bulk recategorize sources scoped to a single brainlift.
+ *
+ * Validates the target category belongs to this brainlift first. Then
+ * runs a single UPDATE filtered by `id IN (...) AND brainlift_id = $2`
+ * so cross-brainlift ids are silently skipped (route layer surfaces a
+ * 404 if the returned count is less than requested).
+ *
+ * Empty `sourceIds` short-circuits to 0.
+ */
+export async function bulkUpdateSourceCategories(
+  brainliftId: number,
+  sourceIds: number[],
+  categoryId: number,
+): Promise<number> {
+  await ensureCategoryBelongsToBrainlift(categoryId, brainliftId);
+
+  if (sourceIds.length === 0) {
+    return 0;
+  }
+
+  const updated = await db
+    .update(sources)
+    .set({ categoryId, updatedAt: new Date() })
+    .where(and(
+      inArray(sources.id, sourceIds),
+      eq(sources.brainliftId, brainliftId),
+    ))
+    .returning({ id: sources.id });
+
+  return updated.length;
 }
 
 export async function createNote(
@@ -351,6 +420,67 @@ export async function deleteNoteForBrainlift(
   return deleted.length > 0;
 }
 
+/**
+ * Bulk delete notes by id, scoped to a single brainlift. Notes not owned
+ * by `brainliftId` are silently skipped (IDOR-safe). Returns the count
+ * of rows actually deleted.
+ *
+ * Uses a single `WHERE id IN (...) AND brainliftId = ?` query (no
+ * per-id round trips).
+ */
+export async function bulkDeleteNotes(
+  brainliftId: number,
+  ids: number[],
+): Promise<{ deleted: number }> {
+  if (!Array.isArray(ids) || ids.length === 0) {
+    return { deleted: 0 };
+  }
+
+  const deleted = await db
+    .delete(notes)
+    .where(and(
+      inArray(notes.id, ids),
+      eq(notes.brainliftId, brainliftId),
+    ))
+    .returning({ id: notes.id });
+
+  return { deleted: deleted.length };
+}
+
+/**
+ * Bulk update the `categoryId` of notes owned by a brainlift. Passing
+ * `categoryId: null` clears the category (notes allow nullable
+ * categories; sources do not). Returns the count of rows actually
+ * updated.
+ */
+export async function bulkUpdateNoteCategories(
+  brainliftId: number,
+  ids: number[],
+  categoryId: number | null,
+): Promise<{ updated: number }> {
+  if (!Array.isArray(ids) || ids.length === 0) {
+    return { updated: 0 };
+  }
+
+  if (categoryId !== null) {
+    await ensureCategoryBelongsToBrainlift(categoryId, brainliftId);
+  }
+
+  const updated = await db
+    .update(notes)
+    .set({
+      categoryId,
+      updatedAt: new Date(),
+    })
+    .where(and(
+      inArray(notes.id, ids),
+      eq(notes.brainliftId, brainliftId),
+    ))
+    .returning({ id: notes.id });
+
+  return { updated: updated.length };
+}
+
 export async function listSources(
   brainliftId: number,
   opts: ListSourcesOptions = {},
@@ -388,6 +518,11 @@ export async function listSources(
         categoryId: sources.categoryId,
         extractedContent: sources.extractedContent,
         learningStreamItemId: sources.learningStreamItemId,
+        // Spec 03 FR1: same enrichment surface as getSourcesByBrainlift.
+        type: sources.type,
+        keyInsights: sources.keyInsights,
+        length: sources.length,
+        whyMatters: sources.whyMatters,
         createdAt: sources.createdAt,
         updatedAt: sources.updatedAt,
         categoryName: categories.name,
@@ -529,4 +664,111 @@ export async function getSecondBrainSummary(brainliftId: number): Promise<Second
         }))
       : [],
   };
+}
+
+// ─── Second Brain v2: Categories Tab (spec 05) ──────────────────────────────
+
+/**
+ * Category row enriched with source + note counts, used by the Second Brain
+ * Categories sub-tab. Distinct from the knowledge-tree CategoryWithCount,
+ * which counts saved learning stream items (different semantic).
+ */
+export interface CategoryWithSourceAndNoteCount {
+  id: number;
+  name: string;
+  sortOrder: number | null;
+  sourceCount: number;
+  noteCount: number;
+}
+
+/**
+ * Single grouped query: per-category source count (from `sources`) and note
+ * count (from `notes`). LEFT JOINs ensure categories with zero sources or
+ * zero notes still appear with 0 counts. Notes whose categoryId is null
+ * are not associated with any category and so are not counted toward any
+ * row.
+ *
+ * Ordering: sort_order ASC NULLS LAST, then name ASC. Matches the manual
+ * default sort the UI presents.
+ */
+export async function getCategoriesWithCountsForSecondBrain(
+  brainliftId: number,
+): Promise<CategoryWithSourceAndNoteCount[]> {
+  const rows = await db
+    .select({
+      id: categories.id,
+      name: categories.name,
+      sortOrder: categories.sortOrder,
+      sourceCount: sql<number>`count(distinct ${sources.id})::int`,
+      noteCount: sql<number>`count(distinct ${notes.id})::int`,
+    })
+    .from(categories)
+    .leftJoin(sources, eq(sources.categoryId, categories.id))
+    .leftJoin(notes, eq(notes.categoryId, categories.id))
+    .where(eq(categories.brainliftId, brainliftId))
+    .groupBy(categories.id, categories.name, categories.sortOrder)
+    .orderBy(sql`${categories.sortOrder} asc nulls last`, asc(categories.name));
+
+  return rows;
+}
+
+/**
+ * Rewrite every passed category's sort_order to its index in the list.
+ *
+ * Validation:
+ *   - orderedIds must contain no duplicates.
+ *   - orderedIds.length must match the brainlift's total category count.
+ *   - every id must belong to the brainlift (IDOR-safe).
+ *
+ * The UPDATE uses a single statement with `unnest($1::int[]) WITH ORDINALITY`
+ * so all rows are rewritten at once. The WHERE clause includes brainlift_id
+ * so even if a foreign id slipped past validation, no other brainlift's
+ * rows could be mutated.
+ */
+export async function reorderCategories(
+  brainliftId: number,
+  orderedIds: number[],
+): Promise<void> {
+  // Duplicate guard.
+  const unique = new Set(orderedIds);
+  if (unique.size !== orderedIds.length) {
+    throw new BadRequestError('orderedIds contains duplicate ids');
+  }
+
+  // Length + ownership guard via a single SELECT round-trip.
+  const existing = await db
+    .select({ id: categories.id })
+    .from(categories)
+    .where(eq(categories.brainliftId, brainliftId));
+
+  if (existing.length !== orderedIds.length) {
+    throw new BadRequestError(
+      `orderedIds length (${orderedIds.length}) does not match brainlift category count (${existing.length})`,
+    );
+  }
+
+  const existingIds = new Set(existing.map((row) => row.id));
+  for (const id of orderedIds) {
+    if (!existingIds.has(id)) {
+      throw new NotFoundError('Category not found in this brainlift');
+    }
+  }
+
+  // Empty list → nothing to do (validated above as matching 0 categories).
+  if (orderedIds.length === 0) return;
+
+  // All ids are integers (already validated they exist in DB as integers).
+  const idsLiteral = orderedIds.map((id) => Number(id)).join(',');
+
+  // Single UPDATE using unnest WITH ORDINALITY. WITH ORDINALITY returns
+  // 1-based positions; we subtract 1 so sort_order matches the 0-based
+  // index in orderedIds. The brainlift_id condition is belt-and-suspenders
+  // alongside the ownership check above.
+  await db.execute(sql`
+    UPDATE ${categories} AS c
+    SET sort_order = u.ord - 1
+    FROM unnest(ARRAY[${sql.raw(idsLiteral)}]::int[]) WITH ORDINALITY AS u(id, ord)
+    WHERE c.id = u.id
+      AND c.brainlift_id = ${brainliftId}
+  `);
 }

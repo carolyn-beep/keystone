@@ -155,11 +155,11 @@ export function BookmarkCategoryDialog({ slug, itemId, open, onClose, onSaved }:
               <span>Research Stream → Second Brain</span>
             </div>
             <h3 id="bookmark-category-dialog-title" className="mb-0 mt-2 font-serif text-[28px] leading-tight tracking-tight text-foreground">
-              Choose a shelf
+              Choose a category
             </h3>
             <p className="mb-0 mt-3 max-w-[460px] font-serif text-[14px] italic leading-relaxed text-muted-foreground">
               Decide where this source belongs before adding it to your research
-              library. Shelves keep the library navigable as it grows.
+              library. Categories keep the library navigable as it grows.
             </p>
           </div>
           <button
@@ -176,14 +176,14 @@ export function BookmarkCategoryDialog({ slug, itemId, open, onClose, onSaved }:
           {isLoading ? (
             <div className="flex items-center gap-2 rounded-lg bg-card px-4 py-3 text-[13px] text-muted-foreground">
               <Loader2 size={14} className="animate-spin" />
-              <span>Loading shelves…</span>
+              <span>Loading categories…</span>
             </div>
           ) : null}
 
           {!isLoading && orderedCategories.length > 0 ? (
             <div>
               <span className="mb-2 block text-[10px] font-semibold uppercase tracking-[0.35em] text-muted-foreground">
-                Existing shelves
+                Existing categories
               </span>
               <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
                 {orderedCategories.map((category) => {
@@ -240,7 +240,7 @@ export function BookmarkCategoryDialog({ slug, itemId, open, onClose, onSaved }:
                 </span>
                 <span className="min-w-0 flex-1">
                   <span className="block text-[13px] font-semibold text-foreground">
-                    New shelf
+                    New category
                   </span>
                   <span className="mt-0.5 block font-serif text-[12px] italic leading-snug text-muted-foreground">
                     Create a category that gives this source an intentional home.

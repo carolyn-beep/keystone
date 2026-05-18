@@ -1,20 +1,6 @@
-import type { IconType } from 'react-icons';
-import { BsSubstack } from 'react-icons/bs';
-import { FaGraduationCap, FaYoutube } from 'react-icons/fa';
-import { FaPodcast, FaNewspaper } from 'react-icons/fa6';
-import { VscTwitter } from 'react-icons/vsc';
+import { RETRIEVAL_TYPE_META, resolveRetrievalType } from '@/components/research-stream/retrieval-meta';
 import { tokens } from '@/lib/colors';
 import { cn } from '@/lib/utils';
-
-const RESOURCE_TYPE_CONFIG: Record<string, { bg: string; text: string; icon: IconType }> = {
-  Substack: { bg: tokens.warningSoft, text: tokens.warning, icon: BsSubstack },
-  'Academic Paper': { bg: tokens.successSoft, text: tokens.success, icon: FaGraduationCap },
-  Twitter: { bg: tokens.infoSoft, text: tokens.info, icon: VscTwitter },
-  Video: { bg: tokens.dangerSoft, text: tokens.danger, icon: FaYoutube },
-  Podcast: { bg: tokens.secondarySoft, text: tokens.secondary, icon: FaPodcast },
-  News: { bg: tokens.primarySoft, text: tokens.primary, icon: FaNewspaper },
-  Newsletter: { bg: tokens.warningSoft, text: tokens.warning, icon: BsSubstack },
-};
 
 interface ResourceTypeBadgeProps {
   type: string;
@@ -23,8 +9,9 @@ interface ResourceTypeBadgeProps {
 }
 
 export function ResourceTypeBadge({ type, size = 'default', className }: ResourceTypeBadgeProps) {
-  const config = RESOURCE_TYPE_CONFIG[type] || { bg: tokens.surfaceAlt, text: tokens.textSecondary, icon: null };
-  const Icon = config.icon;
+  const resolved = resolveRetrievalType(type);
+  const meta = resolved ? RETRIEVAL_TYPE_META[resolved] : null;
+  const Icon = meta?.icon;
 
   return (
     <span
@@ -33,10 +20,12 @@ export function ResourceTypeBadge({ type, size = 'default', className }: Resourc
         size === 'compact' ? 'px-2 py-0.5' : 'px-2.5 py-1',
         className,
       )}
-      style={{ backgroundColor: config.bg, color: config.text }}
+      style={meta
+        ? { backgroundColor: meta.bg, color: meta.ink }
+        : { backgroundColor: tokens.surfaceAlt, color: tokens.textSecondary }}
     >
-      {Icon && <Icon size={size === 'compact' ? 10 : 12} />}
-      {type}
+      {Icon ? <Icon size={size === 'compact' ? 10 : 12} /> : null}
+      {meta?.label ?? type}
     </span>
   );
 }

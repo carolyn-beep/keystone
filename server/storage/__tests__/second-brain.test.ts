@@ -11,6 +11,8 @@ import {
   user,
 } from '@shared/schema';
 import {
+  bulkDeleteSources,
+  bulkUpdateSourceCategories,
   createNote,
   createSource,
   deleteNoteForBrainlift,
@@ -137,6 +139,52 @@ describe('second brain storage', () => {
     });
     expect(source.id).toEqual(expect.any(Number));
     expect(source.createdAt).toBeInstanceOf(Date);
+  });
+
+  it('createSource persists Second Brain v2 enrichment fields and tolerates omission (FR2)', async () => {
+    const { brainlift, category } = await createBrainliftFixture('source-enrichment');
+
+    const enriched = await createSource(brainlift.id, {
+      title: 'Enriched Source',
+      url: 'https://example.com/enriched',
+      author: 'Researcher',
+      categoryId: category.id,
+      type: 'Podcast',
+      keyInsights: 'Battery cathode chemistry has shifted toward LFP for mid-range EVs.',
+      length: '48 min',
+      whyMatters: 'Directly informs the supply-chain angle the student picked.',
+    });
+
+    expect(enriched).toMatchObject({
+      type: 'Podcast',
+      keyInsights: 'Battery cathode chemistry has shifted toward LFP for mid-range EVs.',
+      length: '48 min',
+      whyMatters: 'Directly informs the supply-chain angle the student picked.',
+    });
+
+    const bare = await createSource(brainlift.id, {
+      title: 'Bare Source',
+      url: 'https://example.com/bare',
+      author: 'Researcher',
+      categoryId: category.id,
+    });
+
+    expect(bare).toMatchObject({
+      type: null,
+      keyInsights: null,
+      length: null,
+      whyMatters: null,
+    });
+
+    // Read-back via getSourceForBrainlift carries the enrichment fields too.
+    const fetched = await getSourceForBrainlift(enriched.id, brainlift.id);
+    expect(fetched).toMatchObject({
+      id: enriched.id,
+      type: 'Podcast',
+      keyInsights: 'Battery cathode chemistry has shifted toward LFP for mid-range EVs.',
+      length: '48 min',
+      whyMatters: 'Directly informs the supply-chain angle the student picked.',
+    });
   });
 
   it('createSource rejects cross-brainlift categories and duplicate URLs (FR3)', async () => {
@@ -568,5 +616,179 @@ describe('second brain storage', () => {
     const byName = new Map(summary.categories.map((c) => [c.name, c.sourceCount]));
     expect(byName.get(category.name)).toBe(1);
     expect(byName.get('Chemistry')).toBe(1);
+  });
+
+  // -------------------------------------------------------------------------
+  // Spec 03 FR1: getSourcesByBrainlift must return spec-01 enrichment fields.
+  // Spec 01 added persistence + single-source read; it did NOT update the
+  // list path, which hand-selects columns. The v2 UI consumes the list, so
+  // this gap blocks every card render until closed.
+  // -------------------------------------------------------------------------
+  it('getSourcesByBrainlift returns spec-01 enrichment fields (FR1)', async () => {
+    const { brainlift, category } = await createBrainliftFixture('list-enrichment');
+
+    await createSource(brainlift.id, {
+      title: 'Enriched listing',
+      url: 'https://example.com/list-enrichment',
+      author: 'Researcher',
+      categoryId: category.id,
+      type: 'Podcast',
+      keyInsights: 'LFP cathode chemistry is winning the mid-range EV segment.',
+      length: '48 min',
+      whyMatters: 'Directly informs the supply-chain angle the student picked.',
+    });
+
+    const rows = await getSourcesByBrainlift(brainlift.id);
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({
+      type: 'Podcast',
+      keyInsights: 'LFP cathode chemistry is winning the mid-range EV segment.',
+      length: '48 min',
+      whyMatters: 'Directly informs the supply-chain angle the student picked.',
+    });
+  });
+
+  it('getSourcesByBrainlift returns null enrichment fields when omitted (FR1)', async () => {
+    const { brainlift, category } = await createBrainliftFixture('list-bare');
+
+    await createSource(brainlift.id, {
+      title: 'Bare listing',
+      url: 'https://example.com/list-bare',
+      author: 'Researcher',
+      categoryId: category.id,
+    });
+
+    const rows = await getSourcesByBrainlift(brainlift.id);
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({
+      type: null,
+      keyInsights: null,
+      length: null,
+      whyMatters: null,
+    });
+  });
+
+  // -------------------------------------------------------------------------
+  // Spec 03 FR2: bulkDeleteSources
+  // -------------------------------------------------------------------------
+  it('bulkDeleteSources deletes multiple same-brainlift sources and reports the count (FR2)', async () => {
+    const { brainlift, category } = await createBrainliftFixture('bulk-delete-happy');
+
+    const a = await createSource(brainlift.id, {
+      title: 'A', url: 'https://example.com/bd-a', author: 'A', categoryId: category.id,
+    });
+    const b = await createSource(brainlift.id, {
+      title: 'B', url: 'https://example.com/bd-b', author: 'B', categoryId: category.id,
+    });
+    const c = await createSource(brainlift.id, {
+      title: 'C', url: 'https://example.com/bd-c', author: 'C', categoryId: category.id,
+    });
+
+    const deleted = await bulkDeleteSources(brainlift.id, [a.id, b.id]);
+    expect(deleted).toBe(2);
+
+    const remaining = await getSourcesByBrainlift(brainlift.id);
+    expect(remaining.map((s) => s.id)).toEqual([c.id]);
+  });
+
+  it('bulkDeleteSources will not touch sources from a different brainlift (FR2 IDOR)', async () => {
+    const { brainlift, category } = await createBrainliftFixture('bulk-delete-own');
+    const { brainlift: other, category: otherCategory } = await createBrainliftFixture('bulk-delete-other', OTHER_USER_ID);
+
+    const mine = await createSource(brainlift.id, {
+      title: 'Mine', url: 'https://example.com/bd-mine', author: 'A', categoryId: category.id,
+    });
+    const theirs = await createSource(other.id, {
+      title: 'Theirs', url: 'https://example.com/bd-theirs', author: 'B', categoryId: otherCategory.id,
+    });
+
+    const deleted = await bulkDeleteSources(brainlift.id, [mine.id, theirs.id]);
+    // Only the same-brainlift row is deleted; the cross-brainlift id is silently dropped.
+    expect(deleted).toBe(1);
+
+    const stillTheirs = await getSourceForBrainlift(theirs.id, other.id);
+    expect(stillTheirs).not.toBeNull();
+  });
+
+  it('bulkDeleteSources is idempotent on already-deleted ids (FR2)', async () => {
+    const { brainlift, category } = await createBrainliftFixture('bulk-delete-idem');
+    const a = await createSource(brainlift.id, {
+      title: 'A', url: 'https://example.com/bd-idem', author: 'A', categoryId: category.id,
+    });
+
+    const first = await bulkDeleteSources(brainlift.id, [a.id]);
+    expect(first).toBe(1);
+
+    const second = await bulkDeleteSources(brainlift.id, [a.id]);
+    expect(second).toBe(0);
+  });
+
+  it('bulkDeleteSources returns 0 when given an empty id list (FR2)', async () => {
+    const { brainlift } = await createBrainliftFixture('bulk-delete-empty');
+    const deleted = await bulkDeleteSources(brainlift.id, []);
+    expect(deleted).toBe(0);
+  });
+
+  // -------------------------------------------------------------------------
+  // Spec 03 FR3: bulkUpdateSourceCategories
+  // -------------------------------------------------------------------------
+  it('bulkUpdateSourceCategories moves matching sources to a new category (FR3)', async () => {
+    const { brainlift, category: catA } = await createBrainliftFixture('bulk-recat-happy');
+    const [catB] = await db.insert(categories).values({
+      brainliftId: brainlift.id, name: 'Bulk Target', sortOrder: 2,
+    }).returning();
+
+    const s1 = await createSource(brainlift.id, {
+      title: 'S1', url: 'https://example.com/br-s1', author: 'A', categoryId: catA.id,
+    });
+    const s2 = await createSource(brainlift.id, {
+      title: 'S2', url: 'https://example.com/br-s2', author: 'B', categoryId: catA.id,
+    });
+
+    const updated = await bulkUpdateSourceCategories(brainlift.id, [s1.id, s2.id], catB.id);
+    expect(updated).toBe(2);
+
+    const all = await getSourcesByBrainlift(brainlift.id);
+    expect(all.every((s) => s.categoryId === catB.id)).toBe(true);
+  });
+
+  it('bulkUpdateSourceCategories rejects a categoryId from another brainlift (FR3)', async () => {
+    const { brainlift, category } = await createBrainliftFixture('bulk-recat-own');
+    const { category: otherCategory } = await createBrainliftFixture('bulk-recat-other', OTHER_USER_ID);
+
+    const s = await createSource(brainlift.id, {
+      title: 'S', url: 'https://example.com/br-x', author: 'A', categoryId: category.id,
+    });
+
+    await expect(
+      bulkUpdateSourceCategories(brainlift.id, [s.id], otherCategory.id),
+    ).rejects.toThrow('Category does not belong to this brainlift');
+  });
+
+  it('bulkUpdateSourceCategories only touches same-brainlift source ids (FR3 IDOR)', async () => {
+    const { brainlift, category } = await createBrainliftFixture('bulk-recat-idor-own');
+    const { brainlift: other, category: otherCategory } = await createBrainliftFixture('bulk-recat-idor-other', OTHER_USER_ID);
+    const [targetCat] = await db.insert(categories).values({
+      brainliftId: brainlift.id, name: 'Target', sortOrder: 5,
+    }).returning();
+
+    const mine = await createSource(brainlift.id, {
+      title: 'Mine', url: 'https://example.com/br-idor-mine', author: 'A', categoryId: category.id,
+    });
+    const theirs = await createSource(other.id, {
+      title: 'Theirs', url: 'https://example.com/br-idor-theirs', author: 'B', categoryId: otherCategory.id,
+    });
+
+    const updated = await bulkUpdateSourceCategories(brainlift.id, [mine.id, theirs.id], targetCat.id);
+    expect(updated).toBe(1);
+
+    const stillTheirCategory = await getSourceForBrainlift(theirs.id, other.id);
+    expect(stillTheirCategory?.categoryId).toBe(otherCategory.id);
+  });
+
+  it('bulkUpdateSourceCategories returns 0 when given an empty id list (FR3)', async () => {
+    const { brainlift, category } = await createBrainliftFixture('bulk-recat-empty');
+    const updated = await bulkUpdateSourceCategories(brainlift.id, [], category.id);
+    expect(updated).toBe(0);
   });
 });

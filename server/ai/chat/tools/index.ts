@@ -44,7 +44,7 @@ export function buildNativeChatTools(
     ...(isResearch ? researchBrainliftTools : gradingTools),
     ...buildSharedProjectChatTools(authContext, conversation),
     ...(isResearch ? buildResearchOnlyProjectChatTools(authContext, conversation) : {}),
-    ...(isResearch ? buildSecondBrainChatTools(authContext, conversation) : {}),
+    ...buildSecondBrainChatTools(authContext, conversation),
     ...(isAuthoring ? buildChatCurationTools(authContext) : {}),
     ...(isAuthoring ? buildSprintChatTools({ authContext }) : {}),
     ...researchStreamTools,

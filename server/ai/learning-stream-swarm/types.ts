@@ -23,7 +23,7 @@ export interface BrainliftContext {
 }
 
 export interface LearningResourceItem {
-  type: 'Substack' | 'Twitter' | 'Academic Paper' | 'Podcast' | 'Video' | 'News';
+  type: 'Substack' | 'Twitter' | 'AcademicPaper' | 'Podcast' | 'Video' | 'News';
   author: string;
   topic: string;
   time: string;
@@ -59,7 +59,7 @@ export const SWARM_AGENT_COUNT = parseInt(process.env.SWARM_AGENT_COUNT || '5', 
  */
 export const RESOURCE_TYPE_WEIGHTS = {
   Substack: 5,
-  'Academic Paper': 5,
+  AcademicPaper: 5,
   Twitter: 5,
   Video: 5,
   Podcast: 5,

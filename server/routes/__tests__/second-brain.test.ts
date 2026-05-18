@@ -13,6 +13,7 @@ const { mockStorage, mockExtractContent } = vi.hoisted(() => ({
     updateNoteForBrainlift: vi.fn(),
     deleteNoteForBrainlift: vi.fn(),
     getCategoriesWithCounts: vi.fn(),
+    getCategoriesWithCountsForSecondBrain: vi.fn(),
     createCategory: vi.fn(),
     updateCategory: vi.fn(),
     deleteCategory: vi.fn(),
@@ -205,7 +206,7 @@ describe('second brain category and prefetch handlers', () => {
     const { listCategoriesHandler } = await import('../second-brain');
     const res = createRes();
 
-    mockStorage.getCategoriesWithCounts.mockResolvedValue([{ id: 1, name: 'AI' }]);
+    mockStorage.getCategoriesWithCountsForSecondBrain.mockResolvedValue([{ id: 1, name: 'AI' }]);
 
     await listCategoriesHandler(createReq(), res);
 
