@@ -9,7 +9,7 @@ import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
 import { db } from '../../db';
 import { apiKeys, user } from '@shared/schema';
 import { eq, sql } from 'drizzle-orm';
-import { validateApiKey, findOrCreateUserByEmail } from '../api-keys';
+import { validateApiKey, findOrCreateUserByEmail, findUserByEmail } from '../api-keys';
 import crypto from 'crypto';
 
 // Test fixtures
@@ -148,5 +148,42 @@ describe('findOrCreateUserByEmail', () => {
     expect(created.role).toBe('user');
     expect(created.name).toBe('Test Role User');
     expect(created.email).toBe(email.toLowerCase());
+  });
+});
+
+describe('findUserByEmail', () => {
+  const uniqueId = Date.now();
+
+  it('returns null for unknown email and does NOT insert a row', async () => {
+    const email = `test-lookup-miss-${uniqueId}@example.com`;
+    const before = await db.execute(sql`SELECT COUNT(*)::int AS n FROM "user"`);
+    const result = await findUserByEmail(email);
+    const after = await db.execute(sql`SELECT COUNT(*)::int AS n FROM "user"`);
+
+    expect(result).toBeNull();
+    expect((after.rows[0] as { n: number }).n).toBe((before.rows[0] as { n: number }).n);
+  });
+
+  it('returns existing user for known email', async () => {
+    const email = `test-lookup-hit-${uniqueId}@example.com`;
+    testUserEmails.push(email);
+    const created = await findOrCreateUserByEmail(email, 'Lookup Hit');
+
+    const result = await findUserByEmail(email);
+
+    expect(result).not.toBeNull();
+    expect(result!.userId).toBe(created.userId);
+    expect(result!.role).toBe('user');
+  });
+
+  it('matches email case-insensitively', async () => {
+    const email = `test-lookup-case-${uniqueId}@example.com`;
+    testUserEmails.push(email);
+    const created = await findOrCreateUserByEmail(email, 'Lookup Case');
+
+    const result = await findUserByEmail(email.toUpperCase());
+
+    expect(result).not.toBeNull();
+    expect(result!.userId).toBe(created.userId);
   });
 });
