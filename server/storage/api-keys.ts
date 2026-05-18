@@ -31,6 +31,27 @@ export async function validateApiKey(key: string): Promise<ApiKey | null> {
 }
 
 /**
+ * Look up an existing user by email (case-insensitive). Returns null when
+ * no row matches. Used by service-auth for non-wildcard (scoped) API keys,
+ * which must not auto-provision users — a missing email is a 404, not a
+ * silent insert. See findOrCreateUserByEmail for the wildcard-trusted path.
+ */
+export async function findUserByEmail(
+  email: string,
+): Promise<{ userId: string; role: string } | null> {
+  const normalizedEmail = email.toLowerCase();
+
+  const [existing] = await db
+    .select()
+    .from(user)
+    .where(sql`LOWER(${user.email}) = ${normalizedEmail}`)
+    .limit(1);
+
+  if (!existing) return null;
+  return { userId: existing.id, role: existing.role ?? 'user' };
+}
+
+/**
  * Find an existing user by email or create a new one.
  * Email matching is case-insensitive.
  *

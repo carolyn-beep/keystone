@@ -238,6 +238,8 @@ All routes nested under `/api/brainlifts/:slug/learning-stream` for authorizatio
 
 Service authentication also requires `X-User-Email`, which is trusted as the caller-asserted end user for downstream BrainLift access checks. API key scopes restrict which internal endpoints a service key can reach, but they do not constrain which user email a partner can assert. Restricted partner keys should be issued only to trusted operators.
 
+**User auto-provisioning depends on key scope.** Wildcard (`*`) keys — the first-party MCP — create unknown users on first contact. Scoped keys (e.g. `brainlifts:read`) return `404 Unknown user` for emails that don't already exist on the platform; they cannot insert into the `user` table. This prevents partner integrations from polluting the user table by iterating workspace identities.
+
 | Method | Endpoint | Auth | Description |
 |--------|----------|------|-------------|
 | `GET` | `/api/internal/template` | Service Key | Returns the Brainlift markdown template |
