@@ -16,6 +16,9 @@ export const auth = betterAuth({
   }),
   emailAndPassword: {
     enabled: true,
+    // Production: only allow sign-in for test accounts inserted directly in the DB.
+    // Dev: keep signup enabled so the Dev quick login can auto-create on first use.
+    disableSignUp: process.env.NODE_ENV === "production",
     autoSignIn: true,
     requireEmailVerification: false,
     minPasswordLength: 8,
