@@ -348,7 +348,26 @@ export async function bulkRecategorizeNotesHandler(req: Request, res: Response):
 }
 
 export async function listCategoriesHandler(req: Request, res: Response): Promise<void> {
-  const categories = await storage.getCategoriesWithCounts(req.brainlift!.id);
+  const categories = await storage.getCategoriesWithCountsForSecondBrain(req.brainlift!.id);
+  res.json({ categories });
+}
+
+export async function reorderCategoriesHandler(req: Request, res: Response): Promise<void> {
+  const body = req.body as Record<string, unknown>;
+  const raw = body.orderedIds;
+  if (!Array.isArray(raw)) {
+    throw new BadRequestError('orderedIds must be an array of integers');
+  }
+  const orderedIds: number[] = [];
+  for (const value of raw) {
+    if (typeof value !== 'number' || !Number.isInteger(value)) {
+      throw new BadRequestError('orderedIds must contain only integers');
+    }
+    orderedIds.push(value);
+  }
+
+  await storage.reorderCategories(req.brainlift!.id, orderedIds);
+  const categories = await storage.getCategoriesWithCountsForSecondBrain(req.brainlift!.id);
   res.json({ categories });
 }
 
@@ -549,6 +568,13 @@ secondBrainRouter.post(
   requireAuth,
   requireBrainliftModify,
   asyncHandler(createCategoryHandler),
+);
+
+secondBrainRouter.patch(
+  '/api/brainlifts/:slug/categories/reorder',
+  requireAuth,
+  requireBrainliftModify,
+  asyncHandler(reorderCategoriesHandler),
 );
 
 secondBrainRouter.patch(

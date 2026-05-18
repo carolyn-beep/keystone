@@ -243,6 +243,8 @@ export const storage = {
   listNotes: secondBrainStorage.listNotes,
   listCategories: secondBrainStorage.listCategories,
   getSecondBrainSummary: secondBrainStorage.getSecondBrainSummary,
+  getCategoriesWithCountsForSecondBrain: secondBrainStorage.getCategoriesWithCountsForSecondBrain,
+  reorderCategories: secondBrainStorage.reorderCategories,
 
   // DOK3 Insights
   saveDOK3Insights: dok3Storage.saveDOK3Insights,

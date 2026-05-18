@@ -71,13 +71,14 @@ describe('SecondBrainTab composition', () => {
   it('stays thin and delegates research-materials to the v2 ResearchMaterialsTab (post spec 03)', () => {
     // The shell is now smaller (the v1 two-pane wiring was removed in spec 03 FR12).
     expect(tabSource.split('\n').length).toBeLessThan(400);
-    // Categories + Notes branches still route to the v1 placeholders.
-    expect(tabSource).toMatch(/<CategoriesManager\s+slug=\{slug\}/);
-    expect(tabSource).toMatch(/<NotesPanel\s+slug=\{slug\}\s+filterSourceId=\{null\}/);
-    // research-materials branch routes to the v2 component.
+    // All three sub-tabs now route to v2 components (specs 03/04/05).
     expect(tabSource).toMatch(/<ResearchMaterialsTab\s+slug=\{slug\}/);
-    // The legacy two-pane SourcesPanel wiring is gone.
+    expect(tabSource).toMatch(/<NotesTab\s+slug=\{slug\}/);
+    expect(tabSource).toMatch(/<CategoriesTab\s+slug=\{slug\}/);
+    // Legacy v1 panels are no longer mounted by the shell.
     expect(tabSource).not.toMatch(/<SourcesPanel\b/);
+    expect(tabSource).not.toMatch(/<NotesPanel\b/);
+    expect(tabSource).not.toMatch(/<CategoriesManager\b/);
   });
 
   it('uses neo-editorial design tokens and copy for empty research setup', () => {

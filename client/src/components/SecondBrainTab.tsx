@@ -1,11 +1,10 @@
 import { useCallback, useMemo } from 'react';
 import { useSearch } from 'wouter';
 import type { BrainliftData } from '@shared/schema';
-import { NotesPanel } from '@/components/second-brain/NotesPanel';
-import { CategoriesManager } from '@/components/second-brain/CategoriesManager';
 import { SubTabStrip } from '@/components/second-brain-v2/shared/SubTabStrip';
 import { ResearchMaterialsTab } from '@/components/second-brain-v2/ResearchMaterialsTab';
 import { NotesTab } from '@/components/second-brain-v2/NotesTab';
+import { CategoriesTab } from '@/components/second-brain-v2/CategoriesTab';
 
 export interface SecondBrainTabProps {
   slug: string;
@@ -105,7 +104,7 @@ function SubTabBody({ activeSubTab, slug, brainlift: _brainlift }: SubTabBodyPro
   // categories
   return (
     <div className="grid grid-cols-1">
-      <CategoriesManager slug={slug} />
+      <CategoriesTab slug={slug} />
     </div>
   );
 }

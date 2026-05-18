@@ -41,6 +41,7 @@ export interface Category {
   name: string;
   sortOrder: number | null;
   sourceCount?: number;
+  noteCount?: number;
   createdAt?: string;
 }
 

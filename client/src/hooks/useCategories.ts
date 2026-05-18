@@ -19,6 +19,7 @@ import type { Category } from '@/types/second-brain';
 
 export interface CategoryResponse extends Category {
   sourceCount: number;
+  noteCount: number;
 }
 
 // ─── Cache Invalidation ─────────────────────────────────────────────────────
@@ -34,6 +35,7 @@ function normalizeCategory(category: Category): CategoryResponse {
     ...category,
     sortOrder: category.sortOrder ?? null,
     sourceCount: category.sourceCount ?? 0,
+    noteCount: category.noteCount ?? 0,
   };
 }
 
@@ -115,5 +117,62 @@ export function useCategories(slug: string) {
     isUpdating: updateMutation.isPending,
     isRemoving: removeMutation.isPending,
     isAssigning: assignItemMutation.isPending,
+  };
+}
+
+// ─── Reorder Hook (spec 05-categories-tab) ──────────────────────────────────
+
+/**
+ * Optimistically reorder categories.
+ *
+ * Behavior:
+ *   - onMutate: snapshot current ['categories', slug] cache; immediately
+ *     write each entry's new sortOrder so the UI reflects the new order
+ *     before the network round-trip resolves.
+ *   - onError: restore the snapshot via setQueryData (rollback).
+ *   - onSuccess: invalidate ['categories', slug] to refetch the canonical
+ *     ordering returned by the server (including any count refreshes).
+ */
+export function useReorderCategories(slug: string) {
+  const queryKey = ['categories', slug] as const;
+
+  const mutation = useMutation<void, Error, number[], { snapshot: CategoryResponse[] | undefined }>({
+    mutationFn: async (orderedIds: number[]) => {
+      await apiRequest('PATCH', `/api/brainlifts/${slug}/categories/reorder`, { orderedIds });
+    },
+    onMutate: async (orderedIds: number[]) => {
+      await queryClient.cancelQueries({ queryKey });
+      const snapshot = queryClient.getQueryData<CategoryResponse[]>(queryKey);
+      const indexById = new Map(orderedIds.map((id, idx) => [id, idx]));
+      if (snapshot) {
+        const next = snapshot
+          .map((entry) => (indexById.has(entry.id)
+            ? { ...entry, sortOrder: indexById.get(entry.id)! }
+            : entry))
+          .sort((a, b) => {
+            const ai = a.sortOrder ?? Number.MAX_SAFE_INTEGER;
+            const bi = b.sortOrder ?? Number.MAX_SAFE_INTEGER;
+            if (ai !== bi) return ai - bi;
+            return a.name.localeCompare(b.name);
+          });
+        queryClient.setQueryData<CategoryResponse[]>(queryKey, next);
+      }
+      return { snapshot };
+    },
+    onError: (_error, _orderedIds, context) => {
+      const snapshot = context?.snapshot;
+      if (snapshot) {
+        // Rollback: restore pre-mutation snapshot.
+        queryClient.setQueryData(queryKey, snapshot);
+      }
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey });
+    },
+  });
+
+  return {
+    mutateAsync: async (orderedIds: number[]) => { await mutation.mutateAsync(orderedIds); },
+    isPending: mutation.isPending,
   };
 }
