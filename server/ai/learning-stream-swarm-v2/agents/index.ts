@@ -57,8 +57,36 @@ const youtubeInputSchema = z.object({
   urlOrVideoId: z.string().trim().min(1),
 });
 
+const CANONICAL_TYPES = ['Substack', 'Twitter', 'AcademicPaper', 'Podcast', 'Video', 'News'] as const;
+type CanonicalType = (typeof CANONICAL_TYPES)[number];
+
+/** Normalize any LLM-provided type string to a canonical RetrievalType.
+ *  Strict match first; then keyword sniff (e.g. "Podcast Episode" → "Podcast",
+ *  "Substack Essay" → "Substack"). Returns null if no canonical match found. */
+function normalizeType(raw: string): CanonicalType | null {
+  if ((CANONICAL_TYPES as readonly string[]).includes(raw)) return raw as CanonicalType;
+  const lower = raw.toLowerCase();
+  if (lower.includes('podcast')) return 'Podcast';
+  if (lower.includes('substack') || lower.includes('newsletter')) return 'Substack';
+  if (lower.includes('academic') || lower.includes('paper') || lower.includes('arxiv') || lower.includes('preprint')) return 'AcademicPaper';
+  if (lower.includes('video') || lower.includes('youtube')) return 'Video';
+  if (lower.includes('news') || lower.includes('article') || lower.includes('headline')) return 'News';
+  if (lower.includes('twitter') || lower.includes('tweet') || lower === 'x') return 'Twitter';
+  return null;
+}
+
 const saveItemInputSchema = z.object({
-  type: z.string().trim().min(1),
+  type: z.string().trim().min(1).transform((raw, ctx) => {
+    const canonical = normalizeType(raw);
+    if (!canonical) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: `Unrecognized source type "${raw}". Use one of: ${CANONICAL_TYPES.join(', ')}.`,
+      });
+      return z.NEVER;
+    }
+    return canonical;
+  }).describe('Source type. Must resolve to one of the canonical RetrievalType enum values; descriptors like "Episode"/"Essay"/"Paper" are stripped server-side.'),
   author: z.string().trim().min(1).default('Unknown'),
   topic: z.string().trim().min(1).describe('Actual source title/headline, not the brainlift title or slot focus'),
   time: z.string().trim().min(1).default('10 min'),

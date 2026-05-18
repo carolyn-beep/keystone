@@ -30,7 +30,7 @@ function generateTaskAssignments(): string {
                   i === 2 ? 'with contrarian or alternative perspective' :
                   'general topic coverage';
           break;
-        case 'Academic Paper':
+        case 'AcademicPaper':
           focus = i === 0 ? 'foundational research on core concepts' :
                   i === 1 ? 'recent findings (last 2 years)' :
                   'meta-analysis or literature review';

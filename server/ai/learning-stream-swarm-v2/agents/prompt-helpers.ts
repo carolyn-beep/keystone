@@ -18,6 +18,7 @@ ${typeGuidance}
 
 ## Saving Your Result
 Use save_item with all fields: type, author, topic, time, facts, url, relevanceScore, aiRationale.
+The type field MUST be exactly "${slot.type}" — do not add descriptors like "Episode", "Essay", "Paper", or "Article". Use the canonical token verbatim or the save will be rejected.
 The topic field is the actual resource title: article headline, paper title, video title, podcast episode title, post title, or news headline.
 Do not use the brainlift title, project topic, or slot focus as the saved item topic.
 The facts field becomes "Key Insights" in the UI. Write a preview, not a summary: 1-2 compact sentences or max 2 short bullets, <= 320 characters. Only include the source's most decision-relevant takeaway.
