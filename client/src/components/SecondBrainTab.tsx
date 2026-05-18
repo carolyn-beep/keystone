@@ -4,7 +4,6 @@ import type { BrainliftData } from '@shared/schema';
 import { SubTabStrip } from '@/components/second-brain-v2/shared/SubTabStrip';
 import { ResearchMaterialsTab } from '@/components/second-brain-v2/ResearchMaterialsTab';
 import { NotesTab } from '@/components/second-brain-v2/NotesTab';
-import { CategoriesTab } from '@/components/second-brain-v2/CategoriesTab';
 
 export interface SecondBrainTabProps {
   slug: string;
@@ -14,7 +13,6 @@ export interface SecondBrainTabProps {
 const SUB_TABS = [
   { id: 'research-materials', label: 'Research Materials' },
   { id: 'notes', label: 'Notes' },
-  { id: 'categories', label: 'Categories' },
 ] as const;
 
 type SubTab = (typeof SUB_TABS)[number]['id'];
@@ -58,14 +56,12 @@ export default function SecondBrainTab({ slug, brainlift }: SecondBrainTabProps)
 
   return (
     <section className="mx-auto max-w-[1500px]">
-      <header className="mb-8 flex flex-col gap-3">
-        <h2 className="m-0 text-[34px] font-bold leading-[1.05] tracking-tight text-foreground">
+      <header className="mb-5 flex flex-col gap-1.5">
+        <h2 className="m-0 font-serif text-[40px] font-semibold leading-[1.05] tracking-tight text-foreground">
           Second Brain
         </h2>
-        <p className="m-0 max-w-[1180px] font-serif text-[16px] italic leading-relaxed text-muted-foreground">
-          A central library condensing and categorizing all your research sources and notes on your way to becoming an expert in your project field.
-          <br />
-          Sources saved through interacting with the Chat Agent or via the Research Stream also appear here.
+        <p className="m-0 font-serif text-[14px] italic leading-relaxed text-muted-foreground">
+          Your library for saved research materials and notes.
         </p>
       </header>
 
@@ -73,7 +69,7 @@ export default function SecondBrainTab({ slug, brainlift }: SecondBrainTabProps)
         tabs={SUB_TABS}
         active={activeSubTab}
         onChange={setActiveSubTab}
-        className="mb-8"
+        className="mb-6"
       />
 
       <SubTabBody activeSubTab={activeSubTab} slug={slug} brainlift={brainlift} />
@@ -93,18 +89,9 @@ interface SubTabBodyProps {
  * render the v1 placeholders until specs 04 / 05 land.
  */
 function SubTabBody({ activeSubTab, slug, brainlift: _brainlift }: SubTabBodyProps) {
-  if (activeSubTab === 'research-materials') {
-    return <ResearchMaterialsTab slug={slug} />;
-  }
-
   if (activeSubTab === 'notes') {
     return <NotesTab slug={slug} />;
   }
-
-  // categories
-  return (
-    <div className="grid grid-cols-1">
-      <CategoriesTab slug={slug} />
-    </div>
-  );
+  // research-materials (default)
+  return <ResearchMaterialsTab slug={slug} />;
 }

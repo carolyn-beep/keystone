@@ -1,6 +1,12 @@
 import { ReactNode } from 'react';
-import { ChevronDown } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import {
+  Select as RadixSelect,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { SearchInput, type SearchInputProps } from './SearchInput';
 
 export interface FilterBarProps {
@@ -46,7 +52,7 @@ function Search(props: SearchInputProps) {
   );
 }
 
-// --- Select slot (native <select> styled to match) ---
+// --- Select slot (Radix-based styled dropdown) ---
 
 export interface FilterBarSelectProps {
   value: string | null;
@@ -57,8 +63,10 @@ export interface FilterBarSelectProps {
   ariaLabel?: string;
 }
 
-const SELECT_BASE_CLASSES =
-  'appearance-none rounded-lg bg-card pl-3 pr-8 py-2.5 font-serif text-[14px] text-foreground shadow-card focus:outline-none focus:ring-1 focus:ring-primary/30';
+const TRIGGER_CLASSES =
+  'h-[38px] min-w-[140px] gap-2 rounded-lg font-serif text-[13px] shadow-card';
+
+const SENTINEL_CLEAR = '__clear__';
 
 function Select({
   value,
@@ -69,36 +77,33 @@ function Select({
   ariaLabel,
 }: FilterBarSelectProps) {
   return (
-    <label className="relative inline-flex items-center">
-      <select
-        aria-label={ariaLabel ?? placeholder}
-        value={value ?? ''}
-        onChange={(event) => {
-          const next = event.target.value;
-          if (clearable && next === '') {
-            onChange(null);
-          } else {
-            onChange(next);
-          }
-        }}
-        className={SELECT_BASE_CLASSES}
-      >
-        <option value="">{placeholder}</option>
+    <RadixSelect
+      value={value ?? SENTINEL_CLEAR}
+      onValueChange={(next) => {
+        if (next === SENTINEL_CLEAR) onChange(null);
+        else onChange(next);
+      }}
+    >
+      <SelectTrigger className={TRIGGER_CLASSES} aria-label={ariaLabel ?? placeholder}>
+        <SelectValue placeholder={placeholder} />
+      </SelectTrigger>
+      <SelectContent>
+        {clearable ? (
+          <SelectItem value={SENTINEL_CLEAR}>
+            <span className="italic text-muted-foreground">{placeholder}</span>
+          </SelectItem>
+        ) : null}
         {options.map((opt) => (
-          <option key={opt.value} value={opt.value}>
+          <SelectItem key={opt.value} value={opt.value}>
             {opt.label}
-          </option>
+          </SelectItem>
         ))}
-      </select>
-      <ChevronDown
-        aria-hidden="true"
-        className="pointer-events-none absolute right-2.5 h-4 w-4 text-muted-foreground"
-      />
-    </label>
+      </SelectContent>
+    </RadixSelect>
   );
 }
 
-// --- Sort slot (visual variant of Select) ---
+// --- Sort slot (Radix-based, non-clearable) ---
 
 export interface FilterBarSortProps {
   value: string;
@@ -109,24 +114,18 @@ export interface FilterBarSortProps {
 
 function Sort({ value, options, onChange, ariaLabel }: FilterBarSortProps) {
   return (
-    <label className="relative inline-flex items-center">
-      <select
-        aria-label={ariaLabel ?? 'Sort'}
-        value={value}
-        onChange={(event) => onChange(event.target.value)}
-        className={SELECT_BASE_CLASSES}
-      >
+    <RadixSelect value={value} onValueChange={onChange}>
+      <SelectTrigger className={TRIGGER_CLASSES} aria-label={ariaLabel ?? 'Sort'}>
+        <SelectValue />
+      </SelectTrigger>
+      <SelectContent>
         {options.map((opt) => (
-          <option key={opt.value} value={opt.value}>
+          <SelectItem key={opt.value} value={opt.value}>
             {opt.label}
-          </option>
+          </SelectItem>
         ))}
-      </select>
-      <ChevronDown
-        aria-hidden="true"
-        className="pointer-events-none absolute right-2.5 h-4 w-4 text-muted-foreground"
-      />
-    </label>
+      </SelectContent>
+    </RadixSelect>
   );
 }
 

@@ -17,7 +17,6 @@ import { useCategories } from '@/hooks/useCategories';
 import type { Category, Note, Source } from '@/types/second-brain';
 import { RightDrawer } from './shared/RightDrawer';
 import { StatCardStrip } from './shared/StatCardStrip';
-import { CategoryChipStrip } from './shared/CategoryChipStrip';
 import { FilterBar } from './shared/FilterBar';
 import { SubTabStrip } from './shared/SubTabStrip';
 import { BulkActionBar } from './shared/BulkActionBar';
@@ -32,11 +31,8 @@ export interface NotesTabProps {
 }
 
 export type NotesViewMode =
-  | 'all-notes'
   | 'by-source'
-  | 'by-category'
-  | 'standalone'
-  | 'recent';
+  | 'by-category';
 
 export type NotesSort = 'newest' | 'oldest' | 'last-edited';
 export type NotesLinkedStatus = 'all' | 'linked' | 'standalone';
@@ -45,11 +41,8 @@ const PAGE_SIZE = 24;
 const GROUP_DISCLOSURE_THRESHOLD = 12;
 
 const VIEW_MODE_TABS: ReadonlyArray<{ id: NotesViewMode; label: string }> = [
-  { id: 'all-notes', label: 'All Notes' },
   { id: 'by-source', label: 'By Source' },
   { id: 'by-category', label: 'By Category' },
-  { id: 'standalone', label: 'Standalone' },
-  { id: 'recent', label: 'Recent' },
 ];
 
 // ─── Pure helpers (testable from file-source assertions) ────────────────
@@ -347,17 +340,12 @@ export function NotesTab({ slug }: NotesTabProps) {
       sourceFilter,
       linkedStatus,
     });
-    // 'recent' view forces newest sort regardless of dropdown.
-    return sortNotes(f, viewMode === 'recent' ? 'newest' : sortBy);
-  }, [noteList, search, categoryFilter, sourceFilter, linkedStatus, sortBy, viewMode]);
+    return sortNotes(f, sortBy);
+  }, [noteList, search, categoryFilter, sourceFilter, linkedStatus, sortBy]);
 
-  // Standalone-only narrowing for the 'standalone' view.
-  const flatForView = useMemo(() => {
-    if (viewMode === 'standalone') {
-      return filtered.filter((n) => n.sourceId == null);
-    }
-    return filtered;
-  }, [filtered, viewMode]);
+  // Flat-view list (kept for empty-state checks; both current view modes
+  // render as groups, so this is identical to `filtered`).
+  const flatForView = filtered;
 
   // Pagination (flat views only).
   const { slice: pageSlice, totalPages } = useMemo(
@@ -379,12 +367,6 @@ export function NotesTab({ slug }: NotesTabProps) {
   }, [viewMode, filtered, sourcesByRecent, categoryList]);
 
   const isGroupView = viewMode === 'by-source' || viewMode === 'by-category';
-
-  // Categories prop for chip strip / select.
-  const categoryChips = useMemo(
-    () => categoryList.map((c) => ({ id: c.id, name: c.name })),
-    [categoryList],
-  );
 
   const categorySelectOptions = useMemo(
     () => categoryList.map((c) => ({ value: String(c.id), label: c.name })),
@@ -487,12 +469,6 @@ export function NotesTab({ slug }: NotesTabProps) {
           { icon: Unlink, count: stats.standalone, label: 'Standalone notes', accent: 'primary' },
           { icon: BookOpen, count: stats.connectedSources, label: 'Connected sources', accent: 'success' },
         ]}
-      />
-
-      <CategoryChipStrip
-        categories={categoryChips}
-        activeCategoryId={categoryFilter}
-        onChange={setCategoryFilter}
       />
 
       <FilterBar>
@@ -732,7 +708,6 @@ export function NotesTab({ slug }: NotesTabProps) {
         slug={slug}
         open={isNewNoteOpen}
         onClose={() => setIsNewNoteOpen(false)}
-        defaultCategoryId={categoryFilter ?? undefined}
         defaultSourceId={sourceFilter ?? undefined}
       />
     </section>
