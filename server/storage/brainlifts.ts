@@ -424,6 +424,7 @@ export async function updateBrainliftFields(id: number, fields: {
   originalContent?: string | null;
   sourceType?: string | null;
   author?: string | null;
+  displayPurpose?: string | null;
   expertDiagnostics?: any | null;
   importHierarchy?: unknown | null;
   summary?: {
