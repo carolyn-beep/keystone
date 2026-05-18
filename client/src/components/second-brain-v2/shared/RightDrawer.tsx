@@ -1,6 +1,7 @@
 import { ReactNode, useCallback, useEffect, useRef } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { useIsMobile } from '@/hooks/use-mobile';
+import { useAppShell } from '@/components/layout/AppShell';
 
 export interface RightDrawerProps {
   open: boolean;
@@ -10,6 +11,8 @@ export interface RightDrawerProps {
   ariaLabel?: string;
   /** Width in pixels at the lg+ breakpoint. Defaults to 480. */
   desktopWidth?: number;
+  /** When true, drawer widens to ~760px (e.g. for an inline reader). */
+  wide?: boolean;
 }
 
 const FOCUSABLE_SELECTOR =
@@ -30,8 +33,10 @@ export function RightDrawer({
   children,
   ariaLabel = 'Detail',
   desktopWidth = 480,
+  wide = false,
 }: RightDrawerProps) {
   const isMobile = useIsMobile();
+  const appShell = useAppShell();
   const drawerRef = useRef<HTMLDivElement>(null);
   const previouslyFocused = useRef<HTMLElement | null>(null);
 
@@ -71,7 +76,15 @@ export function RightDrawer({
     onClose();
   }, [onClose]);
 
-  const width = isMobile ? '100vw' : `${desktopWidth}px`;
+  // In "wide" mode the drawer fills 100% of the main content area
+  // (viewport width minus the AppShell sidebar's current width — 64px
+  // collapsed, 248px expanded). Detail mode keeps the compact width.
+  const sidebarWidth = appShell?.isSidebarCollapsed ? 64 : 248;
+  const width = isMobile
+    ? '100vw'
+    : wide
+      ? `calc(100vw - ${sidebarWidth}px)`
+      : `${desktopWidth}px`;
 
   return (
     <AnimatePresence>
@@ -91,7 +104,7 @@ export function RightDrawer({
             role="dialog"
             aria-modal="true"
             aria-label={ariaLabel}
-            className="absolute right-0 top-0 h-full overflow-y-auto bg-card shadow-card-hover"
+            className="absolute right-0 top-0 h-full overflow-y-auto overflow-x-hidden bg-card shadow-card-hover transition-[width] duration-200 ease-out"
             style={{ width }}
             initial={{ x: '100%' }}
             animate={{ x: 0 }}

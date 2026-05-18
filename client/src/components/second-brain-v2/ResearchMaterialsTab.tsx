@@ -93,6 +93,7 @@ export function ResearchMaterialsTab({ slug }: ResearchMaterialsTabProps) {
   const [currentPage, setCurrentPage] = useState(1);
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set<number>());
   const [drawerSourceId, setDrawerSourceId] = useState<number | null>(null);
+  const [isReadingMode, setReadingMode] = useState<boolean>(false);
   const [isAddCategoryOpen, setAddCategoryOpen] = useState(false);
   const [isAddSourceOpen, setAddSourceOpen] = useState(false);
   const [isRecategorizeOpen, setRecategorizeOpen] = useState(false);
@@ -272,54 +273,7 @@ export function ResearchMaterialsTab({ slug }: ResearchMaterialsTabProps) {
   const anySelected = selectedIds.size > 0;
 
   return (
-    <div className="flex flex-col gap-6">
-      <FilterBar>
-        <FilterBar.Search
-          value={search}
-          onChange={onSearchChange}
-          placeholder="Search sources…"
-        />
-        <FilterBar.Select
-          value={categoryFilter == null ? null : String(categoryFilter)}
-          options={categoryOptions}
-          onChange={(value) =>
-            setCategoryFilterAndReset(value == null ? null : Number(value))
-          }
-          placeholder={categories.length === 0 ? 'No categories' : 'All categories'}
-        />
-        <FilterBar.Select
-          value={typeFilter}
-          options={TYPE_OPTIONS.map((opt) => ({ value: opt.value, label: opt.label }))}
-          onChange={(value) => setTypeFilterAndReset(value as RetrievalType | null)}
-          placeholder="All types"
-        />
-        <FilterBar.Sort
-          value={sortBy}
-          options={SORT_OPTIONS.map((opt) => ({ value: opt.value, label: opt.label }))}
-          onChange={(value) => setSortBy(value as SortBy)}
-        />
-        <FilterBar.Trailing>
-          <TactileButton
-            type="button"
-            variant="inset"
-            className="inline-flex items-center gap-1.5 text-[12px]"
-            onClick={() => setAddCategoryOpen(true)}
-          >
-            <FolderPlus size={13} />
-            Add category
-          </TactileButton>
-          <TactileButton
-            type="button"
-            variant="raised"
-            className="inline-flex items-center gap-1.5 text-[12px]"
-            onClick={() => setAddSourceOpen(true)}
-          >
-            <Plus size={13} />
-            Add source
-          </TactileButton>
-        </FilterBar.Trailing>
-      </FilterBar>
-
+    <div className="flex flex-col gap-5">
       <StatCardStrip
         cards={[
           { icon: BookOpen, count: (sources ?? []).length, label: 'Saved sources', accent: 'primary' },
@@ -328,6 +282,52 @@ export function ResearchMaterialsTab({ slug }: ResearchMaterialsTabProps) {
         ]}
       />
 
+      <FilterBar>
+        <FilterBar.Search
+          value={search}
+          onChange={onSearchChange}
+          placeholder="Search saved sources…"
+        />
+        <FilterBar.Select
+          value={categoryFilter == null ? null : String(categoryFilter)}
+          options={categoryOptions}
+          onChange={(value) =>
+            setCategoryFilterAndReset(value == null ? null : Number(value))
+          }
+          placeholder={categories.length === 0 ? 'No categories' : 'Category'}
+        />
+        <FilterBar.Select
+          value={typeFilter}
+          options={TYPE_OPTIONS.map((opt) => ({ value: opt.value, label: opt.label }))}
+          onChange={(value) => setTypeFilterAndReset(value as RetrievalType | null)}
+          placeholder="Source Type"
+        />
+        <FilterBar.Sort
+          value={sortBy}
+          options={SORT_OPTIONS.map((opt) => ({ value: opt.value, label: `Sort by: ${opt.label}` }))}
+          onChange={(value) => setSortBy(value as SortBy)}
+        />
+        <FilterBar.Trailing>
+          <TactileButton
+            type="button"
+            variant="raised"
+            className="inline-flex items-center gap-1.5 text-[12px]"
+            onClick={() => setAddCategoryOpen(true)}
+          >
+            <FolderPlus size={13} />
+            Add Category
+          </TactileButton>
+          <TactileButton
+            type="button"
+            variant="raised"
+            className="inline-flex items-center gap-1.5 text-[12px]"
+            onClick={() => setAddSourceOpen(true)}
+          >
+            <Plus size={13} />
+            Add Source
+          </TactileButton>
+        </FilterBar.Trailing>
+      </FilterBar>
 
       <CategoryChipStrip
         categories={chipStripCategories}
@@ -367,7 +367,14 @@ export function ResearchMaterialsTab({ slug }: ResearchMaterialsTabProps) {
               isSelected={selectedIds.has(source.id)}
               anySelected={anySelected}
               onToggleSelect={() => toggleSelect(source.id)}
-              onOpenDetail={() => setDrawerSourceId(source.id)}
+              onOpenDetail={() => {
+                setReadingMode(false);
+                setDrawerSourceId(source.id);
+              }}
+              onRead={() => {
+                setReadingMode(true);
+                setDrawerSourceId(source.id);
+              }}
               onDelete={async () => {
                 const ok = window.confirm(`Delete "${source.title}" from Second Brain?`);
                 if (!ok) return;
@@ -438,22 +445,34 @@ export function ResearchMaterialsTab({ slug }: ResearchMaterialsTabProps) {
         ]}
       />
 
-      {/* Drawer */}
+      {/* Drawer — widens when reading mode is active so the inline reader
+          has room for an article-width column. Reading-mode flag resets on
+          close so the next open starts in detail mode. */}
       <RightDrawer
         open={drawerSourceId != null}
-        onClose={() => setDrawerSourceId(null)}
+        onClose={() => {
+          setDrawerSourceId(null);
+          setReadingMode(false);
+        }}
         ariaLabel="Source detail"
+        wide={isReadingMode}
       >
         {drawerSource ? (
           <SourceDetailPanel
+            slug={slug}
             source={drawerSource}
             category={drawerCategory}
             notes={drawerNotes}
-            onClose={() => setDrawerSourceId(null)}
+            onClose={() => {
+              setDrawerSourceId(null);
+              setReadingMode(false);
+            }}
             onOpenExternal={() => window.open(drawerSource.url, '_blank', 'noopener,noreferrer')}
             onEditCategory={() => setRecategorizeOpen(true)}
             onDelete={handleDrawerDelete}
             onViewLinkedNotes={handleViewLinkedNotes}
+            isReading={isReadingMode}
+            onToggleReading={setReadingMode}
           />
         ) : null}
       </RightDrawer>

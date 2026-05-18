@@ -1,25 +1,33 @@
 import { useState } from 'react';
 import {
+  ArrowLeft,
   ArrowRight,
+  BookOpen,
+  CalendarDays,
   ChevronDown,
   ChevronRight,
+  Clock,
   ExternalLink,
   FolderEdit,
+  Globe,
+  Loader2,
   MoreHorizontal,
   NotebookPen,
+  Tag,
   Trash2,
   X,
 } from 'lucide-react';
 import type { Category, Note, Source } from '@/types/second-brain';
-import { ResourceTypeBadge } from '@/components/learning-stream/ResourceTypeBadge';
-import { RETRIEVAL_TYPE_META } from '@/components/research-stream/retrieval-meta';
-import type { RetrievalType } from '@shared/research-stream';
+import { RETRIEVAL_TYPE_META, resolveRetrievalType } from '@/components/research-stream/retrieval-meta';
+import { ExpandedItemView } from '@/components/learning-stream';
+import { useEnsureLearningStreamItem } from '@/hooks/useEnsureLearningStreamItem';
 import { formatUrl } from '@/lib/url';
 import { cn } from '@/lib/utils';
 
 const MAX_PREVIEW_NOTES = 3;
 
 export interface SourceDetailPanelProps {
+  slug: string;
   source: Source;
   notes: Note[];
   category: Category | null;
@@ -29,11 +37,11 @@ export interface SourceDetailPanelProps {
   onDelete: () => void;
   /** Switches the shell to ?sb=notes&filterSource=<id>. */
   onViewLinkedNotes: () => void;
+  /** Reading mode is owned by the parent so the drawer can widen. */
+  isReading: boolean;
+  onToggleReading: (next: boolean) => void;
 }
 
-function isKnownRetrievalType(value: string | null): value is RetrievalType {
-  return value != null && value in RETRIEVAL_TYPE_META;
-}
 
 function formatSavedOn(iso: string): string {
   const d = new Date(iso);
@@ -63,6 +71,7 @@ function formatNoteDate(iso: string): string {
  * Nulls in spec-01 enrichment fields collapse the corresponding section.
  */
 export function SourceDetailPanel({
+  slug,
   source,
   notes,
   category,
@@ -71,119 +80,151 @@ export function SourceDetailPanel({
   onEditCategory,
   onDelete,
   onViewLinkedNotes,
+  isReading,
+  onToggleReading,
 }: SourceDetailPanelProps) {
+  const [summaryExpanded, setSummaryExpanded] = useState<boolean>(false);
   const [whyExpanded, setWhyExpanded] = useState<boolean>(false);
   const [actionsOpen, setActionsOpen] = useState<boolean>(false);
 
-  const known = isKnownRetrievalType(source.type);
-  const meta = known ? RETRIEVAL_TYPE_META[source.type as RetrievalType] : null;
+  const resolved = resolveRetrievalType(source.type);
+  const meta = resolved ? RETRIEVAL_TYPE_META[resolved] : null;
   const Icon = meta?.icon ?? null;
   const domain = formatUrl(source.url);
   const previewNotes = notes.slice(0, MAX_PREVIEW_NOTES);
   const overflowNotesCount = Math.max(0, notes.length - MAX_PREVIEW_NOTES);
 
+  if (isReading) {
+    return (
+      <ReadingMode
+        slug={slug}
+        sourceId={source.id}
+        onBack={() => onToggleReading(false)}
+      />
+    );
+  }
+
   return (
     <div className="flex h-full flex-col">
-      {/* Header bar with close button */}
-      <header className="flex items-start justify-between gap-3 border-b border-border/60 px-6 py-5">
+      {/* Top bar: badge (left) + close (right) */}
+      <div className="flex items-center justify-between px-6 pt-5">
+        {meta ? (
+          <span
+            className="inline-flex items-center gap-1.5 rounded px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.14em]"
+            style={{ backgroundColor: meta.bg, color: meta.ink }}
+          >
+            {Icon ? <Icon size={10} /> : null}
+            {meta.label}
+          </span>
+        ) : (
+          <span className="inline-flex items-center rounded bg-muted px-2 py-0.5 font-sans text-[10px] font-semibold uppercase tracking-[0.25em] text-muted-foreground">
+            Source
+          </span>
+        )}
+        <button
+          type="button"
+          onClick={onClose}
+          aria-label="Close detail"
+          className="rounded-md p-1 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+        >
+          <X size={18} />
+        </button>
+      </div>
+
+      {/* Header: title + publisher + big icon */}
+      <header className="flex items-start justify-between gap-4 px-6 pb-5 pt-3">
         <div className="min-w-0 flex-1">
-          {known ? (
-            <ResourceTypeBadge type={source.type as string} size="compact" />
-          ) : (
-            <span className="inline-flex items-center rounded bg-muted px-2 py-0.5 font-sans text-[10px] font-semibold uppercase tracking-[0.25em] text-muted-foreground">
-              Source
-            </span>
-          )}
-          <h2 className="m-0 mt-3 font-serif text-[22px] leading-snug text-foreground">
+          <h2 className="m-0 break-words font-serif text-[22px] font-semibold leading-[1.2] text-foreground">
             {source.title}
           </h2>
-          <p className="m-0 mt-1 font-serif text-[13px] italic text-muted-foreground">
-            by {source.author}
-            {source.type !== 'Twitter' && domain ? (
-              <>
-                <span aria-hidden="true" className="not-italic text-muted-light"> · </span>
-                <span className="not-italic font-sans text-[10px] font-semibold uppercase tracking-[0.25em] text-muted-light">
-                  {domain}
-                </span>
-              </>
-            ) : null}
+          <p className="m-0 mt-2 break-words font-sans text-[13px] text-muted-foreground">
+            {source.author}
           </p>
+          {source.type !== 'Twitter' && domain ? (
+            <p className="m-0 mt-0.5 break-all font-mono text-[10px] uppercase tracking-[0.2em] text-muted-light">
+              {domain}
+            </p>
+          ) : null}
         </div>
-        <div className="flex shrink-0 items-start gap-2">
-          <span
-            aria-hidden="true"
-            className="flex h-12 w-12 items-center justify-center rounded-lg"
-            style={meta
-              ? { backgroundColor: meta.bg, color: meta.ink }
-              : { backgroundColor: 'var(--muted)', color: 'var(--muted-foreground)' }}
-          >
-            {Icon ? <Icon size={22} /> : <NotebookPen size={22} />}
-          </span>
-          <button
-            type="button"
-            onClick={onClose}
-            aria-label="Close detail"
-            className="rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-          >
-            <X size={18} />
-          </button>
-        </div>
+        <span
+          aria-hidden="true"
+          className="flex h-14 w-14 shrink-0 items-center justify-center rounded-xl"
+          style={meta
+            ? { backgroundColor: meta.bg, color: meta.ink }
+            : { backgroundColor: 'var(--muted)', color: 'var(--muted-foreground)' }}
+        >
+          {Icon ? <Icon size={26} /> : <NotebookPen size={26} />}
+        </span>
       </header>
 
-      <div className="flex-1 overflow-y-auto px-6 py-5">
-        {/* Metadata table */}
-        <dl className="grid grid-cols-[max-content_1fr] gap-x-6 gap-y-3 font-serif text-[14px] text-foreground">
-          <dt className="font-sans text-[10px] font-semibold uppercase tracking-[0.25em] text-muted-foreground">
-            Saved on
-          </dt>
+      <div className="flex-1 overflow-y-auto overflow-x-hidden px-6">
+        {/* Metadata table — icon + label (left) / value (right) */}
+        <dl className="grid grid-cols-[max-content_1fr] gap-x-6 gap-y-2.5 border-t border-border/60 pt-5 font-sans text-[13px] text-foreground">
+          <MetaLabel icon={CalendarDays}>Saved on</MetaLabel>
           <dd className="m-0">{formatSavedOn(source.createdAt)}</dd>
 
-          <dt className="font-sans text-[10px] font-semibold uppercase tracking-[0.25em] text-muted-foreground">
-            Source
-          </dt>
-          <dd className="m-0">{domain}</dd>
+          <MetaLabel icon={Globe}>Source</MetaLabel>
+          <dd className="m-0 min-w-0 break-all">{domain}</dd>
 
           {source.length ? (
             <>
-              <dt className="font-sans text-[10px] font-semibold uppercase tracking-[0.25em] text-muted-foreground">
-                Length
-              </dt>
+              <MetaLabel icon={Clock}>Length</MetaLabel>
               <dd className="m-0">{source.length}</dd>
             </>
           ) : null}
 
-          <dt className="font-sans text-[10px] font-semibold uppercase tracking-[0.25em] text-muted-foreground">
-            Category
-          </dt>
-          <dd className="m-0">{category?.name ?? 'Uncategorized'}</dd>
+          <MetaLabel icon={Tag}>Category</MetaLabel>
+          <dd className="m-0">
+            {category ? (
+              <span className="inline-flex rounded-full bg-muted px-2 py-0.5 text-[11px] font-medium text-foreground/80">
+                {category.name}
+              </span>
+            ) : (
+              <span className="italic text-muted-foreground">Uncategorized</span>
+            )}
+          </dd>
         </dl>
 
-        {/* Summary = Key Insights */}
+        {/* Summary = Key Insights (3-line clamp by default; toggle to expand) */}
         {source.keyInsights ? (
-          <section className="mt-7">
-            <h3 className="m-0 mb-2 font-sans text-[10px] font-semibold uppercase tracking-[0.25em] text-muted-foreground">
+          <section className="mt-6">
+            <h3 className="m-0 mb-2 font-sans text-[11px] font-semibold tracking-[0.04em] text-foreground">
               Summary
             </h3>
-            <p className="m-0 whitespace-pre-line font-serif text-[15px] leading-relaxed text-foreground">
+            <p
+              className={cn(
+                'm-0 whitespace-pre-line font-serif text-[14px] leading-[1.55] text-muted-foreground',
+                summaryExpanded ? '' : 'line-clamp-3',
+              )}
+            >
               {source.keyInsights}
             </p>
+            <button
+              type="button"
+              onClick={() => setSummaryExpanded((expanded) => !expanded)}
+              aria-expanded={summaryExpanded}
+              className="mt-1.5 inline-flex items-center gap-1 font-sans text-[11px] font-semibold text-primary hover:underline"
+            >
+              {summaryExpanded ? 'Show less' : 'Show more'}
+              {summaryExpanded ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
+            </button>
           </section>
         ) : null}
 
         {/* Why this matters (collapsed by default) */}
         {source.whyMatters ? (
-          <section className="mt-7">
+          <section className="mt-6">
             <button
               type="button"
               onClick={() => setWhyExpanded((expanded) => !expanded)}
               aria-expanded={whyExpanded}
-              className="flex w-full items-center justify-between rounded-md font-sans text-[10px] font-semibold uppercase tracking-[0.25em] text-muted-foreground hover:text-foreground"
+              className="flex w-full items-center justify-between rounded-md font-sans text-[11px] font-semibold text-foreground hover:text-primary"
             >
               Why this matters
               {whyExpanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
             </button>
             {whyExpanded ? (
-              <p className="m-0 mt-2 whitespace-pre-line font-serif text-[15px] italic leading-relaxed text-foreground">
+              <p className="m-0 mt-2 whitespace-pre-line font-serif text-[14px] italic leading-[1.55] text-muted-foreground">
                 {source.whyMatters}
               </p>
             ) : null}
@@ -191,56 +232,79 @@ export function SourceDetailPanel({
         ) : null}
 
         {/* Linked notes preview */}
-        <section className="mt-7">
-          <h3 className="m-0 mb-2 font-sans text-[10px] font-semibold uppercase tracking-[0.25em] text-muted-foreground">
-            Linked notes
+        <section className="mt-6">
+          <h3 className="m-0 mb-3 flex items-center gap-2 font-sans text-[11px] font-semibold tracking-[0.04em] text-foreground">
+            Linked Notes
+            <span className="rounded-full bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">
+              {notes.length}
+            </span>
           </h3>
           {previewNotes.length === 0 ? (
-            <p className="m-0 font-serif text-[14px] italic text-muted-foreground">
+            <p className="m-0 font-serif text-[13px] italic text-muted-foreground">
               No notes linked yet. Create one from the Notes tab to start
               annotating this source.
             </p>
           ) : (
-            <ul className="m-0 list-none space-y-3 p-0">
-              {previewNotes.map((note) => (
+            <ol className="m-0 list-none space-y-2 p-0">
+              {previewNotes.map((note, index) => (
                 <li
                   key={note.id}
-                  className="rounded-lg bg-muted/50 px-3 py-2.5 text-[13px]"
+                  className="flex gap-3 rounded-lg px-2 py-2 transition-colors hover:bg-muted/50"
                 >
-                  <p className="m-0 line-clamp-3 font-serif text-foreground">
-                    {note.content}
-                  </p>
-                  <p className="m-0 mt-1 font-sans text-[10px] uppercase tracking-[0.2em] text-muted-light">
-                    {formatNoteDate(note.createdAt)}
-                  </p>
+                  <span className="shrink-0 pt-0.5 font-sans text-[12px] font-medium text-muted-light">
+                    {index + 1}
+                  </span>
+                  <div className="min-w-0">
+                    <p className="m-0 line-clamp-2 font-serif text-[13px] leading-snug text-foreground">
+                      {note.content}
+                    </p>
+                    <p className="m-0 mt-1 font-sans text-[10px] text-muted-light">
+                      {formatNoteDate(note.createdAt)}
+                    </p>
+                  </div>
                 </li>
               ))}
               {overflowNotesCount > 0 ? (
-                <li className="font-serif text-[12px] italic text-muted-foreground">
-                  {MAX_PREVIEW_NOTES} shown of {notes.length}
+                <li className="pl-7 font-sans text-[11px] italic text-muted-foreground">
+                  +{overflowNotesCount} more
                 </li>
               ) : null}
-            </ul>
+            </ol>
           )}
         </section>
 
-        {/* Primary CTA: cross-tab nav */}
+        {/* Primary CTA: switch the drawer into in-app reading mode.
+            Always available — works for any source, regardless of whether
+            it was mirrored from Research Stream or added manually. */}
+        <button
+          type="button"
+          onClick={() => onToggleReading(true)}
+          className="mt-6 inline-flex w-full items-center justify-center gap-2 rounded-lg bg-primary px-4 py-3 font-sans text-[13px] font-semibold text-primary-foreground transition-colors hover:bg-primary/90"
+        >
+          <BookOpen size={14} />
+          Read source
+          <ArrowRight size={14} />
+        </button>
+
+        {/* Secondary CTA: hop to the Notes tab pre-filtered to this source. */}
         <button
           type="button"
           onClick={onViewLinkedNotes}
-          className="mt-7 inline-flex w-full items-center justify-center gap-2 rounded-lg bg-primary px-4 py-2.5 font-sans text-[13px] font-semibold uppercase tracking-[0.18em] text-primary-foreground transition-colors hover:bg-primary/90"
+          className="mt-2 inline-flex w-full items-center justify-center gap-2 rounded-lg border border-border bg-card px-4 py-2.5 font-sans text-[12px] font-medium text-foreground transition-colors hover:bg-muted"
         >
           View linked notes in Notes tab
           <ArrowRight size={14} />
         </button>
+
+        <div className="h-5" />
       </div>
 
       {/* Secondary actions row */}
-      <footer className="flex items-center gap-1 border-t border-border/60 px-4 py-3">
+      <footer className="flex items-center gap-2 border-t border-border/60 px-5 py-3">
         <button
           type="button"
           onClick={onOpenExternal}
-          className="inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 font-sans text-[12px] font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+          className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-md border border-border bg-card px-3 py-2 font-sans text-[12px] font-medium text-foreground transition-colors hover:bg-muted"
         >
           <ExternalLink size={13} />
           Open source
@@ -248,21 +312,21 @@ export function SourceDetailPanel({
         <button
           type="button"
           onClick={onEditCategory}
-          className="inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 font-sans text-[12px] font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+          className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-md border border-border bg-card px-3 py-2 font-sans text-[12px] font-medium text-foreground transition-colors hover:bg-muted"
         >
           <FolderEdit size={13} />
           Edit category
         </button>
-        <div className="relative ml-auto">
+        <div className="relative">
           <button
             type="button"
             onClick={() => setActionsOpen((open) => !open)}
-            className="rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+            className="rounded-md border border-border bg-card p-2 text-foreground transition-colors hover:bg-muted"
             aria-label="More actions"
             aria-haspopup="menu"
             aria-expanded={actionsOpen}
           >
-            <MoreHorizontal size={16} />
+            <MoreHorizontal size={14} />
           </button>
           {actionsOpen ? (
             <div
@@ -281,12 +345,86 @@ export function SourceDetailPanel({
                 className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-left font-sans text-[13px] text-destructive transition-colors hover:bg-destructive/10"
               >
                 <Trash2 size={12} />
-                Delete from Second Brain
+                Remove from saved
               </button>
             </div>
           ) : null}
         </div>
       </footer>
+    </div>
+  );
+}
+
+function MetaLabel({ icon: Icon, children }: { icon: typeof CalendarDays; children: React.ReactNode }) {
+  return (
+    <dt className="flex items-center gap-2 font-sans text-[11px] font-medium text-muted-foreground">
+      <Icon size={13} className="text-muted-light" />
+      {children}
+    </dt>
+  );
+}
+
+interface ReadingModeProps {
+  slug: string;
+  sourceId: number;
+  onBack: () => void;
+}
+
+/**
+ * Full in-app reader for a source. Renders the same ExpandedItemView the
+ * Research Stream uses (content viewer + chat + quiz tabs). For sources
+ * that don't yet have an underlying learning_stream_item, we lazy-create
+ * one server-side via `useEnsureLearningStreamItem` and queue content
+ * extraction so the user just sees a loading state and then the article.
+ */
+function ReadingMode({ slug, sourceId, onBack }: ReadingModeProps) {
+  const { item, isLoading, error } = useEnsureLearningStreamItem(slug, sourceId);
+
+  return (
+    <div className="flex h-full flex-col">
+      <header className="flex items-center gap-3 border-b border-border/60 px-6 py-3">
+        <button
+          type="button"
+          onClick={onBack}
+          className="inline-flex items-center gap-1.5 rounded-md px-2 py-1 font-sans text-[11px] font-medium text-muted-foreground hover:bg-muted hover:text-foreground"
+          aria-label="Back to source details"
+        >
+          <ArrowLeft size={13} />
+          Details
+        </button>
+        <div className="min-w-0 flex-1 text-center font-sans text-[12px] font-medium uppercase tracking-[0.18em] text-muted-foreground">
+          Reading
+        </div>
+        <div className="w-[62px]" aria-hidden="true" />
+      </header>
+
+      <div className="flex-1 overflow-y-auto overflow-x-hidden p-4">
+        {isLoading || !item ? (
+          error ? (
+            <div className="flex flex-col items-center gap-3 py-16 text-center">
+              <p className="m-0 max-w-[420px] font-serif text-[14px] italic text-destructive">
+                {error}
+              </p>
+              <button
+                type="button"
+                onClick={onBack}
+                className="inline-flex items-center gap-1.5 rounded-md border border-border bg-card px-3 py-2 font-sans text-[12px] font-medium text-foreground transition-colors hover:bg-muted"
+              >
+                Back to details
+              </button>
+            </div>
+          ) : (
+            <div className="flex flex-col items-center gap-3 py-16">
+              <Loader2 size={28} className="animate-spin text-muted-foreground" />
+              <p className="m-0 font-serif text-[13px] italic text-muted-foreground">
+                Preparing reader…
+              </p>
+            </div>
+          )
+        ) : (
+          <ExpandedItemView item={item} slug={slug} onClose={onBack} />
+        )}
+      </div>
     </div>
   );
 }

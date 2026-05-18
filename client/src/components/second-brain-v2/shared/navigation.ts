@@ -34,3 +34,22 @@ export function navigateToSubTab(
   // Notify any URL-listening hooks (wouter's useSearch) to re-read.
   window.dispatchEvent(new PopStateEvent('popstate'));
 }
+
+/**
+ * Switch the OUTER dashboard tab to the Research Stream and open a
+ * specific learning-stream item in the expanded reading view.
+ *
+ * Matches the existing `?tab=learning&view=<learning_stream_item_id>`
+ * URL contract that `Dashboard.tsx` parses. The `sb=` param is dropped
+ * since it's specific to the Second Brain tab.
+ */
+export function openLearningStreamItem(learningStreamItemId: number): void {
+  const searchParams = new URLSearchParams(window.location.search);
+  searchParams.set('tab', 'learning');
+  searchParams.set('view', String(learningStreamItemId));
+  searchParams.delete('sb');
+  const next = searchParams.toString();
+  const url = next ? `${window.location.pathname}?${next}` : window.location.pathname;
+  window.history.pushState(null, '', url);
+  window.dispatchEvent(new PopStateEvent('popstate'));
+}
