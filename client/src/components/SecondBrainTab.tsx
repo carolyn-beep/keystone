@@ -1,10 +1,10 @@
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useMemo } from 'react';
 import { useSearch } from 'wouter';
 import type { BrainliftData } from '@shared/schema';
 import { NotesPanel } from '@/components/second-brain/NotesPanel';
-import { SourcesPanel } from '@/components/second-brain/SourcesPanel';
 import { CategoriesManager } from '@/components/second-brain/CategoriesManager';
 import { SubTabStrip } from '@/components/second-brain-v2/shared/SubTabStrip';
+import { ResearchMaterialsTab } from '@/components/second-brain-v2/ResearchMaterialsTab';
 
 export interface SecondBrainTabProps {
   slug: string;
@@ -88,43 +88,13 @@ interface SubTabBodyProps {
 }
 
 /**
- * Placeholder body for spec 02. Renders v1 panels behind each sub-tab so
- * the shell ships behind no feature flag. Specs 03/04/05 will swap each
- * branch for the real v2 component:
- *   - research-materials → <ResearchMaterialsTab /> (spec 03)
- *   - notes              → <NotesTab />              (spec 04)
- *   - categories         → <CategoriesTab />         (spec 05)
+ * Sub-tab body router. Spec 03 replaces the research-materials branch
+ * with the real v2 `<ResearchMaterialsTab>`. Notes + Categories still
+ * render the v1 placeholders until specs 04 / 05 land.
  */
 function SubTabBody({ activeSubTab, slug, brainlift: _brainlift }: SubTabBodyProps) {
-  // The v1 SourcesPanel + NotesPanel used a shared selected-source state
-  // for cross-panel filtering. While the v2 Research Materials and Notes
-  // tabs each own their own filter UX (spec 03/04), the placeholder
-  // keeps the v1 two-pane wiring local to the research-materials tab so
-  // the legacy "click source → notes filter" still works for now.
-  const [selectedSourceId, setSelectedSourceId] = useState<number | null>(null);
-  const [addNoteTrigger, setAddNoteTrigger] = useState(0);
-
-  const handleAddNoteForSource = useCallback((sourceId: number) => {
-    setSelectedSourceId(sourceId);
-    setAddNoteTrigger((n) => n + 1);
-  }, []);
-
   if (activeSubTab === 'research-materials') {
-    return (
-      <div className="grid grid-cols-1 items-start gap-10 lg:grid-cols-[minmax(0,1.2fr)_minmax(360px,0.8fr)]">
-        <SourcesPanel
-          slug={slug}
-          selectedSourceId={selectedSourceId}
-          onSelectSource={setSelectedSourceId}
-          onAddNoteForSource={handleAddNoteForSource}
-        />
-        <NotesPanel
-          slug={slug}
-          filterSourceId={selectedSourceId}
-          openAddTrigger={addNoteTrigger}
-        />
-      </div>
-    );
+    return <ResearchMaterialsTab slug={slug} />;
   }
 
   if (activeSubTab === 'notes') {

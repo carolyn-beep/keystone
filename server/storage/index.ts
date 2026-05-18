@@ -230,6 +230,8 @@ export const storage = {
   getSourceForBrainlift: secondBrainStorage.getSourceForBrainlift,
   updateSourceForBrainlift: secondBrainStorage.updateSourceForBrainlift,
   deleteSourceForBrainlift: secondBrainStorage.deleteSourceForBrainlift,
+  bulkDeleteSources: secondBrainStorage.bulkDeleteSources,
+  bulkUpdateSourceCategories: secondBrainStorage.bulkUpdateSourceCategories,
   createNote: secondBrainStorage.createNote,
   getNotesByBrainlift: secondBrainStorage.getNotesByBrainlift,
   getNoteForBrainlift: secondBrainStorage.getNoteForBrainlift,

@@ -7,7 +7,7 @@ import {
   isNull,
   sql,
 } from './base';
-import { ilike, or } from 'drizzle-orm';
+import { ilike, inArray, or } from 'drizzle-orm';
 import {
   categories,
   learningStreamItems,
@@ -174,6 +174,12 @@ export async function getSourcesByBrainlift(brainliftId: number): Promise<Source
       categoryId: sources.categoryId,
       extractedContent: sources.extractedContent,
       learningStreamItemId: sources.learningStreamItemId,
+      // Spec 03 FR1: surface spec-01 enrichment fields. Without these the
+      // v2 cards have no metadata to render.
+      type: sources.type,
+      keyInsights: sources.keyInsights,
+      length: sources.length,
+      whyMatters: sources.whyMatters,
       createdAt: sources.createdAt,
       updatedAt: sources.updatedAt,
       categoryName: categories.name,
@@ -243,6 +249,68 @@ export async function deleteSourceForBrainlift(
     .returning({ id: sources.id });
 
   return deleted.length > 0;
+}
+
+/**
+ * Spec 03 FR2 — bulk delete sources scoped to a single brainlift.
+ *
+ * Returns the number of rows actually deleted. The route layer compares
+ * the requested count vs returned count to detect cross-brainlift ids
+ * and surface a 404 (IDOR-safe enumeration prevention).
+ *
+ * Empty `sourceIds` short-circuits to 0 (avoids a no-op `IN ()` query
+ * which some drivers reject).
+ */
+export async function bulkDeleteSources(
+  brainliftId: number,
+  sourceIds: number[],
+): Promise<number> {
+  if (sourceIds.length === 0) {
+    return 0;
+  }
+
+  const deleted = await db
+    .delete(sources)
+    .where(and(
+      inArray(sources.id, sourceIds),
+      eq(sources.brainliftId, brainliftId),
+    ))
+    .returning({ id: sources.id });
+
+  return deleted.length;
+}
+
+/**
+ * Spec 03 FR3 — bulk recategorize sources scoped to a single brainlift.
+ *
+ * Validates the target category belongs to this brainlift first. Then
+ * runs a single UPDATE filtered by `id IN (...) AND brainlift_id = $2`
+ * so cross-brainlift ids are silently skipped (route layer surfaces a
+ * 404 if the returned count is less than requested).
+ *
+ * Empty `sourceIds` short-circuits to 0.
+ */
+export async function bulkUpdateSourceCategories(
+  brainliftId: number,
+  sourceIds: number[],
+  categoryId: number,
+): Promise<number> {
+  await ensureCategoryBelongsToBrainlift(categoryId, brainliftId);
+
+  if (sourceIds.length === 0) {
+    return 0;
+  }
+
+  const updated = await db
+    .update(sources)
+    .set({ categoryId, updatedAt: new Date() })
+    .where(and(
+      inArray(sources.id, sourceIds),
+      eq(sources.brainliftId, brainliftId),
+    ))
+    .returning({ id: sources.id });
+
+  return updated.length;
 }
 
 export async function createNote(
@@ -388,6 +456,11 @@ export async function listSources(
         categoryId: sources.categoryId,
         extractedContent: sources.extractedContent,
         learningStreamItemId: sources.learningStreamItemId,
+        // Spec 03 FR1: same enrichment surface as getSourcesByBrainlift.
+        type: sources.type,
+        keyInsights: sources.keyInsights,
+        length: sources.length,
+        whyMatters: sources.whyMatters,
         createdAt: sources.createdAt,
         updatedAt: sources.updatedAt,
         categoryName: categories.name,

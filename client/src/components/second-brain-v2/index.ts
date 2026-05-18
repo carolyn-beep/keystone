@@ -34,3 +34,22 @@ export type { SubTabStripProps } from './shared/SubTabStrip';
 
 export { BulkActionBar } from './shared/BulkActionBar';
 export type { BulkActionBarProps, BulkAction, BulkActionVariant } from './shared/BulkActionBar';
+
+// Spec 03 — Research Materials sub-tab.
+export { ResearchMaterialsTab } from './ResearchMaterialsTab';
+export type { ResearchMaterialsTabProps } from './ResearchMaterialsTab';
+
+export { SourceGridCard } from './cards/SourceGridCard';
+export type { SourceGridCardProps } from './cards/SourceGridCard';
+
+export { SourceDetailPanel } from './drawer/SourceDetailPanel';
+export type { SourceDetailPanelProps } from './drawer/SourceDetailPanel';
+
+export { AddCategoryModal } from './modals/AddCategoryModal';
+export type { AddCategoryModalProps } from './modals/AddCategoryModal';
+
+export { RecategorizeModal } from './modals/RecategorizeModal';
+export type { RecategorizeModalProps } from './modals/RecategorizeModal';
+
+export { navigateToSubTab } from './shared/navigation';
+export type { SubTabId } from './shared/navigation';

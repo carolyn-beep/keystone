@@ -8,6 +8,18 @@ import { tokens } from '@/lib/colors';
 import { cn } from '@/lib/utils';
 import type { Category, JsonValue } from '@/types/second-brain';
 
+// Spec 03 FR10 — Type select options mirror shared/research-stream.ts
+// `RetrievalType`. Hard-coded here (rather than imported) to keep the
+// dropdown labels editable without forcing an enum touch.
+const TYPE_OPTIONS: ReadonlyArray<{ value: string; label: string }> = [
+  { value: 'Podcast', label: 'Podcast' },
+  { value: 'AcademicPaper', label: 'Academic paper' },
+  { value: 'Video', label: 'Video' },
+  { value: 'Substack', label: 'Substack' },
+  { value: 'News', label: 'News' },
+  { value: 'Twitter', label: 'X / Twitter' },
+];
+
 export interface AddSourceModalProps {
   slug: string;
   open: boolean;
@@ -276,6 +288,13 @@ export function AddSourceModal({ slug, open, onClose, defaultCategoryId }: AddSo
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [isPrefetching, setIsPrefetching] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  // Spec 03 FR10 — enrichment fields mirror sources.type / keyInsights /
+  // length / whyMatters. All optional; passed through to createSource as
+  // null when blank.
+  const [type, setType] = useState<string>('');
+  const [keyInsights, setKeyInsights] = useState('');
+  const [length, setLength] = useState('');
+  const [whyMatters, setWhyMatters] = useState('');
 
   // Monotonically-increasing token so out-of-order prefetch results
   // (e.g. user pasted URL A then quickly retyped URL B; A returns last)
@@ -291,6 +310,10 @@ export function AddSourceModal({ slug, open, onClose, defaultCategoryId }: AddSo
     setExtractedContent(null);
     setPrefetchError(null);
     setSubmitError(null);
+    setType('');
+    setKeyInsights('');
+    setLength('');
+    setWhyMatters('');
     // Always start with an empty category — the user explicitly picks
     // or types one. (We don't auto-fill from the first existing
     // category; that quietly biased every new source toward the same
@@ -378,12 +401,19 @@ export function AddSourceModal({ slug, open, onClose, defaultCategoryId }: AddSo
     setSubmitError(null);
     try {
       const categoryId = await resolveCategoryId();
+      const trimmedKeyInsights = keyInsights.trim();
+      const trimmedLength = length.trim();
+      const trimmedWhyMatters = whyMatters.trim();
       await createSource({
         title: title.trim(),
         url: url.trim(),
         author: author.trim(),
         categoryId,
         extractedContent,
+        type: type ? type : null,
+        keyInsights: trimmedKeyInsights ? trimmedKeyInsights : null,
+        length: trimmedLength ? trimmedLength : null,
+        whyMatters: trimmedWhyMatters ? trimmedWhyMatters : null,
       });
       onClose();
     } catch (error) {
@@ -502,6 +532,65 @@ export function AddSourceModal({ slug, open, onClose, defaultCategoryId }: AddSo
               onChange={(event) => setTitle(event.target.value)}
               placeholder="What is this source called?"
               required
+            />
+          </label>
+
+          {/* Spec 03 FR10 — enrichment fields (all optional). */}
+          <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
+            <label className="block">
+              <span className="mb-2 block text-[10px] font-semibold uppercase tracking-[0.35em] text-muted-foreground">
+                Type <span className="font-serif italic normal-case tracking-normal text-muted-light">(optional)</span>
+              </span>
+              <select
+                className={cn(inputClassName, 'pr-8')}
+                value={type}
+                onChange={(event) => setType(event.target.value)}
+              >
+                <option value="">No type</option>
+                {TYPE_OPTIONS.map((opt) => (
+                  <option key={opt.value} value={opt.value}>{opt.label}</option>
+                ))}
+              </select>
+            </label>
+
+            <label className="block">
+              <span className="mb-2 block text-[10px] font-semibold uppercase tracking-[0.35em] text-muted-foreground">
+                Length <span className="font-serif italic normal-case tracking-normal text-muted-light">(optional)</span>
+              </span>
+              <input
+                className={inputClassName}
+                value={length}
+                onChange={(event) => setLength(event.target.value)}
+                placeholder="e.g. 48 min, 5 min"
+              />
+            </label>
+          </div>
+
+          <label className="block">
+            <span className="mb-2 block text-[10px] font-semibold uppercase tracking-[0.35em] text-muted-foreground">
+              Key insights <span className="font-serif italic normal-case tracking-normal text-muted-light">(optional)</span>
+            </span>
+            <textarea
+              className={cn(inputClassName, 'min-h-[88px] resize-y')}
+              value={keyInsights}
+              onChange={(event) => setKeyInsights(event.target.value)}
+              placeholder="A short summary of what this source argues or shows."
+              rows={3}
+              name="keyInsights"
+            />
+          </label>
+
+          <label className="block">
+            <span className="mb-2 block text-[10px] font-semibold uppercase tracking-[0.35em] text-muted-foreground">
+              Why this matters <span className="font-serif italic normal-case tracking-normal text-muted-light">(optional)</span>
+            </span>
+            <textarea
+              className={cn(inputClassName, 'min-h-[88px] resize-y')}
+              value={whyMatters}
+              onChange={(event) => setWhyMatters(event.target.value)}
+              placeholder="Why this source is worth keeping for your project."
+              rows={3}
+              name="whyMatters"
             />
           </label>
         </div>

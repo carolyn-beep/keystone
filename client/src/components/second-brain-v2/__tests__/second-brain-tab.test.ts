@@ -57,13 +57,19 @@ describe('FR1 SecondBrainTab shell', () => {
     expect(tabSource).toContain('onChange={setActiveSubTab}');
   });
 
-  it('renders placeholder bodies via the legacy panels per spec Decision 7', () => {
-    expect(tabSource).toContain('SourcesPanel');
+  it('renders the v2 ResearchMaterialsTab for the research-materials branch (spec 03)', () => {
+    // Real import of the v2 component (not just a comment reference)
+    expect(tabSource).toMatch(/import\s*\{[^}]*ResearchMaterialsTab[^}]*\}\s*from\s*['"][^'"]*second-brain-v2/);
+    // JSX usage of the component
+    expect(tabSource).toMatch(/<ResearchMaterialsTab\b/);
+    // The legacy SourcesPanel is no longer used (the research-materials branch was the only consumer)
+    expect(tabSource).not.toMatch(/<SourcesPanel\b/);
+    // notes + categories remain on the v1 placeholders until specs 04 / 05 land
     expect(tabSource).toContain('NotesPanel');
     expect(tabSource).toContain('CategoriesManager');
   });
 
-  it('routes the active sub-tab to its placeholder body', () => {
+  it('routes the active sub-tab to its body', () => {
     expect(tabSource).toMatch(/activeSubTab === 'research-materials'/);
     expect(tabSource).toMatch(/activeSubTab === 'notes'/);
     // categories is the fall-through branch

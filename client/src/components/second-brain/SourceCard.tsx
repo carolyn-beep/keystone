@@ -1,6 +1,7 @@
 import { ExternalLink, NotebookPen, Trash2 } from 'lucide-react';
 import type { Source } from '@/types/second-brain';
 import { cn } from '@/lib/utils';
+import { formatUrl } from '@/lib/url';
 
 export interface SourceCardProps {
   source: Source;
@@ -9,15 +10,6 @@ export interface SourceCardProps {
   onSelect: () => void;
   onAddNote: () => void;
   onDelete: () => void;
-}
-
-function formatUrl(url: string): string {
-  try {
-    const parsed = new URL(url);
-    return parsed.hostname.replace(/^www\./, '');
-  } catch {
-    return url;
-  }
 }
 
 /**
