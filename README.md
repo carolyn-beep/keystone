@@ -27,19 +27,29 @@ Below the BrainLift sits the **Learning Stream** — the automated discovery lay
 
 ```
 client/           React 18 + TypeScript, TanStack Query, Tailwind, Framer Motion
+  src/
+    components/
+      second-brain-v2/    Sub-tabbed Second Brain shell (Research Materials, Notes)
+      research-stream/    Mission Control launcher, retrieval metadata, proposal handoff
+      chat/               Native chat thread, ProjectPicker, ProposeResearchRunCard
 server/
-  routes/         Domain-based Express routers (brainlifts, experts, verifications, shares, learning-stream, discussion, dok4)
-  services/       Business logic, orchestration, grading pipeline
-  storage/        Drizzle ORM, domain-split with facade pattern
-  ai/             LLM integrations (fact verification, DOK2-4 grading, auto-linking, expert extraction, research swarm)
+  routes/         Domain-based Express routers (brainlifts, experts, verifications, shares, learning-stream, second-brain, discussion, dok4, chat)
+  services/       Business logic, orchestration, grading pipeline, author extraction
+  storage/        Drizzle ORM, domain-split with facade pattern (includes second-brain, chat conversations)
+  ai/             LLM integrations (fact verification, DOK2-4 grading, auto-linking, expert extraction, research orchestrator)
     client/       Unified AI client — model registry, providers, retry/timeout middleware
     chat/         Native chat provider adapter, system prompt, tool registry, skills, telemetry
-  jobs/           Graphile Worker background jobs
+      tools/      Domain-grouped chat tools (second-brain, project, research-stream, research, ask-user, …)
+    learning-stream-swarm-v2/  Vercel AI SDK research orchestrator + per-type agents + cost tracking
+    learning-stream-swarm/     Legacy Claude Agent SDK swarm (kept for rollback during v2 soak)
+  brand/          Per-brand system prompts (alphax authoring, alphax-research, brainlift) + dispatcher
+  jobs/           Graphile Worker background jobs (incl. refreshModelPrices, learningStreamResearch)
   events/         SSE event emitters (DOK4 grading progress)
-  middleware/     Auth (Better Auth + Google OAuth), brainlift authorization, error handling
+  middleware/     Auth (Better Auth + Google OAuth + email/password), brainlift authorization, error handling
   prompts/        Structured grading prompts (DOK1-4)
-shared/           Schema definitions, shared types
+shared/           Schema definitions, shared types, RunRequest/RunSpec contract, synthetic opener helper
 migrations/       PostgreSQL migrations (Drizzle Kit)
+features/         Living feature docs + per-spec research/spec/checklist artifacts
 ```
 
 ### Storage Facade
@@ -415,96 +425,77 @@ The assessment includes a concrete strategy for making the SPOV more transmissib
 
 ---
 
-## Learning Stream — Multi-Agent Research Swarm
+## Research Stream — Project-Data-Aware Multi-Agent Retrieval
 
-The Learning Stream surfaces relevant, high-quality sources aligned to each BrainLift's purpose. It uses the Claude Agent SDK to orchestrate a swarm of parallel research agents — each one a specialized AI that searches, evaluates, and saves a single resource independently.
+The Research Stream (formerly Learning Stream) surfaces relevant, high-quality sources aligned to a project's evolving research context. The v2 architecture (`server/ai/learning-stream-swarm-v2/`) replaces the original Claude Agent SDK swarm with a thin orchestrator + `Promise.allSettled` fan-out over Vercel AI SDK `streamText` calls. The legacy `learning-stream-swarm/` path is kept available for rollback during the soak window.
 
-### Architecture: Orchestrator + Specialized Sub-Agents
+### Two Co-Equal Entry Points, One Contract
 
-The swarm is a two-tier system built on the Claude Agent SDK's `query()` function with registered `agents`:
+Every run, regardless of who launched it, submits the same `RunRequest` shape (declared in `shared/research-stream.ts` and validated with Zod):
 
-**The Orchestrator** receives the BrainLift's context — title, purpose, the top 15 facts ranked by verification score, the top 10 followed experts by impact rank, and every existing topic in the stream (to avoid overlap). It designs N research tasks and allocates resource types through a proportional distribution algorithm that guarantees diversity: no resource type gets zero agents, and the total always matches the swarm count exactly.
+- **Chat agent path.** The AlphaX research-mode agent calls the `propose_research_run` tool. The student sees a `ProposeResearchRunCard` (`client/src/components/chat/ProposeResearchRunCard.tsx`) that previews the proposal — topic, angles, slot mix, focuses — and hands off to the Mission Control launcher to confirm and launch. The card moves through `streaming → editable-preview → blocked / launched / stale` states.
+- **UI path.** The dashboard's pre-launch idle state renders `MissionControlLauncher` (`client/src/components/research-stream/MissionControlLauncher.tsx`), where the student edits topic, slot count, per-slot retrieval type, and per-slot focus directly, then launches the same `RunRequest` against the same endpoint.
 
-The orchestrator then spawns **all N agents in a single message** using multiple `Task` tool calls — not sequentially. This is enforced in the orchestrator prompt because parallel spawning cuts wall-clock time by ~80% compared to sequential dispatch.
+Both paths POST to `/api/brainlifts/:slug/learning-stream/launch`. The endpoint returns typed `409 already-running` and `429 rate-limit` errors that the UI surfaces inline. The client-side `/refresh` path was removed: refilling is now an explicit launch action.
 
-### Four Specialized Agent Types
+### Project-Data-Aware Orchestrator
 
-Each agent type is purpose-built with different tools, search strategies, and quality criteria:
+`server/ai/learning-stream-swarm-v2/orchestrator.ts` runs Opus 4.7 (with Sonnet fallback) on **every** launch. It receives a freshly-built context from `context-builder.ts` that blends:
 
-| Agent | Model | Tools | Specialization |
-|-------|-------|-------|----------------|
-| `web-researcher` | Haiku | Exa Search, WebFetch, duplicate check | Substacks, academic papers, Twitter threads, general web |
-| `video-researcher` | Haiku | Exa Search, YouTube MCP (`getVideoDetails`), duplicate check | YouTube videos — verifies existence via metadata API before returning |
-| `podcast-researcher` | Haiku | Exa Search, YouTube MCP, WebFetch, duplicate check | Podcast *episodes* (not shows — episodes are topic-specific) |
-| `news-researcher` | Haiku | Exa Search, WebFetch, duplicate check | Recent news — filters for recency, checks for paywalls and login walls |
+- BrainLift title, purpose, top-ranked facts, followed experts.
+- **Second Brain sources and notes** — the orchestrator now sees the research the student has actually accumulated, not just the brainlift.
+- **Phase-aware emphasis** — in `research` phase the Second Brain is the dominant substrate; in `authoring` phase brainlift facts dominate, with the Second Brain as a complementary signal.
+- Existing learning-stream topics to avoid overlap.
+- The student's `RunRequest` (possibly empty) as input, never as a bypass.
 
-The model choice is deliberate: Haiku for sub-agents keeps costs low while the orchestrator (which does the strategic thinking — task design, context synthesis, result aggregation) runs on a more capable model. The sub-agents don't need to be brilliant strategists; they need to be fast, focused searchers that follow instructions reliably.
+The orchestrator emits a structured fan-out plan that resolves topic, angles, slot count, and per-slot `{ type, focus, model? }`. Customization is INPUT to this LLM, never a shortcut around it.
 
-### Per-Type, Per-Instance Diversification
+### Per-Type Agents and Fan-Out
 
-Agents of the same type receive different search focuses to prevent convergence. The orchestrator's task assignment system ensures this:
+Once the orchestrator returns its plan, fan-out is plain TypeScript: `Promise.allSettled` over per-slot `streamText` calls, one agent per slot. Each retrieval type has its own agent module under `server/ai/learning-stream-swarm-v2/agents/`:
 
-- **Substack agents** — first searches for content from a listed expert; second searches a specific fact/topic; third looks for contrarian perspectives
-- **Academic Paper agents** — split between foundational research, recent findings (last 2 years), and meta-analyses/literature reviews
-- **Video agents** — split between video essays, conference talks/lectures, and general educational content
-- **Podcast agents** — split between expert interviews and educational episodes on core topics
-- **News agents** — split between breaking stories, investigative reports, and industry announcements
+| Agent module | Retrieval type |
+|--------------|----------------|
+| `academic.ts` | Academic papers |
+| `news.ts` | News stories |
+| `podcast.ts` | Podcast episodes |
+| `twitter.ts` | Twitter threads |
+| `video.ts` | YouTube videos |
+| `web.ts` | Substacks, general web |
 
-This means 20 agents find 20 genuinely different resources, not 20 variations of the same idea.
+Agents share prompt helpers from `agents/prompt-helpers.ts` and call the same Exa / YouTube / WebFetch tools through the unified AI client. Hard search caps and URL verification are preserved.
 
-### Hard Search Limits as Cost Control
+### Cost Tracking and the Monthly Price Refresh
 
-Every agent has a hard cap on search calls (8--10 depending on type). After hitting the limit, the agent must return its best finding so far. This prevents "search until perfect" spirals that burn through API credits. The prompt enforces this: "Count your searches. Stop at 10 and return your best result."
+`server/ai/learning-stream-swarm-v2/cost.ts` accumulates per-slot token usage and estimates USD against a versioned `cost-prices.json`. Estimated cost and the originating `RunRequest` are persisted alongside each run in the `swarm_usage` table (`migrations/0035_swarm_usage_audit.sql` adds the `run_spec` and `estimated_usd` columns).
 
-Agents are also required to verify URLs before returning — `WebFetch` for web/news agents, `getVideoDetails` for video agents. A URL that 404s or hits a paywall is discarded, not returned.
+A monthly Graphile cron (`models:refresh-prices`, defined in `server/jobs/crontab` and implemented by `server/jobs/refreshModelPricesJob.ts`) hits `https://openrouter.ai/api/v1/models` and updates the on-disk price table, so cost estimates stay current as OpenRouter rotates pricing.
 
-### MCP Server — How Agents Talk to the Database
+### Real-Time Mission Dashboard
 
-The swarm uses an in-process MCP server built with the Claude Agent SDK's `createSdkMcpServer`. Three tools are exposed:
+The frontend connects via SSE (`server/ai/learning-stream-swarm-v2/event-emitter.ts`) and receives live events as the orchestrator plans, agents spawn, search, fetch, and complete. The behaviors carried forward from v1 remain:
 
-| Tool | Purpose | Design Decision |
-|------|---------|-----------------|
-| `get_brainlift_context` | Load title, purpose, facts, experts, existing topics | Called once by orchestrator at swarm start |
-| `check_duplicate` | Pre-flight duplicate check before committing | Agents can avoid wasted effort |
-| `save_learning_item` | Persist a found resource to the database | Catches PostgreSQL unique constraint violations gracefully |
+- Pending subscribers held in queue if the frontend connects before the run starts.
+- Late-joiner catch-up: a fresh subscriber receives the full current run state on connection.
+- Per-agent UNIT-NN tracking.
+- Optional verbose file logging gated by `SWARM_VERBOSE_LOG=true`.
 
-The `save_learning_item` tool deserves attention. When two agents racing on the same URL hit the database's unique constraint simultaneously, the storage layer catches the PostgreSQL `23505` error code and returns `{ "error": "duplicate" }` instead of crashing. The agent sees "duplicate" in its response, the orchestrator counts it, and the swarm continues. No retry loops, no error propagation, no lost work.
+The dashboard (`MissionDashboard`, `AgentCard`, `ActivityLog`) was preserved untouched on purpose: only the pre-launch idle state changed (Mission Control launcher) so that mid-run UX stays stable across the v1→v2 cutover.
 
-**SDK constraint workaround:** In-process MCP tools (`createSdkMcpServer`) are only available to the orchestrator, not to sub-agents — this is a Claude Agent SDK limitation where only HTTP and stdio MCP servers propagate to child agents. The architecture accounts for this: sub-agents use Exa (HTTP MCP), YouTube (stdio MCP), and WebFetch (built-in), while the orchestrator handles all `save_learning_item` calls after collecting results.
+### The Research Stream Flywheel
 
-### Real-Time Swarm Monitoring
+The orchestrator, agents, content extraction, and discussion agent form a self-reinforcing loop:
 
-The frontend connects via SSE and receives live events as agents spawn, search, fetch, and complete. The event system has several clever behaviors:
+1. **Run launched** from chat or dashboard with a `RunRequest`.
+2. **Orchestrator** reads brainlift + Second Brain + experts, produces a fan-out plan.
+3. **Agents** retrieve resources in parallel; each verifies URLs before saving.
+4. **Content extraction** makes each resource viewable inline (articles, embeds, transcripts).
+5. **Student opens a resource** → split-panel view with discussion agent.
+6. **Discussion agent** guides extraction of DOK1 facts and DOK2 summaries, or capture into the Second Brain.
+7. **Bookmarks mirror into Second Brain** as enriched `sources` (with type, key insights, length, why it matters).
+8. **Student launches the next run** with the orchestrator now aware of the new sources.
 
-- **Pending subscribers** — if the frontend connects before the swarm starts (e.g., triggered via background job), the subscriber is held in a pending queue and automatically transferred when `startSwarm()` fires
-- **Late-joiner catch-up** — new subscribers receive the full current swarm state (all agents, their statuses, their event logs) immediately on connection, so refreshing the page mid-swarm picks up exactly where you left off
-- **Per-agent tracking** — each agent is identified as UNIT-01 through UNIT-N with events correlated through parent `tool_use_id`s from the SDK's message stream
-- **Verbose file logging** — optionally writes every tool call, reasoning step, and result to timestamped log files for debugging
-
-The frontend renders a mission dashboard with deployment status, individual agent cards showing search activity, an orchestrator activity log, and a results summary — all updating in real time via SSE.
-
-### Auto-Refill
-
-When a user exhausts all pending items through bookmarking, grading, or discarding, the stream auto-refills by queuing a new research job. Each subsequent swarm avoids previously discovered topics (passed via `existingTopics` in the context), so the research naturally broadens over time rather than repeating itself.
-
-### Swarm Configuration
-
-The swarm count is configurable (`SWARM_AGENT_COUNT`, default 5, production 20). Budget is capped at $5 per swarm run. Max turns are set to 60 to prevent runaway orchestration.
-
-### The Learning Stream Flywheel
-
-The swarm, content extraction, and discussion agent form a self-reinforcing loop:
-
-1. **Research swarm** finds 20 resources aligned to the BrainLift's purpose and experts
-2. **Content extraction** makes each resource viewable inline (articles as markdown, videos as embeds, etc.)
-3. **Student opens a resource** → split-panel view with discussion agent
-4. **Discussion agent** guides the student to extract DOK1 facts and DOK2 summaries
-5. **Facts and summaries are saved** to the BrainLift, verified and graded asynchronously
-6. **Student processes all pending items** (bookmark, grade, or discard)
-7. **Auto-refill triggers** a new swarm that avoids previously discovered topics
-8. **The cycle broadens** — each iteration exposes the student to new angles on their domain
-
-The student never has to search for sources, manage bookmarks, or manually transfer notes. The system handles the logistics of discovery and capture. The student's only job is to read, think, and articulate — which is exactly where DOK2+ learning happens.
+The student never has to search for sources, manage bookmarks, or manually transfer notes. The agent and the launcher are two doors into the same room.
 
 ---
 
@@ -536,6 +527,66 @@ Extraction runs as a fire-and-forget background job queued at insert time. If a 
 YouTube items receive an additional extraction step: after the embed pattern match produces the video ID, the pipeline attempts to fetch the full video transcript (~2s). On success, the transcript is stored as an optional field on the YouTube embed variant in `ExtractedContent`. On failure, the item gracefully degrades to embed-only — the video is still playable, just without text content.
 
 A uniform accessor — `getItemTextContent(item)` — provides consistent text access across all content types: articles return their markdown, YouTube items return their transcript, and everything else returns null. This accessor is the foundation for the discussion agent (which can now discuss YouTube content from the actual transcript rather than just metadata), the knowledge check quiz generator, and the fact verification pipeline (which checks for cached transcripts before falling back to AI-powered evidence search).
+
+---
+
+## Second Brain — The Research-Phase Surface
+
+The Second Brain is where research lives before the BrainLift exists. It is the durable artifact of the **research-first pedagogy pivot** (`features/pedagogy/research-first-pivot/`, AlphaX brand only): students enter a project in `phase='research'` and accumulate Sources, Notes, and Categories before any DOK creation is unlocked. Imports and pre-existing projects stay in `phase='authoring'` and behave exactly as before.
+
+### Schema and Phase Gating
+
+`migrations/0034_research_first_pivot.sql` introduces:
+
+- `brainlifts.phase` (`'research' | 'authoring'`, default `'authoring'`, CHECK-constrained). New blank projects start in `research`; imports force `authoring`.
+- `chat_conversations.brainlift_id` (nullable FK) so a conversation can be bound to a specific project.
+- `sources` table — `{ brainliftId, title, url, author, categoryId, extractedContent, learningStreamItemId? }`, unique on `(brainliftId, url)`. `0036_second_brain_v2_source_shape.sql` enriches it with `type`, `key_insights`, `length`, and `why_matters`.
+- `notes` table — `{ brainliftId, sourceId?, categoryId?, content }`. Notes can stand alone or hang off a source.
+
+The full CRUD surface lives in `server/storage/second-brain.ts` and is exposed at `/api/brainlifts/:slug/sources`, `/notes`, `/categories` (plus reorder + bulk endpoints) via `server/routes/second-brain.ts`. All endpoints go through `requireBrainliftAccess` / `requireBrainliftModify` and the standard IDOR-safe `*ForBrainlift` query pattern.
+
+### The Second Brain v2 UI
+
+The frontend (`client/src/components/second-brain-v2/`) is a sub-tabbed shell:
+
+- **Research Materials tab** — sources grid with bulk operations, filter bar, view-mode toggle, a right-side drawer (`SourceDetailPanel`) for the full source view, and an inline `ExpandedItemView` reader so a student can read a source without leaving the page.
+- **Notes tab** — note cards with bulk ops, category inheritance from the parent source (the New Note modal omits the category field when the source already has one), and a `NoteDetailPanel` drawer with horizontal scrolling for long linked-source titles.
+- **Add Source modal** — author extraction runs server-side (`server/services/author-extractor.ts`) to pre-fill metadata from the URL.
+
+### Bookmark → Source Mirror
+
+When a Research Stream item is bookmarked into a category, it mirrors into `sources` with `learningStreamItemId` set, carrying over title, URL, author, and the enriched fields (`type`, `key_insights`, `length`, `why_matters`). The same enrichment shape is produced by the chat agent's `save_source` tool, so manual additions and stream-mirrored sources are structurally identical.
+
+### Phase Gates in the UI
+
+`Dashboard.tsx` reads `brainlift.phase` and hides DOK1-4 navigation, sprint planning, and document-hub surfaces while the project is in `research`. A scroll-collapse hysteresis on `DashboardHeader` and a sub-nav inside the Second Brain keep the surface dense without losing context. Project Purpose is editable inline, and an empty-state "create your first project" CTA replaces the dashboard when the user has no projects.
+
+---
+
+## Research-Mode Chat Agent — AlphaX
+
+The AlphaX brand chat agent now runs in one of two modes per conversation, dispatched by `server/brand/index.ts` based on the bound project's phase:
+
+- **Research mode** (`server/brand/alphax-research.ts`) — the agent's mission is to make the student an expert in their domain. The prompt emphasizes aggressive note capture, terrain mapping, "today" date awareness, and the Research Stream as the default action when knowledge gaps appear. It branches on whether a project is bound (unbound conversations include new-user onboarding cues and a project-idea-generator skill nudge) and on the student's `brainliftCount`.
+- **Authoring mode** (`server/brand/alphax.ts`) — the existing brainlift-author prompt, lightly adjusted to align with the non-editable `propose_research_run` preview behavior.
+
+Brainlift Central (`brand=brainlift`) is untouched.
+
+### Mode-Aware Tool Registry
+
+`buildNativeChatTools(authContext, mode)` returns a mode-aware tool set. Beyond the existing grading/skill/research tools, AlphaX gains:
+
+- **Project tools** (`server/ai/chat/tools/project.ts`) — `create_blank_project` (atomic brainlift insert that also binds the conversation FK) and `change_conversation_project` (rebind the conversation to an existing brainlift).
+- **Second Brain tools** (`server/ai/chat/tools/second-brain.ts`) — `save_source`, `save_note`, `create_category`, plus edit/delete variants. These tools are now also available in the discussion agent (`server/ai/discussion/tools.ts`) so a student can capture into the Second Brain mid-discussion. All callsites invalidate the relevant TanStack Query keys when they fire.
+- **Research Stream tools** (`server/ai/chat/tools/research-stream.ts`) — wraps `propose_research_run`, the two-stage tool that the agent uses to propose a fan-out plan. It is a no-LLM factory tool that does a pending-run check and emits a typed `ProposeResearchRunToolExecuteResult` for the card to render.
+
+### ProjectPicker
+
+`client/src/components/chat/ProjectPicker.tsx` sits at the top of the chat thread and shows the currently bound project (if any), with a dropdown to switch to another project or create a blank one. State is managed by `useConversationBrainlift()`, which queries and mutates `chat_conversations.brainlift_id`.
+
+### Synthetic Opener
+
+The AlphaX welcome message is a **hardcoded synthetic assistant turn** (`shared/alphax-synthetic-opener.ts`) injected at the top of an empty conversation. The detection helper keeps the synthetic turn invisible to downstream prompt construction so the LLM never sees it as a real exchange.
 
 ---
 
@@ -921,3 +972,5 @@ docker exec -i wizardly_kalam psql -U postgres -d dok1grader_local < migrations/
 | `BRAND` | Server brand selector. `alphax` or `brainlift`. Throws at boot if missing or unknown. |
 | `VITE_BRAND` | Client brand selector. `alphax` or `brainlift`. Read at Vite config time to alias `@/brand`. Must match `BRAND`. |
 | `VITE_BRAND_NAME` | Display name shown in the browser tab and HTML meta description (e.g. `AlphaX Buddy` or `Brainlift Central`). |
+| `SWARM_VERBOSE_LOG` | Optional. `true` enables per-tool verbose file logging for both v1 and v2 research-stream runs. Default off. |
+| `VITE_ENABLE_DEV_LOGIN` | Optional build-time flag. `true` keeps the Login page's "Dev quick login" panel visible on production builds (for staging/demo accounts). Default off in production. |
