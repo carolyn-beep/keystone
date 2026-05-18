@@ -8,6 +8,20 @@ import { FactSavedToolUI } from './discussion-tools/FactSavedCard';
 import { SummarySavedToolUI } from './discussion-tools/SummarySavedCard';
 import { BrainliftContextToolUI } from './discussion-tools/BrainliftContextCard';
 import { ArticleContentToolUI } from './discussion-tools/ArticleContentCard';
+import {
+  SaveSourceToolUI,
+  SaveNoteToolUI,
+  CreateCategoryToolUI,
+  ListSourcesToolUI,
+  ListNotesToolUI,
+  ListCategoriesToolUI,
+  EditSourceToolUI,
+  EditNoteToolUI,
+  EditCategoryToolUI,
+  DeleteSourceToolUI,
+  DeleteNoteToolUI,
+  DeleteCategoryToolUI,
+} from '@/components/chat/native-chat-thread-config';
 import type { LearningStreamItem } from '@/hooks/useLearningStream';
 
 const MarkdownText = makeMarkdownText();
@@ -71,6 +85,18 @@ export function DiscussionPanel({ slug, itemId, item, builderMode }: DiscussionP
             SummarySavedToolUI,
             BrainliftContextToolUI,
             ArticleContentToolUI,
+            SaveSourceToolUI,
+            SaveNoteToolUI,
+            CreateCategoryToolUI,
+            ListSourcesToolUI,
+            ListNotesToolUI,
+            ListCategoriesToolUI,
+            EditSourceToolUI,
+            EditNoteToolUI,
+            EditCategoryToolUI,
+            DeleteSourceToolUI,
+            DeleteNoteToolUI,
+            DeleteCategoryToolUI,
           ],
         }}
       >

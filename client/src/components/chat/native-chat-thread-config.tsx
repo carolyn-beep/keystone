@@ -37,6 +37,7 @@ import {
 } from 'lucide-react';
 import remarkGfm from 'remark-gfm';
 import { cn } from '@/lib/utils';
+import { queryClient } from '@/lib/queryClient';
 import type {
   AskUserQuestionToolInput,
   AskUserQuestionToolResult,
@@ -121,6 +122,24 @@ function getTone(status: ToolCallStatus, isError?: boolean): 'default' | 'error'
   if (isError) return 'error';
   if (status.type === 'requires-action' || status.type === 'incomplete') return 'warning';
   return 'default';
+}
+
+// Tool result UIs fire on every render. Use this set to ensure each toolCallId
+// only invalidates query caches once — otherwise we'd refetch on every keystroke.
+const invalidatedToolCalls = new Set<string>();
+
+type SecondBrainQueryKey = 'sources' | 'notes' | 'categories';
+
+function invalidateSecondBrainQueries(
+  toolCallId: string,
+  hasResult: boolean,
+  keys: readonly SecondBrainQueryKey[],
+) {
+  if (!hasResult || invalidatedToolCalls.has(toolCallId)) return;
+  invalidatedToolCalls.add(toolCallId);
+  for (const key of keys) {
+    queryClient.invalidateQueries({ queryKey: [key] });
+  }
 }
 
 // ---------- Generic fallback (= an error in our app) ----------
@@ -331,9 +350,10 @@ type SaveSourceResult = {
   url?: string;
 };
 
-const SaveSourceToolUI = makeAssistantToolUI<SaveSourceArgs, SaveSourceResult>({
+export const SaveSourceToolUI = makeAssistantToolUI<SaveSourceArgs, SaveSourceResult>({
   toolName: 'save_source',
-  render: ({ args, result, status, isError }) => {
+  render: ({ args, result, status, isError, toolCallId }) => {
+    invalidateSecondBrainQueries(toolCallId, !!result, ['sources', 'categories']);
     const title = result?.title ?? args?.title ?? null;
     const url = result?.url ?? args?.url ?? null;
     const label = isError
@@ -373,9 +393,10 @@ const SaveSourceToolUI = makeAssistantToolUI<SaveSourceArgs, SaveSourceResult>({
 type SaveNoteArgs = { content?: string; sourceId?: number; categoryId?: number };
 type SaveNoteResult = { id: number };
 
-const SaveNoteToolUI = makeAssistantToolUI<SaveNoteArgs, SaveNoteResult>({
+export const SaveNoteToolUI = makeAssistantToolUI<SaveNoteArgs, SaveNoteResult>({
   toolName: 'save_note',
-  render: ({ args, status, isError }) => {
+  render: ({ args, result, status, isError, toolCallId }) => {
+    invalidateSecondBrainQueries(toolCallId, !!result, ['notes']);
     const linked = args?.sourceId != null;
     const label = isError
       ? 'Failed to save note'
@@ -399,9 +420,10 @@ const SaveNoteToolUI = makeAssistantToolUI<SaveNoteArgs, SaveNoteResult>({
 type CreateCategoryArgs = { name?: string; sortOrder?: number };
 type CreateCategoryResult = { id: number; name?: string };
 
-const CreateCategoryToolUI = makeAssistantToolUI<CreateCategoryArgs, CreateCategoryResult>({
+export const CreateCategoryToolUI = makeAssistantToolUI<CreateCategoryArgs, CreateCategoryResult>({
   toolName: 'create_category',
-  render: ({ args, result, status, isError }) => {
+  render: ({ args, result, status, isError, toolCallId }) => {
+    invalidateSecondBrainQueries(toolCallId, !!result, ['categories']);
     const name = result?.name ?? args?.name ?? null;
     const label = isError
       ? 'Failed to create category'
@@ -431,34 +453,41 @@ function makeEditSecondBrainToolUI(
   noun: 'source' | 'note' | 'category',
   fallbackIcon: ReactNode,
 ) {
+  // Edits to source/category can change the entries that notes reference, so
+  // invalidate broadly for those two; a note edit only affects notes.
+  const keysToInvalidate: readonly SecondBrainQueryKey[] =
+    noun === 'note' ? ['notes'] : ['sources', 'notes', 'categories'];
   return makeAssistantToolUI<EditSecondBrainArgs, unknown>({
     toolName,
-    render: ({ status, isError }) => (
-      <ToolStatusLine
-        icon={<StatusIcon status={status} isError={isError} fallback={fallbackIcon} />}
-        tone={getTone(status, isError)}
-      >
-        {isError
-          ? `Failed to update ${noun}`
-          : isRunning(status)
-            ? `Updating ${noun}…`
-            : `Updated ${noun}`}
-      </ToolStatusLine>
-    ),
+    render: ({ status, isError, toolCallId, result }) => {
+      invalidateSecondBrainQueries(toolCallId, result !== undefined, keysToInvalidate);
+      return (
+        <ToolStatusLine
+          icon={<StatusIcon status={status} isError={isError} fallback={fallbackIcon} />}
+          tone={getTone(status, isError)}
+        >
+          {isError
+            ? `Failed to update ${noun}`
+            : isRunning(status)
+              ? `Updating ${noun}…`
+              : `Updated ${noun}`}
+        </ToolStatusLine>
+      );
+    },
   });
 }
 
-const EditSourceToolUI = makeEditSecondBrainToolUI(
+export const EditSourceToolUI = makeEditSecondBrainToolUI(
   'edit_source',
   'source',
   <Pencil size={13} />,
 );
-const EditNoteToolUI = makeEditSecondBrainToolUI(
+export const EditNoteToolUI = makeEditSecondBrainToolUI(
   'edit_note',
   'note',
   <Pencil size={13} />,
 );
-const EditCategoryToolUI = makeEditSecondBrainToolUI(
+export const EditCategoryToolUI = makeEditSecondBrainToolUI(
   'edit_category',
   'category',
   <Pencil size={13} />,
@@ -470,26 +499,33 @@ function makeDeleteSecondBrainToolUI(
   toolName: string,
   noun: 'source' | 'note' | 'category',
 ) {
+  // Deleting a source unlinks its notes; deleting a category may cascade across
+  // sources and notes. Invalidate all three on those two; notes-only on note.
+  const keysToInvalidate: readonly SecondBrainQueryKey[] =
+    noun === 'note' ? ['notes'] : ['sources', 'notes', 'categories'];
   return makeAssistantToolUI<DeleteSecondBrainArgs, unknown>({
     toolName,
-    render: ({ status, isError }) => (
-      <ToolStatusLine
-        icon={<StatusIcon status={status} isError={isError} fallback={<Trash2 size={13} />} />}
-        tone={getTone(status, isError)}
-      >
-        {isError
-          ? `Failed to delete ${noun}`
-          : isRunning(status)
-            ? `Deleting ${noun}…`
-            : `Deleted ${noun}`}
-      </ToolStatusLine>
-    ),
+    render: ({ status, isError, toolCallId, result }) => {
+      invalidateSecondBrainQueries(toolCallId, result !== undefined, keysToInvalidate);
+      return (
+        <ToolStatusLine
+          icon={<StatusIcon status={status} isError={isError} fallback={<Trash2 size={13} />} />}
+          tone={getTone(status, isError)}
+        >
+          {isError
+            ? `Failed to delete ${noun}`
+            : isRunning(status)
+              ? `Deleting ${noun}…`
+              : `Deleted ${noun}`}
+        </ToolStatusLine>
+      );
+    },
   });
 }
 
-const DeleteSourceToolUI = makeDeleteSecondBrainToolUI('delete_source', 'source');
-const DeleteNoteToolUI = makeDeleteSecondBrainToolUI('delete_note', 'note');
-const DeleteCategoryToolUI = makeDeleteSecondBrainToolUI('delete_category', 'category');
+export const DeleteSourceToolUI = makeDeleteSecondBrainToolUI('delete_source', 'source');
+export const DeleteNoteToolUI = makeDeleteSecondBrainToolUI('delete_note', 'note');
+export const DeleteCategoryToolUI = makeDeleteSecondBrainToolUI('delete_category', 'category');
 
 type ListSourcesArgs = { q?: string; page?: number };
 type ListSourcesResult = {
@@ -497,7 +533,7 @@ type ListSourcesResult = {
   pagination?: { totalItems?: number };
 };
 
-const ListSourcesToolUI = makeAssistantToolUI<ListSourcesArgs, ListSourcesResult>({
+export const ListSourcesToolUI = makeAssistantToolUI<ListSourcesArgs, ListSourcesResult>({
   toolName: 'list_sources',
   render: ({ args, result, status, isError }) => {
     const total = result?.pagination?.totalItems ?? result?.items?.length;
@@ -530,7 +566,7 @@ type ListNotesResult = {
   pagination?: { totalItems?: number };
 };
 
-const ListNotesToolUI = makeAssistantToolUI<ListNotesArgs, ListNotesResult>({
+export const ListNotesToolUI = makeAssistantToolUI<ListNotesArgs, ListNotesResult>({
   toolName: 'list_notes',
   render: ({ args, result, status, isError }) => {
     const total = result?.pagination?.totalItems ?? result?.items?.length;
@@ -554,7 +590,7 @@ const ListNotesToolUI = makeAssistantToolUI<ListNotesArgs, ListNotesResult>({
 
 type ListCategoriesResult = { items?: unknown[] };
 
-const ListCategoriesToolUI = makeAssistantToolUI<Record<string, never>, ListCategoriesResult>({
+export const ListCategoriesToolUI = makeAssistantToolUI<Record<string, never>, ListCategoriesResult>({
   toolName: 'list_categories',
   render: ({ result, status, isError }) => {
     const total = result?.items?.length;

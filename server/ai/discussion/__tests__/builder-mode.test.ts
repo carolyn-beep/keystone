@@ -249,3 +249,62 @@ describe('FR6: buildDiscussionSystemPrompt', () => {
     expect(prompt).toContain(brainliftNoPurpose.description!);
   });
 });
+
+// ─── Phase branching: research vs authoring ─────────────────────────────────
+
+describe('buildDiscussionTools — phase branching', () => {
+  const authoringBrainlift = { ...mockBrainlift, phase: 'authoring' as const };
+  const researchBrainlift = { ...mockBrainlift, phase: 'research' as const };
+  const mockAuthContext = { userId: 'user-1', role: 'user', isAdmin: false } as any;
+
+  it('authoring phase keeps DOK tools and adds Second Brain tools', () => {
+    const tools = buildDiscussionTools(mockItem, authoringBrainlift, mockAuthContext);
+    expect(tools).toHaveProperty('save_dok1_fact');
+    expect(tools).toHaveProperty('save_dok2_summary');
+    expect(tools).toHaveProperty('get_brainlift_context');
+    expect(tools).toHaveProperty('read_article_section');
+    // Second Brain — available in both phases
+    expect(tools).toHaveProperty('save_source');
+    expect(tools).toHaveProperty('save_note');
+    expect(tools).toHaveProperty('create_category');
+    expect(tools).toHaveProperty('list_sources');
+    expect(tools).toHaveProperty('list_notes');
+    expect(tools).toHaveProperty('list_categories');
+  });
+
+  it('research phase drops DOK extraction tools but keeps context + read + Second Brain', () => {
+    const tools = buildDiscussionTools(mockItem, researchBrainlift, mockAuthContext);
+    expect(tools).not.toHaveProperty('save_dok1_fact');
+    expect(tools).not.toHaveProperty('save_dok2_summary');
+    expect(tools).toHaveProperty('get_brainlift_context');
+    expect(tools).toHaveProperty('read_article_section');
+    expect(tools).toHaveProperty('save_source');
+    expect(tools).toHaveProperty('save_note');
+    expect(tools).toHaveProperty('create_category');
+  });
+});
+
+describe('buildDiscussionSystemPrompt — phase branching', () => {
+  const researchBrainliftWithTitle = { ...mockBrainliftWithTitle, phase: 'research' as const };
+  const authoringBrainliftWithTitle = { ...mockBrainliftWithTitle, phase: 'authoring' as const };
+
+  it('research phase emits capture-first prompt with no DOK vocabulary', () => {
+    const prompt = buildDiscussionSystemPrompt(mockItem, researchBrainliftWithTitle);
+    expect(prompt).toContain('research mode');
+    expect(prompt).toContain('save_note');
+    expect(prompt).toContain('save_source');
+    expect(prompt).toContain('Capture');
+    expect(prompt).toContain(String(mockItem.id)); // learningStreamItemId surfaced
+    expect(prompt).not.toContain('DOK1 (Facts)');
+    expect(prompt).not.toContain('save_dok1_fact');
+  });
+
+  it('authoring phase keeps DOK framework and adds Second Brain section', () => {
+    const prompt = buildDiscussionSystemPrompt(mockItem, authoringBrainliftWithTitle);
+    expect(prompt).toContain('DOK1');
+    expect(prompt).toContain('save_dok1_fact');
+    expect(prompt).toContain('Second Brain');
+    expect(prompt).toContain('save_source');
+    expect(prompt).toContain('save_note');
+  });
+});

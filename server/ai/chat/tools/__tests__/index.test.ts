@@ -179,7 +179,7 @@ describe('buildNativeChatTools', () => {
     expect(mockBuildSecondBrainChatTools).toHaveBeenCalledWith(authContext, boundResearchConversation);
   });
 
-  it('exposes authoring tools in authoring mode and excludes research-only tools', async () => {
+  it('exposes authoring tools plus Second Brain in authoring mode and excludes research-only tools', async () => {
     const { buildNativeChatTools } = await import('../index');
 
     const tools = buildNativeChatTools(authContext, 'authoring', boundAuthoringConversation);
@@ -195,14 +195,23 @@ describe('buildNativeChatTools', () => {
       // agent can switch off a legacy/imported authoring brainlift without
       // forcing the user to leave chat for the picker.
       change_conversation_project: 'change-project',
+      // Second Brain tools are available in BOTH modes — users save notes,
+      // sources, and categories regardless of whether they're researching or
+      // authoring.
+      save_source: 'save-source',
+      save_note: 'save-note',
+      create_category: 'create-category',
+      list_sources: 'list-sources',
+      list_notes: 'list-notes',
+      list_categories: 'list-categories',
     });
     expect(tools).not.toHaveProperty('create_blank_project');
-    expect(tools).not.toHaveProperty('save_source');
-    expect(tools).not.toHaveProperty('list_sources');
-    expect(tools).not.toHaveProperty('list_notes');
-    expect(tools).not.toHaveProperty('list_categories');
     expect(mockBuildResearchOnlyProjectChatTools).not.toHaveBeenCalled();
     expect(mockBuildSharedProjectChatTools).toHaveBeenCalledWith(
+      authContext,
+      boundAuthoringConversation,
+    );
+    expect(mockBuildSecondBrainChatTools).toHaveBeenCalledWith(
       authContext,
       boundAuthoringConversation,
     );
