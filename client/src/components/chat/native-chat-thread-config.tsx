@@ -21,6 +21,7 @@ import {
   Library,
   Link2,
   Loader2,
+  Unlink,
   ListTree,
   NotebookPen,
   Pencil,
@@ -47,6 +48,9 @@ import type {
   ProposeResearchRunToolInput,
   ProposeResearchRunToolResult,
 } from '@shared/chat-research-stream';
+import { useChatConversation } from '@/hooks/useChatConversations';
+import { useUserBrainlifts } from '@/hooks/useUserBrainlifts';
+import { useCategories } from '@/hooks/useCategories';
 import { AskUserQuestionCard } from './AskUserQuestionCard';
 import { ChatComposer } from './ChatComposer';
 import { ProposeResearchRunCard } from './ProposeResearchRunCard';
@@ -391,28 +395,119 @@ export const SaveSourceToolUI = makeAssistantToolUI<SaveSourceArgs, SaveSourceRe
 });
 
 type SaveNoteArgs = { content?: string; sourceId?: number; categoryId?: number };
-type SaveNoteResult = { id: number };
+type SaveNoteResult = { id: number; content?: string; sourceId?: number | null; categoryId?: number | null };
+
+/**
+ * Resolve the brainlift slug for the conversation that owns this chat,
+ * reactively. Both underlying hooks handle `null` safely (gated by
+ * `enabled`), so the result re-renders whenever the conversation or
+ * brainlifts queries load — fresh page loads, navigations, and refreshes
+ * all converge to the right slug as soon as the data lands.
+ */
+function useBoundBrainliftSlug(): string | null {
+  const raw = readConversationIdFromUrl();
+  const parsed = raw ? Number(raw) : NaN;
+  const conversationId = Number.isFinite(parsed) ? parsed : null;
+
+  const conversationQuery = useChatConversation(conversationId);
+  const { data: brainlifts } = useUserBrainlifts();
+
+  if (conversationId == null) return null;
+  const boundId = conversationQuery.data?.conversation.brainliftId ?? null;
+  if (boundId == null) return null;
+  return brainlifts?.find((b) => b.id === boundId)?.slug ?? null;
+}
 
 export const SaveNoteToolUI = makeAssistantToolUI<SaveNoteArgs, SaveNoteResult>({
   toolName: 'save_note',
   render: ({ args, result, status, isError, toolCallId }) => {
     invalidateSecondBrainQueries(toolCallId, !!result, ['notes']);
-    const linked = args?.sourceId != null;
-    const label = isError
-      ? 'Failed to save note'
-      : isRunning(status)
-        ? 'Saving note…'
-        : linked
-          ? 'Saved note (linked to a source)'
-          : 'Saved note';
+
+    // Running and error states keep the single-line treatment so they sit
+    // visually alongside the other in-progress tool steps.
+    if (isError) {
+      return (
+        <ToolStatusLine
+          icon={<StatusIcon status={status} isError fallback={<StickyNote size={13} />} />}
+          tone="error"
+        >
+          Failed to save note
+        </ToolStatusLine>
+      );
+    }
+    if (isRunning(status)) {
+      return (
+        <ToolStatusLine
+          icon={<StatusIcon status={status} fallback={<StickyNote size={13} />} />}
+          tone="default"
+        >
+          Saving note…
+        </ToolStatusLine>
+      );
+    }
+
+    const content = result?.content ?? args?.content ?? '';
+    const noteId = result?.id;
+    const linked = (result?.sourceId ?? args?.sourceId) != null;
+    const categoryId = result?.categoryId ?? args?.categoryId ?? null;
+
+    const slug = useBoundBrainliftSlug();
+    // `useCategories` is gated by `enabled: !!slug`, so passing '' is safe.
+    const { data: categories } = useCategories(slug ?? '');
+    const categoryName = categoryId != null
+      ? categories?.find((c) => c.id === categoryId)?.name ?? null
+      : null;
+
+    const viewUrl = slug && noteId != null
+      ? `/${slug}?tab=second-brain&sb=notes&openNote=${noteId}`
+      : null;
 
     return (
-      <ToolStatusLine
-        icon={<StatusIcon status={status} isError={isError} fallback={<StickyNote size={13} />} />}
-        tone={getTone(status, isError)}
-      >
-        {label}
-      </ToolStatusLine>
+      <article className="my-3 flex flex-col rounded-xl bg-card-elevated px-5 py-4 shadow-card">
+        <header className="mb-3 flex items-center justify-between gap-3">
+          <div className="flex items-center gap-2 text-[10px] uppercase tracking-[0.35em] font-semibold text-muted-foreground">
+            <CheckCircle2 size={13} className="text-success" aria-hidden />
+            <span>Saved Note to Second Brain</span>
+          </div>
+          {viewUrl ? (
+            <a
+              href={viewUrl}
+              target="_blank"
+              rel="noreferrer"
+              className="inline-flex items-center gap-1 text-[11px] uppercase tracking-[0.25em] font-semibold text-primary hover:underline"
+            >
+              View note
+              <ExternalLink size={11} aria-hidden />
+            </a>
+          ) : null}
+        </header>
+        {content ? (
+          <p className="m-0 line-clamp-4 whitespace-pre-wrap font-serif text-[15px] leading-relaxed text-foreground">
+            {content}
+          </p>
+        ) : null}
+        <footer className="mt-3 flex shrink-0 items-center gap-2">
+          {categoryId != null ? (
+            <span
+              className="inline-flex min-w-0 max-w-[55%] items-center rounded-full bg-muted px-2 py-0.5 font-sans text-[10px] uppercase tracking-[0.1em] text-muted-foreground"
+              title={categoryName ?? `Category #${categoryId}`}
+            >
+              <span className="truncate">{categoryName ?? `Category #${categoryId}`}</span>
+            </span>
+          ) : (
+            <span className="inline-flex items-center rounded-full bg-muted/60 px-2 py-0.5 font-sans text-[10px] uppercase tracking-[0.1em] text-muted-light">
+              Uncategorized
+            </span>
+          )}
+          <span
+            aria-label={linked ? 'Linked note' : 'Standalone note'}
+            title={linked ? 'Linked to a source' : 'Standalone note'}
+            className="ml-auto inline-flex shrink-0 items-center justify-center rounded-full bg-card p-1.5 text-muted-foreground"
+          >
+            {linked ? <Link2 size={10} aria-hidden /> : <Unlink size={10} aria-hidden />}
+          </span>
+        </footer>
+      </article>
     );
   },
 });

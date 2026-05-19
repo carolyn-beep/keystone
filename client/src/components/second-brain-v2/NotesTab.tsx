@@ -274,11 +274,12 @@ export function NotesTab({ slug }: NotesTabProps) {
   const [isNewNoteOpen, setIsNewNoteOpen] = useState(false);
   const [recategorizeTarget, setRecategorizeTarget] = useState<number | null | undefined>(undefined);
 
-  // One-shot read of ?filterSource / ?filterCategory on mount.
+  // One-shot read of ?filterSource / ?filterCategory / ?openNote on mount.
   useEffect(() => {
     const params = new URLSearchParams(searchString);
     const filterSource = params.get('filterSource');
     const filterCategory = params.get('filterCategory');
+    const openNote = params.get('openNote');
     let mutated = false;
     if (filterSource) {
       const id = Number(filterSource);
@@ -290,6 +291,12 @@ export function NotesTab({ slug }: NotesTabProps) {
       const id = Number(filterCategory);
       if (Number.isFinite(id)) setCategoryFilter(id);
       params.delete('filterCategory');
+      mutated = true;
+    }
+    if (openNote) {
+      const id = Number(openNote);
+      if (Number.isFinite(id)) setDrawerNoteId(id);
+      params.delete('openNote');
       mutated = true;
     }
     if (mutated) {

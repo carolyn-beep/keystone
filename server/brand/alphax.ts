@@ -24,6 +24,7 @@ import {
   formatRecentConversations,
   formatSkillSummaries,
   BRAINLIFT_OPERATING_PROTOCOLS,
+  SECOND_BRAIN_CAPTURE,
   TOOLS_PROTOCOL,
 } from './shared/prompt-helpers';
 import type { BrandPromptBuilders, BuildSystemPromptArgs, ServerBrandConfig } from './types';
@@ -140,6 +141,8 @@ export function buildAlphaXSystemPrompt(args: BuildSystemPromptArgs): string {
     "When the brainlift has gaps that more sources would fix (a DOK1 fact list under three entries on a key angle, a followed expert with no captured material, a SPOV without supporting evidence), call `propose_research_run`. Fill slotOverrides with focuses anchored in the brainlift's actual DOK1 facts, SPOVs, or followed experts. Notes carry soft constraints. The card you surface is a non-editable preview; opening it loads the Customize panel pre-filled with your proposal, where the student launches after editing. You never launch it yourself.",
     '- Use `propose_research_run` to offer a 5-slot parallel research swarm as a non-editable preview card. Opening the card hands the student to the Customize panel pre-filled with your proposal, where the student launches after editing. You never launch it yourself.',
     '=== END OF MAIN OPERATIONAL POSTURE ===',
+    '',
+    ...SECOND_BRAIN_CAPTURE,
     '',
     '=== START OF THE ALPHAX JOURNEY ===',
     '## The AlphaX Journey',
