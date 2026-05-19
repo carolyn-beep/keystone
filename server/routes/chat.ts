@@ -17,13 +17,10 @@ import { getChatModel } from '../ai/chat/provider';
 import { buildChatSystemPromptFromRegistry } from '../ai/chat/system-prompt';
 import { generateChatTitle, shouldGenerateChatTitle } from '../ai/chat/title';
 import {
-  consumeChatUiMessageStream,
   logAskUserSubmitBlocked,
-  logChatModelChunk,
   logChatStreamError,
   logChatStreamStart,
   logChatTurn,
-  type AskUserSubmitBlockedQuestion,
 } from '../ai/chat/telemetry';
 import { buildNativeChatTools } from '../ai/chat/tools';
 import type { ChatMode, ConversationContext } from '../brand/types';
@@ -234,17 +231,17 @@ export async function streamChatHandler(req: Request, res: Response): Promise<vo
     conversation: conversationContext,
   });
   const tools = buildNativeChatTools(req.authContext!, mode, conversationContext);
+  const requestId = generateId();
   const traceContext = {
     userId,
     conversationId: conversation.id,
     requestedModel,
+    requestId,
   };
 
-  logChatStreamStart({
-    ...traceContext,
-    messageCount: messages.length,
-    toolNames: Object.keys(tools),
-  });
+  logChatStreamStart(traceContext);
+
+  const incomingMessageIds = new Set(messages.map((message) => message.id));
 
   const startedAt = Date.now();
   let usageSnapshot:
@@ -262,9 +259,6 @@ export async function streamChatHandler(req: Request, res: Response): Promise<vo
     messages: await convertToModelMessages(messages),
     tools,
     stopWhen: stepCountIs(30),
-    onChunk: async ({ chunk }) => {
-      logChatModelChunk(traceContext, chunk);
-    },
     onError: async ({ error }) => {
       logChatStreamError({
         ...traceContext,
@@ -285,7 +279,6 @@ export async function streamChatHandler(req: Request, res: Response): Promise<vo
   result.pipeUIMessageStreamToResponse(res, {
     originalMessages: messages,
     generateMessageId: generateId,
-    consumeSseStream: ({ stream }) => consumeChatUiMessageStream(traceContext, stream),
     onError: (error) => {
       logChatStreamError({
         ...traceContext,
@@ -295,31 +288,37 @@ export async function streamChatHandler(req: Request, res: Response): Promise<vo
       return 'An error occurred while streaming the chat response.';
     },
     onFinish: async ({ messages: finalizedMessages, finishReason }) => {
+      const stampedMessages = (finalizedMessages as unknown as Array<{
+        id: string;
+        role: string;
+        parts: unknown[];
+        metadata?: unknown;
+      }>).map((message) => {
+        if (incomingMessageIds.has(message.id)) {
+          return message;
+        }
+        const existingMetadata = (message.metadata && typeof message.metadata === 'object')
+          ? message.metadata as Record<string, unknown>
+          : {};
+        return {
+          ...message,
+          metadata: { ...existingMetadata, requestId },
+        };
+      });
+
       try {
         await storage.syncChatMessages(
           conversation.id,
           userId,
-          finalizedMessages as unknown as Array<{
-            id: string;
-            role: string;
-            parts: unknown[];
-            metadata?: unknown;
-          }>,
+          stampedMessages,
         );
-
-        const storedMessages = finalizedMessages as unknown as Array<{
-          id: string;
-          role: string;
-          parts: unknown[];
-          metadata?: unknown;
-        }>;
 
         if (shouldGenerateChatTitle({
           currentTitle: conversation.title,
-          messages: storedMessages,
+          messages: stampedMessages,
         })) {
           try {
-            const title = await generateChatTitle(storedMessages);
+            const title = await generateChatTitle(stampedMessages);
             await storage.renameChatConversationIfTitle(
               conversation.id,
               userId,
@@ -418,30 +417,17 @@ export async function logAskUserSubmitBlockedHandler(
       ? Number.parseInt(body.conversationId, 10)
       : null;
 
-  const questions: AskUserSubmitBlockedQuestion[] = body.questions.map((rawQuestion) => {
+  const answeredCount = body.questions.reduce<number>((count, rawQuestion) => {
     const question = (rawQuestion ?? {}) as Record<string, unknown>;
-    const promptPreview = typeof question.promptPreview === 'string'
-      ? question.promptPreview.slice(0, 200)
-      : '';
-    return {
-      id: typeof question.id === 'string' ? question.id : '',
-      optional: question.optional === true,
-      optionCount: typeof question.optionCount === 'number' ? question.optionCount : 0,
-      multiSelect: question.multiSelect === true,
-      allowFreeText: question.allowFreeText !== false,
-      selectedCount: typeof question.selectedCount === 'number' ? question.selectedCount : 0,
-      freeTextLength: typeof question.freeTextLength === 'number' ? question.freeTextLength : 0,
-      freeTextTrimmedLength: typeof question.freeTextTrimmedLength === 'number' ? question.freeTextTrimmedLength : 0,
-      answered: question.answered === true,
-      promptPreview,
-    };
-  });
+    return question.answered === true ? count + 1 : count;
+  }, 0);
 
   logAskUserSubmitBlocked({
     userId,
     conversationId,
     toolCallId: body.toolCallId,
-    questions,
+    questionCount: body.questions.length,
+    answeredCount,
   });
 
   res.json({ ok: true });

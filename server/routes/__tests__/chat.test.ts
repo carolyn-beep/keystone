@@ -9,8 +9,6 @@ const {
   mockGenerateChatTitle,
   mockShouldGenerateChatTitle,
   mockBuildNativeChatTools,
-  mockConsumeChatUiMessageStream,
-  mockLogChatModelChunk,
   mockLogChatStreamError,
   mockLogChatStreamStart,
   mockLogChatTurn,
@@ -41,8 +39,6 @@ const {
   mockGenerateChatTitle: vi.fn(),
   mockShouldGenerateChatTitle: vi.fn(),
   mockBuildNativeChatTools: vi.fn(),
-  mockConsumeChatUiMessageStream: vi.fn(),
-  mockLogChatModelChunk: vi.fn(),
   mockLogChatStreamError: vi.fn(),
   mockLogChatStreamStart: vi.fn(),
   mockLogChatTurn: vi.fn(),
@@ -77,8 +73,6 @@ vi.mock('../../ai/chat/tools', () => ({
 }));
 
 vi.mock('../../ai/chat/telemetry', () => ({
-  consumeChatUiMessageStream: (...args: unknown[]) => mockConsumeChatUiMessageStream(...args),
-  logChatModelChunk: (...args: unknown[]) => mockLogChatModelChunk(...args),
   logChatStreamError: (...args: unknown[]) => mockLogChatStreamError(...args),
   logChatStreamStart: (...args: unknown[]) => mockLogChatStreamStart(...args),
   logChatTurn: (...args: unknown[]) => mockLogChatTurn(...args),
@@ -532,14 +526,6 @@ describe('chat route handlers', () => {
     mockStreamText.mockImplementation((options) => ({
       pipeUIMessageStreamToResponse: (response: unknown, nextOptions: unknown) => {
         pipeOptions = nextOptions;
-        void options.onChunk?.({
-          chunk: {
-            type: 'tool-call',
-            toolCallId: 'tc-1',
-            toolName: 'load_skill',
-            input: '{}',
-          },
-        });
         void options.onFinish?.({
           finishReason: 'stop',
           usage: {
@@ -547,16 +533,6 @@ describe('chat route handlers', () => {
             outputTokens: 5,
             totalTokens: 15,
           },
-        });
-        void (nextOptions as {
-          consumeSseStream?: (options: { stream: ReadableStream<string> }) => PromiseLike<void> | void;
-        }).consumeSseStream?.({
-          stream: new ReadableStream({
-            start(controller) {
-              controller.enqueue('data: {"type":"tool-input-start","toolCallId":"tc-1","toolName":"load_skill"}\n\n');
-              controller.close();
-            },
-          }),
         });
         void (nextOptions as { onFinish?: (event: unknown) => PromiseLike<void> | void }).onFinish?.({
           messages: finalizedMessages,
@@ -569,6 +545,16 @@ describe('chat route handlers', () => {
     }));
 
     await streamChatHandler(req, res);
+
+    // Assistant message (msg-2) is new this turn and gets stamped with requestId;
+    // user message (msg-1) was already in the request payload so passes through untouched.
+    const expectedStampedMessages = [
+      finalizedMessages[0],
+      {
+        ...finalizedMessages[1],
+        metadata: { requestId: 'generated-assistant-id' },
+      },
+    ];
 
     expect(mockGetChatModel).toHaveBeenCalledWith('qwen/qwen-plus');
     expect(mockBuildChatSystemPromptFromRegistry).toHaveBeenCalledWith(expect.objectContaining({
@@ -596,8 +582,7 @@ describe('chat route handlers', () => {
       userId: 'user-1',
       conversationId: 42,
       requestedModel: 'qwen/qwen-plus',
-      messageCount: 1,
-      toolNames: ['load_skill'],
+      requestId: 'generated-assistant-id',
     });
     expect(mockConvertToModelMessages).toHaveBeenCalledWith(inputMessages);
     expect(mockStreamText).toHaveBeenCalledWith(expect.objectContaining({
@@ -605,34 +590,21 @@ describe('chat route handlers', () => {
       tools: {
         load_skill: { name: 'load_skill' },
       },
-      onChunk: expect.any(Function),
       onError: expect.any(Function),
     }));
-    expect(mockLogChatModelChunk).toHaveBeenCalledWith({
-      userId: 'user-1',
-      conversationId: 42,
-      requestedModel: 'qwen/qwen-plus',
-    }, {
-      type: 'tool-call',
-      toolCallId: 'tc-1',
-      toolName: 'load_skill',
-      input: '{}',
-    });
-    expect(mockConsumeChatUiMessageStream).toHaveBeenCalledWith({
-      userId: 'user-1',
-      conversationId: 42,
-      requestedModel: 'qwen/qwen-plus',
-    }, expect.any(ReadableStream));
-    expect(mockStorage.syncChatMessages).toHaveBeenCalledWith(42, 'user-1', finalizedMessages);
+    const streamTextOptions = mockStreamText.mock.calls[0][0];
+    expect(streamTextOptions.onChunk).toBeUndefined();
+    expect(mockStorage.syncChatMessages).toHaveBeenCalledWith(42, 'user-1', expectedStampedMessages);
     expect(mockShouldGenerateChatTitle).toHaveBeenCalledWith({
       currentTitle: 'Native chat',
-      messages: finalizedMessages,
+      messages: expectedStampedMessages,
     });
     expect(mockGenerateChatTitle).not.toHaveBeenCalled();
     expect(mockLogChatTurn).toHaveBeenCalledWith(expect.objectContaining({
       userId: 'user-1',
       conversationId: 42,
       requestedModel: 'qwen/qwen-plus',
+      requestId: 'generated-assistant-id',
       finishReason: 'stop',
       usage: {
         promptTokens: 10,
@@ -642,12 +614,12 @@ describe('chat route handlers', () => {
     }));
     expect(pipeOptions).toEqual(
       expect.objectContaining({
-        consumeSseStream: expect.any(Function),
         generateMessageId: expect.any(Function),
         onError: expect.any(Function),
         originalMessages: inputMessages,
       }),
     );
+    expect((pipeOptions as Record<string, unknown>).consumeSseStream).toBeUndefined();
   });
 
   it('streamChatHandler generates an AI title for the first completed exchange without clobbering manual renames', async () => {
@@ -694,7 +666,15 @@ describe('chat route handlers', () => {
     await streamChatHandler(req, res);
     await new Promise((resolve) => setTimeout(resolve, 0));
 
-    expect(mockGenerateChatTitle).toHaveBeenCalledWith(finalizedMessages);
+    // Assistant message gets the requestId stamp before being passed to the title generator.
+    const expectedStampedMessages = [
+      finalizedMessages[0],
+      {
+        ...finalizedMessages[1],
+        metadata: { requestId: 'generated-assistant-id' },
+      },
+    ];
+    expect(mockGenerateChatTitle).toHaveBeenCalledWith(expectedStampedMessages);
     expect(mockStorage.renameChatConversationIfTitle).toHaveBeenCalledWith(
       42,
       'user-1',
