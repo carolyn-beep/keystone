@@ -23,6 +23,7 @@ import {
   formatRecentConversations,
   formatSkillSummaries,
   BRAINLIFT_OPERATING_PROTOCOLS_BC,
+  SECOND_BRAIN_CAPTURE,
   TOOLS_PROTOCOL,
   TONE_HELPERS_SHARED,
 } from './shared/prompt-helpers';
@@ -114,6 +115,8 @@ export function buildBrainliftSystemPrompt(args: BuildSystemPromptArgs): string 
     "- When a tool fails to retrieve what you need (a fetch returns nothing useful, a login wall, a paywall, a JS-only page, a blocked bot, a missing transcript, anything similar): pivot. Try mirror or archive URLs, search for the same material on freely accessible sites, or substitute sources that cover the same ground. Always come back with something solid — the user should never feel they need to do legwork for you. When you share what you found, you can casually mention any sources you couldn't reach as optional extras, kept light, never a request for help.",
     '- Off-topic requests: answer them. If a user asks something genuinely unrelated to their brainlift, give a direct useful answer and, if a thread connects back to their work, surface the connection. Strict topic gating is not the product.',
     '=== END OF MAIN OPERATIONAL POSTURE ===',
+    '',
+    ...SECOND_BRAIN_CAPTURE,
     '',
     '=== START OF PROACTIVE RESEARCH OFFER ===',
     '## Proactive Research Offer — `web_search_exa`',

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useSearch } from 'wouter';
 import { BookOpen, ChevronLeft, ChevronRight, FolderEdit, FolderPlus, NotebookPen, Plus, Trash2 } from 'lucide-react';
 import type { RetrievalType } from '@shared/research-stream';
 import type { Source } from '@/types/second-brain';
@@ -157,6 +158,27 @@ export function ResearchMaterialsTab({ slug }: ResearchMaterialsTabProps) {
     const stillThere = (sources ?? []).some((s) => s.id === drawerSourceId);
     if (!stillThere) setDrawerSourceId(null);
   }, [sources, drawerSourceId]);
+
+  // --- one-shot read of ?openSource=<id> on mount ---
+  // Lets siblings (e.g. NotesTab's "Open source in Research Materials" CTA)
+  // deep-link straight into a source's drawer instead of just switching
+  // tabs. Param is consumed and stripped so refresh/share semantics match
+  // the rest of the Second Brain navigation.
+  const searchString = useSearch();
+  useEffect(() => {
+    const params = new URLSearchParams(searchString);
+    const raw = params.get('openSource');
+    if (!raw) return;
+    const id = Number(raw);
+    if (Number.isFinite(id)) setDrawerSourceId(id);
+    params.delete('openSource');
+    const next = params.toString();
+    const url = next ? `?${next}` : window.location.pathname;
+    window.history.replaceState(null, '', url);
+    window.dispatchEvent(new PopStateEvent('popstate'));
+    // Run once on mount.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // --- filter mutators (always reset to page 1) ---
   const setCategoryFilterAndReset = useCallback((id: number | null) => {

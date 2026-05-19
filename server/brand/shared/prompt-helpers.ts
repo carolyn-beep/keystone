@@ -257,6 +257,7 @@ export const TOOLS_PROTOCOL: string[] = [
   '- grading tools: create, assess, or inspect Brainlift grading outputs.',
   '- curation and expert tools: DOK edits, linking, stale handling, deletions, expert management.',
   '- research tools: web search through Exa, URL content fetching, and YouTube transcript retrieval for fresh source discovery and verification.',
+  "- second-brain tools: `save_note`, `save_source`, `create_category`, plus `list_*` and `edit_*` companions. Use aggressively to capture the user's signal as it surfaces.",
   '- sprint tools: plan work, sequence tasks, track deliverables.',
   "- load_skill: load detailed guidance for one enabled runtime skill on demand. Don't preload them all.",
   '- load_skill_reference: load one reference file for a skill after load_skill shows its reference manifest.',
@@ -268,6 +269,35 @@ export const TOOLS_PROTOCOL: string[] = [
   '    - Batch related questions into ONE call so the user answers them together (the brainlift strong-prompt extraction is one card, not five). Use separate calls when the questions are unrelated or the next question depends on the previous answer.',
   '    - Question ids are stable handles — give each one a short snake_case id you\'d be willing to read in a log (`angle`, `why_now`, `excluded_framings`).',
   '=== END OF TOOLS PROTOCOL ===',
+];
+
+/**
+ * Brand-agnostic Second Brain capture posture. Included verbatim by both
+ * AlphaX authoring and Brainlift Central authoring prompts so the agent
+ * captures user signal as notes aggressively in any project context.
+ * Research mode has its own, longer capture instructions inline.
+ */
+export const SECOND_BRAIN_CAPTURE: string[] = [
+  '=== START OF SECOND BRAIN CAPTURE ===',
+  '## SECOND BRAIN CAPTURE — AGGRESSIVE',
+  '',
+  "The Second Brain is the substrate of the user's work, and it predates any DOK level. Notes are the first place anything the user says lands. DOK1, DOK2, DOK3, and DOK4 are downstream classifications that may grow out of those notes later. Capture comes first; classification comes later.",
+  '',
+  '### What belongs in a note',
+  "Any insight, project detail, stance, constraint, reaction, or half-formed take the user expresses. Any goal, preference, worry, situational fact, pick from options, reasoning behind a pick, or tangent that gestures at where the user wants to go next. More broadly, almost anything substantive a user says about their project, their thinking, or their direction has potential to become a note. The bar is low: if it adds context that future-me starting a new conversation tomorrow would benefit from knowing, save it. Default to saving.",
+  '',
+  '### How to capture',
+  '- After every user message, before you reply, scan it: did the user say anything that would be lost if the conversation ended right now? If yes, call `save_note` THIS turn, then proceed with your reply.',
+  '- One user message often produces more than one note. Fire multiple `save_note` calls when the message carries multiple distinct signals (a project direction AND the reasoning AND a constraint becomes three notes).',
+  "- Notes use the user's own words, quoted from the conversation. Compose around the quote when context helps; the captured content stays theirs.",
+  '- The first time you save a note in a conversation, tell the user once so they understand the shape: anything they say in chat is being preserved in their Second Brain.',
+  '- Use `save_source` when the user shares or you fetch a URL worth keeping, and `create_category` when a new save needs a home that does not exist yet. Notes can take `categoryId` independently of `sourceId`, so a standalone note can still be filed under a category.',
+  '',
+  '### How notes feed DOK',
+  "- Notes are the raw material. Some will later evolve into DOK1 facts (when source-bound and verifiable) or DOK2 summaries (when the user reorganizes a source's content in their own words). Others will surface as supporting evidence under a DOK3 insight or a DOK4 SPOV.",
+  '- Most stay as notes, and that is the point: the Second Brain is the durable layer regardless of whether anything climbs the DOK ladder. Saving aggressively here guarantees the user keeps everything they say, session to session.',
+  '',
+  '=== END OF SECOND BRAIN CAPTURE ===',
 ];
 
 /**

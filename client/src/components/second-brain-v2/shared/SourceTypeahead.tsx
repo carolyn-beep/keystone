@@ -126,7 +126,7 @@ export function SourceTypeahead({
         <div
           role="listbox"
           aria-label="Source matches"
-          className="absolute left-0 right-0 top-[calc(100%+4px)] z-50 max-h-64 overflow-y-auto rounded-lg bg-card-elevated p-1 shadow-card-hover"
+          className="absolute left-0 right-0 top-[calc(100%+4px)] z-50 max-h-64 overflow-y-auto overflow-x-hidden rounded-lg bg-card-elevated p-1 shadow-card-hover"
           data-testid="source-typeahead-dropdown"
         >
           {matches.length === 0 ? (
@@ -144,13 +144,15 @@ export function SourceTypeahead({
                   aria-selected={active}
                   onClick={() => handleSelect(source)}
                   className={cn(
-                    'flex w-full flex-col items-start gap-0.5 rounded-md px-3 py-2 text-left transition-colors',
+                    'flex w-full min-w-0 flex-col gap-0.5 rounded-md px-3 py-2 text-left transition-colors',
                     active ? 'bg-primary/10 text-primary' : 'text-foreground hover:bg-muted',
                   )}
                 >
-                  <span className="truncate font-serif text-[14px]">{source.title}</span>
+                  <span className="block w-full truncate font-serif text-[14px]" title={source.title}>
+                    {source.title}
+                  </span>
                   {source.author ? (
-                    <span className="truncate font-sans text-[11px] uppercase tracking-[0.18em] text-muted-foreground">
+                    <span className="block w-full truncate font-sans text-[11px] uppercase tracking-[0.18em] text-muted-foreground">
                       {source.author}
                     </span>
                   ) : null}

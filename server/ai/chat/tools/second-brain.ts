@@ -21,6 +21,7 @@ const SAVE_NOTE_DESCRIPTION = [
   "Content MUST be the student's own words quoted from the conversation. Never compose, summarize, or paraphrase.",
   "If their message is too thin to quote meaningfully, draw the elaboration out naturally — react to what they said, name what you noticed in it, connect it to their project, then ask a question that gets them articulating. Never break the spell with 'can you elaborate so I can save a note'. The note is a byproduct of a real conversation, not the goal of an extraction interview.",
   'Link to sourceId when the reflection is about a specific saved source; omit sourceId for free-form thoughts and rambling.',
+  'Pass categoryId to file a standalone note under a category (independent of sourceId).',
 ].join('\n');
 
 const CREATE_CATEGORY_DESCRIPTION = [
