@@ -1,9 +1,13 @@
-import { useEffect, useState } from 'react';
+import { FormEvent, useEffect, useMemo, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
-import { X, Link2 } from 'lucide-react';
+import { NotebookPen, X, Link2 } from 'lucide-react';
+import { TactileButton } from '@/components/ui/tactile-button';
 import { useNotes } from '@/hooks/useNotes';
+import { useSources } from '@/hooks/useSources';
+import { tokens } from '@/lib/colors';
 import type { Note } from '@/types/second-brain';
 import { SourceTypeahead } from '../shared/SourceTypeahead';
+import { CategoryTypeahead } from '../shared/CategoryTypeahead';
 
 export interface NewNoteModalProps {
   slug: string;
@@ -16,9 +20,9 @@ export interface NewNoteModalProps {
 }
 
 /**
- * Modal for creating a new note. Body is required; the linked source is
- * optional. There is no category field — category is inherited from the
- * linked source (or null for standalone notes).
+ * Modal for creating a new note. Body is required; category and linked
+ * source are both optional and independent. A note can be standalone,
+ * categorized, linked to a source, or both categorized and linked.
  */
 export function NewNoteModal({
   slug,
@@ -28,16 +32,29 @@ export function NewNoteModal({
   onCreated,
 }: NewNoteModalProps) {
   const { createNote, isCreating } = useNotes(slug);
+  const { data: sources } = useSources(slug);
 
   const [content, setContent] = useState('');
+  // User's explicit category pick. Only used when no source is linked;
+  // once a source is linked the inherited category wins.
+  const [categoryId, setCategoryId] = useState<number | null>(null);
   const [sourceId, setSourceId] = useState<number | null>(defaultSourceId ?? null);
   const [linkExpanded, setLinkExpanded] = useState<boolean>(defaultSourceId != null);
   const [error, setError] = useState<string | null>(null);
+
+  const linkedSource = useMemo(() => {
+    if (sourceId == null) return null;
+    return sources?.find((s) => s.id === sourceId) ?? null;
+  }, [sources, sourceId]);
+  // Notes inherit their linked source's category. When a source is
+  // linked, the source's categoryId wins over the user's pick.
+  const effectiveCategoryId = linkedSource ? linkedSource.categoryId : categoryId;
 
   // Reset state whenever the modal closes/opens.
   useEffect(() => {
     if (!open) {
       setContent('');
+      setCategoryId(null);
       setError(null);
       return;
     }
@@ -59,14 +76,17 @@ export function NewNoteModal({
   }, [open, onClose]);
 
   const trimmed = content.trim();
+  const canSubmit = trimmed.length > 0 && !isCreating;
 
-  const handleSubmit = async () => {
-    if (!trimmed) return;
+  const handleSubmit = async (event?: FormEvent) => {
+    event?.preventDefault();
+    if (!canSubmit) return;
     setError(null);
     try {
       const note = await createNote({
         content: trimmed,
         sourceId,
+        categoryId: effectiveCategoryId,
       });
       onCreated?.(note);
       onClose();
@@ -78,57 +98,81 @@ export function NewNoteModal({
   return (
     <AnimatePresence>
       {open ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-label="New note">
-          <motion.div
-            className="absolute inset-0 bg-foreground/30"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.18 }}
-            onClick={onClose}
-            data-testid="new-note-modal-backdrop"
-          />
-          <motion.div
-            className="relative w-full max-w-[560px] rounded-2xl bg-card shadow-card-hover"
-            initial={{ y: 24, opacity: 0 }}
+        <div
+          className="fixed inset-0 z-[1000] flex items-center justify-center px-4"
+          style={{ backgroundColor: tokens.overlay }}
+          onClick={onClose}
+          role="dialog"
+          aria-modal="true"
+          aria-label="New note"
+        >
+          <motion.form
+            onSubmit={handleSubmit}
+            onClick={(event) => event.stopPropagation()}
+            className="flex max-h-[90vh] w-full max-w-[560px] flex-col rounded-xl bg-card-elevated p-6 shadow-card"
+            initial={{ y: 16, opacity: 0 }}
             animate={{ y: 0, opacity: 1 }}
-            exit={{ y: 24, opacity: 0 }}
+            exit={{ y: 16, opacity: 0 }}
             transition={{ type: 'spring', stiffness: 320, damping: 32 }}
           >
-            <header className="flex items-center justify-between gap-3 border-b border-border px-6 py-4">
-              <h2 className="m-0 font-sans text-[16px] font-semibold text-foreground">
-                New note
-              </h2>
+            <div className="mb-5 flex items-start justify-between gap-4">
+              <div className="flex items-center gap-2.5 text-[11px] font-semibold uppercase tracking-[0.35em] text-muted-foreground">
+                <NotebookPen size={14} className="text-muted-light" aria-hidden />
+                <span>New note</span>
+              </div>
               <button
                 type="button"
                 onClick={onClose}
-                aria-label="Close modal"
-                className="inline-flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground"
+                aria-label="Close new note modal"
+                className="rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
               >
-                <X size={14} />
+                <X size={18} />
               </button>
-            </header>
+            </div>
 
-            <div className="px-6 py-5">
+            <div>
               <label className="block">
-                <span className="mb-1 block font-sans text-[10px] uppercase tracking-[0.22em] text-muted-foreground">
+                <span className="mb-2 block font-sans text-[10px] font-semibold uppercase tracking-[0.22em] text-muted-foreground">
                   Note
                 </span>
                 <textarea
                   required
                   value={content}
                   onChange={(event) => setContent(event.target.value)}
-                  placeholder="Capture an idea, a quote, a connection..."
-                  className="min-h-[180px] w-full resize-y rounded-lg bg-card-elevated px-3 py-2.5 font-serif text-[15px] leading-relaxed text-foreground shadow-card focus:outline-none focus:ring-1 focus:ring-primary/30"
+                  placeholder="What did you notice, react to, or want to remember?"
+                  className="min-h-[180px] w-full resize-y rounded-lg bg-card px-4 py-3 font-serif text-[15px] leading-relaxed text-foreground shadow-card focus:outline-none focus:ring-1 focus:ring-primary/30"
                   autoFocus
                 />
               </label>
 
               <div className="mt-5">
+                <div className="mb-2 flex items-baseline justify-between gap-2">
+                  <span className="font-sans text-[10px] font-semibold uppercase tracking-[0.22em] text-muted-foreground">
+                    Category
+                  </span>
+                  <span className="font-sans text-[10px] uppercase tracking-[0.22em] text-muted-light">
+                    {linkedSource ? 'Inherited from source' : 'Optional · leave blank for none'}
+                  </span>
+                </div>
+                <CategoryTypeahead
+                  slug={slug}
+                  value={effectiveCategoryId}
+                  onChange={setCategoryId}
+                  placeholder="Search categories"
+                  disabled={linkedSource != null}
+                  disabledReason={
+                    linkedSource
+                      ? 'Notes inherit the category of the source they link to. Unlink the source to pick a category manually.'
+                      : undefined
+                  }
+                />
+              </div>
+
+              <div className="mt-5">
                 <button
                   type="button"
                   onClick={() => setLinkExpanded((v) => !v)}
-                  className="inline-flex items-center gap-1.5 font-sans text-[11px] font-semibold uppercase tracking-[0.22em] text-muted-foreground hover:text-foreground"
+                  className="inline-flex items-center gap-1.5 font-sans text-[10px] font-semibold uppercase tracking-[0.22em] text-muted-foreground hover:text-foreground"
                   aria-expanded={linkExpanded}
                   data-testid="new-note-link-toggle"
                 >
@@ -154,25 +198,26 @@ export function NewNoteModal({
               ) : null}
             </div>
 
-            <footer className="flex items-center justify-end gap-2 border-t border-border bg-card-elevated px-6 py-3">
-              <button
+            <div className="mt-4 flex justify-end gap-3">
+              <TactileButton
                 type="button"
+                variant="inset"
+                className="text-[12px]"
                 onClick={onClose}
                 disabled={isCreating}
-                className="rounded-md bg-card px-3 py-1.5 font-sans text-[12px] font-medium text-muted-foreground shadow-card hover:text-foreground"
               >
                 Cancel
-              </button>
-              <button
-                type="button"
-                onClick={handleSubmit}
-                disabled={!trimmed || isCreating}
-                className="rounded-md bg-primary px-3 py-1.5 font-sans text-[12px] font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
+              </TactileButton>
+              <TactileButton
+                type="submit"
+                variant="raised"
+                className="text-[12px]"
+                disabled={!canSubmit}
               >
-                {isCreating ? 'Creating...' : 'Create note'}
-              </button>
-            </footer>
-          </motion.div>
+                {isCreating ? 'Creating…' : 'Create note'}
+              </TactileButton>
+            </div>
+          </motion.form>
         </div>
       ) : null}
     </AnimatePresence>

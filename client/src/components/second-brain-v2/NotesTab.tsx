@@ -20,6 +20,7 @@ import { StatCardStrip } from './shared/StatCardStrip';
 import { FilterBar } from './shared/FilterBar';
 import { SubTabStrip } from './shared/SubTabStrip';
 import { BulkActionBar } from './shared/BulkActionBar';
+import { navigateToSubTab } from './shared/navigation';
 import { NoteGridCard } from './cards/NoteGridCard';
 import { NoteDetailPanel } from './drawer/NoteDetailPanel';
 import { NewNoteModal } from './modals/NewNoteModal';
@@ -236,22 +237,6 @@ export function paginate<T>(items: T[], page: number, pageSize: number): {
   return { slice: items.slice(start, start + pageSize), totalPages };
 }
 
-/**
- * Inline equivalent of spec 03's `navigateToSubTab` for cross-tab nav.
- * Writes `?sb=<tab>` and triggers `popstate` so the shell picks it up.
- */
-function navigateToSubTab(tab: string): void {
-  const params = new URLSearchParams(window.location.search);
-  params.set('sb', tab);
-  // Drop one-shot params so they don't leak across tabs.
-  params.delete('filterSource');
-  params.delete('filterCategory');
-  const search = params.toString();
-  const url = search ? `?${search}` : window.location.pathname;
-  window.history.replaceState(null, '', url);
-  window.dispatchEvent(new PopStateEvent('popstate'));
-}
-
 // ─── Component ──────────────────────────────────────────────────────────
 
 export function NotesTab({ slug }: NotesTabProps) {
@@ -360,7 +345,9 @@ export function NotesTab({ slug }: NotesTabProps) {
     [flatForView, currentPage],
   );
 
-  // Source ordering for groups: createdAt desc.
+  // Source ordering for groups: createdAt desc. Used as a stable tiebreaker
+  // for groups that contain zero notes (rare in practice, since empty groups
+  // aren't emitted) and as the initial pass before notes-driven reordering.
   const sourcesByRecent = useMemo(() => {
     return sourceList
       .slice()
@@ -368,10 +355,35 @@ export function NotesTab({ slug }: NotesTabProps) {
   }, [sourceList]);
 
   const groups = useMemo<NoteGroup[]>(() => {
-    if (viewMode === 'by-source') return groupBySource(filtered, sourcesByRecent);
-    if (viewMode === 'by-category') return groupByCategory(filtered, categoryList);
-    return [];
-  }, [viewMode, filtered, sourcesByRecent, categoryList]);
+    const raw =
+      viewMode === 'by-source'
+        ? groupBySource(filtered, sourcesByRecent)
+        : viewMode === 'by-category'
+          ? groupByCategory(filtered, categoryList)
+          : [];
+
+    // Group ordering must reflect the active sort, otherwise "Newest" /
+    // "Oldest" reads as broken in group views (groups appear in source-recent
+    // order regardless of pick). Each group's notes are already sorted, so
+    // the first note in each group is the comparison anchor. Standalone and
+    // Uncategorized stay pinned last.
+    const STANDALONE_KEYS = new Set(['standalone', 'uncategorized']);
+    const anchorTime = (group: NoteGroup): number => {
+      const first = group.notes[0];
+      if (!first) return 0;
+      const field = sortBy === 'last-edited' ? first.updatedAt : first.createdAt;
+      return +new Date(field);
+    };
+    const direction = sortBy === 'oldest' ? 1 : -1;
+
+    return raw.slice().sort((a, b) => {
+      const aTail = STANDALONE_KEYS.has(a.key);
+      const bTail = STANDALONE_KEYS.has(b.key);
+      if (aTail && !bTail) return 1;
+      if (!aTail && bTail) return -1;
+      return direction * (anchorTime(a) - anchorTime(b));
+    });
+  }, [viewMode, filtered, sourcesByRecent, categoryList, sortBy]);
 
   const isGroupView = viewMode === 'by-source' || viewMode === 'by-category';
 
@@ -423,9 +435,9 @@ export function NotesTab({ slug }: NotesTabProps) {
     setDrawerNoteId(null);
   }, [drawerNoteId, deleteNote]);
 
-  const handleJumpToSource = useCallback((_sourceId: number) => {
+  const handleJumpToSource = useCallback((sourceId: number) => {
     setDrawerNoteId(null);
-    navigateToSubTab('research-materials');
+    navigateToSubTab('research-materials', { openSource: String(sourceId) });
   }, []);
 
   const handleBulkDelete = useCallback(async () => {
@@ -603,7 +615,13 @@ export function NotesTab({ slug }: NotesTabProps) {
               key={group.key}
               group={group}
               renderCard={renderCard}
-              onOpenSource={() => navigateToSubTab('research-materials')}
+              onOpenSource={() =>
+                group.sourceId != null
+                  ? navigateToSubTab('research-materials', {
+                      openSource: String(group.sourceId),
+                    })
+                  : navigateToSubTab('research-materials')
+              }
             />
           ))}
         </div>
