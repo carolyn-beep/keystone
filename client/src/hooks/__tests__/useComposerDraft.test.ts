@@ -17,6 +17,11 @@ const hookSrc = fs.readFileSync(
   'utf8',
 );
 
+const threadSrc = fs.readFileSync(
+  path.resolve(__dirname, '../../components/chat/NativeChatThread.tsx'),
+  'utf8',
+);
+
 describe('FR2 useComposerDraft / imports', () => {
   it('imports useComposerRuntime from @assistant-ui/react', () => {
     expect(hookSrc).toMatch(/useComposerRuntime/);
@@ -90,6 +95,29 @@ describe('FR2 useComposerDraft / clear-on-send', () => {
 
   it('calls clear(...) when send completes', () => {
     expect(hookSrc).toMatch(/\bclear\(/);
+  });
+});
+
+describe('FR3 NativeChatThread wiring for ComposerDraftSync', () => {
+  it('imports useComposerDraft from @/hooks/useComposerDraft', () => {
+    expect(threadSrc).toMatch(
+      /from\s+['"]@\/hooks\/useComposerDraft['"]/,
+    );
+    expect(threadSrc).toMatch(/useComposerDraft/);
+  });
+
+  it('defines a ComposerDraftSync renderless component', () => {
+    expect(threadSrc).toMatch(/function\s+ComposerDraftSync\b/);
+  });
+
+  it('mounts <ComposerDraftSync ... /> inside the provider', () => {
+    expect(threadSrc).toMatch(/<ComposerDraftSync\b/);
+  });
+
+  it('passes effectiveConvId to ComposerDraftSync', () => {
+    expect(threadSrc).toMatch(
+      /<ComposerDraftSync[^>]*conversationId=\{effectiveConvId\}/,
+    );
   });
 });
 
