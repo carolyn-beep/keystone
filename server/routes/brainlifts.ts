@@ -62,6 +62,19 @@ export async function setBrainliftPhaseHandler(req: Request, res: Response): Pro
   res.json(brainlift);
 }
 
+// Slim payload for the project picker: every brainlift the user can access,
+// reduced to { id, slug, title, phase }. One round-trip, no pagination — the
+// picker needs the full list client-side and the slim shape stays small even
+// for power users with hundreds of brainlifts.
+brainliftsRouter.get(
+  '/api/brainlifts/titles',
+  requireAuth,
+  asyncHandler(async (req, res) => {
+    const brainlifts = await storage.getBrainliftTitlesForUser(req.authContext!);
+    res.json({ brainlifts });
+  })
+);
+
 // Get all brainlifts (filtered by user role, or all if admin with ?all=true)
 // Supports pagination via ?page=1 (1-indexed)
 // Supports filtering via ?filter=all|owned|shared

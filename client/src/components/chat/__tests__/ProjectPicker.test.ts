@@ -49,9 +49,9 @@ describe('ProjectPicker hook contracts', () => {
     expect(conversationBrainliftHookSource).toContain('mutationSerialRef');
   });
 
-  it('useUserBrainlifts loads every page from GET /api/brainlifts', () => {
-    expect(userBrainliftsHookSource).toContain('/api/brainlifts?page=${page}');
-    expect(userBrainliftsHookSource).toContain('for (let page = 2; page <= totalPages; page += 1)');
+  it('useUserBrainlifts fetches the slim title list in a single round-trip', () => {
+    expect(userBrainliftsHookSource).toContain("'/api/brainlifts/titles'");
+    expect(userBrainliftsHookSource).not.toContain('page=');
     expect(userBrainliftsHookSource).toContain("['user-brainlifts']");
   });
 });
