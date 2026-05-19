@@ -13,6 +13,7 @@ import {
   getChatConversationQueryKey,
 } from '@/hooks/useChatConversations';
 import { useNativeChatRuntime } from '@/hooks/useNativeChatRuntime';
+import { useComposerDraft } from '@/hooks/useComposerDraft';
 import { buildNativeChatThreadConfig } from './native-chat-thread-config';
 import { ChatComposerSettingsProvider } from './ChatComposer';
 
@@ -197,6 +198,20 @@ interface NativeChatThreadProps {
   initialUserMessage?: string | null;
 }
 
+/**
+ * Renderless: keeps the chat composer's draft text persisted in localStorage
+ * per conversation. Lives inside `AssistantRuntimeProvider` so the hook can
+ * call `useComposerRuntime` / `useThread`. Mirrors `ConversationQueryInvalidator`.
+ */
+function ComposerDraftSync({
+  conversationId,
+}: {
+  conversationId: number | null;
+}) {
+  useComposerDraft(conversationId);
+  return null;
+}
+
 function ConversationQueryInvalidator({
   conversationId,
 }: {
@@ -286,6 +301,7 @@ export function NativeChatThread({
       >
         <div className="native-chat-thread flex h-full min-h-0 flex-col bg-transparent">
           <ConversationQueryInvalidator conversationId={effectiveConvId} />
+          <ComposerDraftSync conversationId={effectiveConvId} />
           {effectiveConvId !== null && (
             <>
               <OpenerTrigger
