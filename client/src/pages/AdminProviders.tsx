@@ -1,6 +1,8 @@
+import { useMemo } from 'react';
 import { ArrowLeft, ShieldAlert, Activity, AlertTriangle } from 'lucide-react';
 import { useLocation } from 'wouter';
 import { authClient } from '@/lib/auth-client';
+import { useSidebarSlot } from '@/components/layout';
 import { TactileButton } from '@/components/ui/tactile-button';
 import { useProviderHealth } from '@/hooks/useProviderHealth';
 import { LIBRARY_ROUTE_PATH } from '@/components/chat/chat-home-helpers';
@@ -32,6 +34,11 @@ export default function AdminProviders() {
   const { data: session, isPending } = authClient.useSession();
   const isAdmin = session?.user?.role === 'admin';
   const providerHealth = useProviderHealth({ enabled: !isPending && isAdmin });
+  const sidebarSlotSpec = useMemo(
+    () => ({ body: null, activeSection: 'providers' as const }),
+    [],
+  );
+  useSidebarSlot(sidebarSlotSpec);
 
   const viewState = resolveProviderHealthViewState({
     isSessionPending: isPending,

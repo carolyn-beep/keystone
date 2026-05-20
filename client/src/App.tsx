@@ -1,10 +1,11 @@
-import { Suspense, lazy } from "react";
+import { Suspense, lazy, type ReactNode } from "react";
 import { Switch, Route } from "wouter";
 import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
+import { RootLayout } from "@/components/layout";
 import { CHAT_HOME_ROUTE_PATH, LIBRARY_ROUTE_PATH } from "@/components/chat/chat-home-helpers";
 
 // Lazy load pages for code splitting
@@ -17,7 +18,6 @@ const AdminProviders = lazy(() => import("@/pages/AdminProviders"));
 const Login = lazy(() => import("@/pages/Login"));
 const NotFound = lazy(() => import("@/pages/not-found"));
 
-// Loading fallback
 function PageLoader() {
   return (
     <div className="flex items-center justify-center min-h-screen">
@@ -26,52 +26,63 @@ function PageLoader() {
   );
 }
 
+/**
+ * Helper that wraps a page in the shelled-auth chain (ProtectedRoute +
+ * RootLayout). Each shelled `<Route>` in the outer Switch renders the SAME
+ * outer structure (ProtectedRoute → RootLayout), and only the leaf page
+ * differs. React reconciles the identical ancestor types across route
+ * transitions, so RootLayout (and therefore the single AppShell instance,
+ * sidebar collapse state, and drawer state) survives shelled navigation.
+ */
+function Shelled({ children }: { children: ReactNode }) {
+  return (
+    <ProtectedRoute>
+      <RootLayout>{children}</RootLayout>
+    </ProtectedRoute>
+  );
+}
+
 function Router() {
   return (
     <Switch>
+      {/* Outside-shell routes -- no auth gate, no RootLayout, no AppShell. */}
       <Route path="/login" component={Login} />
-      <Route path={CHAT_HOME_ROUTE_PATH}>
-        <ProtectedRoute>
-          <ChatHome />
-        </ProtectedRoute>
-      </Route>
-      <Route path="/analytics">
-        <ProtectedRoute>
-          <Analytics />
-        </ProtectedRoute>
-      </Route>
-      <Route path="/skills">
-        <ProtectedRoute>
-          <Skills />
-        </ProtectedRoute>
-      </Route>
-      <Route path="/admin/providers">
-        <ProtectedRoute>
-          <AdminProviders />
-        </ProtectedRoute>
-      </Route>
-      <Route path={LIBRARY_ROUTE_PATH}>
-        <ProtectedRoute>
-          <Home />
-        </ProtectedRoute>
-      </Route>
-      <Route path="/grading/:slug">
-        {(params) => (
-          <ProtectedRoute>
-            <Dashboard slug={params.slug} />
-          </ProtectedRoute>
-        )}
-      </Route>
       <Route path="/view/:slug">
         {(params) => <Dashboard slug={params.slug} isSharedView={true} />}
       </Route>
-      <Route path="/:slug">
+
+      {/* Shelled-authenticated routes. Each Route shares the same Shelled
+          wrapper so React reconciles ProtectedRoute + RootLayout across
+          navigation and AppShell stays mounted. Order matters: more specific
+          paths first so /:slug doesn't swallow /library, /skills, /analytics,
+          /admin/providers, or /grading/:slug. */}
+      <Route path={LIBRARY_ROUTE_PATH}>
+        <Shelled><Home /></Shelled>
+      </Route>
+      <Route path="/skills">
+        <Shelled><Skills /></Shelled>
+      </Route>
+      <Route path="/analytics">
+        <Shelled><Analytics /></Shelled>
+      </Route>
+      <Route path="/admin/providers">
+        <Shelled><AdminProviders /></Shelled>
+      </Route>
+      <Route path="/grading/:slug">
         {(params) => (
-          <ProtectedRoute>
-            <Dashboard slug={params.slug} />
-          </ProtectedRoute>
+          <Shelled><Dashboard slug={params.slug} /></Shelled>
         )}
       </Route>
+      <Route path={CHAT_HOME_ROUTE_PATH}>
+        <Shelled><ChatHome /></Shelled>
+      </Route>
+      <Route path="/:slug">
+        {(params) => (
+          <Shelled><Dashboard slug={params.slug} /></Shelled>
+        )}
+      </Route>
+
+      {/* 404 catchall -- outside the shell. */}
       <Route component={NotFound} />
     </Switch>
   );

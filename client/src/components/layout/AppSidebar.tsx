@@ -1,36 +1,14 @@
-import { ReactNode } from 'react';
+import { useContext } from 'react';
 import { PanelLeftClose, PanelLeftOpen } from 'lucide-react';
 import { Link, useLocation } from 'wouter';
 import { useAppShell } from './AppShell';
 import { resolveSectionNavActive, type SectionNavSection } from './section-nav-helpers';
 import { SectionNav } from './SectionNav';
 import { UserMenu } from './UserMenu';
+import { SidebarSlotContext } from './shell-slots';
 import { brand, Wordmark, Avatar } from '@/brand';
 
 export type { SectionNavSection };
-
-interface AppSidebarProps {
-  /**
-   * Optional contextual content rendered between SectionNav and UserMenu.
-   *
-   * - Chat: conversation list (reduced)
-   * - Brainlift detail: `<DokNavTree />`
-   * - Library / Analytics / Providers: `null` (middle zone empty)
-   */
-  contextualBody?: ReactNode;
-  /**
-   * Optional small-caps label rendered above `contextualBody`. Used to give
-   * the contextual zone its own identity (e.g. "Chats", "Brainlift") so that
-   * the global SectionNav and the page-specific list read as separate
-   * hierarchies, not one long flat menu.
-   */
-  contextualLabel?: string;
-  /**
-   * Override the active section. When omitted, the active section is derived
-   * from the current pathname via `resolveSectionNavActive`.
-   */
-  activeSection?: SectionNavSection;
-}
 
 /**
  * The unified app sidebar.
@@ -43,15 +21,12 @@ interface AppSidebarProps {
  *      ContextualBody (slot) -- page-specific (conversation list / DokNavTree / null).
  *   3. UserMenu      -- avatar + Sign out. Always rendered.
  *
- * No collapse mode in this iteration (decision 7). The mobile drawer behavior
- * is owned by `<AppShell />`.
+ * Per-page content comes from SidebarSlotContext: pages call useSidebarSlot()
+ * to push their { label, body, activeSection } into the context.
  */
-export function AppSidebar({
-  contextualBody,
-  contextualLabel,
-  activeSection,
-}: AppSidebarProps) {
+export function AppSidebar() {
   const [pathname] = useLocation();
+  const { body: contextualBody, label: contextualLabel, activeSection } = useContext(SidebarSlotContext);
   const resolvedActive = activeSection ?? resolveSectionNavActive(pathname);
   const shell = useAppShell();
   const isCollapsed = shell?.isSidebarCollapsed ?? false;
@@ -62,10 +37,7 @@ export function AppSidebar({
       role="navigation"
       aria-label="App sidebar"
     >
-      {/* Zone 1: BrandHeader. Wordmark animates its max-width and opacity to 0
-          on collapse so it shrinks alongside the aside instead of popping
-          out. Avatar stays anchored left; padding animates to keep the avatar
-          centered in the rail. */}
+      {/* Zone 1: BrandHeader. */}
       <div
         className="brand-nameplate--compact h-16 shrink-0 flex items-center border-b border-sidebar-border transition-[padding] duration-200 ease-out"
         style={{ paddingLeft: isCollapsed ? 14 : 16, paddingRight: isCollapsed ? 14 : 16 }}
@@ -88,11 +60,7 @@ export function AppSidebar({
         </Link>
       </div>
 
-      {/* Zone 2a: SectionNav. The "SECTIONS" label animates its max-width and
-          opacity to 0 on collapse; the toggle button uses `ml-auto` so it
-          glides toward the rail centerline as the label shrinks. Symmetric
-          padding (18px) when collapsed parks the button on the same x-axis
-          as the nav icons below. */}
+      {/* Zone 2a: SectionNav. */}
       <div
         className={`shrink-0 pt-3 pb-3 transition-[border-color] duration-200 ease-out ${
           contextualBody && !isCollapsed
@@ -127,14 +95,7 @@ export function AppSidebar({
         <SectionNav activeSection={resolvedActive} isCollapsed={isCollapsed} />
       </div>
 
-      {/* Zone 2b: ContextualBody slot. Always claims `flex-1` so UserMenu
-          stays anchored to the bottom. The wrapper itself stays visible in
-          collapsed (rail) mode -- consumers that have an icon-only layout
-          (e.g. DokNavTree) render their icons there; consumers that don't
-          (e.g. ChatConversationSidebar -- conversation titles have no icons)
-          read the shell context and return null. The contextualLabel
-          collapses its max-height to 0 in rail mode so it doesn't leave a
-          blank strip above the icon list. */}
+      {/* Zone 2b: ContextualBody slot. */}
       {contextualBody ? (
         <div className="min-h-0 flex-1 flex flex-col overflow-hidden">
           {contextualLabel ? (
@@ -157,8 +118,7 @@ export function AppSidebar({
         <div className="flex-1" />
       )}
 
-      {/* Zone 3: UserMenu (fixed, bottom). Padding animates so the avatar
-          centers smoothly in the rail. */}
+      {/* Zone 3: UserMenu (fixed, bottom). */}
       <div
         className="shrink-0 border-t border-sidebar-border py-3 transition-[padding] duration-200 ease-out"
         style={{ paddingLeft: isCollapsed ? 4 : 12, paddingRight: isCollapsed ? 4 : 12 }}

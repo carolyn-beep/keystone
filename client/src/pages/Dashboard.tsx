@@ -41,7 +41,7 @@ import { useDOK3GradingEvents } from '@/hooks/useDOK3GradingEvents';
 import { useDOK4 } from '@/hooks/useDOK4';
 import { useDOK4GradingEvents } from '@/hooks/useDOK4GradingEvents';
 import { DOK4Tab } from '@/components/DOK4Tab';
-import { AppShell, AppSidebar } from '@/components/layout';
+import { usePageHeaderSlot, useSidebarSlot } from '@/components/layout';
 import { DokNavTree, type NavItem } from '@/components/brainlift/DokNavTree';
 import { BuilderPage } from '@/components/builder';
 
@@ -738,7 +738,10 @@ const { downloadBrainliftPDF } = usePDFExport();
     </div>
   );
 
-  // Shared view bypasses the unified shell entirely (no sidebar, no chrome).
+  // Shared view bypasses the unified shell entirely (no sidebar, no chrome,
+  // no slot hooks). It is reached via the outer Switch's `/view/:slug` Route,
+  // which renders Dashboard outside of RootLayout. Early-returns so the slot
+  // hooks below are never called for the shared-view component instance.
   if (isSharedView) {
     return (
       <div className="min-h-screen bg-background text-foreground font-sans">
@@ -747,24 +750,58 @@ const { downloadBrainliftPDF } = usePDFExport();
     );
   }
 
+  // Authenticated branch: register the per-page sidebar (DokNavTree) and
+  // header (brainliftHeader) with the persistent RootLayout shell.
   return (
-    <AppShell
-      sidebar={
-        <AppSidebar
-          contextualLabel="Project"
-          contextualBody={
-            <DokNavTree
-              navItems={NAV_ITEMS}
-              activeNavId={activeTab}
-              onNavChange={setActiveTab}
-              isAdmin={isAdmin}
-            />
-          }
-        />
-      }
-      header={brainliftHeader}
+    <AuthenticatedDashboardSlots
+      navItems={NAV_ITEMS}
+      activeTab={activeTab}
+      setActiveTab={setActiveTab}
+      isAdmin={isAdmin}
+      brainliftHeader={brainliftHeader}
     >
       {pageContent}
-    </AppShell>
+    </AuthenticatedDashboardSlots>
   );
+}
+
+interface AuthenticatedDashboardSlotsProps {
+  navItems: NavItem[];
+  activeTab: TabKey;
+  setActiveTab: (tab: string) => void;
+  isAdmin: boolean;
+  brainliftHeader: React.ReactNode;
+  children: React.ReactNode;
+}
+
+function AuthenticatedDashboardSlots({
+  navItems,
+  activeTab,
+  setActiveTab,
+  isAdmin,
+  brainliftHeader,
+  children,
+}: AuthenticatedDashboardSlotsProps) {
+  const sidebarSlotSpec = useMemo(
+    () => ({
+      label: 'Project',
+      body: (
+        <DokNavTree
+          navItems={navItems}
+          activeNavId={activeTab}
+          onNavChange={setActiveTab}
+          isAdmin={isAdmin}
+        />
+      ),
+    }),
+    [navItems, activeTab, setActiveTab, isAdmin],
+  );
+  const pageHeaderSlotSpec = useMemo(
+    () => ({ custom: brainliftHeader }),
+    [brainliftHeader],
+  );
+  useSidebarSlot(sidebarSlotSpec);
+  usePageHeaderSlot(pageHeaderSlotSpec);
+
+  return <>{children}</>;
 }
