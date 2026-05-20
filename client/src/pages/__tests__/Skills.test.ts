@@ -28,12 +28,31 @@ const sectionNavHelpers = fs.readFileSync(
 
 const allSources = [skillsPage, editor, trashView, libraryView, sectionNavHelpers].join('\n\n');
 
-describe('Skills page source', () => {
-  it('uses the unified app shell and active Skills section without a top header bar', () => {
-    expect(skillsPage).toMatch(/from\s+['"]@\/components\/layout['"]/);
-    expect(skillsPage).toMatch(/<AppShell\b/);
-    expect(skillsPage).toMatch(/<AppSidebar[^>]*activeSection=["']skills["']/);
-    expect(skillsPage).toMatch(/header=\{null\}/);
+describe('Skills page source (FR5 -- slot-driven migration)', () => {
+  it('does NOT render <AppShell> or import AppShell/AppSidebar', () => {
+    expect(skillsPage).not.toMatch(/<AppShell\b/);
+    expect(skillsPage).not.toMatch(
+      /import\s*\{[^}]*\bAppShell\b[^}]*\}\s*from\s*['"]@\/components\/layout['"]/,
+    );
+    expect(skillsPage).not.toMatch(
+      /import\s*\{[^}]*\bAppSidebar\b[^}]*\}\s*from\s*['"]@\/components\/layout['"]/,
+    );
+  });
+
+  it('imports useSidebarSlot from the layout barrel', () => {
+    expect(skillsPage).toMatch(
+      /import\s*\{[^}]*\buseSidebarSlot\b[^}]*\}\s*from\s*['"]@\/components\/layout['"]/,
+    );
+  });
+
+  it('calls useSidebarSlot with body: null and activeSection: "skills"', () => {
+    expect(skillsPage).toMatch(/useSidebarSlot\s*\(/);
+    expect(skillsPage).toMatch(/body:\s*null/);
+    expect(skillsPage).toMatch(/activeSection:\s*['"]skills['"]/);
+  });
+
+  it('does NOT register a page header (matches today\'s header={null} behavior)', () => {
+    expect(skillsPage).not.toMatch(/usePageHeaderSlot\b/);
   });
 
   it('loads catalogue, detail, trash, and mutations from useSkills hooks', () => {
@@ -50,8 +69,6 @@ describe('Skills page source', () => {
 
   it('grants admin views implicitly to admin sessions (no admin URL toggle)', () => {
     expect(skillsPage).toMatch(/session\?\.user\?\.role\s*===\s*['"]admin['"]/);
-    // The old `?admin=true` toggle is gone — admin status comes solely from
-    // the session role.
     expect(skillsPage).not.toMatch(/params\.get\(['"]admin['"]\)/);
   });
 
@@ -76,8 +93,6 @@ describe('Skills page source', () => {
 
   it('disables collaborator controls when the skill is public', () => {
     expect(editor).toMatch(/sharesDisabled\s*=\s*draft\.visibility\s*===\s*['"]public['"]/);
-    // ShareChipsInput receives the disabled flag and surfaces a public-only
-    // explanation in the field description.
     expect(editor).toMatch(/disabled=\{shareControlsDisabled\}/);
     expect(editor).toContain('Public skills are available to everyone');
   });
