@@ -14,6 +14,7 @@ import type {
   ProposeResearchRunToolResult,
 } from '@shared/chat-research-stream';
 import { cn } from '@/lib/utils';
+import { brand } from '@/brand';
 
 type CombinedResult =
   | ProposeResearchRunToolExecuteResult
@@ -114,7 +115,7 @@ export function ProposeResearchRunCard(props: Props): JSX.Element {
     if (status.type === 'incomplete') {
       return (
         <div className="propose-research-card my-3 rounded-lg border border-warning/30 bg-warning/5 px-4 py-3 text-[12px] text-warning" role="alert">
-          The research proposal was interrupted. Ask AlphaX to try again.
+          The research proposal was interrupted. Ask {brand.config.productName} to try again.
         </div>
       );
     }
