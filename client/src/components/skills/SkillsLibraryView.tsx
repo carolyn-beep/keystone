@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
-import { Loader2, Search, ArrowDownUp } from 'lucide-react';
+import { Search, ArrowDownUp } from 'lucide-react';
+import { SkillCardGridSkeleton } from '@/components/layout/skeletons';
 import { TactileButton } from '@/components/ui/tactile-button';
 import { SkillCard } from './SkillCard';
 import type { SkillListItem } from '@/hooks/useSkills';
@@ -221,9 +222,7 @@ export function SkillsLibraryView({
 
       {/* Skills grid */}
       {isLoading ? (
-        <div className="flex justify-center py-16">
-          <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-        </div>
+        <SkillCardGridSkeleton />
       ) : error ? (
         <section className="rounded-xl bg-card-elevated px-6 py-10 text-center shadow-card">
           <p className="font-serif text-[20px] text-foreground">Skills are unavailable</p>

@@ -4,9 +4,10 @@ import { useLocation, useSearch } from 'wouter';
 import { Brainlift } from '@shared/schema';
 import { queryClient } from '@/lib/queryClient';
 import { authClient } from '@/lib/auth-client';
-import { Loader2, Upload, Plus, Shield, Search, X } from 'lucide-react';
+import { Upload, Plus, Shield, Search, X } from 'lucide-react';
 import { tokens } from '@/lib/colors';
-import { AppShell, AppSidebar, PageHeader } from '@/components/layout';
+import { usePageHeaderSlot, useSidebarSlot } from '@/components/layout';
+import { ProjectCardGridSkeleton } from '@/components/layout/skeletons';
 import { TactileButton } from '@/components/ui/tactile-button';
 import { ConfirmationModal } from '@/components/ui/confirmation-modal';
 import { useToast } from '@/hooks/use-toast';
@@ -272,11 +273,16 @@ export default function Home() {
     </div>
   );
 
+  const sidebarSlotSpec = useMemo(() => ({ body: null }), []);
+  const pageHeaderSlotSpec = useMemo(
+    () => ({ title: 'Projects', actions: headerActions }),
+    [headerActions],
+  );
+  useSidebarSlot(sidebarSlotSpec);
+  usePageHeaderSlot(pageHeaderSlotSpec);
+
   return (
-    <AppShell
-      sidebar={<AppSidebar contextualBody={null} />}
-      header={<PageHeader title="Projects" actions={headerActions} />}
-    >
+    <>
       <div className="px-4 sm:px-6 md:px-8 py-4 max-w-[1420px] mx-auto">
         {/* Filter Tabs */}
         <FilterTabs
@@ -314,9 +320,7 @@ export default function Home() {
         </div>
 
         {isLoading ? (
-          <div className="flex justify-center p-10">
-            <Loader2 size={32} className="animate-spin text-muted-foreground" />
-          </div>
+          <ProjectCardGridSkeleton />
         ) : brainlifts.length === 0 ? (
           debouncedSearch ? (
             <div className="text-center py-12 text-muted-foreground">
@@ -382,6 +386,6 @@ export default function Home() {
         variant="destructive"
         isLoading={deleteMutation.isPending}
       />
-    </AppShell>
+    </>
   );
 }

@@ -5,7 +5,6 @@ import type { UIMessage } from 'ai';
 import type { ChatModelId } from '@shared/chat-models';
 import { OPENER_PROMPT } from '@/chat/chat-opener';
 import { brand } from '@/brand';
-import { buildAlphaXOpenerText } from '@/brand/alphax/opener-text';
 import { authClient } from '@/lib/auth-client';
 import { queryClient } from '@/lib/queryClient';
 import {
@@ -81,11 +80,11 @@ function OpenerTrigger({
     if (firedOpenerForConversation.has(conversationId)) return;
     firedOpenerForConversation.add(conversationId);
 
-    if (brand.config.id === 'alphax') {
+    if (brand.syntheticOpenerText) {
       const firstName = fullName?.trim().split(/\s+/)[0] ?? null;
       threadRuntime.append({
         role: 'assistant',
-        content: [{ type: 'text', text: buildAlphaXOpenerText(firstName) }],
+        content: [{ type: 'text', text: brand.syntheticOpenerText(firstName) }],
       });
       return;
     }

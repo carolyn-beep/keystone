@@ -6,15 +6,30 @@ const source = fs.readFileSync(
   'utf8',
 );
 
-describe('AppSidebar (new unified) source', () => {
+describe('AppSidebar source (FR3 -- context-driven)', () => {
   it('exports an AppSidebar function/component', () => {
     expect(source).toMatch(/export\s+function\s+AppSidebar/);
   });
 
-  it('declares AppSidebarProps with contextualBody and optional activeSection', () => {
-    expect(source).toMatch(/interface\s+AppSidebarProps/);
-    expect(source).toMatch(/contextualBody\?\s*:\s*ReactNode/);
-    expect(source).toMatch(/activeSection\?\s*:\s*SectionNavSection/);
+  it('does NOT accept contextualBody / contextualLabel / activeSection as props', () => {
+    expect(source).not.toMatch(/contextualBody\s*:\s*ReactNode/);
+    expect(source).not.toMatch(/contextualBody\?\s*:\s*ReactNode/);
+    expect(source).not.toMatch(/contextualLabel\s*\?\s*:\s*string/);
+    expect(source).not.toMatch(/activeSection\s*\?\s*:\s*SectionNavSection/);
+    // Props interface (if any) must not list contextualBody / contextualLabel / activeSection
+    // as fields. Use a permissive overall scan.
+    expect(source).not.toMatch(/interface\s+AppSidebarProps[\s\S]*?contextualBody/);
+  });
+
+  it('reads SidebarSlotContext via useContext to obtain the spec', () => {
+    expect(source).toMatch(/useContext\s*\(\s*SidebarSlotContext\s*\)/);
+    expect(source).toMatch(
+      /import\s*\{[^}]*\bSidebarSlotContext\b[^}]*\}\s*from\s*['"][^'"]*shell-slots['"]/,
+    );
+  });
+
+  it('still exposes a SectionNavSection re-export for consumers (back-compat)', () => {
+    expect(source).toMatch(/export\s+type\s*\{\s*SectionNavSection\s*\}/);
   });
 
   it('does NOT accept collapse-mode props', () => {
@@ -23,8 +38,6 @@ describe('AppSidebar (new unified) source', () => {
   });
 
   it('renders BrandHeader (link to "/") sourced from the brand module', () => {
-    // Post Spec 02: AppSidebar imports Avatar / Wordmark from `@/brand` and
-    // no longer references brand assets directly.
     expect(source).toMatch(/from\s+['"]@\/brand['"]/);
     expect(source).toMatch(/<Avatar\s+variant=["']sidebar["']\s*\/>/);
     expect(source).toMatch(/<Wordmark\s+variant=["']compact["']\s*\/>/);
@@ -44,24 +57,9 @@ describe('AppSidebar (new unified) source', () => {
     expect(source).toMatch(/from\s+['"]\.\/SectionNav['"]/);
   });
 
-  it('imports resolveSectionNavActive helper for default active section', () => {
+  it('falls back to URL-based active-section resolution when the slot does not specify one', () => {
     expect(source).toMatch(/resolveSectionNavActive/);
     expect(source).toMatch(/useLocation/);
-  });
-
-  it('renders contextualBody between SectionNav and UserMenu', () => {
-    // Order assertion in the JSX body: <SectionNav> appears, then a
-    // contextualBody reference inside JSX, then <UserMenu>.
-    const sectionNavIdx = source.indexOf('<SectionNav');
-    // Use the LAST occurrence of `contextualBody` -- earlier occurrences live in
-    // JSDoc / prop typing; the rendering reference is later in the file.
-    const bodyIdx = source.lastIndexOf('contextualBody');
-    const userMenuIdx = source.indexOf('<UserMenu');
-    expect(sectionNavIdx).toBeGreaterThan(-1);
-    expect(bodyIdx).toBeGreaterThan(-1);
-    expect(userMenuIdx).toBeGreaterThan(-1);
-    expect(bodyIdx).toBeGreaterThan(sectionNavIdx);
-    expect(userMenuIdx).toBeGreaterThan(bodyIdx);
   });
 
   it('renders <UserMenu /> at the bottom', () => {

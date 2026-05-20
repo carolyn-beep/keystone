@@ -25,6 +25,7 @@ import { useRunSpecEditor, type Preset } from '@/hooks/useRunSpecEditor';
 import { useLaunchResearchStream, LaunchError } from '@/hooks/useLaunchResearchStream';
 import { MAX_SLOTS, RETRIEVAL_TYPES, type RetrievalType, type RunRequest } from '@shared/research-stream';
 import { cn } from '@/lib/utils';
+import { brand } from '@/brand';
 import { RETRIEVAL_TYPE_META, PREVIEW_SLOTS } from './retrieval-meta';
 import researchApparatusImg from '@/assets/textures/research_apparatus.webp';
 
@@ -307,7 +308,7 @@ function AutoOrchestrateCard({
           Auto Orchestrate
         </h3>
         <p className="font-serif italic text-[13px] text-muted-foreground text-center max-w-sm mx-auto leading-relaxed">
-          Let AlphaX Buddy assemble a balanced swarm for your topic. We'll select the right mix of sources, automatically.
+          Let {brand.config.productName} assemble a balanced swarm for your topic. We'll select the right mix of sources, automatically.
         </p>
       </div>
 

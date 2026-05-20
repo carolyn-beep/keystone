@@ -18,8 +18,10 @@ import { config } from './config';
 import { Wordmark } from './Wordmark';
 import { Avatar } from './Avatar';
 import { LoginIllustration } from './LoginIllustration';
+import { buildAlphaXOpenerText } from './opener-text';
 
 export { config, Wordmark, Avatar, LoginIllustration };
+export const syntheticOpenerText = buildAlphaXOpenerText;
 
 export const chatAvatar: ChatAvatarConfig = {
   src: alphaBuddyAvatar,
@@ -33,6 +35,7 @@ export const brand: BrandModule = {
   Avatar,
   LoginIllustration,
   chatAvatar,
+  syntheticOpenerText,
 };
 
 // Type re-exports so consumers can import them directly from `@/brand`

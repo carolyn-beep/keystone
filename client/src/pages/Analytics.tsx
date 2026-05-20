@@ -1,5 +1,6 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { ArrowLeft, CalendarRange, ShieldAlert } from 'lucide-react';
+import { useSidebarSlot } from '@/components/layout';
 import type { AnalyticsDokLevelFilter, LeaderboardRankBy } from '@shared/analytics-types';
 import { authClient } from '@/lib/auth-client';
 import { TactileButton } from '@/components/ui/tactile-button';
@@ -46,6 +47,11 @@ function QueryError(error: unknown): Error | null {
 export default function Analytics() {
   const [, setLocation] = useLocation();
   const { data: session, isPending } = authClient.useSession();
+  const sidebarSlotSpec = useMemo(
+    () => ({ body: null, activeSection: 'analytics' as const }),
+    [],
+  );
+  useSidebarSlot(sidebarSlotSpec);
   const [filters, setFilters] = useState(() => getDefaultAnalyticsPageFilters());
   const [leaderboardRankBy, setLeaderboardRankBy] = useState<LeaderboardRankBy>('quality');
   const [scoreDistributionDokLevel, setScoreDistributionDokLevel] = useState<AnalyticsDokLevelFilter>('all');

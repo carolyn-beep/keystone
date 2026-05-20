@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation, useSearch } from 'wouter';
 import { authClient } from '@/lib/auth-client';
-import { AppShell, AppSidebar } from '@/components/layout';
+import { useSidebarSlot } from '@/components/layout';
 import { ConfirmationModal } from '@/components/ui/confirmation-modal';
 import {
   AlertDialog,
@@ -291,11 +291,14 @@ export default function Skills() {
     setPendingNav(null);
   }, []);
 
+  const sidebarSlotSpec = useMemo(
+    () => ({ body: null, activeSection: 'skills' as const }),
+    [],
+  );
+  useSidebarSlot(sidebarSlotSpec);
+
   return (
-    <AppShell
-      sidebar={<AppSidebar activeSection="skills" />}
-      header={null}
-    >
+    <>
       <main className="mx-auto flex w-full max-w-[1500px] flex-col gap-6 px-4 py-6 sm:px-6 md:px-8">
         {isEditing ? (
           <SkillEditor
@@ -406,6 +409,6 @@ export default function Skills() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-    </AppShell>
+    </>
   );
 }

@@ -28,10 +28,9 @@ import {
   getDefaultChatHomeModelId,
 } from '@/components/chat/chat-home-helpers';
 import {
-  AppShell,
-  AppSidebar,
-  PageHeader,
   useAppShell,
+  usePageHeaderSlot,
+  useSidebarSlot,
 } from '@/components/layout';
 
 function getErrorMessage(error: unknown): string {
@@ -364,16 +363,19 @@ export default function ChatHome() {
     />
   );
 
+  const sidebarSlotSpec = useMemo(
+    () => ({ label: 'Recent chats', body: sidebarBody, activeSection: 'chat' as const }),
+    [sidebarBody],
+  );
+  const pageHeaderSlotSpec = useMemo(
+    () => ({ leadingSlot: <DrawerToggle />, title: selectedConversationTitle }),
+    [selectedConversationTitle],
+  );
+  useSidebarSlot(sidebarSlotSpec);
+  usePageHeaderSlot(pageHeaderSlotSpec);
+
   return (
-    <AppShell
-      sidebar={<AppSidebar contextualBody={sidebarBody} contextualLabel="Recent chats" activeSection="chat" />}
-      header={
-        <PageHeader
-          leadingSlot={<DrawerToggle />}
-          title={selectedConversationTitle}
-        />
-      }
-    >
+    <>
       <div className="flex h-full min-h-0 flex-col">
         {conversationsQuery.isLoading ? (
           <CenteredState
@@ -493,6 +495,6 @@ export default function ChatHome() {
         variant="destructive"
         isLoading={deleteConversation.isPending}
       />
-    </AppShell>
+    </>
   );
 }

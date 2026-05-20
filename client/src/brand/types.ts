@@ -97,4 +97,16 @@ export interface BrandModule {
   Avatar: ComponentType<AvatarProps>;
   LoginIllustration: ComponentType<LoginIllustrationProps>;
   chatAvatar: ChatAvatarConfig;
+  /**
+   * Optional: builds a hardcoded synthetic ASSISTANT opener message
+   * personalized with the student's first name. Brands that expose this
+   * (AlphaX) use the synthetic-assistant opener path in `OpenerTrigger`;
+   * brands that omit it (Brainlift Central) fall back to the LLM-driven
+   * `[OPENER]` user-message path.
+   *
+   * Lives on the brand surface (not as a deep import) so brand-neutral
+   * consumers stay importing only from `@/brand`, which lets the Vite
+   * alias drop the inactive brand's subtree from the production bundle.
+   */
+  syntheticOpenerText?: (firstName: string | null | undefined) => string;
 }

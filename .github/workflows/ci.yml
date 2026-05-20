@@ -1,0 +1,33 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+jobs:
+  # Builds the client for both brands. The `build` script runs
+  # `script/check-brand-bundle.ts` after Vite emits, which fails if the
+  # inactive brand's identifying strings (e.g. "AlphaX", "Brainlift Central",
+  # branded CSS class prefixes) leak into the active bundle.
+  #
+  # This is the gate that should have caught the leaks fixed alongside this
+  # workflow. Render is no longer the only place this assertion runs.
+  brand-build:
+    name: build (${{ matrix.brand }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        brand: [alphax, brainlift]
+    env:
+      VITE_BRAND: ${{ matrix.brand }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - run: npm run build
