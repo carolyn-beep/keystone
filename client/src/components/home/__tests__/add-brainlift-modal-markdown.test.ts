@@ -18,11 +18,12 @@ import { describe, it, expect } from 'vitest';
 
 type SourceType = 'html' | 'workflowy' | 'googledocs' | 'markdown';
 
+// HTML and Google Docs were hidden from the import modal UI. The SourceType
+// union still permits them for backend compatibility, but only Workflowy and
+// Markdown are exposed as visible tabs.
 const tabs: { id: SourceType; label: string }[] = [
   { id: 'workflowy', label: 'Workflowy' },
-  { id: 'html', label: 'HTML' },
   { id: 'markdown', label: 'Markdown' },
-  { id: 'googledocs', label: 'Google Docs' },
 ];
 
 /** Returns true when the active tab should show the file upload zone */
@@ -59,27 +60,25 @@ describe('02-frontend-import-tab: Markdown tab', () => {
       expect(markdownTab!.label).toBe('Markdown');
     });
 
-    it('places markdown after HTML and before Google Docs', () => {
+    it('places markdown after workflowy', () => {
       const ids = tabs.map((t) => t.id);
-      const htmlIndex = ids.indexOf('html');
-      const mdIndex = ids.indexOf('markdown');
-      const gdIndex = ids.indexOf('googledocs');
-
-      expect(mdIndex).toBeGreaterThan(htmlIndex);
-      expect(mdIndex).toBeLessThan(gdIndex);
+      expect(ids.indexOf('markdown')).toBeGreaterThan(ids.indexOf('workflowy'));
     });
 
-    it('has 4 tabs total', () => {
-      expect(tabs).toHaveLength(4);
+    it('exposes exactly the two supported entry points (workflowy + markdown)', () => {
+      expect(tabs).toHaveLength(2);
+      expect(tabs.map((t) => t.id)).toEqual(['workflowy', 'markdown']);
     });
 
-    it('groups file-based tabs together and URL-based tabs at the ends', () => {
-      // File tabs: html (index 1), markdown (index 2)
-      // URL tabs: workflowy (index 0), googledocs (index 3)
-      expect(isFileUploadTab(tabs[1].id)).toBe(true);
-      expect(isFileUploadTab(tabs[2].id)).toBe(true);
+    it('does NOT expose html or googledocs tabs (hidden from the UI)', () => {
+      const ids = tabs.map((t) => t.id);
+      expect(ids).not.toContain('html');
+      expect(ids).not.toContain('googledocs');
+    });
+
+    it('pairs each visible tab with the correct input mode (workflowy = URL, markdown = file)', () => {
       expect(isUrlTab(tabs[0].id)).toBe(true);
-      expect(isUrlTab(tabs[3].id)).toBe(true);
+      expect(isFileUploadTab(tabs[1].id)).toBe(true);
     });
   });
 

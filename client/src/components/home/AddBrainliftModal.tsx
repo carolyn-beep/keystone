@@ -14,11 +14,13 @@ import modalBgTexture from '@/assets/textures/modal_bgv2.webp';
 
 type SourceType = 'html' | 'workflowy' | 'googledocs' | 'markdown';
 
+// HTML and Google Docs are intentionally hidden from the UI. The SourceType
+// union and the branching logic below still handle them in case the API is
+// ever called with those values, but the import modal exposes only the two
+// supported entry points.
 const tabs: { id: SourceType; label: string; icon: typeof FileText }[] = [
   { id: 'workflowy', label: 'Workflowy', icon: LinkIcon },
-  { id: 'html', label: 'HTML', icon: FileText },
   { id: 'markdown', label: 'Markdown', icon: FileText },
-  { id: 'googledocs', label: 'Google Docs', icon: LinkIcon },
 ];
 
 // Manual mode: only stages up to DOK2 grading (linking UIs handle the rest)
