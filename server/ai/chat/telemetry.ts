@@ -1,5 +1,3 @@
-import type { TextStreamPart, ToolSet, UIMessageChunk } from 'ai';
-
 type ChatTurnUsage = {
   promptTokens?: number;
   completionTokens?: number;
@@ -10,6 +8,7 @@ export interface ChatTraceContext {
   userId: string;
   conversationId: number;
   requestedModel: string;
+  requestId: string;
 }
 
 export interface ChatTurnLogPayload extends ChatTraceContext {
@@ -20,8 +19,6 @@ export interface ChatTurnLogPayload extends ChatTraceContext {
 }
 
 export interface ChatStreamStartPayload extends ChatTraceContext {
-  messageCount: number;
-  toolNames: string[];
   timestamp?: Date;
 }
 
@@ -34,30 +31,6 @@ export interface ChatStreamErrorPayload extends ChatTraceContext {
 
 function toIsoTimestamp(timestamp?: Date): string {
   return (timestamp ?? new Date()).toISOString();
-}
-
-function summarizeText(value: string, maxLength = 220): string {
-  const normalized = value.trim();
-  if (normalized.length <= maxLength) {
-    return normalized;
-  }
-  return `${normalized.slice(0, maxLength).trimEnd()}…`;
-}
-
-function summarizeValue(value: unknown, maxLength = 220): string | undefined {
-  if (value == null) {
-    return undefined;
-  }
-
-  const serialized = typeof value === 'string'
-    ? value
-    : safeJsonStringify(value);
-
-  if (!serialized) {
-    return undefined;
-  }
-
-  return summarizeText(serialized, maxLength);
 }
 
 function normalizeError(error: unknown): Record<string, unknown> {
@@ -102,14 +75,6 @@ function normalizeError(error: unknown): Record<string, unknown> {
   };
 }
 
-function safeJsonStringify(value: unknown): string | undefined {
-  try {
-    return JSON.stringify(value);
-  } catch {
-    return undefined;
-  }
-}
-
 function emitChatLog(
   writer: typeof console.log | typeof console.error,
   event: string,
@@ -131,189 +96,13 @@ function emitChatLog(
   }
 }
 
-function shouldLogModelChunk(chunk: TextStreamPart<ToolSet>): boolean {
-  return chunk.type === 'tool-input-start'
-    || chunk.type === 'tool-call'
-    || chunk.type === 'tool-result'
-    || chunk.type === 'tool-error'
-    || chunk.type === 'tool-output-denied';
-}
-
-function shouldLogUiChunk(chunk: UIMessageChunk): boolean {
-  return chunk.type === 'start'
-    || chunk.type === 'tool-input-start'
-    || chunk.type === 'tool-input-available'
-    || chunk.type === 'tool-input-error'
-    || chunk.type === 'tool-output-available'
-    || chunk.type === 'tool-output-error'
-    || chunk.type === 'tool-output-denied'
-    || chunk.type === 'finish'
-    || chunk.type === 'error';
-}
-
-function summarizeModelChunk(chunk: TextStreamPart<ToolSet>): Record<string, unknown> {
-  switch (chunk.type) {
-    case 'tool-input-start':
-      return {
-        chunkType: chunk.type,
-        toolCallId: chunk.id,
-        toolName: chunk.toolName,
-      };
-
-    case 'tool-call':
-      return {
-        chunkType: chunk.type,
-        toolCallId: chunk.toolCallId,
-        toolName: chunk.toolName,
-        inputPreview: summarizeValue(chunk.input),
-      };
-
-    case 'tool-result':
-      return {
-        chunkType: chunk.type,
-        toolCallId: chunk.toolCallId,
-        toolName: chunk.toolName,
-        outputPreview: summarizeValue(chunk.output),
-        preliminary: chunk.preliminary,
-      };
-
-    case 'tool-error':
-      return {
-        chunkType: chunk.type,
-        toolCallId: chunk.toolCallId,
-        toolName: chunk.toolName,
-        inputPreview: summarizeValue(chunk.input),
-        error: normalizeError(chunk.error),
-      };
-
-    case 'tool-output-denied':
-      return {
-        chunkType: chunk.type,
-        toolCallId: chunk.toolCallId,
-        toolName: chunk.toolName,
-      };
-
-    default:
-      return {
-        chunkType: chunk.type,
-      };
-  }
-}
-
-function summarizeUiChunk(chunk: UIMessageChunk): Record<string, unknown> {
-  switch (chunk.type) {
-    case 'start':
-      return {
-        chunkType: chunk.type,
-        messageId: chunk.messageId,
-      };
-
-    case 'tool-input-start':
-      return {
-        chunkType: chunk.type,
-        toolCallId: chunk.toolCallId,
-        toolName: chunk.toolName,
-      };
-
-    case 'tool-input-available':
-      return {
-        chunkType: chunk.type,
-        toolCallId: chunk.toolCallId,
-        toolName: chunk.toolName,
-        inputPreview: summarizeValue(chunk.input),
-      };
-
-    case 'tool-input-error':
-      return {
-        chunkType: chunk.type,
-        toolCallId: chunk.toolCallId,
-        toolName: chunk.toolName,
-        inputPreview: summarizeValue(chunk.input),
-        errorText: chunk.errorText,
-      };
-
-    case 'tool-output-available':
-      return {
-        chunkType: chunk.type,
-        toolCallId: chunk.toolCallId,
-        outputPreview: summarizeValue(chunk.output),
-        preliminary: chunk.preliminary,
-      };
-
-    case 'tool-output-error':
-      return {
-        chunkType: chunk.type,
-        toolCallId: chunk.toolCallId,
-        errorText: chunk.errorText,
-      };
-
-    case 'tool-output-denied':
-      return {
-        chunkType: chunk.type,
-        toolCallId: chunk.toolCallId,
-      };
-
-    case 'finish':
-      return {
-        chunkType: chunk.type,
-        finishReason: chunk.finishReason,
-      };
-
-    case 'error':
-      return {
-        chunkType: chunk.type,
-        errorText: chunk.errorText,
-      };
-
-    default:
-      return {
-        chunkType: chunk.type,
-      };
-  }
-}
-
-function parseUiChunkEvent(rawEvent: string): UIMessageChunk | null {
-  const dataLines = rawEvent
-    .split('\n')
-    .filter((line) => line.startsWith('data:'))
-    .map((line) => line.slice(5).trim());
-
-  if (dataLines.length === 0) {
-    return null;
-  }
-
-  const payload = dataLines.join('\n');
-  if (payload === '[DONE]') {
-    return null;
-  }
-
-  return JSON.parse(payload) as UIMessageChunk;
-}
-
 export function logChatStreamStart(payload: ChatStreamStartPayload): void {
   emitChatLog(console.log, 'chat_stream_start', {
     userId: payload.userId,
     conversationId: payload.conversationId,
     requestedModel: payload.requestedModel,
-    messageCount: payload.messageCount,
-    toolNames: payload.toolNames,
+    requestId: payload.requestId,
   }, payload.timestamp);
-}
-
-export function logChatModelChunk(
-  context: ChatTraceContext,
-  chunk: TextStreamPart<ToolSet>,
-): void {
-  if (!shouldLogModelChunk(chunk)) {
-    return;
-  }
-
-  emitChatLog(console.log, 'chat_model_chunk', {
-    userId: context.userId,
-    conversationId: context.conversationId,
-    requestedModel: context.requestedModel,
-    ...summarizeModelChunk(chunk),
-  });
 }
 
 export function logChatStreamError(payload: ChatStreamErrorPayload): void {
@@ -321,119 +110,36 @@ export function logChatStreamError(payload: ChatStreamErrorPayload): void {
     userId: payload.userId,
     conversationId: payload.conversationId,
     requestedModel: payload.requestedModel,
+    requestId: payload.requestId,
     stage: payload.stage,
     error: normalizeError(payload.error),
     details: payload.details,
   }, payload.timestamp);
 }
 
-export async function consumeChatUiMessageStream(
-  context: ChatTraceContext,
-  stream: ReadableStream<string>,
-): Promise<void> {
-  const reader = stream.getReader();
-  let buffer = '';
-
-  const processRawEvent = (rawEvent: string) => {
-    let chunk: UIMessageChunk | null = null;
-
-    try {
-      chunk = parseUiChunkEvent(rawEvent);
-    } catch (error) {
-      logChatStreamError({
-        ...context,
-        stage: 'ui-stream-parse',
-        error,
-        details: {
-          rawEvent: summarizeText(rawEvent),
-        },
-      });
-      return;
-    }
-
-    if (!chunk || !shouldLogUiChunk(chunk)) {
-      return;
-    }
-
-    emitChatLog(console.log, 'chat_ui_chunk', {
-      userId: context.userId,
-      conversationId: context.conversationId,
-      requestedModel: context.requestedModel,
-      ...summarizeUiChunk(chunk),
-    });
-  };
-
-  try {
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) {
-        break;
-      }
-
-      buffer += value;
-
-      let boundaryIndex = buffer.indexOf('\n\n');
-      while (boundaryIndex >= 0) {
-        const rawEvent = buffer.slice(0, boundaryIndex).trim();
-        buffer = buffer.slice(boundaryIndex + 2);
-
-        if (rawEvent.length > 0) {
-          processRawEvent(rawEvent);
-        }
-
-        boundaryIndex = buffer.indexOf('\n\n');
-      }
-    }
-
-    const tail = buffer.trim();
-    if (tail.length > 0) {
-      processRawEvent(tail);
-    }
-  } catch (error) {
-    logChatStreamError({
-      ...context,
-      stage: 'ui-stream-consume',
-      error,
-    });
-  } finally {
-    reader.releaseLock();
-  }
-}
-
-export interface AskUserSubmitBlockedQuestion {
-  id: string;
-  optional: boolean;
-  optionCount: number;
-  multiSelect: boolean;
-  allowFreeText: boolean;
-  selectedCount: number;
-  freeTextLength: number;
-  freeTextTrimmedLength: number;
-  answered: boolean;
-  promptPreview: string;
-}
-
 export interface AskUserSubmitBlockedPayload {
   userId: string;
   conversationId: number | null;
   toolCallId: string;
-  questions: AskUserSubmitBlockedQuestion[];
+  questionCount: number;
+  answeredCount: number;
   timestamp?: Date;
 }
 
 /**
  * Logged when a user clicks Submit on an `ask_user_question` form but the
- * client-side gate refuses (at least one required question unanswered). The
- * UI shows nothing diagnostic — this log is the source of truth for support
- * tickets like "I filled everything in but couldn't submit." Grep keys:
- * `event=ask_user_submit_blocked`, `userId`, `conversationId`, `toolCallId`.
+ * client-side gate refuses (at least one required question unanswered).
+ * Question text lives in chat_messages.parts once the turn syncs; this log
+ * only carries counts so support can spot "form was blocked" patterns. Grep
+ * keys: `event=ask_user_submit_blocked`, `userId`, `conversationId`, `toolCallId`.
  */
 export function logAskUserSubmitBlocked(payload: AskUserSubmitBlockedPayload): void {
   emitChatLog(console.log, 'ask_user_submit_blocked', {
     userId: payload.userId,
     conversationId: payload.conversationId,
     toolCallId: payload.toolCallId,
-    questions: payload.questions,
+    questionCount: payload.questionCount,
+    answeredCount: payload.answeredCount,
   }, payload.timestamp);
 }
 
@@ -442,6 +148,7 @@ export function logChatTurn(payload: ChatTurnLogPayload): void {
     userId: payload.userId,
     conversationId: payload.conversationId,
     requestedModel: payload.requestedModel,
+    requestId: payload.requestId,
     finishReason: payload.finishReason,
     durationMs: payload.durationMs,
     usage: payload.usage,

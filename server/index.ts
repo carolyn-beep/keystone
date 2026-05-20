@@ -60,7 +60,12 @@ app.use((req, res, next) => {
     const duration = Date.now() - start;
     if (path.startsWith("/api")) {
       let logLine = `${req.method} ${path} ${res.statusCode} in ${duration}ms`;
-      if (capturedJsonResponse) {
+      // Only log the response body preview on error responses — for 2xx/3xx the
+      // body is just the data we returned (visible in the DB and the browser
+      // Network tab), so the preview is noise. Errors are where the body
+      // actually carries diagnostic value.
+      const isError = res.statusCode >= 400;
+      if (capturedJsonResponse && isError) {
         const jsonStr = JSON.stringify(capturedJsonResponse);
         logLine += ` :: ${jsonStr.length > 200 ? jsonStr.slice(0, 200) + '...' : jsonStr}`;
       }

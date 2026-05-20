@@ -586,6 +586,33 @@ export async function getBrainliftsForUserPaginated(
   };
 }
 
+/**
+ * Returns the slim picker payload (id, slug, title, phase) for every brainlift
+ * the user has access to (owned + shared). No pagination — the project picker
+ * needs the full list client-side so users can scroll, and the slim shape keeps
+ * the payload tiny even for power users with hundreds of brainlifts.
+ */
+export async function getBrainliftTitlesForUser(
+  authContext: AuthContext,
+): Promise<Array<Pick<Brainlift, 'id' | 'slug' | 'title' | 'phase'>>> {
+  const visibleIdsCte = sql`(
+    SELECT id FROM ${brainlifts} WHERE created_by_user_id = ${authContext.userId}
+    UNION
+    SELECT brainlift_id AS id FROM brainlift_shares WHERE user_id = ${authContext.userId} AND type = 'user'
+  )`;
+
+  return db
+    .select({
+      id: brainlifts.id,
+      slug: brainlifts.slug,
+      title: brainlifts.title,
+      phase: brainlifts.phase,
+    })
+    .from(brainlifts)
+    .where(sql`${brainlifts.id} IN ${visibleIdsCte}`)
+    .orderBy(desc(brainlifts.id));
+}
+
 export async function getAllBrainliftsPaginated(
   offset: number,
   limit: number,

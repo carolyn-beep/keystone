@@ -463,6 +463,7 @@ export default function ChatHome() {
               key={chatSessionKey}
               conversationId={selectedConversationId}
               initialMessages={selectedConversationQuery.data?.messages}
+              initialNextBeforeId={selectedConversationQuery.data?.pagination.nextBeforeId ?? null}
               modelId={selectedModelId}
               onModelIdChange={setSelectedModelId}
               needsOpener={openerPendingForId === selectedConversationId && !initialUserMessage}

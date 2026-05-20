@@ -13,8 +13,10 @@ import {
   getChatConversationQueryKey,
 } from '@/hooks/useChatConversations';
 import { useNativeChatRuntime } from '@/hooks/useNativeChatRuntime';
+import { useComposerDraft } from '@/hooks/useComposerDraft';
 import { buildNativeChatThreadConfig } from './native-chat-thread-config';
 import { ChatComposerSettingsProvider } from './ChatComposer';
+import { ChatHistoryLoader } from './ChatHistoryLoader';
 
 /**
  * Module-level guard. Ensures the opener prompt fires at most once per
@@ -178,6 +180,11 @@ interface NativeChatThreadProps {
    */
   conversationId: number | null;
   initialMessages?: UIMessage[] | null;
+  /**
+   * Cursor for `loadOlder` infinite scroll. `null` means the initial fetch
+   * returned the full history (no more pages). See `ChatHistoryLoader`.
+   */
+  initialNextBeforeId?: number | null;
   modelId: ChatModelId;
   onModelIdChange: (next: ChatModelId) => void;
   /** Server-driven flag: this conversation should be opened by the chat opener. */
@@ -195,6 +202,20 @@ interface NativeChatThreadProps {
   onLazyCreated?: (conversationId: number) => void;
   /** Optional message to send automatically once on conversation entry (Skills Try-it-out `?send=`). */
   initialUserMessage?: string | null;
+}
+
+/**
+ * Renderless: keeps the chat composer's draft text persisted in localStorage
+ * per conversation. Lives inside `AssistantRuntimeProvider` so the hook can
+ * call `useComposerRuntime` / `useThread`. Mirrors `ConversationQueryInvalidator`.
+ */
+function ComposerDraftSync({
+  conversationId,
+}: {
+  conversationId: number | null;
+}) {
+  useComposerDraft(conversationId);
+  return null;
 }
 
 function ConversationQueryInvalidator({
@@ -229,6 +250,7 @@ function ConversationQueryInvalidator({
 export function NativeChatThread({
   conversationId,
   initialMessages,
+  initialNextBeforeId = null,
   modelId,
   onModelIdChange,
   needsOpener,
@@ -236,6 +258,8 @@ export function NativeChatThread({
   onLazyCreated,
   initialUserMessage = null,
 }: NativeChatThreadProps) {
+  const threadContainerRef = useRef<HTMLDivElement>(null);
+
   // Track the "effective" conversation ID for child components (triggers,
   // query invalidator). Starts at the prop, gets promoted to the
   // lazy-created ID after a draft submit. We don't propagate the new ID
@@ -284,8 +308,17 @@ export function NativeChatThread({
         pendingDraftBrainliftId={pendingDraftBrainliftId}
         setPendingDraftBrainliftId={setPendingDraftBrainliftId}
       >
-        <div className="native-chat-thread flex h-full min-h-0 flex-col bg-transparent">
+        <div
+          ref={threadContainerRef}
+          className="native-chat-thread relative flex h-full min-h-0 flex-col bg-transparent"
+        >
           <ConversationQueryInvalidator conversationId={effectiveConvId} />
+          <ComposerDraftSync conversationId={effectiveConvId} />
+          <ChatHistoryLoader
+            containerRef={threadContainerRef}
+            conversationId={effectiveConvId}
+            initialNextBeforeId={initialNextBeforeId}
+          />
           {effectiveConvId !== null && (
             <>
               <OpenerTrigger

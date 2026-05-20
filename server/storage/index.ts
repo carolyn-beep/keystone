@@ -97,6 +97,7 @@ export const storage = {
   getVersionsByBrainliftId: brainliftsStorage.getVersionsByBrainliftId,
   getBrainliftsForUserPaginated: brainliftsStorage.getBrainliftsForUserPaginated,
   getAllBrainliftsPaginated: brainliftsStorage.getAllBrainliftsPaginated,
+  getBrainliftTitlesForUser: brainliftsStorage.getBrainliftTitlesForUser,
   canAccessBrainlift: brainliftsStorage.canAccessBrainlift,
   canModifyBrainlift: brainliftsStorage.canModifyBrainlift,
   isOwner: brainliftsStorage.isOwner,
