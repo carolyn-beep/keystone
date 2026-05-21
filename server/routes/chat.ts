@@ -24,6 +24,7 @@ import {
 } from '../ai/chat/telemetry';
 import { buildNativeChatTools } from '../ai/chat/tools';
 import type { ChatMode, ConversationContext } from '../brand/types';
+import { resolveChatMode } from '../brand/chat-mode';
 
 export const chatRouter = Router();
 
@@ -263,9 +264,7 @@ export async function streamChatHandler(req: Request, res: Response): Promise<vo
     brainliftId: binding?.brainliftId ?? null,
     brainlift: binding?.brainlift ?? null,
   };
-  const mode: ChatMode = conversationContext.brainlift?.phase === 'authoring'
-    ? 'authoring'
-    : 'research';
+  const mode: ChatMode = resolveChatMode(conversationContext);
 
   if (mode === 'research' && conversationContext.brainliftId != null) {
     conversationContext.secondBrainSummary = await storage.getSecondBrainSummary(
