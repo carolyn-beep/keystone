@@ -265,5 +265,10 @@ export function useNativeChatRuntime(args: UseNativeChatRuntimeArgs) {
     // (e.g. `ask_user_question`) auto-continue after the user submits.
     // Server-`execute` tools resolve in-stream and never reach this hook.
     sendAutomaticallyWhen: lastAssistantMessageIsCompleteWithToolCalls,
+    // Disable file attachments. useChatRuntime auto-installs `vercelAttachmentAdapter`;
+    // unregistering it flips `thread.capabilities.attachments` to false, which short-
+    // circuits the paste-to-attach handler in ComposerPrimitive.Input. The dropzone
+    // primitive is opt-in and not rendered in our composer.
+    adapters: { attachments: undefined },
   });
 }

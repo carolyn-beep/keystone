@@ -71,6 +71,7 @@ export function ChatComposer() {
         rows={1}
         placeholder={brand.config.chatPlaceholder}
         className="chat-composer-input"
+        addAttachmentOnPaste={false}
       />
 
       <div className="chat-composer-toolbar">
