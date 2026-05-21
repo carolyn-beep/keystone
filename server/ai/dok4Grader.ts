@@ -271,6 +271,7 @@ export async function validatePOV(
       jsonSchema: { name: POV_VALIDATION_JSON_SCHEMA.name, strict: true, schema: POV_VALIDATION_JSON_SCHEMA.schema },
     },
     caller: 'dok4Grader.povValidation',
+    userFacing: true,
     validate: (content) => { povValidationSchema.parse(extractJSON(content)); },
   });
   console.log(`[DOK4-Grade] POV Validation: ${(performance.now() - t0).toFixed(0)}ms (model: ${result.model})`);
@@ -438,6 +439,7 @@ export async function evaluateDOK4Quality(
       jsonSchema: { name: QUALITY_EVALUATION_JSON_SCHEMA.name, strict: true, schema: QUALITY_EVALUATION_JSON_SCHEMA.schema },
     },
     caller: 'dok4Grader.qualityEvaluation.v2',
+    userFacing: true,
     validate: (content) => { qualityEvaluationSchema.parse(extractJSON(content)); },
   });
   console.log(`[DOK4-Grade] Quality Evaluation: ${(performance.now() - t0).toFixed(0)}ms (model: ${result.model})`);
@@ -483,6 +485,7 @@ export async function assessAntimemetic(
       jsonSchema: { name: ANTIMEMETIC_JSON_SCHEMA.name, strict: true, schema: ANTIMEMETIC_JSON_SCHEMA.schema },
     },
     caller: 'dok4Grader.antimemetic',
+    userFacing: true,
     validate: (content) => { antimemeticSchema.parse(extractJSON(content)); },
   });
   console.log(`[DOK4-Grade] Antimemetic Assessment: ${(performance.now() - t0).toFixed(0)}ms (model: ${result.model})`);

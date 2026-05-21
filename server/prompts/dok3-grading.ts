@@ -123,7 +123,7 @@ Respond ONLY with this JSON. No markdown. No backticks. No preamble.
     "P2": { "assessment": "strong|partial|weak", "evidence": "one sentence" }
   },
   "score": 1-5,
-  "rationale": "A paragraph explaining how the criteria informed your score. Reference specific DOK1/DOK2 evidence. Address the foundation integrity and traceability flag if present.",
+  "rationale": "Brief explanation of the score, grounded in specific DOK1/DOK2 evidence, including foundation integrity and traceability flag impact when relevant.",
   "feedback": "One specific, actionable recommendation tied to the weakest dimension. Tell the student exactly what to strengthen."
 }`;
 

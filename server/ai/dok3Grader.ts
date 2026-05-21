@@ -388,6 +388,7 @@ async function evaluateConceptualCoherence(
       },
     },
     caller: 'dok3Grader.coherence',
+    userFacing: true,
     validate: (content) => { dok3EvaluationSchema.parse(extractJSON(content)); },
   });
   console.log(`[DOK3-Grade] Coherence: ${(performance.now() - t0).toFixed(0)}ms (model: ${callResult.model})`);

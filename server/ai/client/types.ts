@@ -60,6 +60,14 @@ export interface CallModelOptions {
   signal?: AbortSignal;
   caller?: string;
   validate?: (content: string) => void;
+  /**
+   * Marks the call as producing natural-language text the end user will read
+   * (feedback, rationale, key insights, why-it-matters, etc.). When true AND
+   * the active brand is `alphax`, the unified client prepends a Grade-5
+   * reading-level tone block to `system` before dispatching to the provider.
+   * Defaults to `false` — existing callers retain their current behavior.
+   */
+  userFacing?: boolean;
 }
 
 export interface CallModelWithFallbackOptions extends Omit<CallModelOptions, 'model'> {
