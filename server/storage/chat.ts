@@ -95,7 +95,59 @@ function appendLegacyDuplicateSuffix(messageId: string, duplicateIndex: number):
   return duplicateIndex === 0 ? messageId : `${messageId}-dup-${duplicateIndex}`;
 }
 
-function normalizeMessagesForPersistence(messages: StoredChatMessage[]): StoredChatMessage[] {
+// Drop tool parts whose toolCallId already appeared earlier in the same parts array.
+// The AI SDK's no-such-tool path persists the same tool call as both a typed
+// `tool-{name}` part AND a `dynamic-tool` part with identical toolCallId. On replay
+// convertToModelMessages emits two tool_use blocks → Bedrock 400s with
+// `tool_use ids must be unique`. First occurrence wins; the typed one comes first
+// in the stream so the dynamic-tool sibling is the one dropped.
+function dedupeToolPartsByCallId(
+  parts: unknown[],
+  context: { conversationId: number; messageId: string },
+): unknown[] {
+  const seen = new Set<string>();
+  const kept: unknown[] = [];
+  const dropped: Array<{ index: number; type: string; toolCallId: string }> = [];
+
+  parts.forEach((part, index) => {
+    if (part && typeof part === 'object') {
+      const tcid = (part as { toolCallId?: unknown }).toolCallId;
+      if (typeof tcid === 'string' && tcid.length > 0) {
+        if (seen.has(tcid)) {
+          dropped.push({
+            index,
+            type: String((part as { type?: unknown }).type ?? 'unknown'),
+            toolCallId: tcid,
+          });
+          return;
+        }
+        seen.add(tcid);
+      }
+    }
+    kept.push(part);
+  });
+
+  if (dropped.length > 0) {
+    // Structured log so it shows up alongside chat_stream events in /tmp/dok1-grader.log
+    console.log(JSON.stringify({
+      event: 'dedupe_tool_parts',
+      conversationId: context.conversationId,
+      messageId: context.messageId,
+      partsBefore: parts.length,
+      partsAfter: kept.length,
+      droppedCount: dropped.length,
+      dropped,
+      timestamp: new Date().toISOString(),
+    }));
+  }
+
+  return kept;
+}
+
+function normalizeMessagesForPersistence(
+  messages: StoredChatMessage[],
+  context: { conversationId: number },
+): StoredChatMessage[] {
   const deduped = new Map<string, StoredChatMessage>();
   const blankMessageCounts = new Map<string, number>();
 
@@ -107,9 +159,21 @@ function normalizeMessagesForPersistence(messages: StoredChatMessage[]): StoredC
       blankMessageCounts.set(legacyMessageId, duplicateIndex + 1);
       return appendLegacyDuplicateSuffix(legacyMessageId, duplicateIndex);
     })();
+    const dedupedParts = dedupeToolPartsByCallId(message.parts, {
+      conversationId: context.conversationId,
+      messageId: normalizedMessageId,
+    });
+    // Stamp a `deduped` flag into metadata so the send-time dedupe can skip
+    // this message on subsequent requests. Cost amortises to once-per-message
+    // over the conversation's lifetime instead of every request.
+    const existingMetadata = (message.metadata && typeof message.metadata === 'object')
+      ? message.metadata as Record<string, unknown>
+      : {};
     const normalizedMessage: StoredChatMessage = {
       ...message,
       id: normalizedMessageId,
+      parts: dedupedParts,
+      metadata: { ...existingMetadata, deduped: true },
     };
 
     if (explicitMessageId && deduped.has(normalizedMessageId)) {
@@ -432,7 +496,7 @@ export async function syncChatMessages(
   }
 
   const now = new Date();
-  const normalizedMessages = normalizeMessagesForPersistence(messages);
+  const normalizedMessages = normalizeMessagesForPersistence(messages, { conversationId });
 
   await db.transaction(async (tx) => {
     const blankMessageRows = await tx

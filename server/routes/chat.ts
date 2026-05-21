@@ -24,6 +24,7 @@ import {
 } from '../ai/chat/telemetry';
 import { buildNativeChatTools } from '../ai/chat/tools';
 import type { ChatMode, ConversationContext } from '../brand/types';
+import { resolveChatMode } from '../brand/chat-mode';
 
 export const chatRouter = Router();
 
@@ -191,7 +192,56 @@ export async function streamChatHandler(req: Request, res: Response): Promise<vo
     throw new NotFoundError('Conversation not found');
   }
 
-  const messages = body.messages as UIMessage[];
+  const messagesRaw = body.messages as UIMessage[];
+  // Send-time dedupe: drop tool parts whose toolCallId already appeared in the
+  // same message. The AI SDK's no-such-tool path persists the same tool call as
+  // both a typed `tool-{name}` AND a `dynamic-tool` with identical toolCallId.
+  // On replay that produces duplicate tool_use blocks → Bedrock 400. We do this
+  // at send time (in addition to persist time) because failed turns never reach
+  // onFinish, so existing broken on-disk rows can only be neutralised here.
+  //
+  // Two short-circuits keep this cheap on long conversations:
+  //   1. `metadata.deduped === true` → already cleaned by a prior persist
+  //   2. no part carries a `toolCallId` → no possible duplicate (user msgs, text turns)
+  // Both leave the message reference untouched. Only messages that still need
+  // work pay the Set+filter cost.
+  const messages: UIMessage[] = messagesRaw.map((message) => {
+    if ((message.metadata as { deduped?: boolean } | undefined)?.deduped === true) {
+      return message;
+    }
+    if (!Array.isArray(message.parts) || message.parts.length === 0) return message;
+    const hasToolPart = message.parts.some(
+      (p) => typeof (p as { toolCallId?: unknown })?.toolCallId === 'string',
+    );
+    if (!hasToolPart) return message;
+    const seen = new Set<string>();
+    const kept: typeof message.parts = [];
+    const dropped: Array<{ index: number; type: string; toolCallId: string }> = [];
+    message.parts.forEach((part, index) => {
+      const tcid = (part as { toolCallId?: unknown }).toolCallId;
+      if (typeof tcid === 'string' && tcid.length > 0) {
+        if (seen.has(tcid)) {
+          dropped.push({ index, type: String((part as { type?: unknown }).type ?? 'unknown'), toolCallId: tcid });
+          return;
+        }
+        seen.add(tcid);
+      }
+      kept.push(part);
+    });
+    if (dropped.length > 0) {
+      console.log(JSON.stringify({
+        event: 'dedupe_tool_parts_send',
+        conversationId: body.conversationId,
+        messageId: message.id,
+        partsBefore: message.parts.length,
+        partsAfter: kept.length,
+        droppedCount: dropped.length,
+        dropped,
+        timestamp: new Date().toISOString(),
+      }));
+    }
+    return { ...message, parts: kept };
+  });
 
   // Opener short-circuit: only the exact synthetic AlphaX welcome should be
   // swallowed here. Any other assistant-last message must continue normally;
@@ -214,9 +264,7 @@ export async function streamChatHandler(req: Request, res: Response): Promise<vo
     brainliftId: binding?.brainliftId ?? null,
     brainlift: binding?.brainlift ?? null,
   };
-  const mode: ChatMode = conversationContext.brainlift?.phase === 'authoring'
-    ? 'authoring'
-    : 'research';
+  const mode: ChatMode = resolveChatMode(conversationContext);
 
   if (mode === 'research' && conversationContext.brainliftId != null) {
     conversationContext.secondBrainSummary = await storage.getSecondBrainSummary(
