@@ -21,6 +21,8 @@ import { FireworksProvider } from './providers/fireworks';
 import { OpenRouterProvider } from './providers/openrouter';
 import { getProviderBreaker } from './circuit-breaker';
 import { recordFailoverEvent } from './provider-events';
+import { brandId } from '../../brand';
+import { ALPHAX_GRADE5_TONE_BLOCK, ALPHAX_GRADE5_TONE_REMINDER } from '../../brand/shared/tone-grade5';
 import {
   AllModelsFailed,
   NonRetryableError,
@@ -405,7 +407,17 @@ async function runProviderAttempts(input: {
  * For single-model callers, this includes provider failover to the mapped
  * Fireworks tier model.
  */
-async function callModelInternal(options: InternalCallModelOptions): Promise<CallModelResult> {
+function applyUserFacingTone(options: InternalCallModelOptions): InternalCallModelOptions {
+  if (!options.userFacing || brandId !== 'alphax') {
+    return options;
+  }
+  const middle = options.system ? `\n\n${options.system}\n\n` : '\n\n';
+  const augmentedSystem = `${ALPHAX_GRADE5_TONE_BLOCK}${middle}${ALPHAX_GRADE5_TONE_REMINDER}`;
+  return { ...options, system: augmentedSystem };
+}
+
+async function callModelInternal(rawOptions: InternalCallModelOptions): Promise<CallModelResult> {
+  const options = applyUserFacingTone(rawOptions);
   const modelDef = getModelOrThrow(options.model);
   const timeout = options.timeout ?? modelDef.defaultTimeout;
   const maxRetries = options.retries ?? modelDef.defaultMaxRetries ?? 0;

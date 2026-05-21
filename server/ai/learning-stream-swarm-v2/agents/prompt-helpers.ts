@@ -1,8 +1,12 @@
 import type { Slot } from '@shared/research-stream';
 import type { SwarmContext } from '../context-builder';
+import { brandId } from '../../../brand';
+import { ALPHAX_GRADE5_TONE_BLOCK, ALPHAX_GRADE5_TONE_REMINDER } from '../../../brand/shared/tone-grade5';
 
 export function buildPromptBase(slot: Slot, ctx: SwarmContext, typeGuidance: string): string {
-  return `You are a learning resource researcher. Find ONE high-quality ${slot.type} resource and save it directly.
+  const toneBlock = brandId === 'alphax' ? `${ALPHAX_GRADE5_TONE_BLOCK}\n\n` : '';
+  const toneReminder = brandId === 'alphax' ? `\n\n${ALPHAX_GRADE5_TONE_REMINDER}` : '';
+  return `${toneBlock}You are a learning resource researcher. Find ONE high-quality ${slot.type} resource and save it directly.
 
 ## Brainlift
 Title: ${ctx.brainlift.title}
@@ -31,5 +35,5 @@ The aiRationale field becomes "Why this matters" in the UI. Write 1-2 project-sp
 - Do not paste abstracts, transcript chunks, or exhaustive summaries into Key Insights.
 - Avoid generic rationale like "helps understand the topic"; name the concrete project connection.
 - URLs must be clean http/https URLs with no whitespace.
-- Return only a concise JSON confirmation after saving.`;
+- Return only a concise JSON confirmation after saving.${toneReminder}`;
 }

@@ -242,7 +242,7 @@ Respond ONLY with this JSON. No markdown. No backticks. No preamble.
     "O2": { "assessment": "strong|partial|weak", "evidence": "one sentence" }
   },
   "score": 1-5,
-  "rationale": "paragraph explaining the assessment, referencing specific evidence from the chain and the foundation metrics. Do not argue with the position.",
+  "rationale": "Brief explanation of the assessment, grounded in specific evidence from the chain and foundation metrics. Focused on form and grounding.",
   "feedback": "one specific, actionable recommendation tied to the weakest dimension. If P1 is weak, name what to cut to reach the line. Feedback is about form and grounding, never about the position being right or wrong."
 }`;
 
@@ -358,15 +358,15 @@ BARRIER TYPES:
 3. "high_drag" — The idea requires too much context to understand. It cannot survive compression. The position only makes sense after deep background knowledge.
 
 DIAGNOSIS:
-Write 2-3 sentences explaining WHY this specific SPOV faces this barrier. Reference the student's actual text and position — do not give generic advice.
+Briefly explain why this specific SPOV faces this barrier, referencing the student's actual text and position.
 
 STRATEGY:
-Write an actionable recommendation for making the SPOV more transmissible. The strategy describes WHAT TO DO, not a rewritten SPOV. The student does the conversion work themselves — that is the learning.
+Recommend an action the student can take to make the SPOV more transmissible. The strategy describes WHAT TO DO. The student does the conversion work themselves — that is the learning.
 
 Respond ONLY with this JSON. No markdown. No backticks. No preamble.
 {
   "barrier_type": "immunity" | "low_transmission" | "high_drag",
-  "barrier_diagnosis": "2-3 sentences diagnosing the specific barrier",
+  "barrier_diagnosis": "Brief diagnosis of the specific barrier",
   "strategy": "actionable recommendation for overcoming the barrier"
 }`;
 

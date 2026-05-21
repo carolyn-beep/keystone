@@ -221,6 +221,7 @@ export async function gradeDOK2Summary(
       timeout: 60_000,
       retries: 2,
       caller: 'dok2Grader.summaryGrading',
+      userFacing: true,
       validate: (content) => { parseGradingResponse(content); },
     });
     console.log(`[DOK2-Grade] Summary grading: ${(performance.now() - t0).toFixed(0)}ms (model: ${result.model})`);
@@ -273,6 +274,7 @@ export async function gradeDOK2SummaryFromFrozenSource(
       timeout: 60_000,
       retries: 2,
       caller: 'dok2Grader.frozenSummaryGrading',
+      userFacing: true,
       validate: (content) => { parseGradingResponse(content); },
     });
 
