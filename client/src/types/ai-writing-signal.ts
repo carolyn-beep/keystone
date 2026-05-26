@@ -6,9 +6,9 @@
  * and DOK4Tab via the shared <AiWritingSignalChip /> component.
  *
  * Field semantics: see the spec-research.md test plan + source-tracing
- * table under the feature folder for this signal. The label string is re-exported from
- * @shared/schema so the union of valid label values has a single source of
- * truth across client and server.
+ * table under the feature folder for this signal. The label string is
+ * re-exported from @shared/schema so the union of valid label values has a
+ * single source of truth across client and server.
  */
 
 import type { AiWritingSignalLabel } from '@shared/schema';
@@ -17,17 +17,7 @@ export type { AiWritingSignalLabel };
 
 export type AiWritingSignalStatus = 'analyzing' | 'done' | 'error';
 
-export interface AiWritingSignalWindow {
-  text: string;
-  /** Descriptive label e.g. "AI-Generated", "Human", "Moderately AI-Assisted". */
-  label: string;
-  aiAssistanceScore: number;
-  confidence: 'High' | 'Medium' | 'Low';
-  startIndex: number;
-  endIndex: number;
-  wordCount: number;
-  tokenLength: number;
-}
+export type AiWritingSignalConfidence = 'High' | 'Medium' | 'Low';
 
 export interface AiWritingSignalPayload {
   status: AiWritingSignalStatus;
@@ -38,15 +28,9 @@ export interface AiWritingSignalPayload {
     aiAssisted: number;
     human: number;
   } | null;
-  segmentCounts: {
-    ai: number;
-    aiAssisted: number;
-    human: number;
-  } | null;
   headline: string | null;
-  prediction: string | null;
-  dashboardLink: string | null;
-  windows: AiWritingSignalWindow[] | null;
+  /** Dominant-window confidence (computed server-side). */
+  confidence: AiWritingSignalConfidence | null;
   errorMessage: string | null;
   analyzedAt: string | null;
 }

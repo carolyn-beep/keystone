@@ -143,41 +143,16 @@ describe('pangramAssessmentsStorage.getFullByEntities', () => {
       aiAssisted: 0.7,
       human: 0.18,
     });
-    expect(payload!.segmentCounts).toEqual({
-      ai: 1,
-      aiAssisted: 1,
-      human: 1,
-    });
     expect(payload!.headline).toBe('Likely AI-Assisted');
-    expect(payload!.prediction).toBe('Significant AI assistance detected');
-    expect(payload!.dashboardLink).toBe('https://dashboard.example/result');
     expect(payload!.errorMessage).toBeNull();
     expect(payload!.analyzedAt).toMatch(/^\d{4}-\d{2}-\d{2}T/);
-    // Windows translated snake_case -> camelCase
-    expect(payload!.windows).toHaveLength(2);
-    expect(payload!.windows![0]).toEqual({
-      text: 'Sample window',
-      label: 'AI-Generated',
-      aiAssistanceScore: 0.9,
-      confidence: 'High',
-      startIndex: 0,
-      endIndex: 13,
-      wordCount: 2,
-      tokenLength: 4,
-    });
-    expect(payload!.windows![1]).toEqual({
-      text: 'Second segment',
-      label: 'Human',
-      aiAssistanceScore: 0.05,
-      confidence: 'Medium',
-      startIndex: 13,
-      endIndex: 27,
-      wordCount: 2,
-      tokenLength: 5,
-    });
+    // Confidence is derived server-side from the dominant window. Both fixture
+    // windows have word_count=2, so the first one wins on tie-break and the
+    // confidence surfaces as 'High'.
+    expect(payload!.confidence).toBe('High');
   });
 
-  it('returns status=analyzing payload with label/fractions/windows all null', async () => {
+  it('returns status=analyzing payload with label/fractions/confidence all null', async () => {
     await pangramAssessmentsStorage.upsertAnalyzing(
       'dok2_summary',
       8200,
@@ -192,16 +167,13 @@ describe('pangramAssessmentsStorage.getFullByEntities', () => {
     expect(payload!.label).toBeNull();
     expect(payload!.version).toBeNull();
     expect(payload!.fractions).toBeNull();
-    expect(payload!.segmentCounts).toBeNull();
     expect(payload!.headline).toBeNull();
-    expect(payload!.prediction).toBeNull();
-    expect(payload!.dashboardLink).toBeNull();
-    expect(payload!.windows).toBeNull();
+    expect(payload!.confidence).toBeNull();
     expect(payload!.errorMessage).toBeNull();
     expect(payload!.analyzedAt).toBeNull();
   });
 
-  it('returns status=error payload with errorMessage populated and other fields null', async () => {
+  it('returns status=error payload with neutral errorMessage and other fields null', async () => {
     await pangramAssessmentsStorage.upsertAnalyzing(
       'dok4_spov',
       8300,
@@ -214,15 +186,14 @@ describe('pangramAssessmentsStorage.getFullByEntities', () => {
     const payload = result.get(8300);
     expect(payload).not.toBeNull();
     expect(payload!.status).toBe('error');
-    expect(payload!.errorMessage).toBe('upstream 503 after 3 retries');
+    expect(payload!.errorMessage).toBe("The signal couldn't be computed for this item.");
+    expect(payload!.errorMessage!.toLowerCase()).not.toContain('pangram');
+    expect(payload!.errorMessage).not.toContain('503');
     expect(payload!.label).toBeNull();
     expect(payload!.version).toBeNull();
     expect(payload!.fractions).toBeNull();
-    expect(payload!.segmentCounts).toBeNull();
     expect(payload!.headline).toBeNull();
-    expect(payload!.prediction).toBeNull();
-    expect(payload!.dashboardLink).toBeNull();
-    expect(payload!.windows).toBeNull();
+    expect(payload!.confidence).toBeNull();
     expect(payload!.analyzedAt).toBeNull();
   });
 

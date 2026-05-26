@@ -1397,23 +1397,13 @@ export interface AiWritingSignalFieldExtension {
 
 // === AI Writing Signal -- web payload (spec 02-web-ui) ===
 // The internal API exposes only the label string. The web GETs for DOK2/3/4
-// items attach the full payload below so the UI can render the chip, the
-// stacked-fraction bar, and the per-window breakdown.
+// items attach the trimmed payload below so the UI can render the chip and
+// the stacked-fraction bar.
 // Mirrors client/src/types/ai-writing-signal.ts -- keep both in sync.
 
 export type AiWritingSignalStatus = 'analyzing' | 'done' | 'error';
 
-export interface AiWritingSignalWindow {
-  text: string;
-  /** Descriptive label e.g. "AI-Generated", "Human", "Moderately AI-Assisted". */
-  label: string;
-  aiAssistanceScore: number;
-  confidence: 'High' | 'Medium' | 'Low';
-  startIndex: number;
-  endIndex: number;
-  wordCount: number;
-  tokenLength: number;
-}
+export type AiWritingSignalConfidence = 'High' | 'Medium' | 'Low';
 
 export interface AiWritingSignalPayload {
   status: AiWritingSignalStatus;
@@ -1424,15 +1414,9 @@ export interface AiWritingSignalPayload {
     aiAssisted: number;
     human: number;
   } | null;
-  segmentCounts: {
-    ai: number;
-    aiAssisted: number;
-    human: number;
-  } | null;
   headline: string | null;
-  prediction: string | null;
-  dashboardLink: string | null;
-  windows: AiWritingSignalWindow[] | null;
+  /** Dominant-window confidence (computed server-side from windows[]). */
+  confidence: AiWritingSignalConfidence | null;
   errorMessage: string | null;
   /** ISO timestamp (Date.toISOString()) or null while analyzing / on error. */
   analyzedAt: string | null;

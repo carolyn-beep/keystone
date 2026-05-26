@@ -14,7 +14,7 @@
  */
 
 import { db, eq, and, asc } from '../../storage/base';
-import { dok2Points, dok3Insights, dok4Spovs } from '@shared/schema';
+import { dok2Points, dok2Summaries, dok3Insights, dok4Spovs } from '@shared/schema';
 import { NotFoundError } from '../../middleware/error-handler';
 import type { PangramEntityType } from '@shared/schema';
 
@@ -24,6 +24,22 @@ export async function assembleTextForEntity(
   brainliftId: number,
 ): Promise<string> {
   if (entityType === 'dok2_summary') {
+    const summaries = await db
+      .select({ id: dok2Summaries.id })
+      .from(dok2Summaries)
+      .where(
+        and(
+          eq(dok2Summaries.id, entityId),
+          eq(dok2Summaries.brainliftId, brainliftId),
+        ),
+      )
+      .limit(1);
+    if (summaries.length === 0) {
+      throw new NotFoundError(
+        `DOK2 summary ${entityId} not found for brainlift ${brainliftId}`,
+      );
+    }
+
     const points = await db
       .select({ text: dok2Points.text })
       .from(dok2Points)

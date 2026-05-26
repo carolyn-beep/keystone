@@ -108,6 +108,18 @@ describe('assembleTextForEntity -- DOK2', () => {
     const text = await assembleTextForEntity('dok2_summary', SUMMARY_EMPTY_ID, BRAINLIFT_ID);
     expect(text).toBe('');
   });
+
+  it('throws NotFoundError when summary does not exist', async () => {
+    await expect(
+      assembleTextForEntity('dok2_summary', 9_999_999, BRAINLIFT_ID),
+    ).rejects.toBeInstanceOf(NotFoundError);
+  });
+
+  it('throws NotFoundError when brainliftId does not match', async () => {
+    await expect(
+      assembleTextForEntity('dok2_summary', SUMMARY_ID, BRAINLIFT_ID + 99999),
+    ).rejects.toBeInstanceOf(NotFoundError);
+  });
 });
 
 describe('assembleTextForEntity -- DOK3', () => {

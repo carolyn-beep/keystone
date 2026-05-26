@@ -75,6 +75,8 @@ beforeEach(() => {
   vi.clearAllMocks();
   // Default: getByEntity returns null. Tests override as needed.
   (pangramAssessmentsStorage.getByEntity as any).mockResolvedValue(null);
+  (pangramAssessmentsStorage.markDone as any).mockResolvedValue(true);
+  (pangramAssessmentsStorage.markError as any).mockResolvedValue(true);
 });
 
 describe('pangramAnalyzeJob -- happy path', () => {
@@ -101,6 +103,7 @@ describe('pangramAnalyzeJob -- happy path', () => {
       'dok3_insight',
       42,
       FIXTURE_RESPONSE,
+      sha256(text),
     );
     expect(pangramAssessmentsStorage.markError).not.toHaveBeenCalled();
   });
@@ -170,7 +173,29 @@ describe('pangramAnalyzeJob -- hash-and-skip', () => {
       'dok3_insight',
       3,
       FIXTURE_RESPONSE,
+      sha256(newText),
     );
+  });
+
+  it('returns skipped when a stale job finishes after a newer text hash superseded it', async () => {
+    const oldText = 'old text still in flight';
+    (assembleTextForEntity as any).mockResolvedValue(oldText);
+    (analyzeText as any).mockResolvedValue(FIXTURE_RESPONSE);
+    (pangramAssessmentsStorage.markDone as any).mockResolvedValueOnce(false);
+
+    const result = await pangramAnalyzeJob(
+      { entityType: 'dok3_insight', entityId: 4, brainliftId: 1 },
+      mockHelpers,
+    );
+
+    expect(result).toEqual({ status: 'skipped' });
+    expect(pangramAssessmentsStorage.markDone).toHaveBeenCalledWith(
+      'dok3_insight',
+      4,
+      FIXTURE_RESPONSE,
+      sha256(oldText),
+    );
+    expect(pangramAssessmentsStorage.markError).not.toHaveBeenCalled();
   });
 });
 
@@ -213,6 +238,7 @@ describe('pangramAnalyzeJob -- retry exhaustion', () => {
       'dok3_insight',
       10,
       expect.stringContaining('PangramHttpError'),
+      sha256('some text'),
     );
     expect(pangramAssessmentsStorage.markDone).not.toHaveBeenCalled();
 
@@ -238,6 +264,7 @@ describe('pangramAnalyzeJob -- retry exhaustion', () => {
       'dok3_insight',
       11,
       expect.stringContaining('PangramTimeoutError'),
+      sha256('some text'),
     );
 
     vi.restoreAllMocks();
@@ -281,6 +308,50 @@ describe('pangramAnalyzeJob -- storage write failure', () => {
     expect(analyzeText).not.toHaveBeenCalled();
     expect(pangramAssessmentsStorage.markDone).not.toHaveBeenCalled();
     expect(pangramAssessmentsStorage.markError).not.toHaveBeenCalled();
+  });
+
+  it('skips without retrying when FK violation code is on the error itself', async () => {
+    (assembleTextForEntity as any).mockResolvedValue('some text');
+    (pangramAssessmentsStorage.getByEntity as any).mockResolvedValue(null);
+    (pangramAssessmentsStorage.upsertAnalyzing as any).mockRejectedValueOnce({
+      code: '23503',
+    });
+
+    const result = await pangramAnalyzeJob(
+      { entityType: 'dok3_insight', entityId: 14, brainliftId: 999 },
+      mockHelpers,
+    );
+
+    expect(result).toEqual({ status: 'skipped' });
+    expect(analyzeText).not.toHaveBeenCalled();
+    expect(pangramAssessmentsStorage.markDone).not.toHaveBeenCalled();
+    expect(pangramAssessmentsStorage.markError).not.toHaveBeenCalled();
+  });
+
+  it('returns skipped when retry exhaustion error write is superseded by a newer hash', async () => {
+    (assembleTextForEntity as any).mockResolvedValue('some text');
+    (pangramAssessmentsStorage.getByEntity as any).mockResolvedValue(null);
+    (analyzeText as any).mockRejectedValue(new PangramTimeoutError(30_000));
+    (pangramAssessmentsStorage.markError as any).mockResolvedValueOnce(false);
+    vi.spyOn(globalThis, 'setTimeout').mockImplementation(((fn: any) => {
+      fn();
+      return 0 as any;
+    }) as any);
+
+    const result = await pangramAnalyzeJob(
+      { entityType: 'dok3_insight', entityId: 15, brainliftId: 1 },
+      mockHelpers,
+    );
+
+    expect(result).toEqual({ status: 'skipped' });
+    expect(pangramAssessmentsStorage.markError).toHaveBeenCalledWith(
+      'dok3_insight',
+      15,
+      expect.stringContaining('PangramTimeoutError'),
+      sha256('some text'),
+    );
+
+    vi.restoreAllMocks();
   });
 
   it('re-throws when markDone fails after Pangram success', async () => {

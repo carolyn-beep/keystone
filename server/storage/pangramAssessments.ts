@@ -10,9 +10,9 @@
 
 import { db, eq, and, inArray, pangramAssessments } from './base';
 import type {
+  AiWritingSignalConfidence,
   AiWritingSignalLabel,
   AiWritingSignalPayload,
-  AiWritingSignalWindow,
   PangramAssessment,
   PangramEntityType,
   PangramPredictionShort,
@@ -140,8 +140,20 @@ async function markDone(
   entityType: PangramEntityType,
   entityId: number,
   result: PangramResponse,
-): Promise<void> {
-  await db
+  expectedTextHash?: string,
+): Promise<boolean> {
+  const whereClause = expectedTextHash
+    ? and(
+        eq(pangramAssessments.entityType, entityType),
+        eq(pangramAssessments.entityId, entityId),
+        eq(pangramAssessments.textHash, expectedTextHash),
+      )
+    : and(
+        eq(pangramAssessments.entityType, entityType),
+        eq(pangramAssessments.entityId, entityId),
+      );
+
+  const rows = await db
     .update(pangramAssessments)
     .set({
       status: 'done',
@@ -161,12 +173,10 @@ async function markDone(
       analyzedAt: new Date(),
       updatedAt: new Date(),
     })
-    .where(
-      and(
-        eq(pangramAssessments.entityType, entityType),
-        eq(pangramAssessments.entityId, entityId),
-      ),
-    );
+    .where(whereClause)
+    .returning({ id: pangramAssessments.id });
+
+  return rows.length > 0;
 }
 
 /**
@@ -177,8 +187,20 @@ async function markError(
   entityType: PangramEntityType,
   entityId: number,
   errorMessage: string,
-): Promise<void> {
-  await db
+  expectedTextHash?: string,
+): Promise<boolean> {
+  const whereClause = expectedTextHash
+    ? and(
+        eq(pangramAssessments.entityType, entityType),
+        eq(pangramAssessments.entityId, entityId),
+        eq(pangramAssessments.textHash, expectedTextHash),
+      )
+    : and(
+        eq(pangramAssessments.entityType, entityType),
+        eq(pangramAssessments.entityId, entityId),
+      );
+
+  const rows = await db
     .update(pangramAssessments)
     .set({
       status: 'error',
@@ -198,41 +220,36 @@ async function markError(
       analyzedAt: null,
       updatedAt: new Date(),
     })
-    .where(
-      and(
-        eq(pangramAssessments.entityType, entityType),
-        eq(pangramAssessments.entityId, entityId),
-      ),
-    );
+    .where(whereClause)
+    .returning({ id: pangramAssessments.id });
+
+  return rows.length > 0;
 }
 
 /**
- * Translate a raw windows JSONB blob (stored as PangramWindow[] with snake_case
- * keys) into the camelCase AiWritingSignalWindow[] surfaced on the web wire.
+ * Pick the dominant window's confidence from a raw windows JSONB blob.
  *
- * Defensive about shape: any element that is not an object is dropped. This
- * never happens in practice (markDone writes the validated Pangram response)
- * but it keeps the read path honest if a corrupt row ever lands.
+ * "Dominant" = largest word_count (best representative of the document). Falls
+ * back to the first window's confidence, or null if windows is empty/missing.
+ *
+ * Exported for unit testing.
  */
-function translateWindows(raw: unknown): AiWritingSignalWindow[] | null {
-  if (!Array.isArray(raw)) return null;
-  const result: AiWritingSignalWindow[] = [];
+export function dominantConfidence(raw: unknown): AiWritingSignalConfidence | null {
+  if (!Array.isArray(raw) || raw.length === 0) return null;
+  let bestConfidence: AiWritingSignalConfidence | null = null;
+  let bestWords = -1;
   for (const w of raw) {
     if (typeof w !== 'object' || w === null) continue;
     const win = w as Partial<PangramWindow>;
-    result.push({
-      text: typeof win.text === 'string' ? win.text : '',
-      label: typeof win.label === 'string' ? win.label : '',
-      aiAssistanceScore:
-        typeof win.ai_assistance_score === 'number' ? win.ai_assistance_score : 0,
-      confidence: (win.confidence ?? 'Low') as AiWritingSignalWindow['confidence'],
-      startIndex: typeof win.start_index === 'number' ? win.start_index : 0,
-      endIndex: typeof win.end_index === 'number' ? win.end_index : 0,
-      wordCount: typeof win.word_count === 'number' ? win.word_count : 0,
-      tokenLength: typeof win.token_length === 'number' ? win.token_length : 0,
-    });
+    const conf = win.confidence;
+    if (conf !== 'High' && conf !== 'Medium' && conf !== 'Low') continue;
+    const words = typeof win.word_count === 'number' ? win.word_count : 0;
+    if (words > bestWords) {
+      bestWords = words;
+      bestConfidence = conf;
+    }
   }
-  return result;
+  return bestConfidence;
 }
 
 /**
@@ -249,12 +266,9 @@ function rowToPayload(row: PangramAssessment): AiWritingSignalPayload {
       label: null,
       version: null,
       fractions: null,
-      segmentCounts: null,
       headline: null,
-      prediction: null,
-      dashboardLink: null,
-      windows: null,
-      errorMessage: row.errorMessage,
+      confidence: null,
+      errorMessage: "The signal couldn't be computed for this item.",
       analyzedAt: null,
     };
   }
@@ -273,20 +287,8 @@ function rowToPayload(row: PangramAssessment): AiWritingSignalPayload {
               human: Number(row.fractionHuman),
             }
           : null,
-      segmentCounts:
-        row.numAiSegments !== null &&
-        row.numAiAssistedSegments !== null &&
-        row.numHumanSegments !== null
-          ? {
-              ai: row.numAiSegments,
-              aiAssisted: row.numAiAssistedSegments,
-              human: row.numHumanSegments,
-            }
-          : null,
       headline: row.headline,
-      prediction: row.prediction,
-      dashboardLink: row.dashboardLink,
-      windows: translateWindows(row.windows),
+      confidence: dominantConfidence(row.windows),
       errorMessage: null,
       analyzedAt: row.analyzedAt ? row.analyzedAt.toISOString() : null,
     };
@@ -297,10 +299,8 @@ function rowToPayload(row: PangramAssessment): AiWritingSignalPayload {
     label: null,
     version: null,
     fractions: null,
-    segmentCounts: null,
     headline: null,
-    prediction: null,
-    dashboardLink: null,
+    confidence: null,
     windows: null,
     errorMessage: null,
     analyzedAt: null,

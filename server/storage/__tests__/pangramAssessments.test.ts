@@ -148,7 +148,13 @@ describe('markDone', () => {
       TEST_BRAINLIFT_ID,
       'hash-2',
     );
-    await pangramAssessmentsStorage.markDone('dok2_summary', 9100, FIXTURE_RESPONSE);
+    const wrote = await pangramAssessmentsStorage.markDone(
+      'dok2_summary',
+      9100,
+      FIXTURE_RESPONSE,
+      'hash-2',
+    );
+    expect(wrote).toBe(true);
 
     const row = await pangramAssessmentsStorage.getByEntity('dok2_summary', 9100);
     expect(row!.status).toBe('done');
@@ -168,6 +174,28 @@ describe('markDone', () => {
     expect(row!.analyzedAt).not.toBeNull();
     expect(row!.errorMessage).toBeNull();
   });
+
+  it('does not overwrite when expectedTextHash no longer matches', async () => {
+    await pangramAssessmentsStorage.upsertAnalyzing(
+      'dok2_summary',
+      9101,
+      TEST_BRAINLIFT_ID,
+      'newer-hash',
+    );
+
+    const wrote = await pangramAssessmentsStorage.markDone(
+      'dok2_summary',
+      9101,
+      FIXTURE_RESPONSE,
+      'older-hash',
+    );
+
+    expect(wrote).toBe(false);
+    const row = await pangramAssessmentsStorage.getByEntity('dok2_summary', 9101);
+    expect(row!.status).toBe('analyzing');
+    expect(row!.textHash).toBe('newer-hash');
+    expect(row!.predictionShort).toBeNull();
+  });
 });
 
 describe('markError', () => {
@@ -180,11 +208,13 @@ describe('markError', () => {
     );
     await pangramAssessmentsStorage.markDone('dok4_spov', 9200, FIXTURE_RESPONSE);
 
-    await pangramAssessmentsStorage.markError(
+    const wrote = await pangramAssessmentsStorage.markError(
       'dok4_spov',
       9200,
       'pangram 503 after 3 retries',
+      'hash-3',
     );
+    expect(wrote).toBe(true);
 
     const row = await pangramAssessmentsStorage.getByEntity('dok4_spov', 9200);
     expect(row!.status).toBe('error');
@@ -202,6 +232,28 @@ describe('markError', () => {
     expect(row!.prediction).toBeNull();
     expect(row!.windows).toBeNull();
     expect(row!.analyzedAt).toBeNull();
+  });
+
+  it('does not mark error when expectedTextHash no longer matches', async () => {
+    await pangramAssessmentsStorage.upsertAnalyzing(
+      'dok4_spov',
+      9201,
+      TEST_BRAINLIFT_ID,
+      'newer-hash',
+    );
+
+    const wrote = await pangramAssessmentsStorage.markError(
+      'dok4_spov',
+      9201,
+      'old failure',
+      'older-hash',
+    );
+
+    expect(wrote).toBe(false);
+    const row = await pangramAssessmentsStorage.getByEntity('dok4_spov', 9201);
+    expect(row!.status).toBe('analyzing');
+    expect(row!.textHash).toBe('newer-hash');
+    expect(row!.errorMessage).toBeNull();
   });
 });
 

@@ -46,6 +46,17 @@ function sha256Hex(text: string): string {
   return createHash('sha256').update(text, 'utf8').digest('hex');
 }
 
+function pgCode(err: unknown): string | undefined {
+  let current = err;
+  for (let depth = 0; depth < 4; depth++) {
+    if (typeof current !== 'object' || current === null) return undefined;
+    const record = current as { code?: unknown; cause?: unknown };
+    if (typeof record.code === 'string') return record.code;
+    current = record.cause;
+  }
+  return undefined;
+}
+
 async function sleep(ms: number): Promise<void> {
   if (ms <= 0) return;
   await new Promise((resolve) => setTimeout(resolve, ms));
@@ -114,8 +125,7 @@ export async function pangramAnalyzeJob(
       textHash,
     );
   } catch (err) {
-    const pgCode = (err as { cause?: { code?: string } })?.cause?.code;
-    if (pgCode === '23503') {
+    if (pgCode(err) === '23503') {
       helpers.logger.warn(
         `[Pangram Analyze] brainlift ${brainliftId} no longer exists for ${entityType} ${entityId}; skipping`,
       );
@@ -135,13 +145,35 @@ export async function pangramAnalyzeJob(
     );
     // Mark error -- NULLs out prior result columns by contract. Do NOT
     // re-throw: exhaustion is terminal, not a graphile retry trigger.
-    await pangramAssessmentsStorage.markError(entityType, entityId, errorMessage);
+    const wroteError = await pangramAssessmentsStorage.markError(
+      entityType,
+      entityId,
+      errorMessage,
+      textHash,
+    );
+    if (!wroteError) {
+      helpers.logger.warn(
+        `[Pangram Analyze] skipped error write for superseded ${entityType} ${entityId}`,
+      );
+      return { status: 'skipped' };
+    }
     return { status: 'error' };
   }
 
   // 5. Persist result. If this write fails, re-throw so graphile retries the
   // whole job (independent of the Pangram retry budget).
-  await pangramAssessmentsStorage.markDone(entityType, entityId, result);
+  const wroteDone = await pangramAssessmentsStorage.markDone(
+    entityType,
+    entityId,
+    result,
+    textHash,
+  );
+  if (!wroteDone) {
+    helpers.logger.warn(
+      `[Pangram Analyze] skipped done write for superseded ${entityType} ${entityId}`,
+    );
+    return { status: 'skipped' };
+  }
   helpers.logger.info(
     `[Pangram Analyze] done for ${entityType} ${entityId}: ${result.prediction_short}`,
   );

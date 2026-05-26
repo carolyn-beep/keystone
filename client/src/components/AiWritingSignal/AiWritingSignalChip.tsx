@@ -21,9 +21,9 @@ import {
   TooltipTrigger,
 } from '@/components/ui/tooltip';
 import type {
+  AiWritingSignalConfidence,
   AiWritingSignalLabel,
   AiWritingSignalPayload,
-  AiWritingSignalWindow,
 } from '@/types/ai-writing-signal';
 
 export interface AiWritingSignalChipProps {
@@ -86,23 +86,6 @@ const LABEL_SHORT: Record<AiWritingSignalLabel, string> = {
   ai: 'AI',
 };
 
-/**
- * Pick the dominant window for confidence display. We use the window with the
- * largest word count (best representative) and fall back to first.
- *
- * Exported for unit testing.
- */
-export function dominantConfidence(
-  windows: AiWritingSignalWindow[] | null,
-): AiWritingSignalWindow['confidence'] | null {
-  if (!windows || windows.length === 0) return null;
-  let best = windows[0];
-  for (const w of windows) {
-    if (w.wordCount > best.wordCount) best = w;
-  }
-  return best.confidence;
-}
-
 function labelTone(label: AiWritingSignalLabel): { fg: string; soft: string } {
   switch (label) {
     case 'human':
@@ -156,7 +139,7 @@ function Eyebrow() {
   );
 }
 
-function confidenceTone(level: AiWritingSignalWindow['confidence']): { fg: string; bg: string } {
+function confidenceTone(level: AiWritingSignalConfidence): { fg: string; bg: string } {
   switch (level) {
     case 'High':
       return { fg: tokens.success, bg: tokens.successSoft };
@@ -167,7 +150,7 @@ function confidenceTone(level: AiWritingSignalWindow['confidence']): { fg: strin
   }
 }
 
-function ConfidenceBadge(props: { confidence: AiWritingSignalWindow['confidence'] }) {
+function ConfidenceBadge(props: { confidence: AiWritingSignalConfidence }) {
   const tone = confidenceTone(props.confidence);
   return (
     <span
@@ -243,7 +226,7 @@ export function AiWritingSignalChip({ signal }: AiWritingSignalChipProps) {
   const tone = signal.label
     ? labelTone(signal.label)
     : { fg: tokens.textSecondary, soft: tokens.border };
-  const confidence = dominantConfidence(signal.windows);
+  const confidence = signal.confidence;
 
   return (
     <RowShell>
