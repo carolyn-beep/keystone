@@ -48,6 +48,7 @@ export {
   dok2Summaries, dok2Points, dok2FactRelations, learningStreamItems, swarmUsage, knowledgeCheckQuizzes,
   dok3Insights, dok3InsightLinks,
   dok4Spovs, dok4Dok3Links,
+  pangramAssessments,
   chatConversations, chatMessages,
   nativeBrainliftDetails, builderExperts,
   categories,

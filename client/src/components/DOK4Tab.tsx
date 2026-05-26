@@ -8,6 +8,14 @@ import type { DOK4GradingSSEEvent } from '@/hooks/useDOK4GradingEvents';
 import { tokens, getScoreChipColors } from '@/lib/colors';
 import { TactileButton } from '@/components/ui/tactile-button';
 import { FilterBar, type ExtraFilter } from '@/components/FilterBar';
+import { AiWritingSignalChip } from '@/components/AiWritingSignal';
+import type { AiWritingSignalPayload } from '@/types/ai-writing-signal';
+
+// Widened locally so the file compiles before the GET /dok4-spovs route
+// extension lands (see spec 02 Open Issues / Andon).
+type Dok4SpovWithSignal = DOK4SpovWithLinks & {
+  aiWritingSignal?: AiWritingSignalPayload | null;
+};
 
 const SPOV_SCORE_LABELS: Record<number, string> = {
   5: 'Quotable', 4: 'Sharp Spiky', 3: 'Unrefined', 2: 'Borrowed', 1: 'Not Spiky',
@@ -492,6 +500,11 @@ function SpovCard({ spov, expanded, onToggle, analysisExpanded, onToggleAnalysis
   const hasCriteria = spov.criteriaBreakdown && Object.keys(spov.criteriaBreakdown).length > 0;
   const hasAntimemetic = spov.score !== null && spov.score >= 3 && spov.antimemeticAssessment !== null;
 
+  // AI Writing Signal — defensively widened until the GET /dok4-spovs route
+  // extension lands (see spec 02 Open Issues).
+  const aiSignal: AiWritingSignalPayload | null =
+    (spov as Dok4SpovWithSignal).aiWritingSignal ?? null;
+
   return (
     <div
       className="animate-fade-slide-in"
@@ -565,6 +578,9 @@ function SpovCard({ spov, expanded, onToggle, analysisExpanded, onToggleAnalysis
               )}
             </div>
 
+            {/* AI Writing Signal -- informational, never affects grade. */}
+            {aiSignal && <AiWritingSignalChip signal={aiSignal} />}
+
             {/* Grading progress */}
             {spov.status === 'grading' && latestEvent && latestEvent.spovId === spov.id && (
               <div className="flex items-center gap-2 text-[12px] text-muted-foreground">
@@ -585,6 +601,7 @@ function SpovCard({ spov, expanded, onToggle, analysisExpanded, onToggleAnalysis
                 </div>
               </div>
             )}
+
           </div>
         </div>
 

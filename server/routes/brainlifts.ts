@@ -22,6 +22,7 @@ import {
 } from "../middleware/brainlift-auth";
 import { createSSEResponse } from "../utils/sse";
 import { STAGE_LABELS } from "@shared/import-progress";
+import { attachAiWritingSignal } from "../services/aiWritingSignal";
 
 export const brainliftsRouter = Router();
 
@@ -139,13 +140,17 @@ brainliftsRouter.get(
       storage.getDOK2Summaries(brainlift.id),
     ]);
 
+    // Attach the AI Writing Signal payload to each DOK2 summary in a single
+    // batched lookup (no N+1). Spec 02 (web-ui).
+    const dok2WithSignal = await attachAiWritingSignal(dok2Rows, 'dok2_summary');
+
     res.json({
       ...brainlift,
       improperlyFormatted: brainlift.improperlyFormatted ?? false,
       facts: factsRows,
       contradictionClusters: clusters,
       experts: expertsRows,
-      dok2Summaries: dok2Rows.length > 0 ? dok2Rows : undefined,
+      dok2Summaries: dok2WithSignal.length > 0 ? dok2WithSignal : undefined,
       userPermission,
     });
   })

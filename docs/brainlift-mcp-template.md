@@ -309,6 +309,27 @@ Focus: Athletic department strategy and regulation
 
 ---
 
+## AI Writing Signal
+
+Every DOK2 summary, DOK3 insight, and DOK4 SPOV is analyzed for an
+**AI Writing Signal** -- a categorical label of *Human*, *AI-Assisted*,
+*Mixed*, or *AI* -- computed automatically after grading completes.
+
+This signal is **informational only**.
+
+- It is **not** used by the platform grader. It does **not** affect any score,
+  rejection, or pass/fail outcome anywhere in the system.
+- It is **visible to anyone with read access** to the item, including reviewers
+  (teachers, guides, mentors). Reviewers may consider it when applying their
+  own off-platform policies; the platform itself prescribes no action.
+- It is **not** a penalty. It is not listed in the "What the Grader Penalizes"
+  table above and never will be.
+
+Treat the signal as context, not as judgment. Author your DOK content the way
+you would author it without this signal in place.
+
+---
+
 ## Common Mistakes
 
 | Mistake | Why it breaks | Fix |

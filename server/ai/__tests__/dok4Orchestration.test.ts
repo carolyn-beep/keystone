@@ -49,7 +49,8 @@ vi.mock('../../services/brainlift', () => ({
 
 // Mock withJob
 const mockQueue = vi.fn();
-const mockForPayload = vi.fn().mockReturnValue({ queue: mockQueue });
+const mockWithOptions = vi.fn().mockReturnValue({ queue: mockQueue });
+const mockForPayload = vi.fn().mockReturnValue({ queue: mockQueue, withOptions: mockWithOptions });
 vi.mock('../../utils/withJob', () => ({
   withJob: vi.fn().mockReturnValue({ forPayload: mockForPayload }),
 }));
@@ -255,6 +256,7 @@ describe('dok4GradeJob', () => {
       warn: vi.fn(),
       debug: vi.fn(),
     },
+    job: { attempts: 1, max_attempts: 1 },
   } as any;
 
   beforeEach(async () => {
@@ -265,12 +267,19 @@ describe('dok4GradeJob', () => {
     mockStorage.updateDOK4SpovStatus.mockReset();
     mockStorage.saveDOK4Rejection.mockReset();
     mockStorage.saveDOK4GradeResult.mockReset();
+    mockStorage.getDOK4Spovs.mockReset();
     mockValidatePOV.mockReset();
     mockCheckTraceability.mockReset();
     mockCheckDivergence.mockReset();
     mockEvaluateQuality.mockReset();
     mockAssessAntimemetic.mockReset();
     mockRecomputeScore.mockReset();
+    mockQueue.mockReset();
+    mockWithOptions.mockClear();
+    mockForPayload.mockClear();
+    mockStorage.getDOK4Spovs.mockResolvedValue([
+      { id: FIXTURE_SPOV_ID, status: 'linked' },
+    ]);
 
     emitter = await import('../../events/dok4GradingEmitter');
     dok4GradeJob = await import('../../jobs/dok4GradeJob');
@@ -321,7 +330,11 @@ describe('dok4GradeJob', () => {
     expect(mockEvaluateQuality).toHaveBeenCalled();
     expect(mockAssessAntimemetic).toHaveBeenCalled();
     expect(mockStorage.saveDOK4GradeResult).toHaveBeenCalled();
-    expect(mockRecomputeScore).toHaveBeenCalledWith(FIXTURE_BRAINLIFT_ID);
+    expect(mockRecomputeScore).toHaveBeenCalledWith(FIXTURE_BRAINLIFT_ID, {
+      trigger: 'pipeline',
+      dokLevel: 4,
+      itemId: FIXTURE_SPOV_ID,
+    });
   });
 
   it('computes final score as min(raw, ceiling)', async () => {
@@ -497,7 +510,11 @@ describe('dok4GradeJob', () => {
       mockHelpers,
     );
 
-    expect(mockRecomputeScore).toHaveBeenCalledWith(FIXTURE_BRAINLIFT_ID);
+    expect(mockRecomputeScore).toHaveBeenCalledWith(FIXTURE_BRAINLIFT_ID, {
+      trigger: 'pipeline',
+      dokLevel: 4,
+      itemId: FIXTURE_SPOV_ID,
+    });
   });
 });
 

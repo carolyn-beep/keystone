@@ -14,6 +14,14 @@ import { FaArrowUpRightDots } from 'react-icons/fa6';
 import type { Fact, DOK2FailReason } from '@shared/schema';
 import { tokens, getScoreChipColors } from '@/lib/colors';
 import { FilterBar, type ExtraFilter } from '@/components/FilterBar';
+import { AiWritingSignalChip } from '@/components/AiWritingSignal';
+import type { AiWritingSignalPayload } from '@/types/ai-writing-signal';
+
+// Widened locally so the file compiles before the GET /dok2-summaries route
+// extension lands (see spec 02 Open Issues / Andon).
+type Dok2SummaryWithSignal = DOK2Summary & {
+  aiWritingSignal?: AiWritingSignalPayload | null;
+};
 
 /**
  * Render text with markdown links [text](url) as clickable <a> tags
@@ -218,6 +226,11 @@ export function SummariesTab({ summaries, facts, setActiveTab }: SummariesTabPro
     const gradeColors = summary.grade !== null ? getScoreChipColors(summary.grade) : null;
     const gradeLabel = getGradeLabel(summary.grade);
 
+    // AI Writing Signal — defensively widened until the GET /dok2-summaries
+    // route extension lands (see spec 02 Open Issues).
+    const aiSignal: AiWritingSignalPayload | null =
+      (summary as Dok2SummaryWithSignal).aiWritingSignal ?? null;
+
     return (
       <div
         className="bg-card-elevated rounded-xl shadow-card overflow-hidden"
@@ -276,6 +289,9 @@ export function SummariesTab({ summaries, facts, setActiveTab }: SummariesTabPro
               )}
             </div>
 
+            {/* AI Writing Signal -- informational, never affects grade. */}
+            {aiSignal && <AiWritingSignalChip signal={aiSignal} />}
+
             {/* Fail reason warning */}
             {summary.grade === 1 && summary.failReason && (
               <span className="inline-flex items-center gap-2 text-[9px] uppercase tracking-[0.35em] font-semibold text-warning">
@@ -283,6 +299,7 @@ export function SummariesTab({ summaries, facts, setActiveTab }: SummariesTabPro
                 {FAIL_REASON_LABELS[summary.failReason] || summary.failReason}
               </span>
             )}
+
           </div>
         </div>
 

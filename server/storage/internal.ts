@@ -15,6 +15,7 @@ import {
 import type { SQL } from 'drizzle-orm';
 import type { PgColumn } from 'drizzle-orm/pg-core';
 import { labelForCriterion, type LabelDokLevel } from '../lib/criteria-labels';
+import { pangramAssessmentsStorage } from './pangramAssessments';
 
 // ── Types ──
 
@@ -267,6 +268,12 @@ export async function getAssessmentDOK2(
     }
   }
 
+  // AI Writing Signal (Pangram) labels for each summary.
+  const aiWritingSignals = await pangramAssessmentsStorage.getLabelsByEntities(
+    'dok2_summary',
+    summaryIds,
+  );
+
   return {
     items: summaries.map(s => ({
       id: s.id,
@@ -278,6 +285,7 @@ export async function getAssessmentDOK2(
       feedback: s.feedback,
       failReason: s.failReason,
       gradingStatus: s.gradingStatus,
+      aiWritingSignal: aiWritingSignals.get(s.id) ?? null,
     })),
     total: Number(countResult.count),
   };
@@ -346,6 +354,12 @@ export async function getAssessmentDOK3(
     }
   }
 
+  // AI Writing Signal (Pangram) labels for each insight.
+  const aiWritingSignals = await pangramAssessmentsStorage.getLabelsByEntities(
+    'dok3_insight',
+    insightIds,
+  );
+
   return {
     items: insights.map(i => {
       const base: Record<string, any> = {
@@ -358,6 +372,7 @@ export async function getAssessmentDOK3(
         foundationIntegrityIndex: i.foundationIntegrityIndex,
         linkedSources: sourcesMap.get(i.id) || [],
         criteriaSummary: summarizeCriteria(i.criteriaBreakdown as Record<string, any> | null, 3),
+        aiWritingSignal: aiWritingSignals.get(i.id) ?? null,
       };
       if (detail === 'full') {
         base.criteriaBreakdown = i.criteriaBreakdown;
@@ -438,6 +453,12 @@ export async function getAssessmentDOK4(
     }
   }
 
+  // AI Writing Signal (Pangram) labels for each SPOV.
+  const aiWritingSignals = await pangramAssessmentsStorage.getLabelsByEntities(
+    'dok4_spov',
+    spovIds,
+  );
+
   return {
     items: spovs.map(s => {
       const base: Record<string, any> = {
@@ -451,6 +472,7 @@ export async function getAssessmentDOK4(
         rejectionCategory: s.rejectionCategory,
         linkedInsights: insightsMap.get(s.id) || [],
         criteriaSummary: summarizeCriteria(s.criteriaBreakdown as Record<string, any> | null, 4),
+        aiWritingSignal: aiWritingSignals.get(s.id) ?? null,
       };
       if (detail === 'full') {
         base.criteriaBreakdown = s.criteriaBreakdown;

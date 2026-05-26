@@ -30,6 +30,7 @@ import * as dok4CrudStorage from './dok4-crud';
 import * as sprintsStorage from './sprints';
 import * as skillsStorage from './skills';
 import * as secondBrainStorage from './second-brain';
+import { pangramAssessmentsStorage } from './pangramAssessments';
 
 // Re-export types from base
 export type {
@@ -399,4 +400,4 @@ export const storage = {
 };
 
 // Export individual modules for direct access if needed
-export { brainliftsStorage, expertsStorage, verificationsStorage, redundancyStorage, analyticsStorage, dok2Storage, sharesStorage, learningStreamStorage, dok3Storage, dok4Storage, knowledgeCheckStorage, nativeBrainliftsStorage, builderExpertsStorage, knowledgeTreeStorage, apiKeysStorage, internalStorage, versionsStorage, staleStorage, dok1CrudStorage, dok2CrudStorage, dok3CrudStorage, dok4CrudStorage, sprintsStorage };
+export { brainliftsStorage, expertsStorage, verificationsStorage, redundancyStorage, analyticsStorage, dok2Storage, sharesStorage, learningStreamStorage, dok3Storage, dok4Storage, knowledgeCheckStorage, nativeBrainliftsStorage, builderExpertsStorage, knowledgeTreeStorage, apiKeysStorage, internalStorage, versionsStorage, staleStorage, dok1CrudStorage, dok2CrudStorage, dok3CrudStorage, dok4CrudStorage, sprintsStorage, pangramAssessmentsStorage };

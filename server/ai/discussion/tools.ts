@@ -2,11 +2,13 @@ import { tool } from 'ai';
 import { z } from 'zod';
 import { db, eq, sql, facts, learningStreamItems } from '../../storage/base';
 import { storage } from '../../storage';
+import { pangramAssessmentsStorage } from '../../storage/pangramAssessments';
 import { saveSingleDOK2Summary } from '../../storage/dok2';
 import { autoBookmarkIfPending } from '../../storage/knowledge-tree';
 import { withJob } from '../../utils/withJob';
 import { ensureItemTextContent } from '../../utils/item-text-content';
 import { buildSecondBrainChatTools } from '../chat/tools/second-brain';
+import { AI_WRITING_SIGNAL_TOOL_WARNING } from '../chat/tools/curation';
 import type { AuthContext, LearningStreamItem, Brainlift } from '../../storage/base';
 
 interface BuilderContext {
@@ -169,7 +171,8 @@ export function buildDiscussionTools(
 
     save_dok2_summary: tool({
       description:
-        'Save a DOK2 summary — the user\'s synthesis of multiple DOK1 facts. Only call after the user articulates their interpretation and agrees to save.',
+        'Save a DOK2 summary — the user\'s synthesis of multiple DOK1 facts. Only call after the user articulates their interpretation and agrees to save. '
+        + AI_WRITING_SIGNAL_TOOL_WARNING,
       inputSchema: z.object({
         summaryPoints: z
           .array(z.string())
@@ -239,6 +242,17 @@ export function buildDiscussionTools(
         // In builder mode, include item-specific extraction state
         if (isBuilder) {
           const itemDetail = await storage.getItemDetail(item.id, brainlift.id);
+          // AI Writing Signal labels for the DOK2 summaries linked to this
+          // learning stream item. Empty array short-circuits with empty Map
+          // (no SQL issued) per pangramAssessmentsStorage contract. Field
+          // travels as snake_case `ai_writing_signal` per decisions §15.
+          const summaryIds = itemDetail
+            ? itemDetail.summaries.map(s => s.id)
+            : [];
+          const aiWritingSignals = await pangramAssessmentsStorage.getLabelsByEntities(
+            'dok2_summary',
+            summaryIds,
+          );
           return {
             ...baseResult,
             itemExtraction: itemDetail ? {
@@ -251,6 +265,7 @@ export function buildDiscussionTools(
               summaries: itemDetail.summaries.map(s => ({
                 id: s.id,
                 preview: s.text[0] || '(empty)',
+                ai_writing_signal: aiWritingSignals.get(s.id) ?? null,
               })),
             } : {
               itemId: item.id,
