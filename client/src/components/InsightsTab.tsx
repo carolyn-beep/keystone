@@ -9,6 +9,14 @@ import type { DOK3GradingSSEEvent } from '@/hooks/useDOK3GradingEvents';
 import { tokens, getScoreChipColors } from '@/lib/colors';
 import { TactileButton } from '@/components/ui/tactile-button';
 import { FilterBar, type ExtraFilter } from '@/components/FilterBar';
+import { AiWritingSignalChip } from '@/components/AiWritingSignal';
+import type { AiWritingSignalPayload } from '@/types/ai-writing-signal';
+
+// Widened locally so the file compiles before the GET /dok3-insights route
+// extension lands (see spec 02 Open Issues / Andon).
+type Dok3InsightWithSignal = DOK3InsightWithLinks & {
+  aiWritingSignal?: AiWritingSignalPayload | null;
+};
 
 const INSIGHT_SCORE_LABELS: Record<number, string> = {
   5: 'Excellent', 4: 'Strong', 3: 'Adequate', 2: 'Weak', 1: 'Failed',
@@ -448,6 +456,11 @@ function InsightCard({ insight, expanded, onToggle, analysisExpanded, onToggleAn
   const gradeLabel = getGradeLabel(insight.score);
   const hasCriteria = insight.criteriaBreakdown && Object.keys(insight.criteriaBreakdown).length > 0;
 
+  // AI Writing Signal — defensively widened until the GET /dok3-insights
+  // route extension lands (see spec 02 Open Issues).
+  const aiSignal: AiWritingSignalPayload | null =
+    (insight as Dok3InsightWithSignal).aiWritingSignal ?? null;
+
   const navigateToSummary = (summaryId: number) => {
     setActiveTab('summaries');
     setTimeout(() => {
@@ -525,6 +538,9 @@ function InsightCard({ insight, expanded, onToggle, analysisExpanded, onToggleAn
               )}
             </div>
 
+            {/* AI Writing Signal -- informational, never affects grade. */}
+            {aiSignal && <AiWritingSignalChip signal={aiSignal} />}
+
             {/* Traceability flag */}
             {insight.traceabilityFlagged && (
               <div className="group relative inline-flex items-center gap-2 text-[9px] uppercase tracking-[0.35em] font-semibold text-warning">
@@ -537,6 +553,7 @@ function InsightCard({ insight, expanded, onToggle, analysisExpanded, onToggleAn
                 </div>
               </div>
             )}
+
           </div>
         </div>
 

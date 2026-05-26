@@ -1378,6 +1378,107 @@ export const dok4Dok3LinksRelations = relations(dok4Dok3Links, ({ one }) => ({
   }),
 }));
 
+// === PANGRAM AI WRITING SIGNAL ===
+// Polymorphic per-item AI writing analysis results. Internal codename "Pangram"
+// is the third-party API. External label everywhere user/agent-facing is
+// "AI Writing Signal". See features/integrity/pangram-ai-detection/decisions.md.
+
+export type PangramEntityType = 'dok2_summary' | 'dok3_insight' | 'dok4_spov';
+export type PangramStatus = 'pending' | 'analyzing' | 'done' | 'error';
+export type PangramPredictionShort = 'Human' | 'AI-Assisted' | 'Mixed' | 'AI';
+
+// External label exposed in API / UI / agent surfaces. Lowercase, hyphenated.
+export type AiWritingSignalLabel = 'human' | 'ai-assisted' | 'mixed' | 'ai';
+
+// Type extension surfaced on DOK2/3/4 item shapes returned by server/storage/internal.ts.
+export interface AiWritingSignalFieldExtension {
+  aiWritingSignal: AiWritingSignalLabel | null;
+}
+
+// === AI Writing Signal -- web payload (spec 02-web-ui) ===
+// The internal API exposes only the label string. The web GETs for DOK2/3/4
+// items attach the full payload below so the UI can render the chip, the
+// stacked-fraction bar, and the per-window breakdown.
+// Mirrors client/src/types/ai-writing-signal.ts -- keep both in sync.
+
+export type AiWritingSignalStatus = 'analyzing' | 'done' | 'error';
+
+export interface AiWritingSignalWindow {
+  text: string;
+  /** Descriptive label e.g. "AI-Generated", "Human", "Moderately AI-Assisted". */
+  label: string;
+  aiAssistanceScore: number;
+  confidence: 'High' | 'Medium' | 'Low';
+  startIndex: number;
+  endIndex: number;
+  wordCount: number;
+  tokenLength: number;
+}
+
+export interface AiWritingSignalPayload {
+  status: AiWritingSignalStatus;
+  label: AiWritingSignalLabel | null;
+  version: string | null;
+  fractions: {
+    ai: number;
+    aiAssisted: number;
+    human: number;
+  } | null;
+  segmentCounts: {
+    ai: number;
+    aiAssisted: number;
+    human: number;
+  } | null;
+  headline: string | null;
+  prediction: string | null;
+  dashboardLink: string | null;
+  windows: AiWritingSignalWindow[] | null;
+  errorMessage: string | null;
+  /** ISO timestamp (Date.toISOString()) or null while analyzing / on error. */
+  analyzedAt: string | null;
+}
+
+export const pangramAssessments = pgTable("pangram_assessments", {
+  id: serial("id").primaryKey(),
+  entityType: text("entity_type").$type<PangramEntityType>().notNull(),
+  entityId: integer("entity_id").notNull(),
+  brainliftId: integer("brainlift_id")
+    .notNull()
+    .references(() => brainlifts.id, { onDelete: "cascade" }),
+  textHash: text("text_hash").notNull(),
+  version: text("version"),
+  predictionShort: text("prediction_short").$type<PangramPredictionShort>(),
+  fractionAi: numeric("fraction_ai"),
+  fractionAiAssisted: numeric("fraction_ai_assisted"),
+  fractionHuman: numeric("fraction_human"),
+  numAiSegments: integer("num_ai_segments"),
+  numAiAssistedSegments: integer("num_ai_assisted_segments"),
+  numHumanSegments: integer("num_human_segments"),
+  dashboardLink: text("dashboard_link"),
+  headline: text("headline"),
+  prediction: text("prediction"),
+  windows: jsonb("windows"),
+  status: text("status").$type<PangramStatus>().notNull().default('pending'),
+  errorMessage: text("error_message"),
+  analyzedAt: timestamp("analyzed_at"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+}, (table) => [
+  uniqueIndex("pangram_assessments_entity_unique").on(table.entityType, table.entityId),
+  index("pangram_assessments_brainlift_idx").on(table.brainliftId),
+  check(
+    "pangram_assessments_entity_type_valid",
+    sql`${table.entityType} IN ('dok2_summary', 'dok3_insight', 'dok4_spov')`,
+  ),
+  check(
+    "pangram_assessments_status_valid",
+    sql`${table.status} IN ('pending', 'analyzing', 'done', 'error')`,
+  ),
+]);
+
+export type PangramAssessment = typeof pangramAssessments.$inferSelect;
+export type InsertPangramAssessment = typeof pangramAssessments.$inferInsert;
+
 // === DOK ITEM VERSIONING ===
 
 export const dokItemVersions = pgTable("dok_item_versions", {

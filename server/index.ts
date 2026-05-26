@@ -10,6 +10,12 @@ import { auth } from "./lib/auth";
 import { toNodeHandler } from "better-auth/node";
 import { startWorker, stopWorker } from "./jobs/worker";
 import { pool } from "./db";
+import { assertPangramConfigured } from "./ai/pangram/client";
+
+// Fail loudly at startup if required third-party API keys are missing.
+// PANGRAM_API_KEY powers the AI Writing Signal feature; the analyze job will
+// always fail without it.
+assertPangramConfigured();
 
 const app = express();
 const httpServer = createServer(app);

@@ -8,6 +8,7 @@ import { dok3GradingEmitter } from '../events/dok3GradingEmitter';
 import { createVersion, pruneVersions } from '../storage/versions';
 import { propagateStaleFlags } from '../storage/stale';
 import { recomputeBrainliftScore } from '../services/brainlift';
+import { attachAiWritingSignal } from '../services/aiWritingSignal';
 import type { PreviousEvaluation } from '@shared/types/regrading';
 
 export const dok3Router = Router();
@@ -26,7 +27,8 @@ dok3Router.get(
       req.brainlift!.id,
       includeScratchpadded ? [] : ['scratchpadded']
     );
-    res.json(insights);
+    const withSignal = await attachAiWritingSignal(insights, 'dok3_insight');
+    res.json(withSignal);
   })
 );
 

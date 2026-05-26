@@ -277,6 +277,25 @@ export const TOOLS_PROTOCOL: string[] = [
  * captures user signal as notes aggressively in any project context.
  * Research mode has its own, longer capture instructions inline.
  */
+/**
+ * Authoring-mode note about the AI Writing Signal. Inserted into the three
+ * authoring system prompts (AlphaX, Brainlift Central, Discussion authoring
+ * branch) between MAIN OPERATIONAL POSTURE and SECOND BRAIN CAPTURE. Research
+ * prompts intentionally omit this section because no DOK2/3/4 authoring
+ * happens in research mode. See features/integrity/pangram-ai-detection
+ * decisions.md (Section 11) for the rationale.
+ *
+ * Single source of truth: edit here and all three prompts pick up the change.
+ * The word "Pangram" is the internal codename and must never appear in any
+ * agent-facing string.
+ */
+export const AI_WRITING_SIGNAL_AUTHORING_NOTE: string[] = [
+  '=== START OF AI WRITING SIGNAL ===',
+  '## AI WRITING SIGNAL',
+  'DOK2 summaries, DOK3 insights, and DOK4 SPOVs are analyzed for AI writing signals after submission. The signal does not affect platform grades -- it is informational, surfaced to reviewers (teachers / guides) who may apply their own policies off-platform. Help the user write in their own voice; do not paste prose for them.',
+  '=== END OF AI WRITING SIGNAL ===',
+];
+
 export const SECOND_BRAIN_CAPTURE: string[] = [
   '=== START OF SECOND BRAIN CAPTURE ===',
   '## SECOND BRAIN CAPTURE — AGGRESSIVE',

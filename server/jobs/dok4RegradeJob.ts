@@ -3,6 +3,7 @@ import { storage } from '../storage';
 import { gradeDOK4Spov } from '../ai/dok4GraderService';
 import { recomputeBrainliftScore } from '../services/brainlift';
 import type { PreviousEvaluation } from '@shared/types/regrading';
+import { withJob } from '../utils/withJob';
 
 /**
  * Background job: regrade a DOK4 SPOV after text edit.
@@ -31,6 +32,20 @@ export async function dok4RegradeJob(
     await gradeDOK4Spov(spovId, brainliftId, undefined, previousEvaluation);
 
     helpers.logger.info(`[DOK4 Regrade] SPOV ${spovId} regraded`);
+
+    // Enqueue AI Writing Signal analysis (Pangram). Only on grade success;
+    // failures should not fan out wasted Pangram calls.
+    try {
+      await withJob('pangram:analyze')
+        .forPayload({ entityType: 'dok4_spov', entityId: spovId, brainliftId })
+        .withOptions({ maxAttempts: 3 })
+        .queue();
+    } catch (enqueueErr) {
+      helpers.logger.error(
+        `[DOK4 Regrade] Failed to enqueue pangram:analyze for SPOV ${spovId}:`,
+        { err: enqueueErr },
+      );
+    }
   } catch (err: any) {
     helpers.logger.error(`[DOK4 Regrade] Failed for SPOV ${spovId}:`, { err });
     await storage.updateDOK4SpovStatus(spovId, brainliftId, 'error');

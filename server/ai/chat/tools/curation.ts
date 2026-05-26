@@ -20,37 +20,56 @@ import {
 
 const isAlphaX = brandId === 'alphax';
 
+/**
+ * Warning sentence appended to the description of every write tool that
+ * creates or edits DOK2/3/4 prose. The signal is informational; the
+ * platform grader does NOT use it. See features/integrity/pangram-ai-detection
+ * decisions.md (Section 11). The word "Pangram" is the internal codename for
+ * the third-party API and must NEVER appear in any agent-facing string.
+ *
+ * Single source of truth: this same literal is duplicated in
+ * server/ai/discussion/tools.ts for save_dok2_summary. Both copies must stay
+ * byte-identical. Tests in both files assert the exact sentence; copy drift
+ * fails the suite.
+ */
+export const AI_WRITING_SIGNAL_TOOL_WARNING =
+  'Submitted text is analyzed for AI writing signals; the signal is visible to reviewers who may act on it off-platform.';
+
 const DOK1_DESCRIPTION = isAlphaX
   ? "Save a DOK1 fact to a brainlift. Triggers verification grading. The `fact` MUST be extracted from a source you actually fetched THIS session via `fetch_url_content` or `get_youtube_transcript`, AND you must have already read load-bearing passages of that source aloud with the student and heard their reactions before saving. Do not silently mine a fetched source for facts and dump them in — the conversation around the source is where the student gets hooked into the material. If you have not yet discussed the source with the student, do that first; then save facts. Do not invent facts from your own training data."
   : 'Add a new DOK1 fact to an existing brainlift. Triggers verification grading.';
 
-const DOK2_DESCRIPTION = isAlphaX
+const DOK2_DESCRIPTION = (isAlphaX
   ? "Save a DOK2 summary to a brainlift. The `points` you pass MUST be the user's own words for this source — what THEY said the summary is, captured from this conversation. Do not pass your phrasing of what you think the summary should be. Do not silently summarise a source and save it. If you have not yet pulled the user's summary out through questions, do that first and call this tool with what they articulate. Triggers DOK2 grading."
-  : 'Add a new DOK2 summary to an existing brainlift. Triggers DOK2 grading.';
+  : 'Add a new DOK2 summary to an existing brainlift. Triggers DOK2 grading.')
+  + ' ' + AI_WRITING_SIGNAL_TOOL_WARNING;
 
 const DOK2_POINTS_DESCRIPTION = isAlphaX
   ? "Summary points in the USER's own words from this conversation, not your phrasing"
   : 'Summary points in your own words';
 
-const DOK3_DESCRIPTION = isAlphaX
+const DOK3_DESCRIPTION = (isAlphaX
   ? "Save a DOK3 cross-source insight to a brainlift. The `text` MUST be the user's articulation of the pattern they see across their sources, captured from this conversation. Do not pass a pattern YOU noticed; do not invent the insight and save it. If you have not yet asked the user what pattern they see, do that first and call this tool with their words. Must link to at least 2 DOK2 summaries from at least 2 different sources."
-  : 'Add a new DOK3 insight to an existing brainlift. Must link to at least 2 DOK2 summaries from at least 2 different sources.';
+  : 'Add a new DOK3 insight to an existing brainlift. Must link to at least 2 DOK2 summaries from at least 2 different sources.')
+  + ' ' + AI_WRITING_SIGNAL_TOOL_WARNING;
 
 const DOK3_TEXT_DESCRIPTION = isAlphaX
   ? "The cross-source pattern as the USER articulated it, in their own words from this conversation"
   : 'A cross-source analytical claim';
 
-const DOK4_DESCRIPTION = isAlphaX
+const DOK4_DESCRIPTION = (isAlphaX
   ? "Save a DOK4 SPOV to a brainlift. The `text` MUST be the user's stated position — a stance they actually hold and have articulated in this conversation, in their own words. Do not propose a SPOV and save it. Do not phrase a position you think they would agree with. If the user has not stated the SPOV, ask the question that surfaces it. Must link to DOK3 insights with one designated as primary."
-  : 'Add a new DOK4 SPOV to an existing brainlift. Must link to DOK3 insights with one designated as primary.';
+  : 'Add a new DOK4 SPOV to an existing brainlift. Must link to DOK3 insights with one designated as primary.')
+  + ' ' + AI_WRITING_SIGNAL_TOOL_WARNING;
 
 const DOK4_TEXT_DESCRIPTION = isAlphaX
   ? "The SPOV as the USER stated it, in their own words from this conversation — a position they actually hold"
   : 'A spiky point of view where informed people could disagree';
 
-const EDIT_DOK_ITEM_DESCRIPTION = isAlphaX
+const EDIT_DOK_ITEM_DESCRIPTION = (isAlphaX
   ? "Edit the text of a DOK item and trigger regrading. For DOK2/3/4, the replacement `text` MUST come from the user — either a wording-level cleanup they asked for (grammar, filler) or a rewrite they articulated in this conversation. Do not rephrase a DOK2/3/4 item with your own framing or sharpen a position the user has not restated themselves. For DOK1, mechanical correction against the actual fetched source content is fine. For DOK2, put each summary point on its own line."
-  : 'Edit the text of a DOK item and trigger regrading. For DOK2, put each summary point on its own line.';
+  : 'Edit the text of a DOK item and trigger regrading. For DOK2, put each summary point on its own line.')
+  + ' ' + AI_WRITING_SIGNAL_TOOL_WARNING;
 
 const EDIT_DOK_ITEM_TEXT_DESCRIPTION = isAlphaX
   ? "Replacement text — for DOK2/3/4, the USER's own words from this conversation"

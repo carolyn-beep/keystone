@@ -20,6 +20,7 @@ import { sprintGenerateJob } from './sprintGenerateJob';
 import { rerankExpertsJob } from './rerankExpertsJob';
 import { purgeDeletedSkillsJob } from './purgeDeletedSkillsJob';
 import { refreshModelPricesJob } from './refreshModelPricesJob';
+import { pangramAnalyzeJob } from './pangramAnalyzeJob';
 
 /**
  * Central registry of all background jobs.
@@ -53,6 +54,7 @@ const tasks = {
   'sprint:generate': sprintGenerateJob,
   'skills:purge-deleted': purgeDeletedSkillsJob,
   'models:refresh-prices': refreshModelPricesJob,
+  'pangram:analyze': pangramAnalyzeJob,
 } as const;
 
 export default tasks;

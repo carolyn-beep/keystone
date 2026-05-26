@@ -44,6 +44,25 @@ type GradedFactSummary = {
   verification?: PersistFactVerificationInput['verification'];
 };
 
+async function enqueuePangramAnalysisFromImport(input: {
+  entityType: 'dok2_summary' | 'dok3_insight' | 'dok4_spov';
+  entityId: number;
+  brainliftId: number;
+}): Promise<void> {
+  try {
+    const { withJob } = await import('../utils/withJob');
+    await withJob('pangram:analyze')
+      .forPayload(input)
+      .withOptions({ maxAttempts: 3 })
+      .queue();
+  } catch (err) {
+    console.error(
+      `[Auto-Grade] Failed to enqueue pangram:analyze for ${input.entityType} ${input.entityId}:`,
+      err,
+    );
+  }
+}
+
 export async function extractBrainliftExperts(
   input: PostProcessingInput,
   onProgress?: ProgressCallback,
@@ -549,8 +568,13 @@ export async function saveBrainliftFromAI(
         };
       })));
 
-      await storage.saveDOK2Summaries(brainlift.id, gradedDOK2Summaries, factIdMap);
+      const savedDOK2SummaryIds = await storage.saveDOK2Summaries(brainlift.id, gradedDOK2Summaries, factIdMap);
       console.log(`[Auto-Grade] DOK2 summaries saved successfully with grades`);
+      await Promise.all(savedDOK2SummaryIds.map((summaryId) => enqueuePangramAnalysisFromImport({
+        entityType: 'dok2_summary',
+        entityId: summaryId,
+        brainliftId: brainlift.id,
+      })));
 
       // Save DOK3 insights if present (both modes need them saved as pending_linking)
       if (data.dok3Insights && data.dok3Insights.length > 0) {

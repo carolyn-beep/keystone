@@ -60,10 +60,11 @@ export async function saveDOK2Summaries(
   brainliftId: number,
   summaries: DOK2SummaryGroupWithGrading[],
   factIdMap: Map<string, number>
-): Promise<void> {
-  if (summaries.length === 0) return;
+): Promise<number[]> {
+  if (summaries.length === 0) return [];
 
   console.log(`[DOK2 Storage] Saving ${summaries.length} DOK2 summaries for brainlift ${brainliftId}`);
+  const insertedIds: number[] = [];
 
   for (const summary of summaries) {
     // Insert the summary group with grading fields
@@ -83,6 +84,7 @@ export async function saveDOK2Summaries(
       failReason: summary.failReason ?? null,
       sourceVerified: summary.sourceVerified ?? null,
     }).returning();
+    insertedIds.push(insertedSummary.id);
 
     // Insert summary points
     if (summary.points.length > 0) {
@@ -111,6 +113,8 @@ export async function saveDOK2Summaries(
 
     console.log(`[DOK2 Storage] Saved summary "${summary.sourceName}" with ${summary.points.length} points, ${relatedDbFactIds.length} related facts`);
   }
+
+  return insertedIds;
 }
 
 /**

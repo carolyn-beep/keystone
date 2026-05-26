@@ -49,6 +49,15 @@ vi.mock('../../utils/resolve-youtube-transcript', () => ({
   resolveYouTubeTranscript: vi.fn().mockResolvedValue(null),
 }));
 
+// Mock withJob so the pangram:analyze enqueue hook in dok2/dok3/dok4 grade
+// jobs does not insert real rows into graphile_worker on the dev DB.
+vi.mock('../../utils/withJob', () => {
+  const queue = vi.fn().mockResolvedValue('job-id');
+  const withOptions = vi.fn(() => ({ queue }));
+  const forPayload = vi.fn(() => ({ withOptions, queue }));
+  return { withJob: vi.fn(() => ({ forPayload })) };
+});
+
 vi.mock('../../ai/factVerifier', () => ({
   verifyFactWithAllModels: vi.fn().mockResolvedValue({
     modelResults: [{ model: 'test', score: 4, rationale: 'Good', status: 'verified', error: null }],

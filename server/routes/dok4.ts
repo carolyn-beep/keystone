@@ -8,6 +8,7 @@ import { dok4GradingEmitter } from '../events/dok4GradingEmitter';
 import { createVersion, pruneVersions } from '../storage/versions';
 import { propagateStaleFlags } from '../storage/stale';
 import { recomputeBrainliftScore } from '../services/brainlift';
+import { attachAiWritingSignal } from '../services/aiWritingSignal';
 import type { PreviousEvaluation } from '@shared/types/regrading';
 
 export const dok4Router = Router();
@@ -22,7 +23,8 @@ dok4Router.get(
   requireBrainliftAccess,
   asyncHandler(async (req, res) => {
     const spovs = await storage.getDOK4Spovs(req.brainlift!.id);
-    res.json(spovs);
+    const withSignal = await attachAiWritingSignal(spovs, 'dok4_spov');
+    res.json(withSignal);
   })
 );
 
@@ -43,7 +45,8 @@ dok4Router.get(
 
     if (!spov) throw new NotFoundError('SPOV not found');
 
-    res.json(spov);
+    const [withSignal] = await attachAiWritingSignal([spov], 'dok4_spov');
+    res.json(withSignal);
   })
 );
 

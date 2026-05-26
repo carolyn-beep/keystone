@@ -151,6 +151,30 @@ function normalizeOptionalTitle(value: string | undefined): string | undefined {
   return trimmed ? trimmed : undefined;
 }
 
+/**
+ * Rename the internal-API camelCase `aiWritingSignal` field on each item to
+ * the agent-facing snake_case `ai_writing_signal` (decisions §15). The
+ * internal storage layer uses camelCase for TS ergonomics; the JSON we hand
+ * to the agent uses snake_case for parity with the external MCP and the
+ * `traceability_flagged` precedent.
+ *
+ * Shallow per-item rename. Items without the field (e.g. DOK1) pass through
+ * unchanged. Idempotent on items that already use snake_case. Does not
+ * mutate the input array.
+ */
+export function renameAiWritingSignalField(items: unknown[]): unknown[] {
+  return items.map((item) => {
+    if (typeof item !== 'object' || item === null) return item;
+    const record = item as Record<string, unknown>;
+    if (!('aiWritingSignal' in record)) return item;
+    const { aiWritingSignal, ...rest } = record;
+    return {
+      ...rest,
+      ai_writing_signal: aiWritingSignal,
+    };
+  });
+}
+
 export function buildChatGradingTools(userId: string): ToolSet {
   const authContext = buildDefaultChatAuthContext(userId);
 
@@ -190,10 +214,16 @@ export function buildChatGradingTools(userId: string): ToolSet {
           return getBrainliftStatusForAuthContext(authContext, options.slug);
         }
 
-        return getBrainliftAssessmentForAuthContext(authContext, {
+        const result = await getBrainliftAssessmentForAuthContext(authContext, {
           ...options,
           dok: options.dok as 1 | 2 | 3 | 4,
         });
+        // Transform camelCase aiWritingSignal → snake_case ai_writing_signal
+        // at the agent boundary (decisions §15). No-op for DOK1 items.
+        return {
+          ...result,
+          items: renameAiWritingSignalField(result.items),
+        };
       },
     }),
   };

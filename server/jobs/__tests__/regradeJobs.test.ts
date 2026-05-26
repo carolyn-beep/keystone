@@ -77,6 +77,15 @@ vi.mock('../../services/brainlift', () => ({
   recomputeBrainliftScore: vi.fn().mockResolvedValue(undefined),
 }));
 
+// Mock withJob so the pangram:analyze enqueue hook in dok2/dok3/dok4 regrade
+// jobs does not insert real rows into graphile_worker on the dev DB.
+vi.mock('../../utils/withJob', () => {
+  const queue = vi.fn().mockResolvedValue('job-id');
+  const withOptions = vi.fn(() => ({ queue }));
+  const forPayload = vi.fn(() => ({ withOptions, queue }));
+  return { withJob: vi.fn(() => ({ forPayload })) };
+});
+
 vi.mock('../../events/dok3GradingEmitter', () => ({
   dok3GradingEmitter: {
     isGradingActive: vi.fn().mockReturnValue(false),

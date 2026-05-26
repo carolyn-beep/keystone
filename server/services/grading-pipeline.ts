@@ -23,6 +23,25 @@ import { recomputeBrainliftScore } from './brainlift';
 
 type ProgressCallback = (event: ImportProgress) => void;
 
+async function enqueuePangramAnalysisFromPipeline(input: {
+  entityType: 'dok3_insight' | 'dok4_spov';
+  entityId: number;
+  brainliftId: number;
+}): Promise<void> {
+  try {
+    const { withJob } = await import('../utils/withJob');
+    await withJob('pangram:analyze')
+      .forPayload(input)
+      .withOptions({ maxAttempts: 3 })
+      .queue();
+  } catch (err) {
+    console.error(
+      `[Pipeline] Failed to enqueue pangram:analyze for ${input.entityType} ${input.entityId}:`,
+      err,
+    );
+  }
+}
+
 /**
  * Explicit back-references from extraction, threaded through the pipeline
  * to skip LLM-based auto-linking when available.
@@ -114,6 +133,11 @@ export async function runDOK3DOK4Pipeline(
       const start = Date.now();
       try {
         await gradeDOK3Insight(insight.id, brainliftId);
+        await enqueuePangramAnalysisFromPipeline({
+          entityType: 'dok3_insight',
+          entityId: insight.id,
+          brainliftId,
+        });
       } catch (err) {
         console.error(`[Pipeline] DOK3 grading failed for insight ${insight.id}:`, err);
         failedInsightIds.push(insight.id);
@@ -139,6 +163,11 @@ export async function runDOK3DOK4Pipeline(
         const start = Date.now();
         try {
           await gradeDOK3Insight(insightId, brainliftId);
+          await enqueuePangramAnalysisFromPipeline({
+            entityType: 'dok3_insight',
+            entityId: insightId,
+            brainliftId,
+          });
         } catch (err) {
           console.error(`[Pipeline] DOK3 retry grading failed for insight ${insightId}:`, err);
         }
@@ -150,8 +179,11 @@ export async function runDOK3DOK4Pipeline(
 
   // ── Phase 3: Auto-link DOK4 SPOVs to DOK3 insights ──
 
-  const spovs = await storage.getDOK4SpovsByStatus
-    ? (storage as any).getDOK4SpovsByStatus(brainliftId, 'pending_linking')
+  const storageWithStatus = storage as typeof storage & {
+    getDOK4SpovsByStatus?: (brainliftId: number, status: string) => Promise<any[]>;
+  };
+  const spovs = storageWithStatus.getDOK4SpovsByStatus
+    ? await storageWithStatus.getDOK4SpovsByStatus(brainliftId, 'pending_linking')
     : (await storage.getDOK4Spovs(brainliftId)).filter((s: any) => s.status === 'pending_linking');
 
   if (spovs.length > 0) {
@@ -200,6 +232,13 @@ export async function runDOK3DOK4Pipeline(
       const start = Date.now();
       try {
         const result = await gradeDOK4Spov(spov.id, brainliftId);
+        if (result.status === 'graded') {
+          await enqueuePangramAnalysisFromPipeline({
+            entityType: 'dok4_spov',
+            entityId: spov.id,
+            brainliftId,
+          });
+        }
         if (result.status === 'error') failedSpovIds.push(spov.id);
       } catch (err) {
         console.error(`[Pipeline] DOK4 grading failed for SPOV ${spov.id}:`, err);
@@ -225,7 +264,14 @@ export async function runDOK3DOK4Pipeline(
       await Promise.all(failedSpovIds.map(spovId => dok4GradeLimit(async () => {
         const start = Date.now();
         try {
-          await gradeDOK4Spov(spovId, brainliftId);
+          const result = await gradeDOK4Spov(spovId, brainliftId);
+          if (result.status === 'graded') {
+            await enqueuePangramAnalysisFromPipeline({
+              entityType: 'dok4_spov',
+              entityId: spovId,
+              brainliftId,
+            });
+          }
         } catch (err) {
           console.error(`[Pipeline] DOK4 retry grading failed for SPOV ${spovId}:`, err);
         }

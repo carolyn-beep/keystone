@@ -43,12 +43,24 @@ vi.mock('../brainlift', () => ({
   recomputeBrainliftScore: vi.fn().mockResolvedValue(undefined),
 }));
 
+vi.mock('../../utils/withJob', () => ({
+  withJob: vi.fn(() => {
+    const withOptionsResult = { queue: vi.fn().mockResolvedValue(undefined) };
+    const payloadResult = {
+      queue: vi.fn().mockResolvedValue(undefined),
+      withOptions: vi.fn(() => withOptionsResult),
+    };
+    return { forPayload: vi.fn(() => payloadResult) };
+  }),
+}));
+
 import { storage } from '../../storage';
 import { autoLinkDOK3Insights } from '../../ai/dok3AutoLinker';
 import { gradeDOK3Insight } from '../../ai/dok3Grader';
 import { autoLinkDOK4Spovs } from '../../ai/dok4AutoLinker';
 import { gradeDOK4Spov } from '../../ai/dok4GraderService';
 import { recomputeBrainliftScore } from '../brainlift';
+import { withJob } from '../../utils/withJob';
 import { runDOK3DOK4Pipeline } from '../grading-pipeline';
 
 // Fixtures
@@ -116,6 +128,14 @@ function setupHappyPathMocks() {
 describe('FR3: Shared Pipeline Function - runDOK3DOK4Pipeline()', () => {
   beforeEach(() => {
     vi.resetAllMocks();
+    vi.mocked(withJob).mockImplementation(() => {
+      const withOptionsResult = { queue: vi.fn().mockResolvedValue(undefined) };
+      const payloadResult = {
+        queue: vi.fn().mockResolvedValue(undefined),
+        withOptions: vi.fn(() => withOptionsResult),
+      };
+      return { forPayload: vi.fn(() => payloadResult) } as any;
+    });
   });
 
   it('executes sequential phases: DOK3 link -> DOK3 grade -> DOK4 link -> DOK4 grade', async () => {
@@ -186,8 +206,39 @@ describe('FR3: Shared Pipeline Function - runDOK3DOK4Pipeline()', () => {
     setupHappyPathMocks();
     await runDOK3DOK4Pipeline(100, 'test-slug');
 
-    expect(recomputeBrainliftScore).toHaveBeenCalledWith(100);
+    expect(recomputeBrainliftScore).toHaveBeenCalledWith(100, { trigger: 'pipeline' });
     expect(recomputeBrainliftScore).toHaveBeenCalledTimes(1);
+  });
+
+  it('enqueues AI Writing Signal analysis after direct DOK3 and DOK4 pipeline grading', async () => {
+    vi.mocked(storage.getDOK3Insights)
+      .mockResolvedValueOnce([MOCK_DOK3_PENDING[0]] as any)
+      .mockResolvedValueOnce([MOCK_DOK3_LINKED[0]] as any)
+      .mockResolvedValueOnce([MOCK_DOK3_GRADED[0]] as any);
+    vi.mocked(storage.getDOK2Summaries).mockResolvedValue([MOCK_DOK2_SUMMARIES[0]] as any);
+    vi.mocked(storage.getDOK4Spovs)
+      .mockResolvedValueOnce([MOCK_DOK4_PENDING[0]] as any)
+      .mockResolvedValueOnce([MOCK_DOK4_LINKED[0]] as any);
+    vi.mocked(autoLinkDOK3Insights).mockResolvedValue([
+      { insightId: 1, dok2SummaryIds: [10], flagged: false },
+    ]);
+    vi.mocked(gradeDOK3Insight).mockResolvedValue({ score: 4 } as any);
+    vi.mocked(autoLinkDOK4Spovs).mockResolvedValue(undefined);
+    vi.mocked(gradeDOK4Spov).mockResolvedValue({ status: 'graded', score: 4 });
+
+    await runDOK3DOK4Pipeline(100, 'test-slug');
+
+    const payloads = vi.mocked(withJob).mock.results.map((result) => (
+      result.value.forPayload.mock.calls[0][0]
+    ));
+    expect(payloads).toHaveLength(2);
+    expect(payloads).toEqual(expect.arrayContaining([
+      { entityType: 'dok3_insight', entityId: 1, brainliftId: 100 },
+      { entityType: 'dok4_spov', entityId: 201, brainliftId: 100 },
+    ]));
+    for (const result of vi.mocked(withJob).mock.results) {
+      expect(result.value.forPayload.mock.results[0].value.withOptions).toHaveBeenCalledWith({ maxAttempts: 3 });
+    }
   });
 
   it('no DOK3 insights: skips DOK3 phases, proceeds to DOK4', async () => {

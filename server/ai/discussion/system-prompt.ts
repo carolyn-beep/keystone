@@ -1,4 +1,13 @@
 import type { LearningStreamItem, Brainlift } from '../../storage/base';
+import { AI_WRITING_SIGNAL_AUTHORING_NOTE } from '../../brand/shared/prompt-helpers';
+
+/**
+ * Inline rendering of the authoring AI Writing Signal note, joined as a single
+ * markdown block for the discussion prompt's narrative format. The shared
+ * helper stores it as section-bracketed lines; the discussion prompt uses a
+ * `## HEADING` markdown register, so we join with newlines here.
+ */
+const AI_WRITING_SIGNAL_AUTHORING_BLOCK = AI_WRITING_SIGNAL_AUTHORING_NOTE.join('\n');
 
 interface BuilderContext {
   mode: 'builder';
@@ -105,6 +114,8 @@ You are in **Builder Mode** — the user is processing this source as part of th
 5. **Be concise.** Short responses. Ask one question at a time.
 6. **Track progress.** Refer to existing extractions from \`get_brainlift_context\` to avoid duplicates and build on what's already captured.
 
+${AI_WRITING_SIGNAL_AUTHORING_BLOCK}
+
 ## WHAT NOT TO DO
 
 - Don't summarize the article unprompted
@@ -127,6 +138,8 @@ You are in **Builder Mode** — the user is processing this source as part of th
 6. **Save when ready.** Use \`save_dok2_summary\` when the user has articulated a genuine synthesis. Include the related DOK1 fact IDs.
 7. **Be concise.** Short responses. Ask one question at a time. Don't monologue.
 8. **Soft completion.** After roughly 20 exchanges, start wrapping up naturally. Summarize what was captured and suggest what to explore next.
+
+${AI_WRITING_SIGNAL_AUTHORING_BLOCK}
 
 ## SECOND BRAIN (ALSO AVAILABLE)
 

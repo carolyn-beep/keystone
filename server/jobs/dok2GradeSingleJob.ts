@@ -3,6 +3,7 @@ import { db, eq, dok2Summaries } from '../storage/base';
 import { gradeDOK2Summary } from '../ai/dok2Grader';
 import { storage } from '../storage';
 import { recomputeBrainliftScore } from '../services/brainlift';
+import { withJob } from '../utils/withJob';
 
 /**
  * Background job: grade a single newly created DOK2 summary.
@@ -64,6 +65,20 @@ export async function dok2GradeSingleJob(
     helpers.logger.info(
       `[DOK2 Grade Single] Summary ${summaryId} graded: score=${result.score}`
     );
+
+    // Enqueue AI Writing Signal analysis (Pangram). Only on grade success;
+    // failures should not fan out wasted Pangram calls.
+    try {
+      await withJob('pangram:analyze')
+        .forPayload({ entityType: 'dok2_summary', entityId: summaryId, brainliftId })
+        .withOptions({ maxAttempts: 3 })
+        .queue();
+    } catch (enqueueErr) {
+      helpers.logger.error(
+        `[DOK2 Grade Single] Failed to enqueue pangram:analyze for summary ${summaryId}:`,
+        { err: enqueueErr },
+      );
+    }
   } catch (err) {
     helpers.logger.error(
       `[DOK2 Grade Single] Grading failed for summary ${summaryId} (attempt ${helpers.job.attempts}/${helpers.job.max_attempts}):`,
