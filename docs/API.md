@@ -2,10 +2,10 @@
 
 ## Overview
 
-- **Total Endpoints:** 60
-- **Production Endpoints:** 54
+- **Total Endpoints:** 62
+- **Production Endpoints:** 56
 - **Development-Only Endpoints:** 6
-- **Domain Routers:** 11
+- **Domain Routers:** 12
 
 ---
 
@@ -185,6 +185,36 @@ All routes nested under `/api/brainlifts/:slug` for authorization context.
 | Method | Endpoint | Auth | Description |
 |--------|----------|------|-------------|
 | GET | `/api/analytics/model-accuracy` | `requireAdmin` | LLM model accuracy stats (admin only) |
+
+---
+
+## Users (`server/routes/users.ts`)
+
+Per-user self-preferences. Currently powers the per-user "seen explainer modal" flag for the DOK Rubric Explainer Modal (and any future per-user UI preference).
+The `userId` is always taken from `req.authContext` (the authenticated user) — these endpoints never accept a userId in the path or body.
+
+| Method | Endpoint | Auth | Description |
+|--------|----------|------|-------------|
+| GET | `/api/users/me/preferences` | `requireAuth` | Returns `{ seenExplainers: string[] }` for the current user |
+| PATCH | `/api/users/me/seen-explainer` | `requireAuth` | Idempotent append-if-absent of `key` to `seenExplainers`. Returns the updated `{ seenExplainers: string[] }` |
+
+### PATCH /api/users/me/seen-explainer
+
+**Request body:**
+```json
+{ "key": "dok1" }
+```
+
+| Field | Type | Validation |
+|-------|------|------------|
+| `key` | string | required, 1-64 chars |
+
+**Responses:**
+- `200 { seenExplainers: string[] }` — full updated array (set semantics: at most one entry per key)
+- `400` — missing / empty / non-string / over-64-char `key`
+- `401` — unauthenticated
+
+**Idempotency:** the storage layer uses a single SQL statement (`seen_explainers @> to_jsonb($key) ? seen_explainers : seen_explainers || to_jsonb($key)`), so concurrent calls from multiple tabs are safe.
 
 ---
 

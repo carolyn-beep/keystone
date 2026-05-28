@@ -43,6 +43,10 @@ vi.mock('../brainlift', () => ({
   recomputeBrainliftScore: vi.fn().mockResolvedValue(undefined),
 }));
 
+vi.mock('../../ai/pangram/enqueue', () => ({
+  enqueuePangramAnalysis: vi.fn().mockResolvedValue(true),
+}));
+
 vi.mock('../../utils/withJob', () => ({
   withJob: vi.fn(() => {
     const withOptionsResult = { queue: vi.fn().mockResolvedValue(undefined) };
@@ -60,7 +64,7 @@ import { gradeDOK3Insight } from '../../ai/dok3Grader';
 import { autoLinkDOK4Spovs } from '../../ai/dok4AutoLinker';
 import { gradeDOK4Spov } from '../../ai/dok4GraderService';
 import { recomputeBrainliftScore } from '../brainlift';
-import { withJob } from '../../utils/withJob';
+import { enqueuePangramAnalysis } from '../../ai/pangram/enqueue';
 import { runDOK3DOK4Pipeline } from '../grading-pipeline';
 
 // Fixtures
@@ -128,14 +132,7 @@ function setupHappyPathMocks() {
 describe('FR3: Shared Pipeline Function - runDOK3DOK4Pipeline()', () => {
   beforeEach(() => {
     vi.resetAllMocks();
-    vi.mocked(withJob).mockImplementation(() => {
-      const withOptionsResult = { queue: vi.fn().mockResolvedValue(undefined) };
-      const payloadResult = {
-        queue: vi.fn().mockResolvedValue(undefined),
-        withOptions: vi.fn(() => withOptionsResult),
-      };
-      return { forPayload: vi.fn(() => payloadResult) } as any;
-    });
+    vi.mocked(enqueuePangramAnalysis).mockResolvedValue(true);
   });
 
   it('executes sequential phases: DOK3 link -> DOK3 grade -> DOK4 link -> DOK4 grade', async () => {
@@ -228,17 +225,12 @@ describe('FR3: Shared Pipeline Function - runDOK3DOK4Pipeline()', () => {
 
     await runDOK3DOK4Pipeline(100, 'test-slug');
 
-    const payloads = vi.mocked(withJob).mock.results.map((result) => (
-      result.value.forPayload.mock.calls[0][0]
-    ));
+    const payloads = vi.mocked(enqueuePangramAnalysis).mock.calls.map((call) => call[0]);
     expect(payloads).toHaveLength(2);
     expect(payloads).toEqual(expect.arrayContaining([
       { entityType: 'dok3_insight', entityId: 1, brainliftId: 100 },
       { entityType: 'dok4_spov', entityId: 201, brainliftId: 100 },
     ]));
-    for (const result of vi.mocked(withJob).mock.results) {
-      expect(result.value.forPayload.mock.results[0].value.withOptions).toHaveBeenCalledWith({ maxAttempts: 3 });
-    }
   });
 
   it('no DOK3 insights: skips DOK3 phases, proceeds to DOK4', async () => {

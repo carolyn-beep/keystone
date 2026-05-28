@@ -36,6 +36,12 @@ export const user = pgTable("user", {
   banned: boolean("banned").default(false),
   banReason: text("ban_reason"),
   banExpires: timestamp("ban_expires"),
+  // Per-user explainer-seen flag (DOK Rubric Explainer Modal, etc.).
+  // Append-only set of explainer keys (e.g. ["dok1"]). See migration 0039.
+  seenExplainers: jsonb("seen_explainers")
+    .$type<string[]>()
+    .default(sql`'[]'::jsonb`)
+    .notNull(),
 });
 
 export const session = pgTable(

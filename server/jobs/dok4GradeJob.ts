@@ -3,7 +3,7 @@ import { storage } from '../storage';
 import { dok4GradingEmitter } from '../events/dok4GradingEmitter';
 import { gradeDOK4Spov } from '../ai/dok4GraderService';
 import { recomputeBrainliftScore } from '../services/brainlift';
-import { withJob } from '../utils/withJob';
+import { enqueuePangramAnalysis } from '../ai/pangram/enqueue';
 
 /**
  * Background job: grade a single DOK4 SPOV.
@@ -72,10 +72,7 @@ export async function dok4GradeJob(
     // (not on 'rejected' or 'error') -- failures should not fan out wasted
     // Pangram calls.
     try {
-      await withJob('pangram:analyze')
-        .forPayload({ entityType: 'dok4_spov', entityId: spovId, brainliftId })
-        .withOptions({ maxAttempts: 3 })
-        .queue();
+      await enqueuePangramAnalysis({ entityType: 'dok4_spov', entityId: spovId, brainliftId });
     } catch (enqueueErr) {
       helpers.logger.error(
         `[DOK4 Grade] Failed to enqueue pangram:analyze for SPOV ${spovId}:`,

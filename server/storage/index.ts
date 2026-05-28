@@ -30,6 +30,7 @@ import * as dok4CrudStorage from './dok4-crud';
 import * as sprintsStorage from './sprints';
 import * as skillsStorage from './skills';
 import * as secondBrainStorage from './second-brain';
+import * as usersStorage from './users';
 import { pangramAssessmentsStorage } from './pangramAssessments';
 
 // Re-export types from base
@@ -397,7 +398,11 @@ export const storage = {
   setPlanGdriveFolder: sprintsStorage.setPlanGdriveFolder,
   setBrainliftGdriveRootFolder: sprintsStorage.setBrainliftGdriveRootFolder,
   getSprintSharingAudience: sprintsStorage.getSprintSharingAudience,
+
+  // User Preferences (per-user explainer-seen flag etc.)
+  getUserPreferences: usersStorage.getUserPreferences,
+  markExplainerSeen: usersStorage.markExplainerSeen,
 };
 
 // Export individual modules for direct access if needed
-export { brainliftsStorage, expertsStorage, verificationsStorage, redundancyStorage, analyticsStorage, dok2Storage, sharesStorage, learningStreamStorage, dok3Storage, dok4Storage, knowledgeCheckStorage, nativeBrainliftsStorage, builderExpertsStorage, knowledgeTreeStorage, apiKeysStorage, internalStorage, versionsStorage, staleStorage, dok1CrudStorage, dok2CrudStorage, dok3CrudStorage, dok4CrudStorage, sprintsStorage, pangramAssessmentsStorage };
+export { brainliftsStorage, expertsStorage, verificationsStorage, redundancyStorage, analyticsStorage, dok2Storage, sharesStorage, learningStreamStorage, dok3Storage, dok4Storage, knowledgeCheckStorage, nativeBrainliftsStorage, builderExpertsStorage, knowledgeTreeStorage, apiKeysStorage, internalStorage, versionsStorage, staleStorage, dok1CrudStorage, dok2CrudStorage, dok3CrudStorage, dok4CrudStorage, sprintsStorage, pangramAssessmentsStorage, usersStorage };

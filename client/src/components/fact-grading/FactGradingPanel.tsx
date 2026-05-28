@@ -9,6 +9,7 @@ import type { Fact } from '@shared/schema';
 import { FactRow, type HumanGrade } from './FactRow';
 import { type RedundancyGroup } from './RedundancyGroupCard';
 import { FilterBar, type ExtraFilter } from '@/components/FilterBar';
+import { Dok1ExplainerHelpButton } from '@/components/grading-explainer/dok1/Dok1ExplainerHelpButton';
 import overlapIcon from '@/assets/icons/overlap.svg';
 
 export interface RedundancyData {
@@ -30,6 +31,8 @@ export interface FactGradingPanelProps {
   onNavigateToRedundancy: () => void;
   canModify?: boolean;
   isAdmin?: boolean;
+  /** When provided, renders the DOK1 explainer help button in the header. */
+  onOpenExplainer?: () => void;
 }
 
 const FACT_SCORE_LABELS: Record<number, string> = {
@@ -57,6 +60,7 @@ export function FactGradingPanel({
   onNavigateToRedundancy,
   canModify = true,
   isAdmin = false,
+  onOpenExplainer,
 }: FactGradingPanelProps) {
   const { toast } = useToast();
 
@@ -192,13 +196,11 @@ export function FactGradingPanel({
     <div className="max-w-[1420px] mx-auto min-h-[200vh]">
       {/* Panel Header */}
       <div className="flex flex-col gap-4 mb-6 pb-4">
-        <div className="flex items-start justify-between gap-6">
-          <div>
-            <h2 className="text-[30px] font-bold text-foreground tracking-tight leading-[1.1] m-0">
-              DOK1 Facts Grading
-            </h2>
-          </div>
-
+        <div className="flex items-center gap-3">
+          <h2 className="text-[30px] font-bold text-foreground tracking-tight leading-[1.1] m-0">
+            DOK1 Facts Grading
+          </h2>
+          {onOpenExplainer && <Dok1ExplainerHelpButton onClick={onOpenExplainer} />}
         </div>
 
         <div className="flex flex-wrap items-center gap-2 text-[12px] uppercase tracking-[0.35em] text-muted-foreground">

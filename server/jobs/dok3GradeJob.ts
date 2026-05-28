@@ -4,7 +4,7 @@ import { dok3GradingEmitter } from '../events/dok3GradingEmitter';
 import { gradeDOK3Insight } from '../ai/dok3Grader';
 import { recomputeBrainliftScore } from '../services/brainlift';
 import { triggerDependentDOK4Grading } from '../storage/dok4';
-import { withJob } from '../utils/withJob';
+import { enqueuePangramAnalysis } from '../ai/pangram/enqueue';
 
 const GATE_TIMEOUT_MS = 15 * 60 * 1000; // 15 minutes
 const INITIAL_POLL_MS = 2000;
@@ -105,10 +105,7 @@ export async function dok3GradeJob(
     // Enqueue AI Writing Signal analysis (Pangram). Only on grade success;
     // failures should not fan out wasted Pangram calls.
     try {
-      await withJob('pangram:analyze')
-        .forPayload({ entityType: 'dok3_insight', entityId: insightId, brainliftId })
-        .withOptions({ maxAttempts: 3 })
-        .queue();
+      await enqueuePangramAnalysis({ entityType: 'dok3_insight', entityId: insightId, brainliftId });
     } catch (enqueueErr) {
       helpers.logger.error(
         `[DOK3 Grade] Failed to enqueue pangram:analyze for insight ${insightId}:`,

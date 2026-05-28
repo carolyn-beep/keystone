@@ -6,7 +6,7 @@ import type { PreviousEvaluation } from '@shared/types/regrading';
 import { db } from '../db';
 import { dok2Summaries } from '@shared/schema';
 import { eq } from 'drizzle-orm';
-import { withJob } from '../utils/withJob';
+import { enqueuePangramAnalysis } from '../ai/pangram/enqueue';
 
 /**
  * Background job: regrade a DOK2 summary after points edit.
@@ -66,10 +66,7 @@ export async function dok2RegradeJob(
     // Enqueue AI Writing Signal analysis (Pangram). Only on grade success;
     // failures should not fan out wasted Pangram calls.
     try {
-      await withJob('pangram:analyze')
-        .forPayload({ entityType: 'dok2_summary', entityId: summaryId, brainliftId })
-        .withOptions({ maxAttempts: 3 })
-        .queue();
+      await enqueuePangramAnalysis({ entityType: 'dok2_summary', entityId: summaryId, brainliftId });
     } catch (enqueueErr) {
       helpers.logger.error(
         `[DOK2 Regrade] Failed to enqueue pangram:analyze for summary ${summaryId}:`,

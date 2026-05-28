@@ -91,13 +91,11 @@ vi.mock('../../events/dok4GradingEmitter', () => ({
   },
 }));
 
-// Spy on withJob to detect pangram:analyze enqueues.
-const queueMock = vi.fn().mockResolvedValue('job-id');
-const withOptionsMock = vi.fn(() => ({ queue: queueMock }));
-const forPayloadMock = vi.fn(() => ({ withOptions: withOptionsMock, queue: queueMock }));
-const withJobMock = vi.fn(() => ({ forPayload: forPayloadMock }));
-vi.mock('../../utils/withJob', () => ({
-  withJob: (name: string) => withJobMock(name),
+// Spy on the Pangram enqueue boundary. The boundary itself has focused tests
+// for entity validation and graphile-worker queue options.
+const enqueuePangramAnalysisMock = vi.fn().mockResolvedValue(true);
+vi.mock('../../ai/pangram/enqueue', () => ({
+  enqueuePangramAnalysis: (input: unknown) => enqueuePangramAnalysisMock(input),
 }));
 
 // ── Imports under test ────────────────────────────────────────────────────
@@ -129,23 +127,16 @@ const prevEval: PreviousEvaluation = {
 
 beforeEach(() => {
   vi.clearAllMocks();
-  // Re-arm the chain shape after clearAllMocks resets call counts (mock
-  // implementations persist).
-  withJobMock.mockReturnValue({ forPayload: forPayloadMock });
-  forPayloadMock.mockReturnValue({ withOptions: withOptionsMock, queue: queueMock });
-  withOptionsMock.mockReturnValue({ queue: queueMock });
-  queueMock.mockResolvedValue('job-id');
+  enqueuePangramAnalysisMock.mockResolvedValue(true);
 });
 
 function expectPangramEnqueued(payload: { entityType: string; entityId: number; brainliftId: number }) {
-  expect(withJobMock).toHaveBeenCalledWith('pangram:analyze');
-  expect(forPayloadMock).toHaveBeenCalledWith(payload);
-  expect(queueMock).toHaveBeenCalledTimes(1);
+  expect(enqueuePangramAnalysisMock).toHaveBeenCalledWith(payload);
+  expect(enqueuePangramAnalysisMock).toHaveBeenCalledTimes(1);
 }
 
 function expectNoPangramEnqueue() {
-  const pangramCalls = withJobMock.mock.calls.filter((c) => c[0] === 'pangram:analyze');
-  expect(pangramCalls).toHaveLength(0);
+  expect(enqueuePangramAnalysisMock).not.toHaveBeenCalled();
 }
 
 // ── DOK2 grade single ─────────────────────────────────────────────────────

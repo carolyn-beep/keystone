@@ -16,6 +16,7 @@ import type { PersistFactVerificationInput, ScoreEventContext } from "@shared/an
 import { persistFactVerification } from "./persist-fact-verification";
 import pLimit from "p-limit";
 import { withRetryTimeout } from "../utils/timeout";
+import { enqueuePangramAnalysis } from "../ai/pangram/enqueue";
 
 interface PostProcessingInput {
   brainliftId: number;
@@ -50,11 +51,7 @@ async function enqueuePangramAnalysisFromImport(input: {
   brainliftId: number;
 }): Promise<void> {
   try {
-    const { withJob } = await import('../utils/withJob');
-    await withJob('pangram:analyze')
-      .forPayload(input)
-      .withOptions({ maxAttempts: 3 })
-      .queue();
+    await enqueuePangramAnalysis(input);
   } catch (err) {
     console.error(
       `[Auto-Grade] Failed to enqueue pangram:analyze for ${input.entityType} ${input.entityId}:`,

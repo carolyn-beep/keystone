@@ -58,6 +58,10 @@ vi.mock('../../utils/withJob', () => {
   return { withJob: vi.fn(() => ({ forPayload })) };
 });
 
+vi.mock('../../ai/pangram/enqueue', () => ({
+  enqueuePangramAnalysis: vi.fn().mockResolvedValue(true),
+}));
+
 vi.mock('../../ai/factVerifier', () => ({
   verifyFactWithAllModels: vi.fn().mockResolvedValue({
     modelResults: [{ model: 'test', score: 4, rationale: 'Good', status: 'verified', error: null }],

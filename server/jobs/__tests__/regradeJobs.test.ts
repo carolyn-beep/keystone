@@ -86,6 +86,10 @@ vi.mock('../../utils/withJob', () => {
   return { withJob: vi.fn(() => ({ forPayload })) };
 });
 
+vi.mock('../../ai/pangram/enqueue', () => ({
+  enqueuePangramAnalysis: vi.fn().mockResolvedValue(true),
+}));
+
 vi.mock('../../events/dok3GradingEmitter', () => ({
   dok3GradingEmitter: {
     isGradingActive: vi.fn().mockReturnValue(false),

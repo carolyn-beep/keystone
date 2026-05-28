@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState, useCallback } from 'react';
+import { useEffect, useMemo, useRef, useState, useCallback } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Link, useSearch } from 'wouter';
 import { authClient } from '@/lib/auth-client';
@@ -44,6 +44,10 @@ import { DOK4Tab } from '@/components/DOK4Tab';
 import { usePageHeaderSlot, useSidebarSlot } from '@/components/layout';
 import { DokNavTree, type NavItem } from '@/components/brainlift/DokNavTree';
 import { BuilderPage } from '@/components/builder';
+import { GradingExplainer } from '@/components/grading-explainer/GradingExplainer';
+import { dok1Screens } from '@/components/grading-explainer/dok1';
+import { useHasSeenExplainer } from '@/hooks/useHasSeenExplainer';
+import { useIsMobile } from '@/hooks/use-mobile';
 
 interface DashboardProps {
   slug: string;
@@ -189,6 +193,7 @@ export default function Dashboard({ slug, isSharedView = false }: DashboardProps
 
   const [showHistoryModal, setShowHistoryModal] = useState(false);
   const [showShareModal, setShowShareModal] = useState(false);
+  const [showExplainerModal, setShowExplainerModal] = useState(false);
 
   // Header collapse-on-scroll. The sentinel is attached to a scroll listener
   // on its scrollable ancestor with HYSTERESIS thresholds so the layout shift
@@ -262,6 +267,50 @@ const { toast } = useToast();
   const userPermission = data?.userPermission ?? null;
   const isOwner = userPermission === 'owner';
   const canModify = userPermission === 'owner' || userPermission === 'editor' || isAdmin;
+
+  // Resolve activeTab here (before any early return) so the DOK1 explainer
+  // auto-trigger effect below can fire on the same render that gates resolve.
+  // Mirrors the post-early-return computation; `data?.phase` is defensively
+  // optional-chained because data may still be loading at this point.
+  const isResearchPhaseEarly = data?.phase === 'research';
+  const defaultActiveTabEarly: TabKey = isResearchPhaseEarly ? 'second-brain' : 'brainlift';
+  const availableTabsEarly: TabKey[] = isResearchPhaseEarly
+    ? ['second-brain', 'learning', 'learning-saved', 'learning-graded']
+    : ['second-brain', 'brainlift', 'facts', 'facts-redundancy', 'contradictions', 'summaries', 'insights', 'dok4', 'scratchpad', 'sprint', 'document-hub', 'learning', 'learning-saved', 'learning-graded'];
+  const activeTab: TabKey = requestedTab && availableTabsEarly.includes(requestedTab)
+    ? requestedTab
+    : defaultActiveTabEarly;
+
+  // DOK1 Rubric Explainer — auto-trigger on first visit to the Facts tab.
+  // Owned at Dashboard level (a) to match the existing showHistoryModal /
+  // showShareModal pattern and (b) so a single <GradingExplainer> instance
+  // serves both the auto-trigger and the help-icon click in FactGradingPanel.
+  // Gating is deliberate (see Decision 3 in spec-research):
+  //   - activeTab === 'facts'      → don't fetch or fire on other tabs
+  //   - !isLoadingSeen             → don't flash-open before the hook resolves
+  //   - !hasSeen                   → fail-open on preference errors by design
+  //   - !isMobile                  → desktop-only (matches the Tailwind hide)
+  //   - !triggeredRef.current      → guards React-strict-mode double-invoke
+  const {
+    isLoading: isLoadingSeen,
+    hasSeen,
+    markSeen,
+  } = useHasSeenExplainer('dok1', { enabled: activeTab === 'facts' });
+  const isMobile = useIsMobile();
+  const triggeredRef = useRef(false);
+
+  useEffect(() => {
+    if (
+      activeTab === 'facts' &&
+      !isLoadingSeen &&
+      !hasSeen &&
+      !isMobile &&
+      !triggeredRef.current
+    ) {
+      triggeredRef.current = true;
+      setShowExplainerModal(true);
+    }
+  }, [activeTab, isLoadingSeen, hasSeen, isMobile]);
 
 const { downloadBrainliftPDF } = usePDFExport();
 
@@ -375,23 +424,10 @@ const { downloadBrainliftPDF } = usePDFExport();
   }
 
   const { facts, contradictionClusters } = data;
-  const isResearchPhase = data.phase === 'research';
-  // Default landing tab follows phase: research projects open on Second
-  // Brain, authoring projects open on the Brainlift document. Second Brain
-  // remains a valid tab in authoring (students can keep collecting sources
-  // there) — it's just not the default.
-  const defaultActiveTab: TabKey = isResearchPhase ? 'second-brain' : 'brainlift';
-  // Reachable destinations by phase. Research-only views ('second-brain',
-  // 'learning' and its children) plus the authoring views during authoring.
-  // During research the URL can still mention an authoring tab, but
-  // `activeTab` falls back to the default because locked items refuse
-  // navigation in the sidebar.
-  const availableTabs: TabKey[] = isResearchPhase
-    ? ['second-brain', 'learning', 'learning-saved', 'learning-graded']
-    : ['second-brain', 'brainlift', 'facts', 'facts-redundancy', 'contradictions', 'summaries', 'insights', 'dok4', 'scratchpad', 'sprint', 'document-hub', 'learning', 'learning-saved', 'learning-graded'];
-  const activeTab: TabKey = requestedTab && availableTabs.includes(requestedTab)
-    ? requestedTab
-    : defaultActiveTab;
+  // activeTab and its inputs (defaultActiveTabEarly / availableTabsEarly) are
+  // resolved above (before the early returns) so the DOK1 explainer effect can
+  // gate on them. Re-derive here is intentionally avoided — single source of
+  // truth.
   const NAV_ITEMS = buildBrainliftNavItems(data.phase);
 
   // Brainlift chrome: DashboardHeader rich banner is the entire <header>.
@@ -514,6 +550,7 @@ const { downloadBrainliftPDF } = usePDFExport();
             onNavigateToRedundancy={() => setActiveTab('facts-redundancy')}
             canModify={canModify}
             isAdmin={isAdmin}
+            onOpenExplainer={() => setShowExplainerModal(true)}
           />
         </div>
       )}
@@ -666,6 +703,17 @@ const { downloadBrainliftPDF } = usePDFExport();
         onClose={() => setShowShareModal(false)}
         slug={slug}
         canManageShares={isOwner || isAdmin}
+      />
+
+      {/* DOK1 Rubric Explainer Modal — auto-opens on first DOK1 Facts visit
+          (gated by useEffect above) and reopens on demand via the help icon
+          in <FactGradingPanel>'s header. */}
+      <GradingExplainer
+        open={showExplainerModal}
+        onOpenChange={setShowExplainerModal}
+        dokLevel="dok1"
+        screens={dok1Screens}
+        onCompleteSeen={markSeen}
       />
 
       {/* DOK3 Linking Modal (standalone, outside import flow) */}

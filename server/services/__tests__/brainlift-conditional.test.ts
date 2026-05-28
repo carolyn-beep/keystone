@@ -106,9 +106,13 @@ vi.mock('../../utils/withJob', () => ({
   }),
 }));
 
+vi.mock('../../ai/pangram/enqueue', () => ({
+  enqueuePangramAnalysis: vi.fn().mockResolvedValue(true),
+}));
+
 import { storage } from '../../storage';
 import { autoLinkDOK4Spovs } from '../../ai/dok4AutoLinker';
-import { withJob } from '../../utils/withJob';
+import { enqueuePangramAnalysis } from '../../ai/pangram/enqueue';
 import { runDOK3DOK4Pipeline } from '../grading-pipeline';
 import { saveBrainliftFromAI } from '../brainlift';
 
@@ -189,14 +193,11 @@ describe('FR4: Conditional Pipeline in saveBrainliftFromAI', () => {
   it('enqueues AI Writing Signal analysis for saved DOK2 summaries during import', async () => {
     await saveBrainliftFromAI(MINIMAL_DATA as any, 'content', 'text', 'user1', 0, undefined, false);
 
-    expect(withJob).toHaveBeenCalledWith('pangram:analyze');
-    const chain = vi.mocked(withJob).mock.results[0].value;
-    expect(chain.forPayload).toHaveBeenCalledWith({
+    expect(enqueuePangramAnalysis).toHaveBeenCalledWith({
       entityType: 'dok2_summary',
       entityId: 10,
       brainliftId: 100,
     });
-    expect(chain.forPayload.mock.results[0].value.withOptions).toHaveBeenCalledWith({ maxAttempts: 3 });
   });
 
   it('autoLink=false preserves legacy behavior with dok3_linking event', async () => {

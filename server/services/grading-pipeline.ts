@@ -20,6 +20,7 @@ import { gradeDOK3Insight } from '../ai/dok3Grader';
 import { autoLinkDOK4Spovs } from '../ai/dok4AutoLinker';
 import { gradeDOK4Spov } from '../ai/dok4GraderService';
 import { recomputeBrainliftScore } from './brainlift';
+import { enqueuePangramAnalysis } from '../ai/pangram/enqueue';
 
 type ProgressCallback = (event: ImportProgress) => void;
 
@@ -29,11 +30,7 @@ async function enqueuePangramAnalysisFromPipeline(input: {
   brainliftId: number;
 }): Promise<void> {
   try {
-    const { withJob } = await import('../utils/withJob');
-    await withJob('pangram:analyze')
-      .forPayload(input)
-      .withOptions({ maxAttempts: 3 })
-      .queue();
+    await enqueuePangramAnalysis(input);
   } catch (err) {
     console.error(
       `[Pipeline] Failed to enqueue pangram:analyze for ${input.entityType} ${input.entityId}:`,

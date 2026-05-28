@@ -3,7 +3,7 @@ import { storage } from '../storage';
 import { gradeDOK3Insight } from '../ai/dok3Grader';
 import { recomputeBrainliftScore } from '../services/brainlift';
 import type { PreviousEvaluation } from '@shared/types/regrading';
-import { withJob } from '../utils/withJob';
+import { enqueuePangramAnalysis } from '../ai/pangram/enqueue';
 
 /**
  * Background job: regrade a DOK3 insight after text edit.
@@ -37,10 +37,7 @@ export async function dok3RegradeJob(
     // Enqueue AI Writing Signal analysis (Pangram). Only on grade success;
     // failures should not fan out wasted Pangram calls.
     try {
-      await withJob('pangram:analyze')
-        .forPayload({ entityType: 'dok3_insight', entityId: insightId, brainliftId })
-        .withOptions({ maxAttempts: 3 })
-        .queue();
+      await enqueuePangramAnalysis({ entityType: 'dok3_insight', entityId: insightId, brainliftId });
     } catch (enqueueErr) {
       helpers.logger.error(
         `[DOK3 Regrade] Failed to enqueue pangram:analyze for insight ${insightId}:`,
