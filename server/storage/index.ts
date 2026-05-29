@@ -31,6 +31,7 @@ import * as sprintsStorage from './sprints';
 import * as skillsStorage from './skills';
 import * as secondBrainStorage from './second-brain';
 import * as usersStorage from './users';
+import * as modelPricesStorage from './model-prices';
 import { pangramAssessmentsStorage } from './pangramAssessments';
 
 // Re-export types from base
@@ -402,7 +403,40 @@ export const storage = {
   // User Preferences (per-user explainer-seen flag etc.)
   getUserPreferences: usersStorage.getUserPreferences,
   markExplainerSeen: usersStorage.markExplainerSeen,
+
+  // Model token pricing (cost estimation source of truth)
+  getAllModelPrices: modelPricesStorage.getAllModelPrices,
+  countModelPrices: modelPricesStorage.countModelPrices,
+  upsertModelPrices: modelPricesStorage.upsertModelPrices,
 };
 
-// Export individual modules for direct access if needed
-export { brainliftsStorage, expertsStorage, verificationsStorage, redundancyStorage, analyticsStorage, dok2Storage, sharesStorage, learningStreamStorage, dok3Storage, dok4Storage, knowledgeCheckStorage, nativeBrainliftsStorage, builderExpertsStorage, knowledgeTreeStorage, apiKeysStorage, internalStorage, versionsStorage, staleStorage, dok1CrudStorage, dok2CrudStorage, dok3CrudStorage, dok4CrudStorage, sprintsStorage, pangramAssessmentsStorage, usersStorage };
+// Export individual modules for direct access if needed.
+// One per line: keeps diffs minimal and avoids cross-branch merge conflicts.
+export {
+  brainliftsStorage,
+  expertsStorage,
+  verificationsStorage,
+  redundancyStorage,
+  analyticsStorage,
+  dok2Storage,
+  sharesStorage,
+  learningStreamStorage,
+  dok3Storage,
+  dok4Storage,
+  knowledgeCheckStorage,
+  nativeBrainliftsStorage,
+  builderExpertsStorage,
+  knowledgeTreeStorage,
+  apiKeysStorage,
+  internalStorage,
+  versionsStorage,
+  staleStorage,
+  dok1CrudStorage,
+  dok2CrudStorage,
+  dok3CrudStorage,
+  dok4CrudStorage,
+  sprintsStorage,
+  pangramAssessmentsStorage,
+  usersStorage,
+  modelPricesStorage,
+};

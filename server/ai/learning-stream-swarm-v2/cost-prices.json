@@ -1,9 +1,25 @@
 {
+  "anthropic/claude-opus-4.8": {
+    "promptUsdPer1k": 0.005,
+    "completionUsdPer1k": 0.025
+  },
   "anthropic/claude-opus-4.7": {
-    "promptUsdPer1k": 0.015,
-    "completionUsdPer1k": 0.075
+    "promptUsdPer1k": 0.005,
+    "completionUsdPer1k": 0.025
+  },
+  "anthropic/claude-opus-4.6": {
+    "promptUsdPer1k": 0.005,
+    "completionUsdPer1k": 0.025
   },
   "anthropic/claude-sonnet-4.6": {
+    "promptUsdPer1k": 0.003,
+    "completionUsdPer1k": 0.015
+  },
+  "anthropic/claude-sonnet-4.5": {
+    "promptUsdPer1k": 0.003,
+    "completionUsdPer1k": 0.015
+  },
+  "anthropic/claude-sonnet-4": {
     "promptUsdPer1k": 0.003,
     "completionUsdPer1k": 0.015
   },
@@ -11,9 +27,21 @@
     "promptUsdPer1k": 0.001,
     "completionUsdPer1k": 0.005
   },
+  "google/gemini-2.0-flash-001": {
+    "promptUsdPer1k": 0.0001,
+    "completionUsdPer1k": 0.0004
+  },
   "qwen/qwen-plus": {
-    "promptUsdPer1k": 0.0004,
-    "completionUsdPer1k": 0.0012
+    "promptUsdPer1k": 0.00026,
+    "completionUsdPer1k": 0.00078
+  },
+  "qwen/qwen3-32b": {
+    "promptUsdPer1k": 0.00008,
+    "completionUsdPer1k": 0.00028
+  },
+  "meta-llama/llama-3.1-8b-instruct": {
+    "promptUsdPer1k": 0.00002,
+    "completionUsdPer1k": 0.00005
   },
   "accounts/fireworks/models/minimax-m2p1": {
     "promptUsdPer1k": 0.0003,

@@ -17,6 +17,12 @@ export const FIREWORKS_TIER_MODELS: Record<ModelTier, string> = {
 
 export const MODEL_REGISTRY: Record<string, ModelDef> = {
   // Premium tier
+  'anthropic/claude-opus-4.8': {
+    id: 'anthropic/claude-opus-4.8',
+    provider: 'openrouter',
+    tier: 'premium',
+    displayName: 'Claude Opus 4.8',
+  },
   'anthropic/claude-opus-4.7': {
     id: 'anthropic/claude-opus-4.7',
     provider: 'openrouter',

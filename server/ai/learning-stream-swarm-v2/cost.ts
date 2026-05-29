@@ -1,7 +1,10 @@
-import { writeFile } from 'node:fs/promises';
-import { fileURLToPath } from 'node:url';
 import seedPrices from './cost-prices.json';
 import { MODEL_REGISTRY } from '../client/registry';
+import {
+  getAllModelPrices,
+  upsertModelPrices,
+  type ModelPriceInput,
+} from '../../storage/model-prices';
 
 export interface ModelPrice {
   promptUsdPer1k: number;
@@ -14,7 +17,53 @@ export interface UsageEntry {
   outputTokens: number;
 }
 
-export const MODEL_PRICES: Record<string, ModelPrice> = { ...(seedPrices as Record<string, ModelPrice>) };
+/**
+ * In-memory price cache used by the synchronous cost estimator. Initialized
+ * from the JSON seed so estimates have sane values before `loadModelPrices()`
+ * runs, then overlaid with the DB (source of truth) at boot and after each
+ * monthly refresh.
+ */
+export const MODEL_PRICES: Record<string, ModelPrice> = {
+  ...(seedPrices as Record<string, ModelPrice>),
+};
+
+function seedEntries(): ModelPriceInput[] {
+  return Object.entries(seedPrices as Record<string, ModelPrice>).map(
+    ([modelId, price]) => ({
+      modelId,
+      promptUsdPer1k: price.promptUsdPer1k,
+      completionUsdPer1k: price.completionUsdPer1k,
+    }),
+  );
+}
+
+/**
+ * Loads model prices from the DB into the in-memory cache. If the DB has no
+ * prices yet, performs a one-time seed from cost-prices.json. Call once at boot.
+ */
+export async function loadModelPrices(): Promise<void> {
+  try {
+    const rows = await getAllModelPrices();
+
+    if (rows.length === 0) {
+      const entries = seedEntries();
+      await upsertModelPrices(entries);
+      // in-memory cache already holds the seed values
+      console.log(`[Model prices] Seeded ${entries.length} prices into empty DB`);
+      return;
+    }
+
+    for (const row of rows) {
+      MODEL_PRICES[row.modelId] = {
+        promptUsdPer1k: row.promptUsdPer1k,
+        completionUsdPer1k: row.completionUsdPer1k,
+      };
+    }
+    console.log(`[Model prices] Loaded ${rows.length} prices from DB`);
+  } catch (error) {
+    console.error('[Model prices] Failed to load from DB, using JSON seed values', error);
+  }
+}
 
 export function estimateRunCostUsd(usages: UsageEntry[]): number {
   return usages.reduce((sum, usage) => {
@@ -30,10 +79,12 @@ export function estimateRunCostUsd(usages: UsageEntry[]): number {
   }, 0);
 }
 
-function priceFilePath(): string {
-  return fileURLToPath(new URL('./cost-prices.json', import.meta.url));
-}
-
+/**
+ * Refreshes prices from the OpenRouter pricing API and persists them to the DB
+ * (source of truth), updating the in-memory cache in lockstep. Run monthly via
+ * the `models:refresh-prices` cron. Only models present in MODEL_REGISTRY are
+ * updated; everything else from OpenRouter is skipped.
+ */
 export async function refreshModelPrices(): Promise<{ updated: number; skipped: number }> {
   try {
     const response = await fetch('https://openrouter.ai/api/v1/models', {
@@ -53,7 +104,7 @@ export async function refreshModelPrices(): Promise<{ updated: number; skipped: 
       return { updated: 0, skipped: 0 };
     }
 
-    let updated = 0;
+    const entries: ModelPriceInput[] = [];
     let skipped = 0;
 
     for (const model of body.data as Array<{ id?: string; pricing?: { prompt?: string; completion?: string } }>) {
@@ -70,12 +121,12 @@ export async function refreshModelPrices(): Promise<{ updated: number; skipped: 
         continue;
       }
 
+      entries.push({ modelId: model.id, promptUsdPer1k, completionUsdPer1k });
       MODEL_PRICES[model.id] = { promptUsdPer1k, completionUsdPer1k };
-      updated += 1;
     }
 
-    await writeFile(priceFilePath(), `${JSON.stringify(MODEL_PRICES, null, 2)}\n`);
-    return { updated, skipped };
+    await upsertModelPrices(entries);
+    return { updated: entries.length, skipped };
   } catch (error) {
     console.error('[Research Stream v2] OpenRouter model price refresh failed', error);
     return { updated: 0, skipped: 0 };

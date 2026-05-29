@@ -23,7 +23,7 @@ describe('chat schema contract', () => {
 describe('CHAT_MODELS', () => {
   it('keeps the curated native chat model set in one shared place', () => {
     expect(CHAT_MODELS.map((model) => model.id)).toEqual([
-      'anthropic/claude-opus-4.7',
+      'anthropic/claude-opus-4.8',
       'anthropic/claude-sonnet-4.6',
       'openai/gpt-5.5',
       'google/gemini-3-flash-preview',

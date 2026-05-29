@@ -22,8 +22,6 @@ export interface ModelDef {
   displayName: string;
   defaultTimeout?: number;
   defaultMaxRetries?: number;
-  costPer1kInput?: number;
-  costPer1kOutput?: number;
 }
 
 // --- Call Options ---

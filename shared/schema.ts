@@ -1,4 +1,4 @@
-import { pgTable, text, serial, integer, jsonb, boolean, timestamp, varchar, date, numeric, index, unique, uniqueIndex, check } from "drizzle-orm/pg-core";
+import { pgTable, text, serial, integer, jsonb, boolean, timestamp, varchar, date, numeric, doublePrecision, index, unique, uniqueIndex, check } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 import { relations, sql } from "drizzle-orm";
@@ -447,6 +447,22 @@ export const platformConfig = pgTable("platform_config", {
     .$onUpdate(() => new Date())
     .notNull(),
 });
+
+// Per-model token pricing (USD per 1k tokens). Source of truth for cost
+// estimation. Seeded once from cost-prices.json when empty, then kept current
+// by the monthly `models:refresh-prices` cron (OpenRouter pricing API).
+export const modelPrices = pgTable("model_prices", {
+  modelId: text("model_id").primaryKey(),
+  promptUsdPer1k: doublePrecision("prompt_usd_per_1k").notNull(),
+  completionUsdPer1k: doublePrecision("completion_usd_per_1k").notNull(),
+  updatedAt: timestamp("updated_at")
+    .defaultNow()
+    .$onUpdate(() => new Date())
+    .notNull(),
+});
+
+export type ModelPriceRow = typeof modelPrices.$inferSelect;
+export type InsertModelPriceRow = typeof modelPrices.$inferInsert;
 
 export const VERIFICATION_STATUS = {
   PENDING: 'pending',
