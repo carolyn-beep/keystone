@@ -6,9 +6,9 @@ export interface ChatModelOption {
 
 export const CHAT_MODELS = [
   {
-    id: 'anthropic/claude-opus-4.7',
-    label: 'Claude Opus 4.7',
-    description: 'Top-tier reasoning for the hardest chat turns.',
+    id: 'anthropic/claude-opus-4.8',
+    label: 'Claude Opus 4.8',
+    description: 'Latest top-tier reasoning for the hardest chat turns.',
   },
   {
     id: 'anthropic/claude-sonnet-4.6',

@@ -1,14 +1,19 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-const writeFileMock = vi.hoisted(() => vi.fn());
+const getAllModelPricesMock = vi.hoisted(() => vi.fn());
+const upsertModelPricesMock = vi.hoisted(() => vi.fn());
 
-vi.mock('node:fs/promises', () => ({
-  writeFile: (...args: unknown[]) => writeFileMock(...args),
+vi.mock('../../../storage/model-prices', () => ({
+  getAllModelPrices: (...args: unknown[]) => getAllModelPricesMock(...args),
+  upsertModelPrices: (...args: unknown[]) => upsertModelPricesMock(...args),
 }));
 
 describe('research stream v2 cost helpers', () => {
   beforeEach(() => {
+    vi.resetModules();
     vi.clearAllMocks();
+    getAllModelPricesMock.mockResolvedValue([]);
+    upsertModelPricesMock.mockResolvedValue(0);
   });
 
   afterEach(() => {
@@ -32,6 +37,33 @@ describe('research stream v2 cost helpers', () => {
     expect(warn).toHaveBeenCalledWith(expect.stringContaining('unknown/model'));
   });
 
+  it('loadModelPrices seeds the DB from JSON when empty', async () => {
+    getAllModelPricesMock.mockResolvedValue([]);
+    const { loadModelPrices } = await import('../cost');
+
+    await loadModelPrices();
+
+    expect(upsertModelPricesMock).toHaveBeenCalledOnce();
+    const seeded = upsertModelPricesMock.mock.calls[0][0] as Array<{ modelId: string }>;
+    expect(seeded.length).toBeGreaterThan(0);
+    expect(seeded.some((e) => e.modelId === 'anthropic/claude-opus-4.8')).toBe(true);
+  });
+
+  it('loadModelPrices overlays DB values onto the cache without reseeding', async () => {
+    getAllModelPricesMock.mockResolvedValue([
+      { modelId: 'anthropic/claude-haiku-4.5', promptUsdPer1k: 0.999, completionUsdPer1k: 0.5 },
+    ]);
+    const { loadModelPrices, estimateRunCostUsd } = await import('../cost');
+
+    await loadModelPrices();
+
+    expect(upsertModelPricesMock).not.toHaveBeenCalled();
+    // DB value (0.999/0.5) should now drive the estimate, not the JSON seed
+    expect(estimateRunCostUsd([
+      { model: 'anthropic/claude-haiku-4.5', inputTokens: 1000, outputTokens: 1000 },
+    ])).toBeCloseTo(0.999 + 0.5);
+  });
+
   it('refreshModelPrices parses OpenRouter wrapped data and persists known models', async () => {
     global.fetch = vi.fn().mockResolvedValue({
       ok: true,
@@ -50,7 +82,9 @@ describe('research stream v2 cost helpers', () => {
       promptUsdPer1k: 0.002,
       completionUsdPer1k: 0.01,
     });
-    expect(writeFileMock).toHaveBeenCalledOnce();
+    expect(upsertModelPricesMock).toHaveBeenCalledWith([
+      { modelId: 'anthropic/claude-haiku-4.5', promptUsdPer1k: 0.002, completionUsdPer1k: 0.01 },
+    ]);
   });
 
   it('refreshModelPrices swallows failed responses', async () => {
@@ -59,5 +93,6 @@ describe('research stream v2 cost helpers', () => {
     const { refreshModelPrices } = await import('../cost');
 
     await expect(refreshModelPrices()).resolves.toEqual({ updated: 0, skipped: 0 });
+    expect(upsertModelPricesMock).not.toHaveBeenCalled();
   });
 });

@@ -53,7 +53,10 @@ export {
   nativeBrainliftDetails, builderExperts,
   categories,
   plans, tasks, deliverables, platformConfig,
+  modelPrices,
   apiKeys,
 } from "@shared/schema";
+
+export type { ModelPriceRow, InsertModelPriceRow } from "@shared/schema";
 
 export { eq, inArray, desc, asc, and, sql, isNull, isNotNull, or } from "drizzle-orm";
