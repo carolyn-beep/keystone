@@ -33,6 +33,7 @@ import * as secondBrainStorage from './second-brain';
 import * as usersStorage from './users';
 import * as modelPricesStorage from './model-prices';
 import { pangramAssessmentsStorage } from './pangramAssessments';
+import * as readabilityMetricsStorage from './readabilityMetrics';
 
 // Re-export types from base
 export type {
@@ -408,6 +409,10 @@ export const storage = {
   getAllModelPrices: modelPricesStorage.getAllModelPrices,
   countModelPrices: modelPricesStorage.countModelPrices,
   upsertModelPrices: modelPricesStorage.upsertModelPrices,
+
+  // Readability rewrite metrics (downstream rewrite analytics)
+  recordRewriteMetric: readabilityMetricsStorage.recordRewriteMetric,
+  getReadabilityAnalytics: readabilityMetricsStorage.getReadabilityAnalytics,
 };
 
 // Export individual modules for direct access if needed.
@@ -437,6 +442,7 @@ export {
   dok4CrudStorage,
   sprintsStorage,
   pangramAssessmentsStorage,
+  readabilityMetricsStorage,
   usersStorage,
   modelPricesStorage,
 };

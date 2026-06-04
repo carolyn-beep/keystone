@@ -41,6 +41,12 @@ vi.mock('../dok4Grader', () => ({
   assessAntimemetic: mockAssessAntimemetic,
 }));
 
+// Mock the rewrite integration so orchestration tests stay hermetic (no real
+// LLM rewrite calls and no metric DB writes).
+vi.mock('../readability/integrate', () => ({
+  rewriteForPersist: vi.fn(async (text: string) => ({ userFacing: text, raw: text })),
+}));
+
 // Mock recomputeBrainliftScore
 const mockRecomputeScore = vi.fn();
 vi.mock('../../services/brainlift', () => ({

@@ -10,6 +10,13 @@ import { TactileButton } from '@/components/ui/tactile-button';
 import { FilterBar, type ExtraFilter } from '@/components/FilterBar';
 import { AiWritingSignalChip } from '@/components/AiWritingSignal';
 import type { AiWritingSignalPayload } from '@/types/ai-writing-signal';
+import type { Fact } from '@shared/schema';
+import type { DOK3InsightWithLinks } from '@/hooks/useDOK3Insights';
+import { buildTokenResolver, type TokenResolver, type DOK2SummaryRef } from '@/hooks/useTokenResolver';
+import { RationaleText } from '@/components/grading/RationaleText';
+import { MorphText } from '@/components/grading/MorphText';
+import { RawSimplifiedToggle, useRawSimplified } from '@/components/grading/RawSimplifiedToggle';
+import type { TokenLevel } from '@/lib/grading-tokens';
 
 // Widened locally so the file compiles before the GET /dok4-spovs route
 // extension lands (see spec 02 Open Issues / Andon).
@@ -157,6 +164,14 @@ interface DOK4TabProps {
   onLinkDok3: () => void;
   /** Callback to open DOK4 linking modal */
   onLinkDok4: () => void;
+  /** Switch the active grading tab (used by citation-chip deep-links). */
+  setActiveTab: (tab: string) => void;
+  /** DOK1 facts — resolves [DOK1:id] tokens in SPOV rationales. */
+  facts: Fact[];
+  /** DOK2 summaries — resolves [DOK2:id] tokens in SPOV rationales. */
+  dok2Summaries: DOK2SummaryRef[];
+  /** DOK3 insights — resolves [DOK3:id] tokens (closes the DOK4 resolution gap). */
+  dok3Insights: DOK3InsightWithLinks[];
 }
 
 type SortMode = 'score' | 'status';
@@ -178,6 +193,10 @@ export function DOK4Tab({
   pendingLinkingCount,
   onLinkDok3,
   onLinkDok4,
+  setActiveTab,
+  facts,
+  dok2Summaries,
+  dok3Insights,
 }: DOK4TabProps) {
   const [expandedIds, setExpandedIds] = useState<Record<number, boolean>>({});
   const [expandedAnalysis, setExpandedAnalysis] = useState<Record<number, boolean>>({});
@@ -195,6 +214,29 @@ export function DOK4Tab({
   const toggleAnalysis = (id: number) => {
     setExpandedAnalysis(prev => ({ ...prev, [id]: !prev[id] }));
   };
+
+  // Resolver for [DOKX:id] tokens in SPOV rationales. DOK4 rationales cite
+  // DOK1/DOK2/DOK3, so the resolver is assembled from all three already-loaded
+  // data sets (closes the DOK4 resolution gap — no new endpoint).
+  const resolveToken = useMemo<TokenResolver>(
+    () => buildTokenResolver({ facts, dok2Summaries, dok3Insights }),
+    [facts, dok2Summaries, dok3Insights],
+  );
+
+  // Deep-link from a citation chip to the cited item's tab (scroll + highlight).
+  const navigateToToken = useCallback((level: TokenLevel, id: number) => {
+    const tab = level === 1 ? 'grading' : level === 2 ? 'summaries' : 'insights';
+    const anchor = level === 1 ? `fact-row-${id}` : level === 2 ? `dok2-summary-${id}` : `dok3-insight-${id}`;
+    setActiveTab(tab);
+    setTimeout(() => {
+      const el = document.getElementById(anchor);
+      if (el) {
+        el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        el.classList.add('ring-2', 'ring-primary', 'ring-offset-2');
+        setTimeout(() => el.classList.remove('ring-2', 'ring-primary', 'ring-offset-2'), 2000);
+      }
+    }, 150);
+  }, [setActiveTab]);
 
   // Separate rejected from active SPOVs
   const rejectedSpovsList = useMemo(() =>
@@ -447,6 +489,8 @@ export function DOK4Tab({
                 onRetry={() => retryOne(spov.id)}
                 animationDelay={(index + 6) * 80}
                 latestEvent={spov.status === 'grading' ? latestEvent : null}
+                resolveToken={resolveToken}
+                onNavigateToken={navigateToToken}
               />
             ))}
           </div>
@@ -492,9 +536,11 @@ interface SpovCardProps {
   onRetry: () => void;
   animationDelay: number;
   latestEvent: DOK4GradingSSEEvent | null;
+  resolveToken: TokenResolver;
+  onNavigateToken: (level: TokenLevel, id: number) => void;
 }
 
-function SpovCard({ spov, expanded, onToggle, analysisExpanded, onToggleAnalysis, onRetry, animationDelay, latestEvent }: SpovCardProps) {
+function SpovCard({ spov, expanded, onToggle, analysisExpanded, onToggleAnalysis, onRetry, animationDelay, latestEvent, resolveToken, onNavigateToken }: SpovCardProps) {
   const gradeColors = spov.score !== null ? getScoreChipColors(spov.score) : null;
   const gradeLabel = getDOK4QualityLabel(spov.score);
   const hasCriteria = spov.criteriaBreakdown && Object.keys(spov.criteriaBreakdown).length > 0;
@@ -504,6 +550,9 @@ function SpovCard({ spov, expanded, onToggle, analysisExpanded, onToggleAnalysis
   // extension lands (see spec 02 Open Issues).
   const aiSignal: AiWritingSignalPayload | null =
     (spov as Dok4SpovWithSignal).aiWritingSignal ?? null;
+
+  // Per-item raw/simplified toggle for the SPOV rationale.
+  const rationale = useRawSimplified(spov.rationale, spov.rationaleRaw);
 
   return (
     <div
@@ -646,13 +695,23 @@ function SpovCard({ spov, expanded, onToggle, analysisExpanded, onToggleAnalysis
                 <span className="text-[10px] uppercase tracking-[0.35em] font-semibold text-muted-foreground">
                   Analysis
                 </span>
-                <button
-                  onClick={(e) => { e.stopPropagation(); onToggleAnalysis(); }}
-                  className="flex items-center gap-1.5 text-[10px] uppercase tracking-[0.25em] font-semibold text-muted-light bg-transparent border-0 py-2 px-3 -mr-3 rounded-md cursor-pointer hover:text-muted-foreground hover:bg-sidebar-accent/50 transition-all duration-300"
-                >
-                  Hide
-                  <ChevronUp size={12} />
-                </button>
+                <div className="flex items-center gap-4">
+                  {rationale.canToggle && (
+                    <RawSimplifiedToggle
+                      simplified={spov.rationale}
+                      raw={spov.rationaleRaw}
+                      view={rationale.view}
+                      onToggle={rationale.toggle}
+                    />
+                  )}
+                  <button
+                    onClick={(e) => { e.stopPropagation(); onToggleAnalysis(); }}
+                    className="flex items-center gap-1.5 text-[10px] uppercase tracking-[0.25em] font-semibold text-muted-light bg-transparent border-0 py-2 px-3 -mr-3 rounded-md cursor-pointer hover:text-muted-foreground hover:bg-sidebar-accent/50 transition-all duration-300"
+                  >
+                    Hide
+                    <ChevronUp size={12} />
+                  </button>
+                </div>
               </div>
             )}
 
@@ -668,7 +727,13 @@ function SpovCard({ spov, expanded, onToggle, analysisExpanded, onToggleAnalysis
                   className="overflow-hidden"
                 >
                   <p className="font-serif text-[15px] leading-[2] text-foreground m-0 whitespace-pre-wrap mb-10">
-                    {spov.rationale}
+                    <MorphText morphKey={rationale.view}>
+                      <RationaleText
+                        text={rationale.text}
+                        resolve={resolveToken}
+                        onNavigate={onNavigateToken}
+                      />
+                    </MorphText>
                   </p>
                   {spov.feedback && (
                     <div className="rounded-lg py-6 px-8 bg-success-soft/50 border border-success/15">

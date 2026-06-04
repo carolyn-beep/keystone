@@ -22,6 +22,7 @@ import type { ModelDef } from '../types';
 
 describe('MODEL_REGISTRY', () => {
   const OPENROUTER_MODELS = [
+    'anthropic/claude-opus-4.8',
     'anthropic/claude-opus-4.7',
     'anthropic/claude-opus-4.6',
     'anthropic/claude-sonnet-4.6',
@@ -31,6 +32,7 @@ describe('MODEL_REGISTRY', () => {
     'google/gemini-2.0-flash-001',
     'qwen/qwen-plus',
     'qwen/qwen3-32b',
+    'qwen/qwen3-30b-a3b-instruct-2507',
     'meta-llama/llama-3.1-8b-instruct',
   ];
   const FIREWORKS_MODELS = Object.values(FIREWORKS_TIER_MODELS);
@@ -41,7 +43,7 @@ describe('MODEL_REGISTRY', () => {
     for (const modelId of EXPECTED_MODELS) {
       expect(registeredIds).toContain(modelId);
     }
-    expect(registeredIds).toHaveLength(14);
+    expect(registeredIds).toHaveLength(16);
   });
 
   it.each(OPENROUTER_MODELS)('OpenRouter model "%s" has required metadata fields', (modelId) => {

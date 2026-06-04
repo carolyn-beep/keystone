@@ -594,6 +594,7 @@ const { downloadBrainliftPDF } = usePDFExport();
           setActiveTab={setActiveTab}
           latestEvent={dok3Events.latestEvent}
           dok2Summaries={data.dok2Summaries ?? []}
+          facts={facts}
           onLinkNow={() => setShowLinkingModal(true)}
         />
       )}
@@ -622,6 +623,10 @@ const { downloadBrainliftPDF } = usePDFExport();
             setShowLinkingModal(true);
           }}
           onLinkDok4={() => setShowDok4LinkingModal(true)}
+          setActiveTab={setActiveTab}
+          facts={facts}
+          dok2Summaries={data.dok2Summaries ?? []}
+          dok3Insights={dok3.insights}
         />
       )}
 

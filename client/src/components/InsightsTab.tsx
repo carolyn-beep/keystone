@@ -4,6 +4,7 @@ import { Lightbulb, RefreshCw, Loader2, ChevronDown, ChevronUp, Info, Link2 } fr
 import { PiFootprintsFill } from 'react-icons/pi';
 import { IoLinkSharp } from 'react-icons/io5';
 import { FaArrowUpRightDots } from 'react-icons/fa6';
+import type { Fact } from '@shared/schema';
 import type { DOK3InsightWithLinks } from '@/hooks/useDOK3Insights';
 import type { DOK3GradingSSEEvent } from '@/hooks/useDOK3GradingEvents';
 import { tokens, getScoreChipColors } from '@/lib/colors';
@@ -11,6 +12,11 @@ import { TactileButton } from '@/components/ui/tactile-button';
 import { FilterBar, type ExtraFilter } from '@/components/FilterBar';
 import { AiWritingSignalChip } from '@/components/AiWritingSignal';
 import type { AiWritingSignalPayload } from '@/types/ai-writing-signal';
+import { buildTokenResolver, type TokenResolver } from '@/hooks/useTokenResolver';
+import { RationaleText } from '@/components/grading/RationaleText';
+import { MorphText } from '@/components/grading/MorphText';
+import { RawSimplifiedToggle, useRawSimplified } from '@/components/grading/RawSimplifiedToggle';
+import type { TokenLevel } from '@/lib/grading-tokens';
 
 // Widened locally so the file compiles before the GET /dok3-insights route
 // extension lands (see spec 02 Open Issues / Andon).
@@ -110,6 +116,8 @@ interface InsightsTabProps {
   setActiveTab: (tab: string) => void;
   latestEvent: DOK3GradingSSEEvent | null;
   dok2Summaries: DOK2SummaryRef[];
+  /** DOK1 facts, used to resolve [DOK1:id] tokens cited in DOK3 rationales. */
+  facts: Fact[];
   onLinkNow?: () => void;
 }
 
@@ -187,6 +195,7 @@ export function InsightsTab({
   setActiveTab,
   latestEvent,
   dok2Summaries,
+  facts,
   onLinkNow,
 }: InsightsTabProps) {
   const [expandedIds, setExpandedIds] = useState<Record<number, boolean>>({});
@@ -205,6 +214,35 @@ export function InsightsTab({
     for (const s of dok2Summaries) map.set(s.id, s);
     return map;
   }, [dok2Summaries]);
+
+  // Resolver for [DOKX:id] tokens in DOK3 rationales (cites DOK1 facts + DOK2 summaries).
+  const resolveToken = useMemo<TokenResolver>(
+    () => buildTokenResolver({ facts, dok2Summaries, dok3Insights: insights }),
+    [facts, dok2Summaries, insights],
+  );
+
+  // Tab-switch + scroll + ring highlight for a given anchor.
+  const scrollHighlight = useCallback((tab: string, anchor: string) => {
+    setActiveTab(tab);
+    setTimeout(() => {
+      const el = document.getElementById(anchor);
+      if (el) {
+        el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        el.classList.add('ring-2', 'ring-primary', 'ring-offset-2');
+        setTimeout(() => el.classList.remove('ring-2', 'ring-primary', 'ring-offset-2'), 2000);
+      }
+    }, 150);
+  }, [setActiveTab]);
+
+  // Deep-link to a DOK3 insight in this tab (anchor `#dok3-insight-{id}`).
+  const navigateToInsight = useCallback((id: number) => scrollHighlight('insights', `dok3-insight-${id}`), [scrollHighlight]);
+
+  // Deep-link from a citation chip to the cited item's tab.
+  const navigateToToken = useCallback((level: TokenLevel, id: number) => {
+    if (level === 1) scrollHighlight('grading', `fact-row-${id}`);
+    else if (level === 2) scrollHighlight('summaries', `dok2-summary-${id}`);
+    else navigateToInsight(id);
+  }, [scrollHighlight, navigateToInsight]);
 
   const toggleExpanded = (id: number) => {
     setExpandedIds(prev => ({ ...prev, [id]: !prev[id] }));
@@ -428,6 +466,8 @@ export function InsightsTab({
                 setActiveTab={setActiveTab}
                 animationDelay={(index + 6) * 80}
                 dok2Map={dok2Map}
+                resolveToken={resolveToken}
+                onNavigateToken={navigateToToken}
               />
             ))}
           </div>
@@ -449,9 +489,11 @@ interface InsightCardProps {
   setActiveTab: (tab: string) => void;
   animationDelay: number;
   dok2Map: Map<number, DOK2SummaryRef>;
+  resolveToken: TokenResolver;
+  onNavigateToken: (level: TokenLevel, id: number) => void;
 }
 
-function InsightCard({ insight, expanded, onToggle, analysisExpanded, onToggleAnalysis, onRetry, setActiveTab, animationDelay, dok2Map }: InsightCardProps) {
+function InsightCard({ insight, expanded, onToggle, analysisExpanded, onToggleAnalysis, onRetry, setActiveTab, animationDelay, dok2Map, resolveToken, onNavigateToken }: InsightCardProps) {
   const gradeColors = insight.score !== null ? getScoreChipColors(insight.score) : null;
   const gradeLabel = getGradeLabel(insight.score);
   const hasCriteria = insight.criteriaBreakdown && Object.keys(insight.criteriaBreakdown).length > 0;
@@ -475,6 +517,9 @@ function InsightCard({ insight, expanded, onToggle, analysisExpanded, onToggleAn
     }, 150);
   };
 
+  // Per-item raw/simplified toggle for the DOK3 rationale.
+  const rationale = useRawSimplified(insight.rationale, insight.rationaleRaw);
+
   // Resolve linked DOK2 summaries
   const linkedSummaries = insight.linkedDok2SummaryIds
     .map(id => dok2Map.get(id))
@@ -485,7 +530,7 @@ function InsightCard({ insight, expanded, onToggle, analysisExpanded, onToggleAn
       className="animate-fade-slide-in"
       style={{ animationDelay: `${animationDelay}ms`, animationFillMode: 'backwards' }}
     >
-      <div className="bg-card-elevated rounded-xl shadow-card overflow-hidden">
+      <div id={`dok3-insight-${insight.id}`} className="bg-card-elevated rounded-xl shadow-card overflow-hidden">
         {/* Header: Score + Text + Meta */}
         <div className="flex gap-8 px-10 py-12">
           {/* Score Circle */}
@@ -598,13 +643,23 @@ function InsightCard({ insight, expanded, onToggle, analysisExpanded, onToggleAn
                 <span className="text-[10px] uppercase tracking-[0.35em] font-semibold text-muted-foreground">
                   Analysis
                 </span>
-                <button
-                  onClick={(e) => { e.stopPropagation(); onToggleAnalysis(); }}
-                  className="flex items-center gap-1.5 text-[10px] uppercase tracking-[0.25em] font-semibold text-muted-light bg-transparent border-0 py-2 px-3 -mr-3 rounded-md cursor-pointer hover:text-muted-foreground hover:bg-sidebar-accent/50 transition-all duration-300"
-                >
-                  Hide
-                  <ChevronUp size={12} />
-                </button>
+                <div className="flex items-center gap-4">
+                  {rationale.canToggle && (
+                    <RawSimplifiedToggle
+                      simplified={insight.rationale}
+                      raw={insight.rationaleRaw}
+                      view={rationale.view}
+                      onToggle={rationale.toggle}
+                    />
+                  )}
+                  <button
+                    onClick={(e) => { e.stopPropagation(); onToggleAnalysis(); }}
+                    className="flex items-center gap-1.5 text-[10px] uppercase tracking-[0.25em] font-semibold text-muted-light bg-transparent border-0 py-2 px-3 -mr-3 rounded-md cursor-pointer hover:text-muted-foreground hover:bg-sidebar-accent/50 transition-all duration-300"
+                  >
+                    Hide
+                    <ChevronUp size={12} />
+                  </button>
+                </div>
               </div>
             )}
 
@@ -620,7 +675,13 @@ function InsightCard({ insight, expanded, onToggle, analysisExpanded, onToggleAn
                   className="overflow-hidden"
                 >
                   <p className="font-serif text-[15px] leading-[2] text-foreground m-0 whitespace-pre-wrap mb-10">
-                    {insight.rationale}
+                    <MorphText morphKey={rationale.view}>
+                      <RationaleText
+                        text={rationale.text}
+                        resolve={resolveToken}
+                        onNavigate={onNavigateToken}
+                      />
+                    </MorphText>
                   </p>
                   {insight.feedback && (
                     <div className="rounded-lg py-6 px-8 bg-success-soft/50 border border-success/15">

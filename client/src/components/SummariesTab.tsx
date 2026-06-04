@@ -14,6 +14,14 @@ import { FaArrowUpRightDots } from 'react-icons/fa6';
 import type { Fact, DOK2FailReason } from '@shared/schema';
 import { tokens, getScoreChipColors } from '@/lib/colors';
 import { FilterBar, type ExtraFilter } from '@/components/FilterBar';
+import {
+  RawSimplifiedToggle,
+  DEFAULT_VIEW,
+  hasDistinctRaw,
+  selectText,
+  type ViewMode,
+} from '@/components/grading/RawSimplifiedToggle';
+import { MorphText } from '@/components/grading/MorphText';
 import { AiWritingSignalChip } from '@/components/AiWritingSignal';
 import type { AiWritingSignalPayload } from '@/types/ai-writing-signal';
 
@@ -76,6 +84,7 @@ interface DOK2Summary {
   // DOK2 Grading fields
   grade: number | null;
   diagnosis: string | null;
+  diagnosisRaw: string | null;
   feedback: string | null;
   failReason: DOK2FailReason | null;
   sourceVerified: boolean | null;
@@ -132,6 +141,18 @@ export function SummariesTab({ summaries, facts, setActiveTab }: SummariesTabPro
   const [expandedAnalysis, setExpandedAnalysis] = useState<Record<number, boolean>>({});
   const [expandedPoints, setExpandedPoints] = useState<Record<number, boolean>>({});
   const [expandedFacts, setExpandedFacts] = useState<Record<number, boolean>>({});
+
+  // Per-summary raw/simplified view for the DOK2 diagnosis. Defaults to the
+  // simplified view; overrides are session-only. DOK2 diagnoses carry no
+  // outgoing tokens, so this is a text toggle only (no citation chips).
+  const [diagnosisView, setDiagnosisView] = useState<Record<number, ViewMode>>({});
+  const diagnosisViewFor = (id: number): ViewMode =>
+    diagnosisView[id] ?? DEFAULT_VIEW;
+  const toggleDiagnosisView = (id: number) =>
+    setDiagnosisView(prev => ({
+      ...prev,
+      [id]: (prev[id] ?? DEFAULT_VIEW) === 'raw' ? 'simplified' : 'raw',
+    }));
 
   // Sort mode state
   const [sortMode, setSortMode] = useState<SortMode>('grade');
@@ -233,6 +254,7 @@ export function SummariesTab({ summaries, facts, setActiveTab }: SummariesTabPro
 
     return (
       <div
+        id={`dok2-summary-${summary.id}`}
         className="bg-card-elevated rounded-xl shadow-card overflow-hidden"
       >
         {/* Header: Grade + Title + Meta */}
@@ -325,14 +347,26 @@ export function SummariesTab({ summaries, facts, setActiveTab }: SummariesTabPro
                 {/* Summary Analysis */}
                 {summary.diagnosis && (
                   <div className={`rounded-xl p-10 bg-primary/5 border transition-all duration-300 ${analysisOpen ? 'border-border' : 'border-border hover:border-primary/30 hover:shadow-card-hover'}`}>
-                    <div className="flex items-center gap-2.5 mb-8">
-                      <AiOutlineFileSearch size={20} style={{ color: tokens.warning }} />
-                      <span className="text-[16px] uppercase tracking-[0.1em] font-semibold" style={{ color: tokens.warning }}>
-                        Summary Analysis
-                      </span>
+                    <div className="flex items-center justify-between gap-2.5 mb-8">
+                      <div className="flex items-center gap-2.5">
+                        <AiOutlineFileSearch size={20} style={{ color: tokens.warning }} />
+                        <span className="text-[16px] uppercase tracking-[0.1em] font-semibold" style={{ color: tokens.warning }}>
+                          Summary Analysis
+                        </span>
+                      </div>
+                      {hasDistinctRaw(summary.diagnosis, summary.diagnosisRaw) && (
+                        <RawSimplifiedToggle
+                          simplified={summary.diagnosis}
+                          raw={summary.diagnosisRaw}
+                          view={diagnosisViewFor(summary.id)}
+                          onToggle={() => toggleDiagnosisView(summary.id)}
+                        />
+                      )}
                     </div>
                     <p className={`font-serif text-[15px] leading-[2] text-foreground m-0 whitespace-pre-wrap ${analysisOpen ? '' : 'line-clamp-4'}`}>
-                      {summary.diagnosis}
+                      <MorphText morphKey={diagnosisViewFor(summary.id)}>
+                        {selectText(diagnosisViewFor(summary.id), summary.diagnosis, summary.diagnosisRaw)}
+                      </MorphText>
                     </p>
                   </div>
                 )}
@@ -670,7 +704,7 @@ export function SummariesTab({ summaries, facts, setActiveTab }: SummariesTabPro
             {sortedByGrade.map((summary, index) => (
               <motion.div
                 key={summary.id}
-                layout
+                layout="position"
                 initial={{ opacity: 0, y: 12 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0 }}
@@ -697,7 +731,7 @@ export function SummariesTab({ summaries, facts, setActiveTab }: SummariesTabPro
                 {categorySummaries.map((summary) => (
                   <motion.div
                     key={summary.id}
-                    layout
+                    layout="position"
                     initial={{ opacity: 0, y: 12 }}
                     animate={{ opacity: 1, y: 0 }}
                     exit={{ opacity: 0 }}

@@ -47,6 +47,12 @@ vi.mock('../../ai/factVerifier', () => ({
   }),
 }));
 
+// Mock the rewrite integration so DOK1/DOK2 regrade jobs never make real LLM
+// rewrite calls or metric DB writes during these unit tests.
+vi.mock('../../ai/readability/integrate', () => ({
+  rewriteForPersist: vi.fn(async (text: string) => ({ userFacing: text, raw: text })),
+}));
+
 vi.mock('../../ai/dok2Grader', () => ({
   gradeDOK2Summary: vi.fn().mockResolvedValue({
     displayTitle: 'Test',
@@ -114,7 +120,10 @@ import { storage } from '../../storage';
 import { verifyFactWithAllModels } from '../../ai/factVerifier';
 import { gradeDOK2Summary } from '../../ai/dok2Grader';
 import { recomputeBrainliftScore } from '../../services/brainlift';
+import { rewriteForPersist } from '../../ai/readability/integrate';
 import type { PreviousEvaluation } from '@shared/types/regrading';
+
+const mockRewrite = vi.mocked(rewriteForPersist);
 
 const mockHelpers = {
   logger: { info: vi.fn(), error: vi.fn(), warn: vi.fn(), debug: vi.fn() },
@@ -173,6 +182,28 @@ describe('dok1RegradeJob', () => {
     expect(verifyFactWithAllModels).not.toHaveBeenCalled();
     expect(recomputeBrainliftScore).not.toHaveBeenCalled();
   });
+
+  it('re-rewrites the rationale on regrade, persisting note (rewritten) + noteRaw (original)', async () => {
+    (storage.getFactByIdForBrainlift as any).mockResolvedValue({
+      id: 1, fact: 'New text', source: 'Source', brainliftId: 10, summary: 'sum',
+    });
+    (storage.getBrainliftById as any).mockResolvedValue({ id: 10 });
+    mockRewrite.mockResolvedValueOnce({ userFacing: 'REWRITTEN:OK', raw: 'OK' });
+
+    await dok1RegradeJob(
+      { factId: 1, brainliftId: 10, previousEvaluation: testPrevEval },
+      mockHelpers,
+    );
+
+    expect(mockRewrite).toHaveBeenCalledWith('OK', expect.objectContaining({
+      level: 'DOK1', itemId: 1, brainliftId: 10,
+    }));
+    expect(storage.updateFactGrading).toHaveBeenCalledWith(1, 10, expect.objectContaining({
+      note: 'REWRITTEN:OK',
+      noteRaw: 'OK',
+      score: 4,
+    }));
+  });
 });
 
 describe('dok2RegradeJob', () => {
@@ -219,6 +250,29 @@ describe('dok2RegradeJob', () => {
     );
 
     expect(gradeDOK2Summary).not.toHaveBeenCalled();
+  });
+
+  it('re-rewrites the diagnosis on regrade, persisting diagnosis (rewritten) + diagnosisRaw (original)', async () => {
+    (storage.getDok2SummaryByIdForBrainlift as any).mockResolvedValue({
+      id: 1, brainliftId: 10, sourceName: 'Source', sourceUrl: 'https://example.com',
+    });
+    (storage.getBrainliftById as any).mockResolvedValue({ id: 10, description: 'P' });
+    (storage.getDok2PointsForSummary as any).mockResolvedValue([{ text: 'P1' }]);
+    (storage.getRelatedDOK1sForSummary as any).mockResolvedValue([]);
+    mockRewrite.mockResolvedValueOnce({ userFacing: 'REWRITTEN:Good synthesis', raw: 'Good synthesis' });
+
+    await dok2RegradeJob(
+      { summaryId: 1, brainliftId: 10, previousEvaluation: testPrevEval },
+      mockHelpers,
+    );
+
+    expect(mockRewrite).toHaveBeenCalledWith('Good synthesis', expect.objectContaining({
+      level: 'DOK2', itemId: 1, brainliftId: 10,
+    }));
+    expect(storage.updateDOK2Grading).toHaveBeenCalledWith(1, 10, expect.objectContaining({
+      diagnosis: 'REWRITTEN:Good synthesis',
+      diagnosisRaw: 'Good synthesis',
+    }));
   });
 });
 

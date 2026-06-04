@@ -224,6 +224,11 @@ export async function modelDriftHandler(req: any, res: any) {
   res.json(payload);
 }
 
+export async function readabilityHandler(_req: any, res: any) {
+  const payload = await storage.getReadabilityAnalytics();
+  res.json(payload);
+}
+
 export async function verificationTriggerHandler(req: any, res: any) {
   const parsed = verificationTriggerSchema.safeParse(req.body ?? {});
   if (!parsed.success) {
@@ -275,6 +280,7 @@ analyticsRouter.get('/api/analytics/volume', requireAdmin, asyncHandler(volumeHa
 analyticsRouter.get('/api/analytics/human-verification', requireAdmin, asyncHandler(humanVerificationHandler));
 analyticsRouter.get('/api/analytics/grader-consistency', requireAdmin, asyncHandler(graderConsistencyHandler));
 analyticsRouter.get('/api/analytics/model-drift', requireAdmin, asyncHandler(modelDriftHandler));
+analyticsRouter.get('/api/analytics/readability', requireAdmin, asyncHandler(readabilityHandler));
 analyticsRouter.get('/api/analytics/vanilla-comparison', requireAdmin, asyncHandler(vanillaComparisonHandler));
 analyticsRouter.get('/api/analytics/dok-cliff', requireAdmin, asyncHandler(dokCliffHandler));
 analyticsRouter.get('/api/analytics/score-distribution', requireAdmin, asyncHandler(scoreDistributionHandler));

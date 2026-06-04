@@ -4,6 +4,7 @@ import { verifyFactWithAllModels } from '../ai/factVerifier';
 import { fetchEvidenceForFact, type EvidenceResult } from '../ai/evidenceFetcher';
 import { recomputeBrainliftScore } from '../services/brainlift';
 import { persistFactVerification } from '../services/persist-fact-verification';
+import { rewriteForPersist } from '../ai/readability/integrate';
 import type { PreviousEvaluation } from '@shared/types/regrading';
 import { db } from '../db';
 import { facts } from '@shared/schema';
@@ -69,10 +70,20 @@ export async function dok1RegradeJob(
     const isGradeable = !verification.consensus.isNonGradeable;
     const rationale = verification.consensus.verificationNotes;
 
-    // Update fact grading and set status to graded
+    // Readability rewrite: simplify/shorten the rationale. Never touches the
+    // score. On failure note === noteRaw === rationale. Runs on every re-grade.
+    const { userFacing: userFacingNote } = await rewriteForPersist(rationale, {
+      level: 'DOK1',
+      itemId: factId,
+      brainliftId,
+    });
+
+    // Update fact grading and set status to graded.
+    // note = rewritten/user-facing; noteRaw = grader original.
     await storage.updateFactGrading(factId, brainliftId, {
       score: isGradeable ? finalScore : 0,
-      note: rationale,
+      note: userFacingNote,
+      noteRaw: rationale,
       isGradeable,
       summary: fact.summary || '',
     });

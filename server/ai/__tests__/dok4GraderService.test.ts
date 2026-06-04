@@ -26,6 +26,14 @@ vi.mock('../dok4Grader', () => ({
   assessAntimemetic: vi.fn(),
 }));
 
+// Mock the rewrite integration so the service never makes real LLM calls.
+vi.mock('../readability/integrate', () => ({
+  rewriteForPersist: vi.fn(async (text: string) => ({
+    userFacing: `REWRITTEN:${text}`,
+    raw: text,
+  })),
+}));
+
 import { storage } from '../../storage';
 import {
   validatePOV,
@@ -35,6 +43,9 @@ import {
   assessAntimemetic,
 } from '../dok4Grader';
 import { gradeDOK4Spov } from '../dok4GraderService';
+import { rewriteForPersist } from '../readability/integrate';
+
+const mockRewrite = vi.mocked(rewriteForPersist);
 
 // Test fixtures
 const MOCK_CONTEXT = {
@@ -100,6 +111,32 @@ describe('FR2: DOK4 Grading Service - gradeDOK4Spov()', () => {
       foundationCeiling: 4,
     }));
     expect(assessAntimemetic).toHaveBeenCalled(); // score >= 3
+  });
+
+  it('rewrites the rationale and persists rationale (rewritten) + rationaleRaw (original); score untouched', async () => {
+    vi.mocked(storage.getSpovEvaluationContext).mockResolvedValue(MOCK_CONTEXT as any);
+    vi.mocked(validatePOV).mockResolvedValue({ accept: true });
+    vi.mocked(checkDOK4SourceTraceability).mockResolvedValue({
+      flagged: false, flaggedSource: null, overlapSummary: '',
+    });
+    vi.mocked(checkLLMDivergence).mockResolvedValue({ question: 'Q', vanillaResponse: 'R' });
+    vi.mocked(evaluateDOK4Quality).mockResolvedValue({
+      score: 4, positionSummary: '', frameworkDependency: '', keyEvidence: [],
+      criteria: {}, rationale: 'Well argued', feedback: 'Good work',
+    });
+    vi.mocked(assessAntimemetic).mockResolvedValue({ barriers: [], strategies: [] });
+
+    await gradeDOK4Spov(1, 100);
+
+    expect(mockRewrite).toHaveBeenCalledWith('Well argued', expect.objectContaining({
+      level: 'DOK4', itemId: 1, brainliftId: 100,
+    }));
+    expect(storage.saveDOK4GradeResult).toHaveBeenCalledWith(1, expect.objectContaining({
+      rationale: 'REWRITTEN:Well argued',
+      rationaleRaw: 'Well argued',
+      feedback: 'Good work',
+      score: 4,
+    }));
   });
 
   it('applies ceiling: raw score capped by foundationCeiling', async () => {

@@ -176,7 +176,8 @@ export const facts = pgTable("facts", {
   summary: text("summary"), // 3-line max AI summary
   score: integer("score").notNull(),
   contradicts: text("contradicts"), // Cluster name or null
-  note: text("note"), // Explanation for the score
+  note: text("note"), // Explanation for the score (rewritten/user-facing)
+  noteRaw: text("note_raw"), // Grader original, pre-readability-rewrite (nullable)
   flags: text("flags").array(), // New column for flags like "Incomplete/Unverifiable"
   isGradeable: boolean("is_gradeable").default(true).notNull(),
   // Builder Phase 3: link facts to their source LS item
@@ -1098,7 +1099,8 @@ export const dok2Summaries = pgTable("dok2_summaries", {
   createdAt: timestamp("created_at").defaultNow().notNull(),
   // DOK2 Grading fields
   grade: integer("grade"), // 1-5 grading scale
-  diagnosis: text("diagnosis"), // Why this score was given
+  diagnosis: text("diagnosis"), // Why this score was given (rewritten/user-facing)
+  diagnosisRaw: text("diagnosis_raw"), // Grader original, pre-readability-rewrite (nullable)
   feedback: text("feedback"), // How to improve
   gradedAt: timestamp("graded_at"),
   failReason: text("fail_reason").$type<DOK2FailReason>(), // Auto-fail reason if grade=1
@@ -1242,6 +1244,7 @@ export const dok3Insights = pgTable("dok3_insights", {
   frameworkDescription: text("framework_description"),
   criteriaBreakdown: jsonb("criteria_breakdown"),
   rationale: text("rationale"),
+  rationaleRaw: text("rationale_raw"), // Grader original, pre-readability-rewrite (nullable)
   feedback: text("feedback"),
   foundationIntegrityIndex: text("foundation_integrity_index"),
   dok1FoundationScore: text("dok1_foundation_score"),
@@ -1348,6 +1351,7 @@ export const dok4Spovs = pgTable("dok4_spovs", {
   vulnerabilityPoints: jsonb("vulnerability_points"),
   criteriaBreakdown: jsonb("criteria_breakdown"),
   rationale: text("rationale"),
+  rationaleRaw: text("rationale_raw"), // Grader original, pre-readability-rewrite (nullable)
   feedback: text("feedback"),
 
   // Antimemetic Assessment (Step 6)
@@ -1484,6 +1488,34 @@ export const pangramAssessments = pgTable("pangram_assessments", {
 
 export type PangramAssessment = typeof pangramAssessments.$inferSelect;
 export type InsertPangramAssessment = typeof pangramAssessments.$inferInsert;
+
+// === READABILITY REWRITE METRICS ===
+// One row per downstream rewrite attempt (spec 03-rewrite-integration). Records
+// whether the rewrite was accepted or fell back to the grader original, the
+// failure reason, and the achieved FK/length, for later analytics.
+export const readabilityRewriteMetrics = pgTable("readability_rewrite_metrics", {
+  id: serial("id").primaryKey(),
+  dokLevel: integer("dok_level").notNull(),        // 1..4
+  itemId: integer("item_id").notNull(),            // fact/summary/insight/spov id
+  brainliftId: integer("brainlift_id").references(() => brainlifts.id, { onDelete: "set null" }),
+  rewritten: boolean("rewritten").notNull(),       // false => fell back to original
+  reason: text("reason"),                          // ok | accepted_below_target | model_failed | malformed_output | sanity_failed | token_guard_failed
+  fkBefore: doublePrecision("fk_before"),
+  fkAfter: doublePrecision("fk_after"),             // FK of the persisted text (candidate on success, original on fallback)
+  wordsBefore: integer("words_before"),
+  wordsAfter: integer("words_after"),
+  candidateFk: doublePrecision("candidate_fk"),     // FK achieved by the best/last candidate (null when none produced)
+  candidateWords: integer("candidate_words"),       // words achieved by the best/last candidate
+  rounds: integer("rounds"),
+  model: text("model"),
+  recordedAt: timestamp("recorded_at").defaultNow().notNull(),
+}, (table) => [
+  index("readability_rewrite_metrics_brainlift_idx").on(table.brainliftId),
+  index("readability_rewrite_metrics_level_idx").on(table.dokLevel),
+]);
+
+export type ReadabilityRewriteMetric = typeof readabilityRewriteMetrics.$inferSelect;
+export type InsertReadabilityRewriteMetric = typeof readabilityRewriteMetrics.$inferInsert;
 
 // === DOK ITEM VERSIONING ===
 
@@ -1871,6 +1903,7 @@ export interface BrainliftData extends Brainlift {
     // DOK2 Grading fields
     grade: number | null;
     diagnosis: string | null;
+    diagnosisRaw: string | null;
     feedback: string | null;
     failReason: DOK2FailReason | null;
     sourceVerified: boolean | null;

@@ -55,6 +55,14 @@ export const MODEL_REGISTRY: Record<string, ModelDef> = {
     tier: 'standard',
     displayName: 'Claude Sonnet 4',
   },
+  // Downstream readability rewriter (primary). Out-cuts haiku and reads lower at
+  // equal length; uniform across DOK1-4. See features/pedagogy/readable-grading-feedback.
+  'qwen/qwen3-30b-a3b-instruct-2507': {
+    id: 'qwen/qwen3-30b-a3b-instruct-2507',
+    provider: 'openrouter',
+    tier: 'standard',
+    displayName: 'Qwen3 30B A3B Instruct',
+  },
 
   // Fast tier
   'anthropic/claude-haiku-4.5': {

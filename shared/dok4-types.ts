@@ -101,6 +101,7 @@ export interface DOK4SpovWithLinks {
   vulnerabilityPoints: string[] | null;
   criteriaBreakdown: DOK4CriteriaBreakdown | null;
   rationale: string | null;
+  rationaleRaw: string | null;
   feedback: string | null;
   antimemeticAssessment: DOK4AntimemeticAssessment | null;
   evaluatorModel: string | null;
@@ -135,7 +136,8 @@ export interface DOK4GradeResult {
   frameworkDependency: string;
   keyEvidence: string[];
   criteriaBreakdown: DOK4CriteriaBreakdown;
-  rationale: string;
+  rationale: string;       // rewritten/user-facing
+  rationaleRaw: string;    // grader original
   feedback: string;
   // Antimemetic (null if score < 3)
   antimemeticAssessment: DOK4AntimemeticAssessment | null;

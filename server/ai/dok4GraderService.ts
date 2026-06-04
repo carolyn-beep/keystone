@@ -16,6 +16,7 @@
  */
 
 import { storage } from '../storage';
+import { rewriteForPersist } from './readability/integrate';
 import type { PreviousEvaluation } from '@shared/types/regrading';
 import {
   validatePOV,
@@ -126,7 +127,15 @@ export async function gradeDOK4Spov(
       );
     }
 
-    // Save full result
+    // Readability rewrite: simplify/shorten the rationale for a high-school
+    // audience. Never touches the score. On failure rationale === rationaleRaw.
+    const { userFacing: userFacingRationale } = await rewriteForPersist(qualityResult.rationale, {
+      level: 'DOK4',
+      itemId: spovId,
+      brainliftId,
+    });
+
+    // Save full result. rationale = rewritten/user-facing; rationaleRaw = grader original.
     await storage.saveDOK4GradeResult(spovId, {
       // Foundation
       foundationIntegrityIndex: context.foundationIndex,
@@ -148,7 +157,8 @@ export async function gradeDOK4Spov(
       frameworkDependency: qualityResult.frameworkDependency,
       keyEvidence: qualityResult.keyEvidence,
       criteriaBreakdown: qualityResult.criteria,
-      rationale: qualityResult.rationale,
+      rationale: userFacingRationale,
+      rationaleRaw: qualityResult.rationale,
       feedback: qualityResult.feedback,
       // Antimemetic
       antimemeticAssessment: antimemeticResult,

@@ -14,6 +14,7 @@ import { recordBrainliftScoreEvent } from "./analytics-score-events";
 import { formatBrainliftOverallScore } from "./brainlift-score";
 import type { PersistFactVerificationInput, ScoreEventContext } from "@shared/analytics-types";
 import { persistFactVerification } from "./persist-fact-verification";
+import { rewriteForPersist } from "../ai/readability/integrate";
 import pLimit from "p-limit";
 import { withRetryTimeout } from "../utils/timeout";
 import { enqueuePangramAnalysis } from "../ai/pangram/enqueue";
@@ -463,6 +464,31 @@ export async function saveBrainliftFromAI(
       }
     }));
 
+    // Downstream readability rewrite for DOK1 notes - bulk-path parity with the
+    // single-grade / regrade jobs (which call rewriteForPersist inline). DB fact
+    // ids exist only after the batch save, so this runs as a post-save pass.
+    // rewriteForPersist never throws and falls back to the original note on any
+    // failure; it also records the per-item metric row.
+    const dok1RewriteLimit = pLimit(10);
+    await Promise.all(factsWithSummaries.map((graded) => dok1RewriteLimit(async () => {
+      const dbFactId = factIdMap.get(graded.originalId);
+      if (!dbFactId) return;
+      const rawNote = graded.note ?? '';
+      const { userFacing } = await rewriteForPersist(rawNote, {
+        level: 'DOK1',
+        itemId: dbFactId,
+        brainliftId: brainlift.id,
+      });
+      if (userFacing === rawNote) return; // unchanged -> nothing to re-persist
+      await storage.updateFactGrading(dbFactId, brainlift.id, {
+        score: graded.score,
+        note: userFacing,        // rewritten / user-facing
+        noteRaw: rawNote,        // grader original
+        isGradeable: graded.isGradeable,
+        summary: graded.summary,
+      });
+    })));
+
     // Save DOK2 summaries if present (with grading)
     if (data.dok2Summaries && data.dok2Summaries.length > 0) {
       console.log(`[Auto-Grade] ${skipGrading ? 'Skipping grading and saving' : 'Grading and saving'} ${data.dok2Summaries.length} DOK2 summaries...`);
@@ -567,6 +593,34 @@ export async function saveBrainliftFromAI(
 
       const savedDOK2SummaryIds = await storage.saveDOK2Summaries(brainlift.id, gradedDOK2Summaries, factIdMap);
       console.log(`[Auto-Grade] DOK2 summaries saved successfully with grades`);
+
+      // Downstream readability rewrite for DOK2 diagnoses - bulk-path parity with
+      // the single-grade / regrade jobs. Summary ids exist only after save, so
+      // this is a post-save pass. Skipped when grading was skipped (diagnoses are
+      // placeholders). rewriteForPersist never throws and records a metric row.
+      // savedDOK2SummaryIds is index-aligned with gradedDOK2Summaries.
+      if (!skipGrading) {
+        const dok2RewriteLimit = pLimit(10);
+        await Promise.all(savedDOK2SummaryIds.map((summaryId, i) => dok2RewriteLimit(async () => {
+          const graded = gradedDOK2Summaries[i];
+          if (!graded || !graded.diagnosis) return;
+          const { userFacing } = await rewriteForPersist(graded.diagnosis, {
+            level: 'DOK2',
+            itemId: summaryId,
+            brainliftId: brainlift.id,
+          });
+          if (userFacing === graded.diagnosis) return; // unchanged -> nothing to re-persist
+          await storage.updateDOK2Grading(summaryId, brainlift.id, {
+            displayTitle: graded.displayTitle,
+            grade: graded.grade,
+            diagnosis: userFacing,            // rewritten / user-facing
+            diagnosisRaw: graded.diagnosis,   // grader original
+            feedback: graded.feedback,
+            failReason: graded.failReason,
+            sourceVerified: graded.sourceVerified,
+          });
+        })));
+      }
       await Promise.all(savedDOK2SummaryIds.map((summaryId) => enqueuePangramAnalysisFromImport({
         entityType: 'dok2_summary',
         entityId: summaryId,

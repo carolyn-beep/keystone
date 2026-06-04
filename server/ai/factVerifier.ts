@@ -221,6 +221,7 @@ Grade this claim using only the supplied evidence. Provide a substantive rationa
       timeout: 45_000,
       retries: 2,
       caller: 'factVerifier',
+      userFacing: true,
       validate: (content) => { parseVerificationResponse(content); },
     });
 

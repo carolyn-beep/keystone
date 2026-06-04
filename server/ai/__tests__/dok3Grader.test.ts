@@ -42,6 +42,14 @@ vi.mock('p-limit', () => ({
   default: () => <T>(fn: () => Promise<T>) => fn(),
 }));
 
+// Mock the rewrite integration so grading never makes real LLM rewrite calls.
+vi.mock('../readability/integrate', () => ({
+  rewriteForPersist: vi.fn(async (text: string) => ({
+    userFacing: `REWRITTEN:${text}`,
+    raw: text,
+  })),
+}));
+
 // ─── Import module under test (after mocks) ─────────────────────────────────
 
 import {
@@ -50,6 +58,9 @@ import {
   computeFinalScore,
   gradeDOK3Insight,
 } from '../dok3Grader';
+import { rewriteForPersist } from '../readability/integrate';
+
+const mockRewrite = vi.mocked(rewriteForPersist);
 
 // ─── Test Fixtures ───────────────────────────────────────────────────────────
 
@@ -380,7 +391,10 @@ describe('FR2: evaluateConceptualCoherence — unified client (via gradeDOK3Insi
     expect(result.frameworkDescription).toBe('Assessment framework for compound skill measurement.');
     expect(result.criteriaBreakdown).toBeDefined();
     expect(result.criteriaBreakdown.V1.assessment).toBe('strong');
-    expect(result.rationale).toBe('Strong cross-source synthesis with clear practical value.');
+    // rationaleRaw holds the parsed grader original; rationale holds the
+    // readability-rewritten user-facing form (mocked as REWRITTEN:<original>).
+    expect(result.rationaleRaw).toBe('Strong cross-source synthesis with clear practical value.');
+    expect(result.rationale).toBe('REWRITTEN:Strong cross-source synthesis with clear practical value.');
     expect(result.feedback).toBe('Consider strengthening the novel framing aspect.');
   });
 });
@@ -552,6 +566,22 @@ describe('FR4: gradeDOK3Insight — pipeline orchestration preserved', () => {
     expect(gradeData.frameworkName).toBe('Compound Skills Gap');
     expect(gradeData.evaluatorModel).toBe('anthropic/claude-opus-4.6');
   });
+
+  it('rewrites the rationale and persists rationale (rewritten) + rationaleRaw (original); score untouched', async () => {
+    const context = makeEvaluationContext();
+    setupFullMocks(context);
+
+    await gradeDOK3Insight(1, 10);
+
+    expect(mockRewrite).toHaveBeenCalledWith(expect.any(String), expect.objectContaining({
+      level: 'DOK3', itemId: 1, brainliftId: 10,
+    }));
+    const [, gradeData] = mockStorage.saveDOK3GradeResult.mock.calls[0];
+    // rationale = rewritten (REWRITTEN:<original>); rationaleRaw = grader original.
+    expect(gradeData.rationale).toBe(`REWRITTEN:${gradeData.rationaleRaw}`);
+    // The score is unaffected by the rewrite step.
+    expect(gradeData.score).toBeDefined();
+  });
 });
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -583,5 +613,57 @@ describe('computeFinalScore — regression', () => {
   it('clamps between 1 and 5', () => {
     expect(computeFinalScore(0, 5)).toBe(1);
     expect(computeFinalScore(6, 5)).toBe(5);
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// 04-token-backend: caller threads real evidence ids into the user prompt
+// ═══════════════════════════════════════════════════════════════════════════
+
+describe('04-token-backend: dok3Grader threads ids into the coherence user prompt', () => {
+  function setupFullPipelineMocks(context: DOK3EvaluationContext) {
+    mockStorage.getInsightEvaluationContext.mockResolvedValue(context);
+
+    const sourceCount = new Set(
+      context.linkedDok2s.map(d =>
+        d.sourceUrl
+          ? d.sourceUrl.toLowerCase().replace(/\/+$/, '')
+          : d.sourceName.toLowerCase().trim()
+      )
+    ).size;
+
+    for (let i = 0; i < sourceCount; i++) {
+      mockCallModelWithFallback.mockResolvedValueOnce({
+        content: TRACEABILITY_RESPONSE,
+        model: 'google/gemini-2.0-flash-001',
+        durationMs: 500,
+        attempts: 1,
+      });
+    }
+
+    mockCallModelWithFallback.mockResolvedValueOnce({
+      content: EVALUATION_RESPONSE,
+      model: 'anthropic/claude-opus-4.6',
+      durationMs: 2000,
+      attempts: 1,
+    });
+  }
+
+  it('renders [DOK2:id] and [DOK1:id] tokens from the real context ids', async () => {
+    const context = makeEvaluationContext();
+    setupFullPipelineMocks(context);
+
+    await gradeDOK3Insight(1, 10);
+
+    // The coherence call is the last one; its user message is the built prompt.
+    const lastCall = mockCallModelWithFallback.mock.calls[mockCallModelWithFallback.mock.calls.length - 1][0];
+    const userPrompt = lastCall.messages[0].content as string;
+
+    // Ids come from makeEvaluationContext(): DOK2 ids 100/101, DOK1 ids 1/2/3.
+    expect(userPrompt).toContain('[DOK2:100]');
+    expect(userPrompt).toContain('[DOK2:101]');
+    expect(userPrompt).toContain('[DOK1:1]');
+    expect(userPrompt).toContain('[DOK1:2]');
+    expect(userPrompt).toContain('[DOK1:3]');
   });
 });

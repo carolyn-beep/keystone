@@ -12,6 +12,8 @@ import { TactileButton } from '@/components/ui/tactile-button';
 import type { Fact } from '@shared/schema';
 import checklistIcon from '@/assets/icons/checklist.svg';
 import overlapIcon from '@/assets/icons/overlap.svg';
+import { RawSimplifiedToggle, useRawSimplified } from '@/components/grading/RawSimplifiedToggle';
+import { MorphText } from '@/components/grading/MorphText';
 
 export interface HumanGrade {
   score: number | null;
@@ -215,6 +217,11 @@ export function FactRow({
 
   const hasAIAnalysis = fact.note && fact.note.trim().length > 0;
 
+  // Per-item raw/simplified toggle for the DOK1 note. The selected text feeds
+  // parseAnalysisStructured below so the quote/source render is preserved.
+  // DOK1 notes carry no outgoing tokens, so this is a text toggle only.
+  const note = useRawSimplified(fact.note, fact.noteRaw);
+
   const handleQuickGrade = (score: number) => {
     if (!canModify) {
       toast({
@@ -243,6 +250,7 @@ export function FactRow({
 
   return (
     <div
+      id={`fact-row-${fact.id}`}
       data-testid={`row-fact-${fact.originalId}`}
       className={cn(
         "transition-all duration-200 overflow-hidden shadow-card",
@@ -477,7 +485,12 @@ export function FactRow({
             className="overflow-hidden border-t border-border"
           >
             {(() => {
-              const { assessment, quotes, sourceUrl } = parseAnalysisStructured(fact.note || '', sourceUrls);
+              const { assessment, quotes, sourceUrl } = parseAnalysisStructured(note.text || '', sourceUrls);
+              // The source is fact metadata, not part of the prose, so it must
+              // stay visible in both views. The Brief rewrite drops the
+              // "Source:" suffix, so fall back to parsing the raw note for it.
+              const resolvedSourceUrl =
+                sourceUrl ?? parseAnalysisStructured(fact.noteRaw || '', sourceUrls).sourceUrl;
               return (
                 <div className="px-10 py-8">
                   <motion.div
@@ -486,11 +499,21 @@ export function FactRow({
                     transition={{ delay: 0.2, duration: 0.35, ease: 'easeOut' }}
                     className="mb-5"
                   >
-                    <div className="flex items-center gap-2">
-                      <img src={checklistIcon} alt="" className="w-5 h-5 opacity-40" />
-                      <span className="text-[10px] uppercase tracking-[0.35em] font-semibold text-muted-light">
-                        AI Analysis
-                      </span>
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-2">
+                        <img src={checklistIcon} alt="" className="w-5 h-5 opacity-40" />
+                        <span className="text-[10px] uppercase tracking-[0.35em] font-semibold text-muted-light">
+                          AI Analysis
+                        </span>
+                      </div>
+                      {note.canToggle && (
+                        <RawSimplifiedToggle
+                          simplified={fact.note}
+                          raw={fact.noteRaw}
+                          view={note.view}
+                          onToggle={note.toggle}
+                        />
+                      )}
                     </div>
                   </motion.div>
 
@@ -500,10 +523,12 @@ export function FactRow({
                     transition={{ delay: 0.35, duration: 0.4, ease: 'easeOut' }}
                     className="font-serif text-[15px] leading-[1.8] text-foreground"
                   >
-                    {renderAssessmentWithQuotes(assessment, quotes)}
+                    <MorphText morphKey={note.view}>
+                      {renderAssessmentWithQuotes(assessment, quotes)}
+                    </MorphText>
                   </motion.div>
 
-                  {sourceUrl && (
+                  {resolvedSourceUrl && (
                     <motion.div
                       initial={{ opacity: 0 }}
                       animate={{ opacity: 1 }}
@@ -514,13 +539,13 @@ export function FactRow({
                         Source
                       </span>
                       <a
-                        href={sourceUrl}
+                        href={resolvedSourceUrl}
                         target="_blank"
                         rel="noopener noreferrer"
                         onClick={(e) => e.stopPropagation()}
                         className="block mt-1.5 text-[13px] text-muted-foreground hover:text-foreground transition-colors duration-300 truncate"
                       >
-                        {sourceUrl.replace(/^https?:\/\//, '').split('/')[0]}
+                        {resolvedSourceUrl.replace(/^https?:\/\//, '').split('/')[0]}
                         <ExternalLink size={11} className="inline-block ml-1.5 -mt-0.5" />
                       </a>
                     </motion.div>

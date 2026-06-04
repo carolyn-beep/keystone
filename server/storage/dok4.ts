@@ -84,6 +84,7 @@ export async function getDOK4Spovs(brainliftId: number): Promise<DOK4SpovWithLin
     vulnerabilityPoints: spov.vulnerabilityPoints as string[] | null,
     criteriaBreakdown: spov.criteriaBreakdown as DOK4SpovWithLinks['criteriaBreakdown'],
     rationale: spov.rationale,
+    rationaleRaw: spov.rationaleRaw,
     feedback: spov.feedback,
     antimemeticAssessment: spov.antimemeticAssessment as DOK4SpovWithLinks['antimemeticAssessment'],
     evaluatorModel: spov.evaluatorModel,
@@ -190,6 +191,7 @@ export async function saveDOK4GradeResult(
       vulnerabilityPoints: null,
       criteriaBreakdown: result.criteriaBreakdown,
       rationale: result.rationale,
+      rationaleRaw: result.rationaleRaw,
       feedback: result.feedback,
       // Antimemetic
       antimemeticAssessment: result.antimemeticAssessment,

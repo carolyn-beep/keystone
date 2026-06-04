@@ -2,6 +2,7 @@ import type { JobHelpers } from 'graphile-worker';
 import { storage } from '../storage';
 import { gradeDOK2Summary } from '../ai/dok2Grader';
 import { recomputeBrainliftScore } from '../services/brainlift';
+import { rewriteForPersist } from '../ai/readability/integrate';
 import type { PreviousEvaluation } from '@shared/types/regrading';
 import { db } from '../db';
 import { dok2Summaries } from '@shared/schema';
@@ -50,10 +51,20 @@ export async function dok2RegradeJob(
       previousEvaluation,
     );
 
-    // Update grading and set status to graded
+    // Readability rewrite: simplify/shorten the diagnosis. Never touches the
+    // score. On failure diagnosis === diagnosisRaw. Runs on every re-grade.
+    const { userFacing: userFacingDiagnosis } = await rewriteForPersist(result.diagnosis, {
+      level: 'DOK2',
+      itemId: summaryId,
+      brainliftId,
+    });
+
+    // Update grading and set status to graded.
+    // diagnosis = rewritten/user-facing; diagnosisRaw = grader original.
     await storage.updateDOK2Grading(summaryId, brainliftId, {
       grade: result.score,
-      diagnosis: result.diagnosis,
+      diagnosis: userFacingDiagnosis,
+      diagnosisRaw: result.diagnosis,
       feedback: result.feedback,
       failReason: result.failReason,
       sourceVerified: result.sourceVerified,

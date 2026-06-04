@@ -67,6 +67,12 @@ vi.mock('../../ai/dok4GraderService', () => ({
   gradeDOK4Spov: vi.fn().mockResolvedValue({ status: 'graded', score: 4 }),
 }));
 
+// Mock the rewrite integration so grade/regrade jobs do not make real LLM
+// rewrite calls (the DOK1/DOK2 jobs invoke rewriteForPersist before persist).
+vi.mock('../../ai/readability/integrate', () => ({
+  rewriteForPersist: vi.fn(async (text: string) => ({ userFacing: text, raw: text })),
+}));
+
 vi.mock('../../services/brainlift', () => ({
   recomputeBrainliftScore: vi.fn().mockResolvedValue(undefined),
 }));

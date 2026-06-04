@@ -90,13 +90,29 @@ SCORING INSTRUCTIONS:
 - Reason through all 7 criteria before arriving at a score.
 - The quality level descriptions are your primary anchor. Pick the level that
   best matches your assessment, then use the criteria to justify or adjust.
-- You MUST reference the Foundation Integrity Index in your rationale. If the
-  foundation is weak, explain how that affects your confidence in the insight.
-- If the TRACEABILITY field indicates a flag, weigh this seriously. An insight
-  that restates a single source's conclusion is at best a 2 unless the student
-  demonstrably extends beyond that source.
-- Your rationale must cite specific DOK1 facts or DOK2 summaries as evidence
-  for your assessment. Do not make abstract claims about quality.
+- You MUST reference the Foundation Integrity Index in your rationale; write it
+  for the student in plain language as the DOK1 facts and DOK2 summaries the
+  insight is built on. If the foundation is weak, explain how that affects your
+  confidence in the insight. Do not mention the term "Foundation Integrity
+  Index" directly.
+- If the TRACEABILITY field indicates a flag, weigh this seriously; in the
+  rationale, tell the student in plain words that one of their sources already
+  covers the insight. An insight that restates a single source's conclusion is
+  at best a 2 unless the student demonstrably extends beyond that source. Do not
+  mention the term "traceability" directly.
+- Your rationale must cite specific DOK1 facts or DOK2 summaries as evidence for
+  your assessment using the [DOKX:1234] citation format (e.g. [DOK1:42]). Each
+  citation renders for the reader as a small superscript reference marker they can
+  click, NOT as inline text. Follow these rules so the prose reads cleanly:
+  - Write self-contained sentences that still read correctly if every [DOKX:id]
+    were deleted. Never use a token as the subject, object, or any word of a
+    sentence.
+  - Name a source in your own plain words ("the governance source", "one of the
+    sources", "their pricing fact"); do not rely on the token to supply a noun.
+  - Place each [DOKX:id] immediately AFTER the clause or sentence it supports,
+    like a footnote. Stack multiple markers when one clause rests on several
+    items: ...exceptions become the rule.[DOK1:42][DOK2:7]
+  - Do not quote the DOK's text. Do not make abstract claims about quality.
 
 If a PREVIOUS EVALUATION section is present, this is a re-grade. The student
 has received the previous feedback and may have revised their insight or
@@ -108,6 +124,12 @@ If the edit DIRECTLY ADDRESSES your previous feedback, the new score
 MUST be >= the previous score. Only score lower if the edit introduced
 NEW PROBLEMS not present before. Reference the previous feedback in your
 rationale to show continuity.
+
+PLAIN LANGUAGE FOR THE STUDENT:
+The student reads at a high-school level. Write the rationale and feedback in
+plain language they can read easily. Keep the taught terms exactly as written
+(DOK1 facts, DOK2 summaries, DOK3, the framework name), but say everything else
+in plain words. Use short sentences.
 
 Respond ONLY with this JSON. No markdown. No backticks. No preamble.
 {
@@ -123,8 +145,8 @@ Respond ONLY with this JSON. No markdown. No backticks. No preamble.
     "P2": { "assessment": "strong|partial|weak", "evidence": "one sentence" }
   },
   "score": 1-5,
-  "rationale": "Brief explanation of the score, grounded in specific DOK1/DOK2 evidence, including foundation integrity and traceability flag impact when relevant.",
-  "feedback": "One specific, actionable recommendation tied to the weakest dimension. Tell the student exactly what to strengthen."
+  "rationale": "A plain-language paragraph with short sentences explaining how the criteria informed your score. Cite the specific DOK1/DOK2 evidence with trailing [DOKX:id] markers placed after the clause they support; every sentence must read correctly with the markers removed. Say plainly how strong the foundation is, and whether one source already covers the insight, when relevant.",
+  "feedback": "One specific, actionable recommendation tied to the weakest dimension. Point the student to the gap and the evidence that addresses it, and let them find the words themselves."
 }`;
 
 // ─── Step 2: Source Traceability Check ────────────────────────────────────────
@@ -151,10 +173,12 @@ Respond ONLY with this JSON. No markdown. No backticks. No preamble.
 
 interface DOK3EvidenceForPrompt {
   linkedDok2s: Array<{
+    id: number;
     sourceName: string;
     grade: number | null;
     points: string[];
     dok1Facts: Array<{
+      id: number;
       fact: string;
       score: number;
     }>;
@@ -185,13 +209,13 @@ export function buildDOK3UserPrompt(
 
     const factsText = dok2.dok1Facts.length > 0
       ? dok2.dok1Facts.map(f =>
-        `- (score: ${f.score}/5) ${f.fact}`
+        `- [DOK1:${f.id}] (score: ${f.score}/5) ${f.fact}`
       ).join('\n')
       : 'No DOK1 facts available for this source.';
 
     return `---
 Source: ${dok2.sourceName}
-DOK2 Summary (grade: ${dok2.grade ?? 'ungraded'}/5):
+DOK2 Summary [DOK2:${dok2.id}] (grade: ${dok2.grade ?? 'ungraded'}/5):
 ${pointsText}
 
 DOK1 Facts from this source:

@@ -18,6 +18,7 @@ import {
   useHumanVerificationAnalytics,
   useLeaderboardAnalytics,
   useModelDriftAnalytics,
+  useReadabilityAnalytics,
   useScoreImprovementAnalytics,
   useSpovDistributionAnalytics,
   useVanillaComparisonAnalytics,
@@ -30,6 +31,7 @@ import { ModelDriftCard } from '@/components/analytics/ModelDriftCard';
 import { VanillaComparisonCard } from '@/components/analytics/VanillaComparisonCard';
 import { DokCliffCard } from '@/components/analytics/DokCliffCard';
 import { ScoreDistributionCard } from '@/components/analytics/ScoreDistributionCard';
+import { ReadabilityCard } from '@/components/analytics/ReadabilityCard';
 import { SpovDistributionCard } from '@/components/analytics/SpovDistributionCard';
 import { ScoreImprovementCard } from '@/components/analytics/ScoreImprovementCard';
 import { LeaderboardCard } from '@/components/analytics/LeaderboardCard';
@@ -55,6 +57,7 @@ export default function Analytics() {
   const [filters, setFilters] = useState(() => getDefaultAnalyticsPageFilters());
   const [leaderboardRankBy, setLeaderboardRankBy] = useState<LeaderboardRankBy>('quality');
   const [scoreDistributionDokLevel, setScoreDistributionDokLevel] = useState<AnalyticsDokLevelFilter>('all');
+  const [readabilityDokLevel, setReadabilityDokLevel] = useState<AnalyticsDokLevelFilter>('all');
   const revealNames = typeof window !== 'undefined'
     && new URLSearchParams(window.location.search).get('viewNames') === 'true';
 
@@ -75,6 +78,7 @@ export default function Analytics() {
   const humanVerification = useHumanVerificationAnalytics(normalizedFilters, { enabled: queriesEnabled });
   const graderConsistency = useGraderConsistencyAnalytics({ enabled: queriesEnabled });
   const modelDrift = useModelDriftAnalytics({ enabled: queriesEnabled });
+  const readability = useReadabilityAnalytics({ enabled: queriesEnabled });
   const vanillaComparison = useVanillaComparisonAnalytics(normalizedFilters, { enabled: queriesEnabled });
   const dokCliff = useDokCliffAnalytics(normalizedFilters, { enabled: queriesEnabled });
   const scoreDistribution = useScoreDistributionAnalytics({
@@ -266,6 +270,16 @@ export default function Analytics() {
               data={modelDrift.data}
               isLoading={modelDrift.isLoading}
               error={QueryError(modelDrift.error)}
+            />
+          </div>
+
+          <div className="xl:col-span-12">
+            <ReadabilityCard
+              data={readability.data}
+              isLoading={readability.isLoading}
+              error={QueryError(readability.error)}
+              selectedDokLevel={readabilityDokLevel}
+              onDokLevelChange={setReadabilityDokLevel}
             />
           </div>
 
