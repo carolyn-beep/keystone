@@ -21,7 +21,6 @@ export const ALPHAX_GRADE5_TONE_BLOCK = [
   '- Use plain, everyday words. Skip jargon.',
   '- One idea per sentence. Break long thoughts into two.',
   '- Active voice.',
-  '- Concrete over abstract. Name the specific thing, not the category.',
   '- No hedging stacks. Say it directly.',
   '- The only domain terms allowed are DOK1, DOK2, DOK3, DOK4, SPOV,',
   "  brainlift, and expert. Those are the student's vocabulary. Use",

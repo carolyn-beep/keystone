@@ -6,6 +6,7 @@ import { storage } from '../storage';
 import { resolveYouTubeTranscript } from '../utils/resolve-youtube-transcript';
 import { recomputeBrainliftScore } from '../services/brainlift';
 import { persistFactVerification } from '../services/persist-fact-verification';
+import { rewriteForPersist } from '../ai/readability/integrate';
 
 /**
  * Background job: grade a single newly created DOK1 fact.
@@ -85,10 +86,27 @@ export async function dok1GradeSingleJob(
 
     const finalNote = `${rationale}\n\n${sourceHyperlink}`;
 
-    // Update fact score, note, and set status to graded
+    // Readability rewrite: simplify/shorten the rationale prose for a high-school
+    // audience, then re-append the source link. Never touches the score. On any
+    // failure the original rationale is used (note === note_raw === finalNote).
+    const { userFacing: rewrittenRationale } = await rewriteForPersist(rationale, {
+      level: 'DOK1',
+      itemId: factId,
+      brainliftId,
+    });
+    const userFacingNote = `${rewrittenRationale}\n\n${sourceHyperlink}`;
+
+    // Update fact score, note (rewritten/user-facing), note_raw (grader original),
+    // and set status to graded. Score is unchanged by the rewrite step.
     await db
       .update(facts)
-      .set({ score: finalScore, note: finalNote, isGradeable, gradingStatus: 'graded' })
+      .set({
+        score: finalScore,
+        note: userFacingNote,
+        noteRaw: finalNote,
+        isGradeable,
+        gradingStatus: 'graded',
+      })
       .where(eq(facts.id, factId));
 
     try {

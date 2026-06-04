@@ -8,19 +8,33 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import type { JobHelpers } from 'graphile-worker';
 
+// Captures the most recent db.update(...).set(payload) so wiring tests can assert
+// the persisted column values (note/note_raw, diagnosis/diagnosis_raw, score).
+const setSpy = vi.fn();
+
 // Mock dependencies before importing jobs
 vi.mock('../../storage/base', () => ({
   db: {
     update: vi.fn(() => ({
-      set: vi.fn(() => ({
-        where: vi.fn().mockResolvedValue(undefined),
-      })),
+      set: (payload: any) => {
+        setSpy(payload);
+        return { where: vi.fn().mockResolvedValue(undefined) };
+      },
     })),
     select: vi.fn(),
   },
   eq: vi.fn(),
   facts: { id: 'id', score: 'score', note: 'note', isGradeable: 'is_gradeable', gradingStatus: 'grading_status' },
   dok2Summaries: { id: 'id', gradingStatus: 'grading_status' },
+}));
+
+// Mock the rewrite integration so wiring tests never make real LLM calls.
+// Default: identity rewrite (userFacing = REWRITTEN:<text>, raw = original).
+vi.mock('../../ai/readability/integrate', () => ({
+  rewriteForPersist: vi.fn(async (text: string) => ({
+    userFacing: `REWRITTEN:${text}`,
+    raw: text,
+  })),
 }));
 
 vi.mock('../../storage', () => ({
@@ -90,6 +104,9 @@ import { storage } from '../../storage';
 import { verifyFactWithAllModels } from '../../ai/factVerifier';
 import { gradeDOK2Summary } from '../../ai/dok2Grader';
 import { recomputeBrainliftScore } from '../../services/brainlift';
+import { rewriteForPersist } from '../../ai/readability/integrate';
+
+const mockRewrite = vi.mocked(rewriteForPersist);
 
 const mockHelpers = {
   logger: { info: vi.fn(), error: vi.fn(), warn: vi.fn(), debug: vi.fn() },
@@ -132,6 +149,41 @@ describe('dok1GradeSingleJob', () => {
 
     expect(verifyFactWithAllModels).not.toHaveBeenCalled();
     expect(recomputeBrainliftScore).not.toHaveBeenCalled();
+  });
+
+  it('rewrites the rationale and persists note (rewritten) + note_raw (original finalNote); score untouched', async () => {
+    (storage.getFactByIdForBrainlift as any).mockResolvedValue({
+      id: 1, fact: 'The sky is blue', source: 'https://example.com', brainliftId: 10,
+    });
+
+    await dok1GradeSingleJob({ factId: 1, brainliftId: 10 }, mockHelpers);
+
+    // Rewrite runs on the rationale prose only (not the appended source link).
+    expect(mockRewrite).toHaveBeenCalledWith('Verified OK', expect.objectContaining({
+      level: 'DOK1', itemId: 1, brainliftId: 10,
+    }));
+
+    const payload = setSpy.mock.calls.at(-1)![0];
+    // note_raw = original finalNote (rationale + source link), note = rewritten + source link.
+    expect(payload.noteRaw).toBe('Verified OK\n\nSource: [https://example.com](https://example.com)');
+    expect(payload.note).toBe('REWRITTEN:Verified OK\n\nSource: [https://example.com](https://example.com)');
+    // Score is set from the grader consensus and never touched by the rewrite.
+    expect(payload.score).toBe(4);
+  });
+
+  it('does not lose the grade when the rewrite engine fails (falls back to original)', async () => {
+    (storage.getFactByIdForBrainlift as any).mockResolvedValue({
+      id: 1, fact: 'The sky is blue', source: 'https://example.com', brainliftId: 10,
+    });
+    // Helper contract: never throws; returns original in both fields on failure.
+    mockRewrite.mockResolvedValueOnce({ userFacing: 'Verified OK', raw: 'Verified OK' });
+
+    await dok1GradeSingleJob({ factId: 1, brainliftId: 10 }, mockHelpers);
+
+    const payload = setSpy.mock.calls.at(-1)![0];
+    expect(payload.note).toBe('Verified OK\n\nSource: [https://example.com](https://example.com)');
+    expect(payload.score).toBe(4);
+    expect(payload.gradingStatus).toBe('graded');
   });
 
   it('re-throws non-final failures so graphile-worker retries', async () => {
@@ -209,6 +261,28 @@ describe('dok2GradeSingleJob', () => {
 
     expect(gradeDOK2Summary).not.toHaveBeenCalled();
     expect(recomputeBrainliftScore).not.toHaveBeenCalled();
+  });
+
+  it('rewrites the diagnosis and persists diagnosis (rewritten) + diagnosis_raw (original); score/feedback untouched', async () => {
+    (storage.getDok2SummaryByIdForBrainlift as any).mockResolvedValue({
+      id: 5, brainliftId: 10, sourceName: 'Source A', sourceUrl: 'https://example.com',
+    });
+    (storage.getBrainliftById as any).mockResolvedValue({ id: 10, description: 'Purpose' });
+    (storage.getDok2PointsForSummary as any).mockResolvedValue([{ text: 'P1', sortOrder: 0 }]);
+    (storage.getRelatedDOK1sForSummary as any).mockResolvedValue([]);
+
+    await dok2GradeSingleJob({ summaryId: 5, brainliftId: 10 }, mockHelpers);
+
+    expect(mockRewrite).toHaveBeenCalledWith('Good synthesis', expect.objectContaining({
+      level: 'DOK2', itemId: 5, brainliftId: 10,
+    }));
+
+    const payload = setSpy.mock.calls.at(-1)![0];
+    expect(payload.diagnosis).toBe('REWRITTEN:Good synthesis');
+    expect(payload.diagnosisRaw).toBe('Good synthesis');
+    // Score and feedback are persisted as graded; the rewrite touches neither.
+    expect(payload.grade).toBe(4);
+    expect(payload.feedback).toBe('Well done');
   });
 
   it('re-throws non-final failures so graphile-worker retries', async () => {

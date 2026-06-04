@@ -4,6 +4,7 @@ import { gradeDOK2Summary } from '../ai/dok2Grader';
 import { storage } from '../storage';
 import { recomputeBrainliftScore } from '../services/brainlift';
 import { enqueuePangramAnalysis } from '../ai/pangram/enqueue';
+import { rewriteForPersist } from '../ai/readability/integrate';
 
 /**
  * Background job: grade a single newly created DOK2 summary.
@@ -47,13 +48,23 @@ export async function dok2GradeSingleJob(
       summary.sourceUrl,
     );
 
-    // Update summary with grading results and set status to graded
+    // Readability rewrite: simplify/shorten the diagnosis for a high-school
+    // audience. Never touches the score. On failure diagnosis === diagnosis_raw.
+    const { userFacing: userFacingDiagnosis } = await rewriteForPersist(result.diagnosis, {
+      level: 'DOK2',
+      itemId: summaryId,
+      brainliftId,
+    });
+
+    // Update summary with grading results and set status to graded.
+    // diagnosis = rewritten/user-facing; diagnosis_raw = grader original.
     await db
       .update(dok2Summaries)
       .set({
         displayTitle: result.displayTitle,
         grade: result.score,
-        diagnosis: result.diagnosis,
+        diagnosis: userFacingDiagnosis,
+        diagnosisRaw: result.diagnosis,
         feedback: result.feedback,
         failReason: result.failReason,
         sourceVerified: result.sourceVerified,

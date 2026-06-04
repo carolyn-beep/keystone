@@ -316,11 +316,12 @@ export async function setHumanOverrideForBrainlift(
 export async function updateFactGrading(
   factId: number,
   brainliftId: number,
-  data: { score: number; note: string; isGradeable: boolean; summary: string }
+  data: { score: number; note: string; noteRaw?: string; isGradeable: boolean; summary: string }
 ): Promise<void> {
   await db.update(facts).set({
     score: data.score,
-    note: data.note,
+    note: data.note,            // rewritten/user-facing
+    noteRaw: data.noteRaw ?? data.note, // grader original (defaults to note when not rewritten)
     isGradeable: data.isGradeable,
     summary: data.summary,
   }).where(and(eq(facts.id, factId), eq(facts.brainliftId, brainliftId)));

@@ -507,3 +507,40 @@ export interface ModelDriftResponse {
     dok4Delta: number | null;
   }>;
 }
+
+// === READABILITY REWRITE OBSERVABILITY (spec 06-readability-observability) ===
+
+/** Per-DOK-level aggregate of the downstream rewrite engine's outcomes. */
+export interface ReadabilityLevelStats {
+  dokLevel: 1 | 2 | 3 | 4;
+  total: number;
+  /** Rows with rewritten = true (includes accepted_below_target). */
+  successCount: number;
+  successRate: number; // 0..1
+  avgFkBefore: number | null;
+  /** FK of the persisted (user-facing) text: rewritten on success, original on fallback. */
+  avgFkAfter: number | null;
+  avgFkDelta: number | null; // before - after (positive = simpler)
+  avgWordsBefore: number | null;
+  avgWordsAfter: number | null;
+  avgWordsDelta: number | null;
+}
+
+/** Outcome counts grouped by level x reason x rewritten (for the breakdown bar). */
+export interface ReadabilityReasonRow {
+  dokLevel: 1 | 2 | 3 | 4;
+  reason: string;
+  rewritten: boolean;
+  count: number;
+}
+
+export interface ReadabilityAnalyticsResponse {
+  hasData: boolean;
+  overall: {
+    total: number;
+    successCount: number;
+    successRate: number;
+  };
+  levels: ReadabilityLevelStats[];
+  reasons: ReadabilityReasonRow[];
+}

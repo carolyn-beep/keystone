@@ -32,6 +32,7 @@ export interface DOK2SummaryWithPoints {
   // DOK2 Grading fields
   grade: number | null;
   diagnosis: string | null;
+  diagnosisRaw: string | null;
   feedback: string | null;
   failReason: DOK2FailReason | null;
   sourceVerified: boolean | null;
@@ -209,6 +210,7 @@ export async function getDOK2Summaries(brainliftId: number): Promise<DOK2Summary
     // DOK2 Grading fields
     grade: summary.grade,
     diagnosis: summary.diagnosis,
+    diagnosisRaw: summary.diagnosisRaw,
     feedback: summary.feedback,
     failReason: summary.failReason as DOK2FailReason | null,
     sourceVerified: summary.sourceVerified,
@@ -226,6 +228,7 @@ export async function updateDOK2Grading(
     displayTitle: string | null;
     grade: number;
     diagnosis: string;
+    diagnosisRaw?: string;
     feedback: string;
     failReason: DOK2FailReason | null;
     sourceVerified: boolean;
@@ -234,7 +237,8 @@ export async function updateDOK2Grading(
   await db.update(dok2Summaries).set({
     displayTitle: data.displayTitle,
     grade: data.grade,
-    diagnosis: data.diagnosis,
+    diagnosis: data.diagnosis,                       // rewritten/user-facing
+    diagnosisRaw: data.diagnosisRaw ?? data.diagnosis, // grader original
     feedback: data.feedback,
     failReason: data.failReason,
     sourceVerified: data.sourceVerified,

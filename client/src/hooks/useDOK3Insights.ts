@@ -13,6 +13,7 @@ export interface DOK3InsightWithLinks {
   frameworkDescription: string | null;
   criteriaBreakdown: Record<string, { assessment: string; evidence: string }> | null;
   rationale: string | null;
+  rationaleRaw: string | null;
   feedback: string | null;
   foundationIntegrityIndex: string | null;
   dok1FoundationScore: string | null;

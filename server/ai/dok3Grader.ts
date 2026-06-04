@@ -20,6 +20,7 @@ import {
   buildTraceabilityUserPrompt,
 } from '../prompts/dok3-grading';
 import { callModelWithFallback } from './client';
+import { rewriteForPersist } from './readability/integrate';
 import type { PreviousEvaluation } from '@shared/types/regrading';
 
 export type DOK3ProgressCallback = (event: DOK3GradingProgress) => void;
@@ -113,6 +114,7 @@ export interface DOK3GradeResult {
   frameworkDescription: string;
   criteriaBreakdown: Record<string, { assessment: string; evidence: string }>;
   rationale: string;
+  rationaleRaw: string;
   feedback: string;
   dok1FoundationScore: number;
   dok2SynthesisScore: number;
@@ -350,10 +352,12 @@ async function evaluateConceptualCoherence(
     context.insight.text,
     {
       linkedDok2s: context.linkedDok2s.map(d => ({
+        id: d.id,
         sourceName: d.sourceName,
         grade: d.grade,
         points: d.points,
         dok1Facts: d.dok1Facts.map(f => ({
+          id: f.id,
           fact: f.fact,
           score: f.score,
         })),
@@ -468,13 +472,22 @@ export async function gradeDOK3Insight(
     onProgress?.({ stage: 'dok3:complete', message: `Insight scored ${finalScore}/5`, insightId, score: finalScore });
     console.log(`[DOK3-Grade] Final score: ${finalScore} (raw=${evaluation.score}, ceiling=${foundation.ceiling})`);
 
-    // Save results
+    // Readability rewrite: simplify/shorten the rationale for a high-school
+    // audience. Never touches the score. On failure rationale === rationaleRaw.
+    const { userFacing: userFacingRationale } = await rewriteForPersist(evaluation.rationale, {
+      level: 'DOK3',
+      itemId: insightId,
+      brainliftId,
+    });
+
+    // Save results. rationale = rewritten/user-facing; rationaleRaw = grader original.
     const gradeData = {
       score: finalScore,
       frameworkName: evaluation.framework_name,
       frameworkDescription: evaluation.framework_description,
       criteriaBreakdown: evaluation.criteria,
-      rationale: evaluation.rationale,
+      rationale: userFacingRationale,
+      rationaleRaw: evaluation.rationale,
       feedback: evaluation.feedback,
       foundationIntegrityIndex: foundation.index,
       dok1FoundationScore: foundation.dok1Score,
@@ -525,6 +538,9 @@ export async function gradeFrozenDOK3Insight(
     frameworkDescription: evaluation.framework_description,
     criteriaBreakdown: evaluation.criteria,
     rationale: evaluation.rationale,
+    // Frozen-insight preview is not persisted and is not readability-rewritten;
+    // raw mirrors the rationale to satisfy the shared result type.
+    rationaleRaw: evaluation.rationale,
     feedback: evaluation.feedback,
     dok1FoundationScore: foundation.dok1Score,
     dok2SynthesisScore: foundation.dok2Score,

@@ -80,6 +80,9 @@ export async function gradeFrozenDOK4Spov(
       keyEvidence: qualityResult.keyEvidence,
       criteriaBreakdown: qualityResult.criteria,
       rationale: qualityResult.rationale,
+      // Frozen preview is not persisted and is not readability-rewritten; raw
+      // mirrors the rationale to satisfy the shared result type.
+      rationaleRaw: qualityResult.rationale,
       feedback: qualityResult.feedback,
       antimemeticAssessment: antimemeticResult,
       evaluatorModel: 'dok4-frozen-pipeline',

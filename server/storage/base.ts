@@ -49,6 +49,7 @@ export {
   dok3Insights, dok3InsightLinks,
   dok4Spovs, dok4Dok3Links,
   pangramAssessments,
+  readabilityRewriteMetrics,
   chatConversations, chatMessages,
   nativeBrainliftDetails, builderExperts,
   categories,

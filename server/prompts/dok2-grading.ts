@@ -118,8 +118,14 @@ Grade the DOK2 summary and provide:
 - A displayTitle: A punchy 60-100 char phrase capturing the key insight (e.g., "Research methods for measuring curriculum effectiveness")
 - A score (1-5)
 - A diagnosis explaining why this score
-- Actionable feedback on how to improve (grounded in the criteria above)
+- Actionable feedback grounded in the criteria, targeting the weakest ones and the changes that would improve the summary most
+- Make the student think: point to what to fix and the fact that fixes it, and let them find the words themselves
 - If auto-fail, specify the reason
+
+PLAIN LANGUAGE FOR THE STUDENT:
+The student reads at a high-school level. Write the diagnosis and feedback in
+plain language they can read easily. Keep the taught terms exactly as written
+(DOK1 facts, DOK2), but say everything else in plain words. Use short sentences.
 
 OUTPUT FORMAT (JSON):
 {

@@ -24,6 +24,7 @@ export interface DOK3InsightWithLinks {
   frameworkDescription: string | null;
   criteriaBreakdown: Record<string, { assessment: string; evidence: string }> | null;
   rationale: string | null;
+  rationaleRaw: string | null;
   feedback: string | null;
   foundationIntegrityIndex: string | null;
   dok1FoundationScore: string | null;
@@ -94,6 +95,7 @@ export async function getDOK3Insights(
     frameworkDescription: insight.frameworkDescription,
     criteriaBreakdown: insight.criteriaBreakdown as Record<string, { assessment: string; evidence: string }> | null,
     rationale: insight.rationale,
+    rationaleRaw: insight.rationaleRaw,
     feedback: insight.feedback,
     foundationIntegrityIndex: insight.foundationIntegrityIndex,
     dok1FoundationScore: insight.dok1FoundationScore,
@@ -130,6 +132,7 @@ export async function getDOK3ScratchpadItems(brainliftId: number): Promise<DOK3I
     frameworkDescription: insight.frameworkDescription,
     criteriaBreakdown: insight.criteriaBreakdown as Record<string, { assessment: string; evidence: string }> | null,
     rationale: insight.rationale,
+    rationaleRaw: insight.rationaleRaw,
     feedback: insight.feedback,
     foundationIntegrityIndex: insight.foundationIntegrityIndex,
     dok1FoundationScore: insight.dok1FoundationScore,
@@ -559,7 +562,8 @@ export async function saveDOK3GradeResult(
     frameworkName: string;
     frameworkDescription: string;
     criteriaBreakdown: Record<string, { assessment: string; evidence: string }>;
-    rationale: string;
+    rationale: string;       // rewritten/user-facing
+    rationaleRaw: string;    // grader original
     feedback: string;
     foundationIntegrityIndex: number;
     dok1FoundationScore: number;
@@ -576,6 +580,7 @@ export async function saveDOK3GradeResult(
       frameworkDescription: result.frameworkDescription,
       criteriaBreakdown: result.criteriaBreakdown,
       rationale: result.rationale,
+      rationaleRaw: result.rationaleRaw,
       feedback: result.feedback,
       foundationIntegrityIndex: result.foundationIntegrityIndex.toFixed(2),
       dok1FoundationScore: result.dok1FoundationScore.toFixed(2),

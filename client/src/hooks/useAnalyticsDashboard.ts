@@ -9,6 +9,7 @@ import type {
   LeaderboardRankBy,
   LeaderboardResponse,
   ModelDriftResponse,
+  ReadabilityAnalyticsResponse,
   ScoreDistributionResponse,
   ScoreImprovementResponse,
   SpovDistributionResponse,
@@ -227,6 +228,16 @@ export function useModelDriftAnalytics(
     queryKey: ['analytics', 'model-drift'],
     enabled: options.enabled,
     queryFn: () => fetchAnalytics('/api/analytics/model-drift'),
+  });
+}
+
+export function useReadabilityAnalytics(
+  options: AnalyticsQueryOptions = {},
+) {
+  return useQuery<ReadabilityAnalyticsResponse>({
+    queryKey: ['analytics', 'readability'],
+    enabled: options.enabled,
+    queryFn: () => fetchAnalytics('/api/analytics/readability'),
   });
 }
 

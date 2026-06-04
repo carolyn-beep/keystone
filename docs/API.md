@@ -185,6 +185,7 @@ All routes nested under `/api/brainlifts/:slug` for authorization context.
 | Method | Endpoint | Auth | Description |
 |--------|----------|------|-------------|
 | GET | `/api/analytics/model-accuracy` | `requireAdmin` | LLM model accuracy stats (admin only) |
+| GET | `/api/analytics/readability` | `requireAdmin` | Downstream readability-rewrite outcomes: per-level success rate, FK before/after, word before/after, and per-reason breakdown (admin only) |
 
 ---
 

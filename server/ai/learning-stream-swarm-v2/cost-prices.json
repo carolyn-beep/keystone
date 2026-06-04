@@ -39,6 +39,10 @@
     "promptUsdPer1k": 0.00008,
     "completionUsdPer1k": 0.00028
   },
+  "qwen/qwen3-30b-a3b-instruct-2507": {
+    "promptUsdPer1k": 0.0001,
+    "completionUsdPer1k": 0.0003
+  },
   "meta-llama/llama-3.1-8b-instruct": {
     "promptUsdPer1k": 0.00002,
     "completionUsdPer1k": 0.00005

@@ -223,10 +223,16 @@ SCORING INSTRUCTIONS:
 - The quality level descriptions are your primary anchor. Pick the level that best matches, then use the criteria to justify or adjust.
 - Your own view of whether the position is correct is irrelevant to the score. Do not lower a score because you disagree with the stance. Do not raise a score because you agree. The job is to evaluate spikiness in form (S1, S4, P1) and ownership in substance (S2, S3, O2), not to render judgment on the position itself.
 - The DOK1-2-3 chain in the context is the SPOV's justification. The SPOV text is not required to restate or summarize this evidence. Do not read length, jargon, or in-text explanation as signs of rigor; rigor lives in the chain, the SPOV is the line.
-- You MUST reference the Foundation Integrity Index in your rationale. If the foundation is weak, explain how that affects confidence in the grounding (S3), not in the position itself.
-- If SOURCE TRACEABILITY is flagged, weigh this seriously. A position that restates a single source is at best a 2 unless the student demonstrably extends beyond that source.
-- Use LLM DIVERGENCE data for S2. Compare the student's position against the vanilla LLM response, and grade S2 strong only if the divergence is substantive (commit vs. hedge, named trade-off vs. missed trade-off), not just stylistic.
-- Your rationale must cite specific DOK1 facts or DOK2 summaries from the chain. No abstract claims about quality. Do not use the rationale to argue against the position itself.
+- You MUST reference the Foundation Integrity Index in your rationale; write it for the student in plain language as the DOK1 facts and DOK2 summaries the position is built on. If the foundation is weak, explain how that affects confidence in the grounding (S3), not in the position itself. Do not mention the term "Foundation Integrity Index" directly.
+- If SOURCE TRACEABILITY is flagged, weigh this seriously; in the rationale, tell the student in plain words that one of their sources already states this position. A position that restates a single source is at best a 2 unless the student demonstrably extends beyond that source. Do not mention the term "traceability" directly.
+- Use LLM DIVERGENCE data for S2. Compare the student's position against the vanilla LLM response, and grade S2 strong only if the divergence is substantive (commit vs. hedge, named trade-off vs. missed trade-off), not just stylistic. In the rationale, put this in plain words for the student: whether asking an AI for a stance on the same topic would produce something close to what they wrote, or whether their position goes further. Do not mention the terms "vanilla LLM" or "LLM divergence" directly.
+- Your rationale must cite specific DOK1 facts, DOK2 summaries, or DOK3 insights from the chain using the [DOKX:1234] citation format (e.g. [DOK3:88]). Each citation renders for the reader as a small superscript reference marker they can click, NOT as inline text. Follow these rules so the prose reads cleanly: (1) Write self-contained sentences that still read correctly if every [DOKX:id] were deleted; never use a token as the subject, object, or any word of a sentence. (2) Name a source in your own plain words ("the governance source", "their pricing fact"); do not rely on the token to supply a noun. (3) Place each [DOKX:id] immediately AFTER the clause or sentence it supports, like a footnote, stacking markers when one clause rests on several items: ...exceptions become the rule.[DOK1:42][DOK3:88] Do not quote the DOK's text. No abstract claims about quality. Do not use the rationale to argue against the position itself.
+
+PLAIN LANGUAGE FOR THE STUDENT:
+The student reads at a high-school level. Write the rationale and feedback in
+plain language they can read easily. Keep the taught terms exactly as written
+(DOK1 facts, DOK2 summaries, DOK3, the framework name, spiky), but say everything
+else in plain words. Use short sentences. When your reasoning refers to a scoring criterion, say in plain words what it measures rather than naming it by its code.
 
 Respond ONLY with this JSON. No markdown. No backticks. No preamble.
 {
@@ -242,8 +248,8 @@ Respond ONLY with this JSON. No markdown. No backticks. No preamble.
     "O2": { "assessment": "strong|partial|weak", "evidence": "one sentence" }
   },
   "score": 1-5,
-  "rationale": "Brief explanation of the assessment, grounded in specific evidence from the chain and foundation metrics. Focused on form and grounding.",
-  "feedback": "one specific, actionable recommendation tied to the weakest dimension. If P1 is weak, name what to cut to reach the line. Feedback is about form and grounding, never about the position being right or wrong."
+  "rationale": "A plain-language paragraph with short sentences explaining how the criteria informed your score. Cite the specific DOK1/DOK2/DOK3 evidence with trailing [DOKX:id] markers placed after the clause they support; every sentence must read correctly with the markers removed. Do not argue with the position.",
+  "feedback": "one specific, actionable recommendation tied to the weakest dimension. Point the student to the gap and the evidence that addresses it, and let them find the words themselves. Feedback is about form and grounding, never about the position being right or wrong."
 }`;
 
 export function buildQualityEvaluationUserPrompt(
@@ -257,13 +263,13 @@ export function buildQualityEvaluationUserPrompt(
 
     const factsText = dok2.dok1Facts.length > 0
       ? dok2.dok1Facts.map(f =>
-        `- (score: ${f.score ?? 'ungraded'}/5) ${f.fact}`
+        `- [DOK1:${f.id}] (score: ${f.score ?? 'ungraded'}/5) ${f.fact}`
       ).join('\n')
       : 'No DOK1 facts available for this source.';
 
     return `---
 Source: ${dok2.sourceName}
-DOK2 Summary (grade: ${dok2.grade ?? 'ungraded'}/5):
+DOK2 Summary [DOK2:${dok2.id}] (grade: ${dok2.grade ?? 'ungraded'}/5):
 ${pointsText}
 
 DOK1 Facts from this source:
@@ -281,7 +287,7 @@ ${factsText}
   // Build additional DOK3s section
   const additionalDok3sText = context.additionalDok3s.length > 0
     ? context.additionalDok3s.map(d =>
-      `- (score: ${d.score ?? 'ungraded'}/5) ${d.text}`
+      `- [DOK3:${d.id}] (score: ${d.score ?? 'ungraded'}/5) ${d.text}`
     ).join('\n')
     : 'No additional DOK3 insights linked.';
 
@@ -310,7 +316,7 @@ DOK4 SPOV:
 ${context.spovText}
 
 PRIMARY DOK3 INSIGHT:
-(score: ${context.primaryDok3.score}/5, framework: "${context.primaryDok3.frameworkName || 'unnamed'}")
+[DOK3:${context.primaryDok3.id}] (score: ${context.primaryDok3.score}/5, framework: "${context.primaryDok3.frameworkName || 'unnamed'}")
 ${context.primaryDok3.text}
 ${context.primaryDok3.frameworkDescription ? `Framework: ${context.primaryDok3.frameworkDescription}` : ''}
 
