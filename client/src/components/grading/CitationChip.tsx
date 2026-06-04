@@ -41,9 +41,11 @@ export function CitationChip({ token, resolve, onNavigate, index }: CitationChip
   const [open, setOpen] = useState(false);
   const entity = resolve(token.level, token.id);
 
-  // Unresolvable -> inert text, never a marker.
+  // Unresolvable (e.g. the cited item was deleted/re-extracted after this grade
+  // ran) -> omit the marker entirely. The grader writes self-contained prose, so
+  // the sentence still reads correctly without it; never show the raw token.
   if (!entity) {
-    return <span>{token.raw}</span>;
+    return null;
   }
 
   const label = LEVEL_LABEL[token.level];

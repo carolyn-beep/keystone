@@ -17,8 +17,9 @@ const read = (rel: string) =>
 describe('CitationChip (FR3)', () => {
   const src = read('../CitationChip.tsx');
 
-  it('renders the raw token as inert text when unresolvable (no chip)', () => {
-    expect(src).toMatch(/if \(!entity\)\s*{\s*return <span>{token\.raw}<\/span>/);
+  it('omits the marker entirely when unresolvable (deleted/stale citation, never raw text)', () => {
+    expect(src).toMatch(/if \(!entity\)\s*{\s*return null;/);
+    expect(src).not.toContain('{token.raw}');
   });
 
   it('renders a focusable button trigger with an aria-label naming the item', () => {

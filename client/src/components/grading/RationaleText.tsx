@@ -10,8 +10,8 @@ import { CitationChip } from './CitationChip';
  * runs as <CitationChip>.
  *
  * Assigns each cited item a footnote number in order of first appearance,
- * shared across repeat citations of the same item, and skips unresolvable
- * tokens (which render as inert plain text) so numbering never shows gaps.
+ * shared across repeat citations of the same item, and omits unresolvable
+ * tokens (deleted/stale citations) entirely so numbering never shows gaps.
  *
  * Applies to whichever text is currently shown (rewritten OR raw), since the
  * raw view may also contain tokens.
@@ -35,17 +35,10 @@ export function RationaleText({ text, resolve, onNavigate, className }: Rational
           return <Fragment key={i}>{seg.value}</Fragment>;
         }
         const { level, id } = seg.token;
-        // Unresolvable tokens render inert and consume no footnote number.
+        // Unresolvable tokens (deleted/stale citations) are omitted entirely and
+        // consume no footnote number.
         if (!resolve(level, id)) {
-          return (
-            <CitationChip
-              key={i}
-              token={seg.token}
-              resolve={resolve}
-              onNavigate={onNavigate}
-              index={0}
-            />
-          );
+          return null;
         }
         const key = `${level}:${id}`;
         let number = numbering.get(key);
