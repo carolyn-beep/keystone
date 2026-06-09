@@ -77,9 +77,22 @@ export function ResearchStreamTab({ slug, phase, canModify = true, setActiveTab,
   // Grade modal state
   const [gradeModalItem, setGradeModalItem] = useState<LearningStreamItem | null>(null);
   // Content viewer state — derived from URL param
-  const viewingItem = useMemo(() =>
+  const lastViewingItemRef = useRef<LearningStreamItem | null>(null);
+  const itemFromList = useMemo(() =>
     viewingItemId ? items.find((i) => i.id === viewingItemId) ?? null : null,
   [viewingItemId, items]);
+  if (itemFromList) {
+    lastViewingItemRef.current = itemFromList;
+  } else if (viewingItemId === null) {
+    lastViewingItemRef.current = null;
+  }
+  const viewingItem =
+    itemFromList ??
+    (lastViewingItemRef.current?.id === viewingItemId ? lastViewingItemRef.current : null);
+  const renderItems = useMemo(() => {
+    if (!viewingItem || items.some((item) => item.id === viewingItem.id)) return items;
+    return [viewingItem, ...items];
+  }, [items, viewingItem]);
   const setViewingItem = useCallback((item: LearningStreamItem | null) => {
     setViewingItemId(item?.id ?? null);
   }, [setViewingItemId]);
@@ -275,7 +288,7 @@ export function ResearchStreamTab({ slug, phase, canModify = true, setActiveTab,
             Once cleared, this fades out and MissionDashboard's idle state takes
             over the full-width canvas (with its own MissionControlLauncher). */}
         <AnimatePresence>
-          {stats.pending > 0 && (
+          {(stats.pending > 0 || viewingItem) && (
             <motion.div
               key="items-section"
               initial={{ opacity: 1, height: 'auto' }}
@@ -306,29 +319,21 @@ export function ResearchStreamTab({ slug, phase, canModify = true, setActiveTab,
                 </div>
 
                 <div className="flex flex-col">
-                  {items.map((item, index) => {
+                  {renderItems.map((item, index) => {
                     const isExiting = exitingItem?.id === item.id;
                     const exitAnimation = isExiting ? exitingItem.animation : null;
                     const isSelected = viewingItem?.id === item.id;
                     const isCollapsing = !!viewingItem && !isSelected;
 
                     return (
-                      <motion.div
+                      <StreamItemRow
                         key={item.id}
                         layoutId={`stream-item-${item.id}`}
-                        animate={isCollapsing
-                          ? { opacity: 0, height: 0, marginBottom: 0 }
-                          : { opacity: 1, height: 'auto', marginBottom: 16 }}
-                        style={{
-                          overflow: isCollapsing ? 'hidden' : 'visible',
-                          pointerEvents: isCollapsing ? 'none' : 'auto',
-                          ...(!viewingItem && !prefersReducedMotion ? {
-                            animationDelay: `${index * 80}ms`,
-                            animationFillMode: 'backwards' as const,
-                          } : {}),
-                        }}
-                        transition={collapseTransition}
-                        className={!viewingItem && !prefersReducedMotion ? 'animate-fade-slide-in' : undefined}
+                        isCollapsing={isCollapsing}
+                        index={index}
+                        viewingItem={viewingItem}
+                        prefersReducedMotion={prefersReducedMotion}
+                        collapseTransition={collapseTransition}
                       >
                         {isSelected ? (
                           <ExpandedItemView
@@ -361,7 +366,7 @@ export function ResearchStreamTab({ slug, phase, canModify = true, setActiveTab,
                             </StreamItemCard.Root>
                           </div>
                         )}
-                      </motion.div>
+                      </StreamItemRow>
                     );
                   })}
                 </div>
@@ -389,6 +394,52 @@ export function ResearchStreamTab({ slug, phase, canModify = true, setActiveTab,
         )}
       </div>
     </LayoutGroup>
+  );
+}
+
+/**
+ * Per-item row wrapper. Extracted so the per-row enter/collapse animation
+ * stays isolated from the list mapping. Each row keeps its own instance so
+ * hook order stays stable across renders even as items reorder.
+ */
+interface StreamItemRowProps {
+  layoutId: string;
+  isCollapsing: boolean;
+  index: number;
+  viewingItem: LearningStreamItem | null;
+  prefersReducedMotion: boolean;
+  collapseTransition: Record<string, unknown>;
+  children: React.ReactNode;
+}
+
+function StreamItemRow({
+  layoutId,
+  isCollapsing,
+  index,
+  viewingItem,
+  prefersReducedMotion,
+  collapseTransition,
+  children,
+}: StreamItemRowProps) {
+  return (
+    <motion.div
+      layoutId={layoutId}
+      animate={isCollapsing
+        ? { opacity: 0, height: 0, marginBottom: 0 }
+        : { opacity: 1, height: 'auto', marginBottom: 16 }}
+      style={{
+        overflow: isCollapsing ? 'hidden' : 'visible',
+        pointerEvents: isCollapsing ? 'none' : 'auto',
+        ...(!viewingItem && !prefersReducedMotion ? {
+          animationDelay: `${index * 80}ms`,
+          animationFillMode: 'backwards' as const,
+        } : {}),
+      }}
+      transition={collapseTransition}
+      className={!viewingItem && !prefersReducedMotion ? 'animate-fade-slide-in' : undefined}
+    >
+      {children}
+    </motion.div>
   );
 }
 

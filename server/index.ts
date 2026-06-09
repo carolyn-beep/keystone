@@ -11,7 +11,6 @@ import { toNodeHandler } from "better-auth/node";
 import { startWorker, stopWorker } from "./jobs/worker";
 import { pool } from "./db";
 import { assertPangramConfigured } from "./ai/pangram/client";
-import { loadModelPrices } from "./ai/learning-stream-swarm-v2/cost";
 
 // Fail loudly at startup if required third-party API keys are missing.
 // PANGRAM_API_KEY powers the AI Writing Signal feature; the analyze job will
@@ -88,9 +87,6 @@ app.use((req, res, next) => {
   // Seed production database if empty
   await seedProductionIfEmpty();
 
-  // Load model token prices into the in-memory cache (seeds DB from JSON if empty)
-  await loadModelPrices();
-
   await registerRoutes(httpServer, app);
 
   app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
@@ -99,6 +95,10 @@ app.use((req, res, next) => {
 
     res.status(status).json({ message });
     throw err;
+  });
+
+  app.use('/api', (req, res) => {
+    res.status(404).json({ message: `API route not found: ${req.method} ${req.originalUrl}` });
   });
 
   // importantly only setup vite in development and after

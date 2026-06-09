@@ -8,7 +8,7 @@ import {
   isNull,
   sql,
 } from './base';
-import { ilike, inArray, or } from 'drizzle-orm';
+import { ilike, or } from 'drizzle-orm';
 import {
   categories,
   learningStreamItems,
@@ -16,10 +16,19 @@ import {
   sources,
   type InsertNote,
   type InsertSource,
+  type LearningStreamItem,
   type Note,
   type Source,
 } from '@shared/schema';
 import { BadRequestError, NotFoundError } from '../middleware/error-handler';
+
+/**
+ * Transaction handle type for tx-aware storage helpers.
+ *
+ * Helpers that take this type can be composed by route handlers under
+ * their own `db.transaction(...)` callback without nesting transactions.
+ */
+export type DbTx = Parameters<Parameters<typeof db.transaction>[0]>[0];
 
 export type CreateSourceInput = Omit<InsertSource, 'id' | 'brainliftId' | 'createdAt' | 'updatedAt'>;
 export type UpdateSourceInput = Partial<CreateSourceInput>;
@@ -771,4 +780,203 @@ export async function reorderCategories(
     WHERE c.id = u.id
       AND c.brainlift_id = ${brainliftId}
   `);
+}
+
+// ============================================================================
+// Spec 01 (pedagogy/reader-notes): tx-aware helpers for atomic note save.
+//
+// The reader's note composer needs a single round-trip that resolves the
+// source (existing OR auto-bookmark from a Research Stream item) and the
+// category (existing OR create inline) and inserts the note, all inside
+// one DB transaction. The two helpers below are the composable building
+// blocks for that route handler; both take a `tx` so the caller owns the
+// transaction boundary and no nested transactions occur.
+// ============================================================================
+
+/**
+ * Find-or-insert a category by exact name within a brainlift.
+ *
+ * - Trims the input name and rejects whitespace-only with BadRequestError.
+ * - Exact-match SELECT first (case-sensitive); returns the existing row if
+ *   found, without inserting a duplicate.
+ * - On miss, INSERTs a new row and returns it.
+ * - `23505` unique-violation defensive catch: there is no unique index on
+ *   `(brainlift_id, name)` today (see shared/schema.ts), so this branch is
+ *   a no-op for current production behavior. It is kept so that if a
+ *   future migration adds the index, this helper becomes race-safe with
+ *   zero code change.
+ *
+ * Operates inside the passed `tx`. Caller owns the transaction boundary.
+ */
+export async function ensureCategoryByName(
+  tx: DbTx,
+  brainliftId: number,
+  name: string,
+): Promise<{ id: number; name: string }> {
+  const trimmed = (name ?? '').trim();
+  if (trimmed.length === 0) {
+    throw new BadRequestError('categoryName cannot be empty');
+  }
+
+  const [existing] = await tx
+    .select({ id: categories.id, name: categories.name })
+    .from(categories)
+    .where(and(
+      eq(categories.brainliftId, brainliftId),
+      eq(categories.name, trimmed),
+    ))
+    .limit(1);
+
+  if (existing) {
+    return { id: existing.id, name: existing.name };
+  }
+
+  try {
+    const [inserted] = await tx
+      .insert(categories)
+      .values({
+        brainliftId,
+        name: trimmed,
+      })
+      .returning({ id: categories.id, name: categories.name });
+
+    return { id: inserted.id, name: inserted.name };
+  } catch (error: unknown) {
+    // Drizzle wraps pg errors in DrizzleQueryError; the actual pg error
+    // (with .code) lives on err.cause. See CLAUDE.md "Error Handling".
+    const maybeErr = error as { code?: string; cause?: { code?: string } };
+    const pgCode = maybeErr?.cause?.code ?? maybeErr?.code;
+    if (pgCode === '23505') {
+      const [winner] = await tx
+        .select({ id: categories.id, name: categories.name })
+        .from(categories)
+        .where(and(
+          eq(categories.brainliftId, brainliftId),
+          eq(categories.name, trimmed),
+        ))
+        .limit(1);
+      if (winner) {
+        return { id: winner.id, name: winner.name };
+      }
+    }
+    throw error;
+  }
+}
+
+/**
+ * Tx-aware extraction of the LSI→source mirror logic previously inlined in
+ * `bookmarkResearchItemWithSource` (server/routes/learning-stream.ts).
+ *
+ * Inside the caller-provided `tx`:
+ *   1. Validates `categoryId` belongs to `brainliftId` (BadRequestError on miss).
+ *   2. Loads the learning_stream_items row by (id, brainliftId);
+ *      NotFoundError if missing or foreign.
+ *   3. Flips the LSI to status='bookmarked' and bumps updatedAt.
+ *   4. INSERTs a mirrored `sources` row with enrichment fields
+ *      (type/keyInsights/length/whyMatters) copied from the LSI.
+ *      Uses onConflictDoNothing on (brainliftId, url); on conflict, falls
+ *      back to a SELECT of the existing source row (enrichment fields are
+ *      NOT overwritten, preserving any user edits).
+ *
+ * Returns `{ source, item, created }` where `created=true` iff the INSERT
+ * actually produced a row (i.e., the LSI was not already mirrored).
+ *
+ * The public wrapper in server/routes/learning-stream.ts drops the
+ * `created` flag for its caller (PATCH /learning-stream/:itemId/bookmark
+ * does not need it); the new POST /notes/from-reader handler in
+ * server/routes/second-brain.ts uses `created` to populate the response's
+ * `autoBookmarked` flag.
+ */
+export async function ensureSourceFromLearningStreamItem(
+  tx: DbTx,
+  args: { brainliftId: number; itemId: number; categoryId: number },
+): Promise<{ source: Source; item: LearningStreamItem; created: boolean }> {
+  const { brainliftId, itemId, categoryId } = args;
+
+  const [category] = await tx
+    .select({ id: categories.id })
+    .from(categories)
+    .where(and(
+      eq(categories.id, categoryId),
+      eq(categories.brainliftId, brainliftId),
+    ))
+    .limit(1);
+
+  if (!category) {
+    throw new BadRequestError('Category does not belong to this brainlift');
+  }
+
+  const [item] = await tx
+    .select()
+    .from(learningStreamItems)
+    .where(and(
+      eq(learningStreamItems.id, itemId),
+      eq(learningStreamItems.brainliftId, brainliftId),
+    ))
+    .limit(1);
+
+  if (!item) {
+    throw new NotFoundError('Item not found or does not belong to this brainlift');
+  }
+
+  const [updatedItem] = await tx
+    .update(learningStreamItems)
+    .set({
+      status: 'bookmarked',
+      updatedAt: new Date(),
+    })
+    .where(and(
+      eq(learningStreamItems.id, itemId),
+      eq(learningStreamItems.brainliftId, brainliftId),
+    ))
+    .returning();
+
+  if (!updatedItem) {
+    throw new NotFoundError('Item not found or does not belong to this brainlift');
+  }
+
+  const [insertedSource] = await tx
+    .insert(sources)
+    .values({
+      brainliftId,
+      title: item.topic,
+      url: item.url,
+      author: item.author,
+      categoryId,
+      extractedContent: item.extractedContent,
+      learningStreamItemId: item.id,
+      // Second Brain v2 enrichment fields — mirrored 1:1 from the LSI.
+      // All four are nullable on the LSI side too, so they may pass
+      // through as null.
+      type: item.type,
+      keyInsights: item.facts,
+      length: item.time,
+      whyMatters: item.aiRationale,
+    })
+    .onConflictDoNothing({
+      target: [sources.brainliftId, sources.url],
+    })
+    .returning();
+
+  if (insertedSource) {
+    return { source: insertedSource, item: updatedItem, created: true };
+  }
+
+  // onConflictDoNothing path: the source already exists for this URL.
+  // Adopt it as-is; do NOT patch its enrichment fields (preserves user
+  // edits between re-bookmarks).
+  const [existingSource] = await tx
+    .select()
+    .from(sources)
+    .where(and(
+      eq(sources.brainliftId, brainliftId),
+      eq(sources.url, item.url),
+    ))
+    .limit(1);
+
+  if (!existingSource) {
+    throw new NotFoundError('Source not found after bookmark mirror');
+  }
+
+  return { source: existingSource, item: updatedItem, created: false };
 }

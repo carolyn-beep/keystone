@@ -2,16 +2,19 @@ import { useState, useEffect, useRef } from 'react';
 import { motion } from 'framer-motion';
 import { X, ExternalLink, Bookmark, Check, Star, Trash2, User, Clock, ChevronLeft, ChevronRight } from 'lucide-react';
 import { GoDiscussionClosed } from 'react-icons/go';
-import { MdOutlineQuiz } from 'react-icons/md';
+import { MdOutlineQuiz, MdNoteAdd } from 'react-icons/md';
 import { FiEdit3 } from 'react-icons/fi';
 import { Panel, PanelGroup, PanelResizeHandle } from 'react-resizable-panels';
 import { TactileButton } from '@/components/ui/tactile-button';
 import { ResourceTypeBadge } from './ResourceTypeBadge';
-import { ContentViewer } from './ContentViewer';
+import { ContentViewer, type ReaderSelectionPayload } from './ContentViewer';
 import { DiscussionPanel } from './DiscussionPanel';
 import { KnowledgeCheckPanel } from './KnowledgeCheckPanel';
+import { NotesPanel, type NoteComposerHandle } from './NotesPanel';
+import { QuoteSelectionPopover } from './QuoteSelectionPopover';
 import { ManualTab } from '@/components/builder/ManualTab';
 import { useItemContent } from '@/hooks/useItemContent';
+import { useSources } from '@/hooks/useSources';
 import { tokens } from '@/lib/colors';
 import {
   getTabsForMode,
@@ -44,6 +47,7 @@ interface ExpandedItemViewProps {
 
 // Icon map for tab keys
 const TAB_ICONS: Record<string, React.ComponentType<{ size?: number }>> = {
+  notes: MdNoteAdd,
   discuss: GoDiscussionClosed,
   quiz: MdOutlineQuiz,
   manual: FiEdit3,
@@ -68,6 +72,19 @@ export function ExpandedItemView({
   const containerRef = useRef<HTMLDivElement>(null);
   const tabs = getTabsForMode(mode);
   const [activePanel, setActivePanel] = useState<RightPanelTab>(tabs[0].key);
+
+  // Spec 03 FR3: own the selection signal from ContentViewer. Drives the
+  // QuoteSelectionPopover render and the prefill handoff into NotesPanel.
+  const [selection, setSelection] = useState<ReaderSelectionPayload | null>(null);
+  // Spec 03 FR3: imperative handle into the composer so the Save-as-note
+  // action can prefill the textarea with a blockquote.
+  const composerRef = useRef<NoteComposerHandle>(null);
+
+  // Resolve the mirrored source row (if any) so the Notes pane can show
+  // existing notes and the smart-default category. Pre-first-save the
+  // find returns null and the panel renders the empty-state copy.
+  const { data: sources } = useSources(slug);
+  const source = sources?.find((s) => s.learningStreamItemId === item.id) ?? null;
 
   // Close on Escape key
   useEffect(() => {
@@ -171,11 +188,33 @@ export function ExpandedItemView({
       <PanelGroup direction="horizontal" className="flex-1 min-h-0">
         {/* Left: Content viewer */}
         <Panel defaultSize={60} minSize={30}>
-          <div className="h-full overflow-y-auto p-6 scrollbar-styled">
+          {/* Spec 03 FR3: relative positioning so the QuoteSelectionPopover
+              (position: absolute) anchors against this panel's scroll
+              container. Wrapper carries the overflow + scroll so the popover
+              scrolls with the article body. */}
+          <div className="relative h-full overflow-y-auto p-6 scrollbar-styled">
             {content ? (
-              <ContentViewer content={content} url={item.url} onRetry={retryExtraction} />
+              <ContentViewer
+                content={content}
+                url={item.url}
+                onRetry={retryExtraction}
+                onTextSelection={(payload: ReaderSelectionPayload | null) => setSelection(payload)}
+              />
             ) : (
               <ContentViewer content={{ contentType: 'pending' }} url={item.url} />
+            )}
+            {selection && (
+              <QuoteSelectionPopover
+                text={selection.text}
+                rect={selection.rect}
+                lineRects={selection.lineRects}
+                articleBodyRect={selection.articleBodyRect}
+                onSaveAsNote={(text) => {
+                  composerRef.current?.prefill(`> ${text}\n\n`);
+                  setSelection(null);
+                }}
+                onDismiss={() => setSelection(null)}
+              />
             )}
           </div>
         </Panel>
@@ -222,6 +261,11 @@ export function ExpandedItemView({
 
             {/* Panel content — all mounted, visibility toggled */}
             <div className="flex-1 min-h-0 overflow-y-auto scrollbar-styled">
+              {mode !== 'builder' && (
+                <div style={{ display: activePanel === 'notes' ? 'contents' : 'none' }}>
+                  <NotesPanel slug={slug} item={item} source={source} composerRef={composerRef} />
+                </div>
+              )}
               <div style={{ display: activePanel === 'discuss' ? 'contents' : 'none' }}>
                 <DiscussionPanel
                   slug={slug}

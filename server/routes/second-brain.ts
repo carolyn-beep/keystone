@@ -1,5 +1,8 @@
 import { Router, type Request, type Response } from 'express';
+import { and, eq } from 'drizzle-orm';
 import { storage } from '../storage';
+import { db } from '../db';
+import { categories, notes, sources } from '@shared/schema';
 import { requireAuth } from '../middleware/auth';
 import { requireBrainliftAccess, requireBrainliftModify } from '../middleware/brainlift-auth';
 import { asyncHandler, BadRequestError, NotFoundError } from '../middleware/error-handler';
@@ -277,6 +280,129 @@ export async function createNoteHandler(req: Request, res: Response): Promise<vo
   res.status(201).json(note);
 }
 
+/**
+ * Spec 01 (pedagogy/reader-notes): atomic note save from the reader.
+ *
+ * POST /api/brainlifts/:slug/notes/from-reader
+ *
+ * Body: { content, sourceId? | learningStreamItemId?, categoryId? | categoryName? }
+ *
+ * Resolves category (existing OR ensureCategoryByName for inline create),
+ * resolves source (existing OR ensureSourceFromLearningStreamItem for
+ * auto-bookmark from an LSI), and inserts the note — all inside one
+ * transaction so partial failures roll back cleanly (no orphan source,
+ * no orphan category, no half-flipped LSI status).
+ *
+ * Response shape (201):
+ *   { note, source, category, autoBookmarked }
+ *
+ * `autoBookmarked` is true iff this request created the source row from
+ * an LSI mirror. False on the sourceId path and on the re-bookmark
+ * (already-mirrored LSI) path. The client uses this flag to decide
+ * whether to render the "Saved to {Category}" toast.
+ *
+ * NOTE: docs/API.md will be updated in spec 02 (reader-notes-pane)
+ * when the endpoint becomes consumed by the client.
+ */
+export async function createNoteFromReaderHandler(req: Request, res: Response): Promise<void> {
+  const brainliftId = req.brainlift!.id;
+  const body = req.body as Record<string, unknown>;
+
+  const content = parseRequiredString(body, 'content');
+
+  // Exactly one of sourceId | learningStreamItemId.
+  const sourceId = parseOptionalNumber(body.sourceId, 'sourceId');
+  const learningStreamItemId = parseOptionalNumber(body.learningStreamItemId, 'learningStreamItemId');
+  if ((sourceId == null) === (learningStreamItemId == null)) {
+    throw new BadRequestError('Provide exactly one of sourceId or learningStreamItemId');
+  }
+
+  // Exactly one of categoryId | categoryName. categoryName must be a
+  // non-empty trimmed string when provided.
+  const categoryId = parseOptionalNumber(body.categoryId, 'categoryId');
+  const categoryNameRaw = body.categoryName;
+  const hasCategoryName = categoryNameRaw !== undefined && categoryNameRaw !== null;
+  if ((categoryId == null) === !hasCategoryName) {
+    throw new BadRequestError('Provide exactly one of categoryId or categoryName');
+  }
+  let categoryName: string | null = null;
+  if (hasCategoryName) {
+    if (typeof categoryNameRaw !== 'string' || categoryNameRaw.trim().length === 0) {
+      throw new BadRequestError('categoryName cannot be empty');
+    }
+    categoryName = categoryNameRaw.trim();
+  }
+
+  const result = await db.transaction(async (tx) => {
+    // 1. Resolve category.
+    let category: { id: number; name: string };
+    if (categoryId != null) {
+      const [row] = await tx
+        .select({ id: categories.id, name: categories.name })
+        .from(categories)
+        .where(and(
+          eq(categories.id, categoryId),
+          eq(categories.brainliftId, brainliftId),
+        ))
+        .limit(1);
+      if (!row) {
+        throw new BadRequestError('Category does not belong to this brainlift');
+      }
+      category = { id: row.id, name: row.name };
+    } else {
+      // categoryName path — ensureCategoryByName has been validated above.
+      category = await storage.ensureCategoryByName(tx, brainliftId, categoryName!);
+    }
+
+    // 2. Resolve source.
+    let source;
+    let autoBookmarked: boolean;
+    if (sourceId != null) {
+      const [row] = await tx
+        .select()
+        .from(sources)
+        .where(and(
+          eq(sources.id, sourceId),
+          eq(sources.brainliftId, brainliftId),
+        ))
+        .limit(1);
+      if (!row) {
+        throw new BadRequestError('Source does not belong to this brainlift');
+      }
+      source = row;
+      autoBookmarked = false;
+    } else {
+      // learningStreamItemId path — ensureSourceFromLearningStreamItem
+      // validates LSI + category ownership inside the same tx.
+      const mirrored = await storage.ensureSourceFromLearningStreamItem(tx, {
+        brainliftId,
+        itemId: learningStreamItemId!,
+        categoryId: category.id,
+      });
+      source = mirrored.source;
+      autoBookmarked = mirrored.created;
+    }
+
+    // 3. Insert the note. Links to both source and category; the note's
+    // categoryId is the composer's choice, even when the source already
+    // has a different categoryId (locked decision: source.categoryId is
+    // never overwritten on subsequent note saves).
+    const [note] = await tx
+      .insert(notes)
+      .values({
+        brainliftId,
+        sourceId: source.id,
+        categoryId: category.id,
+        content,
+      })
+      .returning();
+
+    return { note, source, category, autoBookmarked };
+  });
+
+  res.status(201).json(result);
+}
+
 export async function updateNoteHandler(req: Request, res: Response): Promise<void> {
   const noteId = parseNumericId(req.params.id, 'note');
   const body = req.body as Record<string, unknown>;
@@ -519,6 +645,16 @@ secondBrainRouter.get(
   requireAuth,
   requireBrainliftAccess,
   asyncHandler(getNoteHandler),
+);
+
+// Spec 01 (pedagogy/reader-notes): /notes/from-reader MUST be registered
+// ABOVE /notes/:id so Express does not try to parse 'from-reader' as a
+// numeric note id. Mirrors the /bulk-* placement above /sources/:id.
+secondBrainRouter.post(
+  '/api/brainlifts/:slug/notes/from-reader',
+  requireAuth,
+  requireBrainliftModify,
+  asyncHandler(createNoteFromReaderHandler),
 );
 
 secondBrainRouter.post(
