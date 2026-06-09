@@ -7,6 +7,7 @@ export { AgentUnit, PlaceholderUnit } from './AgentUnit';
 export { AgentInspectModal } from './AgentInspectModal';
 export { ContentViewer } from './ContentViewer';
 export { ExpandedItemView } from './ExpandedItemView';
+export { NotesPanel } from './NotesPanel';
 export { SavedItemsList } from './SavedItemsList';
 export { GradedItemsList } from './GradedItemsList';
 export { SavedItemsPage } from './SavedItemsPage';

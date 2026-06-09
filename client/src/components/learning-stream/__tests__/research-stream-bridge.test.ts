@@ -74,4 +74,11 @@ describe('Research Stream bookmark bridge', () => {
     expect(streamItemCardSource).toMatch(/isInSecondBrain\s*=\s*item\.status === 'bookmarked'/);
     expect(streamItemCardSource).toMatch(/In Second Brain/);
   });
+
+  it('keeps the expanded reader mounted while a view param is active after auto-bookmark removes the item from pending rows', () => {
+    expect(researchStreamTabSource).toMatch(/lastViewingItemRef/);
+    expect(researchStreamTabSource).toMatch(/viewingItemId === null[\s\S]*lastViewingItemRef\.current = null/);
+    expect(researchStreamTabSource).toMatch(/renderItems/);
+    expect(researchStreamTabSource).toMatch(/stats\.pending > 0 \|\| viewingItem/);
+  });
 });

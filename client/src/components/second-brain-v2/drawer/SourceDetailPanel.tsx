@@ -24,8 +24,6 @@ import { useEnsureLearningStreamItem } from '@/hooks/useEnsureLearningStreamItem
 import { formatUrl } from '@/lib/url';
 import { cn } from '@/lib/utils';
 
-const MAX_PREVIEW_NOTES = 3;
-
 export interface SourceDetailPanelProps {
   slug: string;
   source: Source;
@@ -49,12 +47,6 @@ function formatSavedOn(iso: string): string {
   return d.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
 }
 
-function formatNoteDate(iso: string): string {
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return iso;
-  return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
-}
-
 /**
  * Spec 03 FR6 — drawer body for a single source.
  *
@@ -64,10 +56,12 @@ function formatNoteDate(iso: string): string {
  *   3. Metadata table (Saved on, Source, Length, Category)
  *   4. Summary = key insights
  *   5. Why this matters (collapsed by default)
- *   6. Linked Notes preview (≤3, with empty state)
- *   7. Primary CTA: View linked notes in Notes tab →
+ *   6. Primary CTA: Read source (drawer reading mode)
+ *   7. Secondary link: View linked notes in Notes tab
  *   8. Secondary actions: Open source · Edit category · Delete
  *
+ * The inline notes-preview section was removed in spec 02 FR5
+ * (reader-notes-pane) — note triage now lives in the reader's Notes pane.
  * Nulls in spec-01 enrichment fields collapse the corresponding section.
  */
 export function SourceDetailPanel({
@@ -91,8 +85,6 @@ export function SourceDetailPanel({
   const meta = resolved ? RETRIEVAL_TYPE_META[resolved] : null;
   const Icon = meta?.icon ?? null;
   const domain = formatUrl(source.url);
-  const previewNotes = notes.slice(0, MAX_PREVIEW_NOTES);
-  const overflowNotesCount = Math.max(0, notes.length - MAX_PREVIEW_NOTES);
 
   if (isReading) {
     return (
@@ -231,47 +223,10 @@ export function SourceDetailPanel({
           </section>
         ) : null}
 
-        {/* Linked notes preview */}
-        <section className="mt-6">
-          <h3 className="m-0 mb-3 flex items-center gap-2 font-sans text-[11px] font-semibold tracking-[0.04em] text-foreground">
-            Linked Notes
-            <span className="rounded-full bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">
-              {notes.length}
-            </span>
-          </h3>
-          {previewNotes.length === 0 ? (
-            <p className="m-0 font-serif text-[13px] italic text-muted-foreground">
-              No notes linked yet. Create one from the Notes tab to start
-              annotating this source.
-            </p>
-          ) : (
-            <ol className="m-0 list-none space-y-2 p-0">
-              {previewNotes.map((note, index) => (
-                <li
-                  key={note.id}
-                  className="flex gap-3 rounded-lg px-2 py-2 transition-colors hover:bg-muted/50"
-                >
-                  <span className="shrink-0 pt-0.5 font-sans text-[12px] font-medium text-muted-light">
-                    {index + 1}
-                  </span>
-                  <div className="min-w-0">
-                    <p className="m-0 line-clamp-2 font-serif text-[13px] leading-snug text-foreground">
-                      {note.content}
-                    </p>
-                    <p className="m-0 mt-1 font-sans text-[10px] text-muted-light">
-                      {formatNoteDate(note.createdAt)}
-                    </p>
-                  </div>
-                </li>
-              ))}
-              {overflowNotesCount > 0 ? (
-                <li className="pl-7 font-sans text-[11px] italic text-muted-foreground">
-                  +{overflowNotesCount} more
-                </li>
-              ) : null}
-            </ol>
-          )}
-        </section>
+        {/* Spec 02 FR5: the inline notes-preview block was removed —
+            notes triage now lives in the reader's Notes pane. The Read
+            source CTA + the secondary View linked notes link below cover
+            both the per-source and the bulk-view paths. */}
 
         {/* Primary CTA: switch the drawer into in-app reading mode.
             Always available — works for any source, regardless of whether

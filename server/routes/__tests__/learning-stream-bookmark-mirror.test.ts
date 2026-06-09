@@ -172,4 +172,33 @@ describe('bookmarkResearchItemWithSource — Second Brain v2 enrichment mirror (
       whyMatters: 'Edited why-matters I want to keep.',
     });
   });
+
+  // Spec 01 FR2 regression: after the wrapper is refactored to delegate to
+  // ensureSourceFromLearningStreamItem, the public shape must remain exactly
+  // { source, item } — the `created` flag from the storage helper must NOT
+  // leak through the public wrapper, so existing consumers (PATCH
+  // /learning-stream/:itemId/bookmark) are byte-compatible.
+  it('returns exactly { source, item } — no `created` flag leaks from the storage helper', async () => {
+    const { brainlift, category } = await createFixture('shape');
+
+    const [item] = await db.insert(learningStreamItems).values({
+      brainliftId: brainlift.id,
+      type: 'News',
+      author: 'Wire',
+      topic: 'Shape stability check',
+      time: '3 min',
+      facts: 'Just enough for the row.',
+      url: `https://example.com/lsi-shape/${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      source: 'manual',
+    }).returning();
+
+    const result = await bookmarkResearchItemWithSource({
+      brainliftId: brainlift.id,
+      itemId: item.id,
+      categoryId: category.id,
+    });
+
+    expect(Object.keys(result).sort()).toEqual(['item', 'source']);
+    expect((result as Record<string, unknown>).created).toBeUndefined();
+  });
 });

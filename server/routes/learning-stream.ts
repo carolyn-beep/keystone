@@ -14,12 +14,22 @@ import { swarmEmitter } from '../ai/learning-stream-swarm-v2/event-emitter';
 import { runResearchSwarm } from '../ai/learning-stream-swarm-v2/run';
 import { estimateRunCostUsd } from '../ai/learning-stream-swarm-v2/cost';
 import { db } from '../db';
-import { and, eq } from 'drizzle-orm';
-import { categories, learningStreamItems, sources } from '@shared/schema';
 import { orchestrate } from '../ai/learning-stream-swarm-v2/orchestrator';
 import { runRequestSchema, type RunSpec } from '@shared/research-stream';
+import { ensureSourceFromLearningStreamItem } from '../storage/second-brain';
+import { createNoteFromReaderHandler } from './second-brain';
 
 export const learningStreamRouter = Router();
+
+// Reader Notes save path is registered here as well as in secondBrainRouter.
+// This router mounts earlier in registerRoutes, so the live reader never falls
+// through to the Vite app-shell fallback for this API route.
+learningStreamRouter.post(
+  '/api/brainlifts/:slug/notes/from-reader',
+  requireAuth,
+  requireBrainliftModify,
+  asyncHandler(createNoteFromReaderHandler),
+);
 
 function parseBookmarkItemId(rawValue: string | undefined): number {
   const itemId = parseInt(String(rawValue), 10);
@@ -36,99 +46,27 @@ function parseBookmarkCategoryId(rawValue: unknown): number {
   return rawValue;
 }
 
+/**
+ * Bookmarks a Research Stream item into Second Brain by mirroring it
+ * into a `sources` row and flipping the LSI status to 'bookmarked'.
+ *
+ * Public wrapper around `ensureSourceFromLearningStreamItem` (in
+ * server/storage/second-brain.ts) that owns the transaction boundary.
+ * The wrapper drops the helper's `created` flag because the existing
+ * `PATCH /learning-stream/:itemId/bookmark` caller (and any external
+ * import sites) only need { source, item }. The new
+ * `POST /api/brainlifts/:slug/notes/from-reader` handler imports the
+ * underlying helper directly so it can read `created` to populate its
+ * response's `autoBookmarked` flag inside its own transaction.
+ */
 export async function bookmarkResearchItemWithSource(args: {
   brainliftId: number;
   itemId: number;
   categoryId: number;
 }) {
   return db.transaction(async (tx) => {
-    const [category] = await tx
-      .select({ id: categories.id })
-      .from(categories)
-      .where(and(
-        eq(categories.id, args.categoryId),
-        eq(categories.brainliftId, args.brainliftId),
-      ))
-      .limit(1);
-
-    if (!category) {
-      throw new BadRequestError('Category does not belong to this brainlift');
-    }
-
-    const [item] = await tx
-      .select()
-      .from(learningStreamItems)
-      .where(and(
-        eq(learningStreamItems.id, args.itemId),
-        eq(learningStreamItems.brainliftId, args.brainliftId),
-      ))
-      .limit(1);
-
-    if (!item) {
-      throw new NotFoundError('Item not found or does not belong to this brainlift');
-    }
-
-    const [updatedItem] = await tx
-      .update(learningStreamItems)
-      .set({
-        status: 'bookmarked',
-        updatedAt: new Date(),
-      })
-      .where(and(
-        eq(learningStreamItems.id, args.itemId),
-        eq(learningStreamItems.brainliftId, args.brainliftId),
-      ))
-      .returning();
-
-    if (!updatedItem) {
-      throw new NotFoundError('Item not found or does not belong to this brainlift');
-    }
-
-    const [insertedSource] = await tx
-      .insert(sources)
-      .values({
-        brainliftId: args.brainliftId,
-        title: item.topic,
-        url: item.url,
-        author: item.author,
-        categoryId: args.categoryId,
-        extractedContent: item.extractedContent,
-        learningStreamItemId: item.id,
-        // Second Brain v2 enrichment fields — mirrored 1:1 from the
-        // learning_stream_items row so saved sources carry the same shape
-        // as the Research Stream cards. All four are nullable on the LSI
-        // side too, so they may pass through as null.
-        type: item.type,
-        keyInsights: item.facts,
-        length: item.time,
-        whyMatters: item.aiRationale,
-      })
-      .onConflictDoNothing({
-        // Re-bookmark of an already-mirrored item returns the existing
-        // source row unchanged via the SELECT fallback below; enrichment
-        // fields are NOT overwritten on a second bookmark, so any
-        // user-edited values survive.
-        target: [sources.brainliftId, sources.url],
-      })
-      .returning();
-
-    const source = insertedSource ?? (await tx
-      .select()
-      .from(sources)
-      .where(and(
-        eq(sources.brainliftId, args.brainliftId),
-        eq(sources.url, item.url),
-      ))
-      .limit(1))[0];
-
-    if (!source) {
-      throw new NotFoundError('Source not found after bookmark mirror');
-    }
-
-    return {
-      item: updatedItem,
-      source,
-    };
+    const { source, item } = await ensureSourceFromLearningStreamItem(tx, args);
+    return { source, item };
   });
 }
 

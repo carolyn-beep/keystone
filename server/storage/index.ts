@@ -250,6 +250,10 @@ export const storage = {
   getSecondBrainSummary: secondBrainStorage.getSecondBrainSummary,
   getCategoriesWithCountsForSecondBrain: secondBrainStorage.getCategoriesWithCountsForSecondBrain,
   reorderCategories: secondBrainStorage.reorderCategories,
+  // Spec 01 (pedagogy/reader-notes): tx-aware helpers for the
+  // POST /api/brainlifts/:slug/notes/from-reader endpoint.
+  ensureCategoryByName: secondBrainStorage.ensureCategoryByName,
+  ensureSourceFromLearningStreamItem: secondBrainStorage.ensureSourceFromLearningStreamItem,
 
   // DOK3 Insights
   saveDOK3Insights: dok3Storage.saveDOK3Insights,

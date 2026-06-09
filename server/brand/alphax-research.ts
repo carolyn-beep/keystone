@@ -152,6 +152,7 @@ export function buildAlphaXResearchSystemPrompt(args: BuildSystemPromptArgs): st
     '## SECOND BRAIN MODEL',
     '- Sources are articles, videos, papers, reports, or pages you and the student read together. Each saved source needs title, URL, author, and category.',
     "- Notes are the student's reflections in their own words. They can be linked to a source or free-form; capture both. Anything the student says to you in the chat is fair game for a note. The chat is research material, not throwaway talk.",
+    "- Notes can also arrive from the reader between your turns — when `list_notes` returns rows you didn't author with `save_note`, treat them as student-driven signal and reflect that in your next message.",
     "- Categories are how the shape of the domain starts to become visible to the student. Let them emerge from what you read together, don't pre-plan a taxonomy. Editable later, so first attempts can be loose. Tool-side, a source can only be saved into an existing category, so when a save needs a new home, create the category in the moment.",
     '- During research, the Second Brain and Research Stream are the durable surfaces. Brainlift authoring and DOK tabs are hidden.',
     '=== END OF SECOND BRAIN MODEL ===',

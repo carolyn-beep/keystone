@@ -102,26 +102,31 @@ describe('FR2: getTabsForMode', () => {
     expect(tabs[1]).toEqual({ key: 'manual', label: 'Manual' });
   });
 
-  it('returns Discuss and Quiz tabs for stream mode', () => {
+  it('returns Notes, Discuss, and Quiz tabs for stream mode (Notes first — spec 02 FR1)', () => {
     const tabs = getTabsForMode('stream');
-    expect(tabs).toHaveLength(2);
-    expect(tabs[0]).toEqual({ key: 'discuss', label: 'Discuss' });
-    expect(tabs[1]).toEqual({ key: 'quiz', label: 'Quiz' });
+    expect(tabs).toHaveLength(3);
+    expect(tabs[0]).toEqual({ key: 'notes', label: 'Notes' });
+    expect(tabs[1]).toEqual({ key: 'discuss', label: 'Discuss' });
+    expect(tabs[2]).toEqual({ key: 'quiz', label: 'Quiz' });
   });
 
-  it('returns stream tabs for undefined mode', () => {
+  it('returns stream tabs for undefined mode (Notes first)', () => {
     const tabs = getTabsForMode(undefined);
-    expect(tabs).toHaveLength(2);
-    expect(tabs[0].label).toBe('Discuss');
-    expect(tabs[1].label).toBe('Quiz');
+    expect(tabs).toHaveLength(3);
+    expect(tabs[0].label).toBe('Notes');
+    expect(tabs[1].label).toBe('Discuss');
+    expect(tabs[2].label).toBe('Quiz');
   });
 });
 
 describe('FR2: getDefaultTab', () => {
-  it('returns discuss for all modes', () => {
+  it('returns discuss for builder mode', () => {
     expect(getDefaultTab('builder')).toBe('discuss');
-    expect(getDefaultTab('stream')).toBe('discuss');
-    expect(getDefaultTab(undefined)).toBe('discuss');
+  });
+
+  it('returns notes for stream mode and undefined (spec 02 FR1)', () => {
+    expect(getDefaultTab('stream')).toBe('notes');
+    expect(getDefaultTab(undefined)).toBe('notes');
   });
 });
 

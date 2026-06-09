@@ -43,7 +43,7 @@ export function isBuilderMode(mode: ViewMode | undefined): boolean {
 
 // ─── Tab Configuration ──────────────────────────────────────────────────────
 
-export type RightPanelTab = 'discuss' | 'quiz' | 'manual';
+export type RightPanelTab = 'discuss' | 'quiz' | 'manual' | 'notes';
 
 export interface TabConfig {
   key: RightPanelTab;
@@ -52,8 +52,8 @@ export interface TabConfig {
 
 /**
  * Get the tab configuration based on view mode.
- * Builder mode: Discussion + Manual
- * Stream mode: Discuss + Quiz
+ * Builder mode: Discussion + Manual (unchanged).
+ * Stream mode: Notes + Discuss + Quiz, Notes-first per spec 02 FR1.
  */
 export function getTabsForMode(mode: ViewMode | undefined): TabConfig[] {
   if (mode === 'builder') {
@@ -63,6 +63,7 @@ export function getTabsForMode(mode: ViewMode | undefined): TabConfig[] {
     ];
   }
   return [
+    { key: 'notes', label: 'Notes' },
     { key: 'discuss', label: 'Discuss' },
     { key: 'quiz', label: 'Quiz' },
   ];
@@ -70,9 +71,11 @@ export function getTabsForMode(mode: ViewMode | undefined): TabConfig[] {
 
 /**
  * Get the default active tab for a mode.
+ * Builder stays on Discussion. Stream defaults to Notes (spec 02 FR1).
  */
 export function getDefaultTab(mode: ViewMode | undefined): RightPanelTab {
-  return 'discuss';
+  if (mode === 'builder') return 'discuss';
+  return 'notes';
 }
 
 // ─── Extraction Badge ───────────────────────────────────────────────────────
