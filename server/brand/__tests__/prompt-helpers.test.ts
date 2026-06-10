@@ -175,3 +175,75 @@ describe('TOOLS_PROTOCOL', () => {
     expect(joined).toContain('ask_user_question');
   });
 });
+
+describe('formatCurrentProject scope rendering (01-scope-foundation FR4)', () => {
+  const baseBrainlift = {
+    id: 7,
+    slug: 'battery-chemistry',
+    title: 'Battery Chemistry',
+    phase: 'authoring',
+  };
+
+  function conversationWith(brainlift: Record<string, unknown> | null) {
+    return {
+      conversationId: 99,
+      brainliftId: brainlift ? 7 : null,
+      brainlift,
+    } as never;
+  }
+
+  it('renders in/out scope phrases inside the CURRENT PROJECT block for a scoped brainlift', async () => {
+    const { formatCurrentProject } = await import('../shared/prompt-helpers');
+
+    const lines = formatCurrentProject(conversationWith({
+      ...baseBrainlift,
+      inScope: ['solid-state electrolytes', 'anode materials'],
+      outOfScope: ['EV market analysis'],
+    }));
+    const joined = lines.join('\n');
+
+    expect(lines[0]).toBe('=== START OF CURRENT PROJECT ===');
+    expect(lines[lines.length - 1]).toBe('=== END OF CURRENT PROJECT ===');
+    expect(joined).toContain('In scope');
+    expect(joined).toContain('solid-state electrolytes');
+    expect(joined).toContain('anode materials');
+    expect(joined).toContain('Out of scope');
+    expect(joined).toContain('EV market analysis');
+  });
+
+  it('renders only the non-empty side when one array is empty', async () => {
+    const { formatCurrentProject } = await import('../shared/prompt-helpers');
+
+    const joined = formatCurrentProject(conversationWith({
+      ...baseBrainlift,
+      inScope: ['solid-state electrolytes'],
+      outOfScope: [],
+    })).join('\n');
+
+    expect(joined).toContain('In scope');
+    expect(joined).toContain('solid-state electrolytes');
+    expect(joined).not.toContain('Out of scope');
+  });
+
+  it('renders the block exactly as today when scope is empty', async () => {
+    const { formatCurrentProject } = await import('../shared/prompt-helpers');
+
+    const withEmptyScope = formatCurrentProject(conversationWith({
+      ...baseBrainlift,
+      inScope: [],
+      outOfScope: [],
+    }));
+    const legacyWithoutScopeFields = formatCurrentProject(conversationWith({ ...baseBrainlift }));
+
+    expect(withEmptyScope).toEqual(legacyWithoutScopeFields);
+    expect(withEmptyScope.join('\n')).not.toContain('In scope');
+    expect(withEmptyScope.join('\n')).not.toContain('Out of scope');
+  });
+
+  it('still returns an empty array when unbound', async () => {
+    const { formatCurrentProject } = await import('../shared/prompt-helpers');
+
+    expect(formatCurrentProject(conversationWith(null))).toEqual([]);
+    expect(formatCurrentProject(undefined)).toEqual([]);
+  });
+});

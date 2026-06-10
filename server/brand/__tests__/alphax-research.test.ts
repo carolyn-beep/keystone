@@ -187,6 +187,34 @@ describe('AlphaX research prompt', () => {
     expect(prompt).toContain('=== END OF CURRENT PROJECT ===');
   });
 
+  it('renders in/out scope inside the CURRENT PROJECT block when the bound brainlift has scope (01-scope-foundation FR4)', () => {
+    const scopedConversation: ConversationContext = {
+      ...boundConversation,
+      brainlift: {
+        id: 7,
+        slug: 'battery-chemistry',
+        title: 'Battery Chemistry',
+        phase: 'research',
+        inScope: ['solid-state electrolytes'],
+        outOfScope: ['EV market analysis'],
+      } as ConversationContext['brainlift'],
+    };
+
+    const prompt = buildAlphaXResearchSystemPrompt({
+      userContext: baseUserContext,
+      skills: [],
+      mode: 'research',
+      conversation: scopedConversation,
+    });
+
+    const currentProjectBlock = prompt.slice(
+      prompt.indexOf('=== START OF CURRENT PROJECT ==='),
+      prompt.indexOf('=== END OF CURRENT PROJECT ==='),
+    );
+    expect(currentProjectBlock).toContain('solid-state electrolytes');
+    expect(currentProjectBlock).toContain('EV market analysis');
+  });
+
   it('omits the CURRENT PROJECT block entirely when unbound', () => {
     const prompt = buildAlphaXResearchSystemPrompt({
       userContext: baseUserContext,
