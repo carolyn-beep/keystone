@@ -18,24 +18,6 @@ export function useExperts(slug: string) {
     }
   });
 
-  const toggleExpertFollowMutation = useMutation({
-    mutationFn: async ({ expertId, isFollowing }: { expertId: number; isFollowing: boolean }) => {
-      const res = await fetch(`/api/brainlifts/${slug}/experts/${expertId}/follow`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ isFollowing }),
-      });
-      if (!res.ok) {
-        const err = await res.json();
-        throw new Error(err.message || 'Failed to update expert');
-      }
-      return res.json();
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['brainlift', slug] });
-    }
-  });
-
   const deleteExpertMutation = useMutation({
     mutationFn: async (expertId: number) => {
       const res = await fetch(`/api/brainlifts/${slug}/experts/${expertId}`, {
@@ -56,9 +38,6 @@ export function useExperts(slug: string) {
     refresh: refreshExpertsMutation.mutateAsync,
     isRefreshing: refreshExpertsMutation.isPending,
     refreshMutation: refreshExpertsMutation,
-
-    toggleFollow: toggleExpertFollowMutation.mutateAsync,
-    toggleFollowMutation: toggleExpertFollowMutation,
 
     deleteExpert: deleteExpertMutation.mutateAsync,
     deleteMutation: deleteExpertMutation,

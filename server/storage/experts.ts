@@ -63,34 +63,8 @@ export async function createExpertsForBrainlift(
       rationale: null,
       source: 'listed',
       twitterHandle: expert.twitterHandle ?? normalizeTwitterHandle(expert.where),
-      isFollowing: true,
     })),
   ).returning();
-}
-
-export async function getFollowedExperts(brainliftId: number): Promise<Expert[]> {
-  return await db.select().from(experts)
-    .where(and(
-      eq(experts.brainliftId, brainliftId),
-      eq(experts.isFollowing, true)
-    ))
-    .orderBy(...expertOrderBy());
-}
-
-/**
- * Update expert following status with brainlift ownership verification.
- * Returns null if expert doesn't exist or doesn't belong to the brainlift.
- */
-export async function updateExpertFollowingForBrainlift(
-  expertId: number,
-  brainliftId: number,
-  isFollowing: boolean
-): Promise<Expert | null> {
-  const [updated] = await db.update(experts)
-    .set({ isFollowing })
-    .where(and(eq(experts.id, expertId), eq(experts.brainliftId, brainliftId)))
-    .returning();
-  return updated || null;
 }
 
 /**

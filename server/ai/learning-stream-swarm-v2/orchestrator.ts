@@ -193,7 +193,7 @@ export async function orchestrate(
       totalNotes: ctx.secondBrain.totalNotes,
       categories: ctx.secondBrain.categories.map((category) => category.name),
     },
-    followedExperts: ctx.followedExperts.map((expert) => expert.name),
+    topExperts: ctx.topExperts.map((expert) => expert.name),
     existingUrlCount: ctx.existingUrls.length,
   });
   swarmVerboseLog('ORCH', 'project data digest sent to orchestrator', ctx.renderedDigest);

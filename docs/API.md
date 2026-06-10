@@ -183,9 +183,7 @@ All routes nested under `/api/brainlifts/:slug/experts` for authorization contex
 |--------|----------|------|-------------|
 | GET | `/api/brainlifts/:slug/experts` | `requireAuth` | Get all experts for brainlift |
 | POST | `/api/brainlifts/:slug/experts/refresh` | `requireAuth` | Extract/refresh experts using AI |
-| PATCH | `/api/brainlifts/:slug/experts/:id/follow` | `requireAuth` | Update expert following status |
 | DELETE | `/api/brainlifts/:slug/experts/:id` | `requireAuth` | Delete an expert |
-| GET | `/api/brainlifts/:slug/experts/following` | `requireAuth` | Get followed experts only |
 
 ---
 
@@ -552,10 +550,10 @@ All child resource routes include the parent brainlift slug for authorization:
 
 ```
 # Good - authorization context in URL
-PATCH /api/brainlifts/:slug/experts/:id/follow
+DELETE /api/brainlifts/:slug/experts/:id
 
 # Avoid - requires extra DB lookup for authorization
-PATCH /api/experts/:id/follow
+DELETE /api/experts/:id
 ```
 
 ### Authorization Flow
@@ -566,8 +564,8 @@ PATCH /api/experts/:id/follow
 4. Handler uses `req.brainlift` directly
 
 ```typescript
-router.patch(
-  '/api/brainlifts/:slug/experts/:id/follow',
+router.delete(
+  '/api/brainlifts/:slug/experts/:id',
   requireAuth,
   requireBrainliftModify,
   asyncHandler(async (req, res) => {
@@ -575,12 +573,12 @@ router.patch(
     if (isNaN(expertId)) throw new BadRequestError('Invalid expert ID');
 
     // Use *ForBrainlift function to verify child resource ownership
-    const updated = await storage.updateExpertFollowingForBrainlift(
-      expertId, req.brainlift!.id, req.body.isFollowing
+    const deleted = await storage.deleteExpertForBrainlift(
+      expertId, req.brainlift!.id
     );
-    if (!updated) throw new NotFoundError('Expert not found');
+    if (!deleted) throw new NotFoundError('Expert not found');
 
-    res.json(updated);
+    res.json({ success: true });
   })
 );
 ```

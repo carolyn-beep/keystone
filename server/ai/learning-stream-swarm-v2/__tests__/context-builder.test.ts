@@ -7,7 +7,7 @@ const storageMock = vi.hoisted(() => ({
   getNotesByBrainlift: vi.fn(),
   listCategories: vi.fn(),
   getDOK4Spovs: vi.fn(),
-  getFollowedExperts: vi.fn(),
+  getExpertsByBrainliftId: vi.fn(),
   getLearningStreamUrls: vi.fn(),
 }));
 
@@ -77,7 +77,6 @@ function expertsFixture(count: number) {
     rationale: null,
     source: 'listed',
     twitterHandle: `expert${index + 1}`,
-    isFollowing: true,
   }));
 }
 
@@ -106,7 +105,7 @@ beforeEach(() => {
   storageMock.getNotesByBrainlift.mockResolvedValue(noteFixture(8));
   storageMock.listCategories.mockResolvedValue(categoryFixture(3));
   storageMock.getDOK4Spovs.mockResolvedValue([]);
-  storageMock.getFollowedExperts.mockResolvedValue(expertsFixture(4));
+  storageMock.getExpertsByBrainliftId.mockResolvedValue(expertsFixture(4));
   storageMock.getLearningStreamUrls.mockResolvedValue(Array.from({ length: 7 }, (_, index) => `https://seen.example/${index}`));
 });
 
@@ -131,7 +130,10 @@ describe('buildSwarmContext research phase', () => {
     expect(context.secondBrain.categories).toHaveLength(3);
     expect(context.secondBrain.sources).toHaveLength(12);
     expect(context.secondBrain.notes.map((note) => note.id)).toEqual([1, 2, 3, 4, 5, 6, 7, 8]);
-    expect(context.followedExperts).toHaveLength(4);
+    expect(context.topExperts).toHaveLength(4);
+    // FR3: topExperts is sourced from getExpertsByBrainliftId (top 10), rendered into the digest.
+    expect(context.topExperts.map((expert) => expert.name)).toEqual(['Expert 1', 'Expert 2', 'Expert 3', 'Expert 4']);
+    expect(context.renderedDigest).toContain('Expert 1');
     expect(context.existingUrls).toHaveLength(7);
     expect(context.renderedDigest).not.toContain('https://seen.example');
     expect(context.renderedDigest.startsWith('# Carmack Brainlift')).toBe(true);
@@ -169,7 +171,7 @@ describe('buildSwarmContext authoring phase', () => {
     storageMock.getBrainliftById.mockResolvedValue({ id: 1, phase: 'authoring' });
     storageMock.getSourcesByBrainlift.mockResolvedValue(sourceFixture(9));
     storageMock.getNotesByBrainlift.mockResolvedValue(noteFixture(9));
-    storageMock.getFollowedExperts.mockResolvedValue(expertsFixture(12));
+    storageMock.getExpertsByBrainliftId.mockResolvedValue(expertsFixture(12));
     storageMock.getLearningStreamContext.mockResolvedValue(learningStreamContext({
       facts: Array.from({ length: 25 }, (_, index) => ({
         id: index + 1,
@@ -195,7 +197,7 @@ describe('buildSwarmContext authoring phase', () => {
     expect(context.brainlift.spovExcerpts).toHaveLength(5);
     expect(context.brainlift.spovExcerpts[0].body).toHaveLength(303);
     expect(context.brainlift.experts).toHaveLength(10);
-    expect(context.followedExperts).toHaveLength(10);
+    expect(context.topExperts).toHaveLength(10);
     expect(context.secondBrain.sources).toHaveLength(5);
     expect(context.secondBrain.notes).toHaveLength(5);
     expect(context.renderedDigest.indexOf('## Brainlift')).toBeLessThan(context.renderedDigest.indexOf('## Second Brain'));
@@ -208,7 +210,7 @@ describe('buildSwarmContext authoring phase', () => {
       experts: [],
     }));
     storageMock.getDOK4Spovs.mockResolvedValue([]);
-    storageMock.getFollowedExperts.mockResolvedValue([]);
+    storageMock.getExpertsByBrainliftId.mockResolvedValue([]);
 
     const context = await buildSwarmContext(1);
 

@@ -78,7 +78,6 @@ export async function seedProductionIfEmpty() {
           rationale: e.rationale,
           source: e.source,
           twitterHandle: e.twitter_handle,
-          isFollowing: e.is_following,
         }).onConflictDoNothing();
       }
     }
