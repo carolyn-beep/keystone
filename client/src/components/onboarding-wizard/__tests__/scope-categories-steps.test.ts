@@ -111,13 +111,14 @@ describe('FR5: isDuplicateCategory (case-insensitive vs existing)', () => {
 // ─── FR4/FR5: wizard-machine + page wiring ───────────────────────────────────
 
 describe('FR4/FR5: wizard-machine no longer marks steps 2-4 as placeholder', () => {
-  it('steps 2, 3, 4 are not placeholders (steps 5, 6 still are)', () => {
+  it('steps 2, 3, 4 are not placeholders (and 5 Experts / 6 Resources are now filled too)', () => {
     const byId = (id: number) => WIZARD_STEPS.find((s) => s.id === id)!;
     expect(byId(2).placeholder).toBe(false);
     expect(byId(3).placeholder).toBe(false);
     expect(byId(4).placeholder).toBe(false);
-    expect(byId(5).placeholder).toBe(true);
-    expect(byId(6).placeholder).toBe(true);
+    // Step 5 (Experts) filled by spec 06; step 6 (Resources) filled by spec 05.
+    expect(byId(5).placeholder).toBe(false);
+    expect(byId(6).placeholder).toBe(false);
   });
 });
 
@@ -177,8 +178,10 @@ describe('FR4/FR5: OnboardingWizard wires the new steps', () => {
     expect(source).toMatch(/resume\.data\.outOfScope|resume\.data\?\.outOfScope/);
   });
 
-  it('adds no starter-pack trigger (step 4 → 5 is a plain forward PATCH; spec 05 owns the hook)', () => {
-    // No starter-pack import / job-queue call wired in this spec.
-    expect(source).not.toMatch(/withJob|starterPack|starter-pack['"]/);
+  it('wires the spec-05 starter-pack trigger on Categories Next (the hookpoint spec 04 left open)', () => {
+    // Spec 05 filled this hookpoint: Categories Next fires the starter-pack
+    // launch (fire-and-forget) via useStarterPack before advancing.
+    expect(source).toMatch(/useStarterPack/);
+    expect(source).toMatch(/launchStarterPack|launch\(\)/);
   });
 });
