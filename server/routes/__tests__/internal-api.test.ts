@@ -225,7 +225,6 @@ function createBrainliftDetailAggregate(overrides: Record<string, any> = {}) {
         rankScore: 9,
         rationale: 'Strong source',
         twitterHandle: '@expert',
-        isFollowing: true,
       },
     ],
     dok1: [
@@ -660,7 +659,6 @@ describe('02-canonical-detail-endpoint service', () => {
           rankScore: 9,
           rationale: 'Strong source',
           twitterHandle: '@expert',
-          isFollowing: true,
         },
       ],
       dok1: [
@@ -1561,7 +1559,6 @@ describe('Internal expert endpoints', () => {
         rationale: '8 citations',
         twitterHandle: '@expert1',
         source: 'listed',
-        isFollowing: true,
       },
     ]);
 
@@ -1591,7 +1588,6 @@ describe('Internal expert endpoints', () => {
         rationale: null,
         twitterHandle: '@newexpert',
         source: 'listed',
-        isFollowing: true,
       },
     ]);
 

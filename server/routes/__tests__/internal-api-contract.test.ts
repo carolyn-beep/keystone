@@ -80,7 +80,6 @@ beforeAll(async () => {
       rationale: 'Top source',
       source: 'listed',
       twitterHandle: '@ranked',
-      isFollowing: true,
     },
     {
       brainliftId,
@@ -88,7 +87,6 @@ beforeAll(async () => {
       who: 'Analyst',
       why: 'Context',
       source: 'listed',
-      isFollowing: false,
     },
   ]);
 
@@ -282,6 +280,10 @@ describe('GET /api/internal/brainlifts/:slug contract against real DB', () => {
     expect(response).not.toHaveProperty('originalContent');
     expect(response).not.toHaveProperty('classification');
     expect(response.experts).toHaveLength(2);
+    // FR5: the read contract no longer carries the retired isFollowing field.
+    for (const expert of response.experts) {
+      expect(expert).not.toHaveProperty('isFollowing');
+    }
     expect(response.dok1).toHaveLength(3);
     expect(response.dok2).toHaveLength(2);
     expect(response.dok3.map((item: any) => item.status).sort()).toEqual(['graded', 'linked', 'scratchpadded']);
