@@ -17,15 +17,15 @@ export interface WizardStep {
   id: number; // 1-indexed; mirrors brainlifts.onboarding_step
   key: WizardStepKey;
   title: string;
-  /** Steps 2-6 are placeholder slots filled by specs 04-06. */
+  /** Steps 5-6 remain placeholder slots filled by specs 05-06. */
   placeholder: boolean;
 }
 
 export const WIZARD_STEPS: readonly WizardStep[] = [
   { id: 1, key: 'topic', title: 'Add Topic', placeholder: false },
-  { id: 2, key: 'in-scope', title: 'In Scope', placeholder: true },
-  { id: 3, key: 'out-of-scope', title: 'Out of Scope', placeholder: true },
-  { id: 4, key: 'categories', title: 'Categories', placeholder: true },
+  { id: 2, key: 'in-scope', title: 'In Scope', placeholder: false },
+  { id: 3, key: 'out-of-scope', title: 'Out of Scope', placeholder: false },
+  { id: 4, key: 'categories', title: 'Categories', placeholder: false },
   { id: 5, key: 'experts', title: 'Experts', placeholder: true },
   { id: 6, key: 'resources', title: 'Resources', placeholder: true },
   { id: 7, key: 'done', title: 'Done', placeholder: false },

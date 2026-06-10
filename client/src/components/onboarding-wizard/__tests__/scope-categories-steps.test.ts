@@ -128,8 +128,11 @@ describe('FR4: ScopeStep source', () => {
     expect(source).toMatch(/'in'\s*\|\s*'out'|variant/);
   });
 
-  it('hydrates initial items from resume scope (inScope / outOfScope)', () => {
-    expect(source).toMatch(/inScope|outOfScope/);
+  it('takes its items list as a controlled prop (lifted for the shared rail)', () => {
+    // The page owns + hydrates the list (resume scope) so the main column and
+    // the separate rail slot share it; ScopeStep is controlled.
+    expect(source).toMatch(/items/);
+    expect(source).toMatch(/onItemsChange/);
   });
 
   it('renders removable chips and a free-entry line (Enter adds)', () => {
@@ -169,9 +172,13 @@ describe('FR4/FR5: OnboardingWizard wires the new steps', () => {
     expect(source).toContain('CategoriesStep');
   });
 
-  it('no longer falls back to PlaceholderStep for steps 2-4 (only experts/resources remain placeholder)', () => {
-    // Step 4 → 5 transition is a plain forward PATCH; no starter-pack trigger
-    // is added in this spec (spec 05 owns that hookpoint).
-    expect(source).not.toMatch(/starter[- ]?pack/i);
+  it('hydrates scope items from the resumed row (resume.data.inScope / outOfScope)', () => {
+    expect(source).toMatch(/resume\.data\.inScope|resume\.data\?\.inScope/);
+    expect(source).toMatch(/resume\.data\.outOfScope|resume\.data\?\.outOfScope/);
+  });
+
+  it('adds no starter-pack trigger (step 4 → 5 is a plain forward PATCH; spec 05 owns the hook)', () => {
+    // No starter-pack import / job-queue call wired in this spec.
+    expect(source).not.toMatch(/withJob|starterPack|starter-pack['"]/);
   });
 });

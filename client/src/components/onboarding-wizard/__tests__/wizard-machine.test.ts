@@ -32,9 +32,9 @@ describe('FR2: wizard step constants', () => {
     expect(LAST_STEP).toBe(7);
   });
 
-  it('marks steps 2-6 as placeholder slots (filled by specs 04-06)', () => {
+  it('marks steps 5-6 as placeholder slots (steps 2-4 filled by spec 04; 5-6 by specs 05-06)', () => {
     const placeholders = WIZARD_STEPS.filter((s) => s.placeholder).map((s) => s.id);
-    expect(placeholders).toEqual([2, 3, 4, 5, 6]);
+    expect(placeholders).toEqual([5, 6]);
   });
 });
 
