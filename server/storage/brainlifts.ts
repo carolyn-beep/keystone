@@ -1002,7 +1002,6 @@ export async function getLearningStreamContext(brainliftId: number): Promise<Lea
       title: brainlifts.title,
       description: brainlifts.description,
       displayPurpose: brainlifts.displayPurpose,
-      sourceType: brainlifts.sourceType,
     })
     .from(brainlifts)
     .where(eq(brainlifts.id, brainliftId));
@@ -1027,8 +1026,8 @@ export async function getLearningStreamContext(brainliftId: number): Promise<Lea
     .orderBy(desc(facts.score))
     .limit(15);
 
-  // Get followed experts (top 10 by rank)
-  const followedExperts = await db
+  // Get top 10 experts by rank (rankScore DESC NULLS LAST, id DESC)
+  const expertsList = await db
     .select({
       id: experts.id,
       name: experts.name,
@@ -1036,41 +1035,9 @@ export async function getLearningStreamContext(brainliftId: number): Promise<Lea
       rankScore: experts.rankScore,
     })
     .from(experts)
-    .where(
-      and(
-        eq(experts.brainliftId, brainliftId),
-        eq(experts.isFollowing, true)
-      )
-    )
+    .where(eq(experts.brainliftId, brainliftId))
     .orderBy(...expertOrderBy())
     .limit(10);
-
-  // Native fallback: use builder experts when no ranked experts exist
-  let expertsList: Array<{ id: number; name: string; twitterHandle: string | null; rankScore: number | null }> = followedExperts;
-
-  if (brainlift.sourceType === 'native' && followedExperts.length === 0) {
-    const savedBuilderExperts = await db
-      .select({
-        id: builderExperts.id,
-        name: builderExperts.name,
-        where: builderExperts.where,
-      })
-      .from(builderExperts)
-      .where(
-        and(
-          eq(builderExperts.brainliftId, brainliftId),
-          eq(builderExperts.status, 'saved')
-        )
-      )
-      .limit(10);
-
-    expertsList = savedBuilderExperts.map(e => ({
-      id: e.id,
-      name: e.name,
-      twitterHandle: deriveTwitterHandle(e.where),
-      rankScore: null,
-    }));
-  }
 
   // Get existing learning stream topics
   const { learningStreamItems } = await import('./base');
