@@ -26,7 +26,7 @@ export const WIZARD_STEPS: readonly WizardStep[] = [
   { id: 2, key: 'in-scope', title: 'In Scope', placeholder: true },
   { id: 3, key: 'out-of-scope', title: 'Out of Scope', placeholder: true },
   { id: 4, key: 'categories', title: 'Categories', placeholder: true },
-  { id: 5, key: 'experts', title: 'Experts', placeholder: true },
+  { id: 5, key: 'experts', title: 'Experts', placeholder: false },
   { id: 6, key: 'resources', title: 'Resources', placeholder: true },
   { id: 7, key: 'done', title: 'Done', placeholder: false },
 ] as const;
@@ -87,4 +87,13 @@ export function buildLandingLocation(slug: string): string {
 /** Topic CONFIRM is enabled once the trimmed topic reaches 3 chars. */
 export function canConfirmTopic(topic: string): boolean {
   return topic.trim().length >= 3;
+}
+
+/**
+ * Manual expert add (step 5) requires both a name and a `where` (handle / URL /
+ * affiliation); `who` / `why` / `focus` are optional. Mirrors the server's
+ * `createExpertsInput` contract.
+ */
+export function canAddManualExpert(name: string, where: string): boolean {
+  return name.trim().length > 0 && where.trim().length > 0;
 }

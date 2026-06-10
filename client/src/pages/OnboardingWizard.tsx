@@ -5,6 +5,7 @@ import { useOnboardingWizard } from '@/hooks/useOnboardingWizard';
 import { WizardShell } from '@/components/onboarding-wizard/WizardShell';
 import { TopicStep } from '@/components/onboarding-wizard/TopicStep';
 import { DoneStep } from '@/components/onboarding-wizard/DoneStep';
+import { ExpertsStep } from '@/components/onboarding-wizard/ExpertsStep';
 import { PlaceholderStep } from '@/components/onboarding-wizard/PlaceholderStep';
 import {
   WIZARD_STEPS,
@@ -149,6 +150,10 @@ export default function OnboardingWizard({ slug }: OnboardingWizardProps) {
     );
   } else if (activeStep === LAST_STEP) {
     body = <DoneStep onEnter={handleEnter} isCompleting={isCompleting} />;
+  } else if (stepMeta.key === 'experts') {
+    // Discovery fires only when this step opens (the hook's `enabled` gate is
+    // satisfied once ExpertsStep mounts).
+    body = <ExpertsStep slug={slug} onNext={handleNext} />;
   } else {
     body = <PlaceholderStep title={stepMeta.title} onNext={handleNext} />;
   }
