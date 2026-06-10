@@ -2,6 +2,7 @@ import { Link } from 'wouter';
 import { Brainlift } from '@shared/schema';
 import { Trash2 } from 'lucide-react';
 import { tokens } from '@/lib/colors';
+import { buildCardHref } from '@/components/onboarding-wizard/entry-points';
 import paperGrainTexture from '@/assets/textures/paper-grain.webp';
 
 // Import all profile images
@@ -91,6 +92,14 @@ export function BrainliftCard({ brainlift, adminView, canDelete, onDelete }: Bra
   // attribution on imports that never set an author manually.
   const byName = brainlift.author || brainlift.creatorName || null;
   const profileImage = getProfileImage(brainlift.id, brainlift.coverImageUrl);
+  // Mid-onboarding projects (onboardingStep != null) resume into the wizard
+  // and surface a "Setup incomplete" badge.
+  const isOnboarding = brainlift.onboardingStep != null;
+  const cardHref = buildCardHref({
+    slug: brainlift.slug,
+    onboardingStep: brainlift.onboardingStep,
+    adminView,
+  });
   const deleteButton = (
     <button
       data-testid={`button-delete-${brainlift.id}`}
@@ -129,7 +138,7 @@ export function BrainliftCard({ brainlift, adminView, canDelete, onDelete }: Bra
 
   return (
     <Link
-      href={`/grading/${brainlift.slug}${adminView ? '?admin=true' : ''}`}
+      href={cardHref}
       data-testid={`card-brainlift-${brainlift.slug}`}
       className="group rounded-xl no-underline flex relative transition-all duration-200 cursor-pointer h-full box-border overflow-hidden shadow-card hover:shadow-card-hover hover:-translate-y-0.5"
       style={{
@@ -170,6 +179,16 @@ export function BrainliftCard({ brainlift, adminView, canDelete, onDelete }: Bra
         >
           {projectName}
         </h3>
+
+        {/* Resume badge for mid-onboarding projects. */}
+        {isOnboarding && (
+          <span
+            data-testid={`badge-onboarding-${brainlift.slug}`}
+            className="mt-1.5 inline-flex w-fit items-center rounded bg-warning-soft px-[6px] py-[2px] text-[9px] uppercase tracking-[0.25em] font-semibold text-warning"
+          >
+            Setup incomplete
+          </span>
+        )}
 
         {/* "by <name>" — author when set, otherwise platform creator. */}
         {byName && (
