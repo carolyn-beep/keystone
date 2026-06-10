@@ -125,6 +125,31 @@ describe('research stream contract', () => {
     expect(runRequestSchema.safeParse({}).success).toBe(true); // optional
   });
 
+  it('05-FR1 runSpecSchema preserves the quick flag (round-trips into swarm_usage.run_spec)', () => {
+    const parsed = runSpecSchema.safeParse({
+      agents: [validSlot(0)],
+      quick: true,
+    });
+
+    expect(parsed.success).toBe(true);
+    if (parsed.success) {
+      expect(parsed.data.quick).toBe(true);
+    }
+  });
+
+  it('05-FR1 runSpecSchema parses fine when quick is absent (stays undefined)', () => {
+    const parsed = runSpecSchema.safeParse({ agents: [validSlot(0)] });
+
+    expect(parsed.success).toBe(true);
+    if (parsed.success) {
+      expect(parsed.data.quick).toBeUndefined();
+    }
+  });
+
+  it('05-FR1 runSpecSchema rejects a non-boolean quick', () => {
+    expect(runSpecSchema.safeParse({ agents: [validSlot(0)], quick: 'yes' }).success).toBe(false);
+  });
+
   it('FR2 exposes nullable Drizzle bindings for swarm_usage audit fields', () => {
     type SwarmUsageSelect = typeof swarmUsage.$inferSelect;
     const _runSpec: RunSpec | null = null as SwarmUsageSelect['runSpec'];

@@ -284,4 +284,101 @@ describe('runResearchSwarm', () => {
     await expect(runResearchSwarm(1, { agents: [] }, 1)).rejects.toThrow(/between 1 and/);
     await expect(runResearchSwarm(1, { agents: tooMany }, 1)).rejects.toThrow(/between 1 and/);
   });
+
+  // ─── 05-starter-pack FR1: quick mode ────────────────────────────────────────
+  describe('05-FR1 quick mode', () => {
+    it('configures the quick step cap (20) and builds the budget block from 20', async () => {
+      const {
+        runResearchSwarm,
+        SWARM_AGENT_QUICK_MAX_STEPS,
+      } = await import('../run');
+
+      await runResearchSwarm(1, { agents: [{ type: 'Substack', focus: 'A' }], quick: true }, 200);
+
+      expect(SWARM_AGENT_QUICK_MAX_STEPS).toBe(20);
+      expect(mocks.stepCountIs).toHaveBeenCalledWith(20);
+      expect(mocks.stepCountIs).not.toHaveBeenCalledWith(50);
+      const call = mocks.streamText.mock.calls[0][0];
+      expect(call.system).toContain('You have at most 20 model/tool steps');
+      // 20 - ceil(20*0.2) = 16.
+      expect(call.system).toContain('Plan to call save_item by about step 16');
+    });
+
+    it('skips the save-only recovery pass even when a quick slot saves nothing', async () => {
+      let call = 0;
+      mocks.streamText.mockImplementation(() => {
+        call += 1;
+        return {
+          consumeStream: vi.fn().mockResolvedValue(undefined),
+          totalUsage: Promise.resolve({ inputTokens: call, outputTokens: call }),
+          text: Promise.resolve('researched but did not save'),
+          reasoningText: Promise.resolve(''),
+        };
+      });
+      const { runResearchSwarm } = await import('../run');
+
+      const result = await runResearchSwarm(1, { agents: [{ type: 'Podcast', focus: 'A' }], quick: true }, 201);
+
+      // Exactly one streamText call per slot — no recovery second pass.
+      expect(mocks.streamText).toHaveBeenCalledTimes(1);
+      expect(mocks.stepCountIs).not.toHaveBeenCalledWith(25);
+      expect(result.failedCount).toBe(1);
+    });
+
+    it('forces the haiku model on a quick slot even when the slot names another model', async () => {
+      const { runResearchSwarm } = await import('../run');
+
+      await runResearchSwarm(1, {
+        agents: [{ type: 'Substack', focus: 'A', model: 'anthropic/claude-sonnet-4.6' }],
+        quick: true,
+      }, 202);
+
+      expect(mocks.getChatModel).toHaveBeenCalledWith('anthropic/claude-haiku-4.5');
+      expect(mocks.getChatModel).not.toHaveBeenCalledWith('anthropic/claude-sonnet-4.6');
+    });
+
+    it('appends the 2-3 save-target block to a quick slot prompt', async () => {
+      const { runResearchSwarm } = await import('../run');
+
+      await runResearchSwarm(1, { agents: [{ type: 'Substack', focus: 'A' }], quick: true }, 203);
+
+      const system = mocks.streamText.mock.calls[0][0].system as string;
+      expect(system).toMatch(/save (2 to 3|2-3)/i);
+      // The quick override must supersede the base save-exactly-one rule.
+      expect(system).toContain('Starter Pack Mode');
+    });
+
+    it('saves quick items with source starter-pack', async () => {
+      const { runResearchSwarm } = await import('../run');
+
+      await runResearchSwarm(1, { agents: [{ type: 'Substack', focus: 'A' }], quick: true }, 204);
+
+      expect(mocks.storage.addLearningStreamItem).toHaveBeenCalledWith(
+        1,
+        expect.objectContaining({ source: 'starter-pack' }),
+      );
+    });
+
+    it('leaves a non-quick run on swarm-research source, 50 steps, recovery and slot model default', async () => {
+      let call = 0;
+      mocks.streamText.mockImplementation(() => {
+        call += 1;
+        return {
+          consumeStream: vi.fn().mockResolvedValue(undefined),
+          totalUsage: Promise.resolve({ inputTokens: call, outputTokens: call }),
+          text: Promise.resolve('no save'),
+          reasoningText: Promise.resolve(''),
+        };
+      });
+      const { runResearchSwarm, SWARM_AGENT_MAX_STEPS, SWARM_AGENT_RECOVERY_MAX_STEPS } = await import('../run');
+
+      await runResearchSwarm(1, { agents: [{ type: 'Podcast', focus: 'A' }] }, 205);
+
+      // Recovery still fires on a non-quick zero-save slot.
+      expect(mocks.streamText).toHaveBeenCalledTimes(2);
+      expect(mocks.stepCountIs).toHaveBeenCalledWith(SWARM_AGENT_MAX_STEPS);
+      expect(mocks.stepCountIs).toHaveBeenCalledWith(SWARM_AGENT_RECOVERY_MAX_STEPS);
+      expect(mocks.getChatModel).toHaveBeenCalledWith('anthropic/claude-haiku-4.5');
+    });
+  });
 });

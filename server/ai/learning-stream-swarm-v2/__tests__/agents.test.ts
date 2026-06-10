@@ -159,6 +159,45 @@ describe('research stream v2 agents', () => {
     expect(recordActivity).toHaveBeenCalledWith(expect.objectContaining({ eventType: 'save_item' }));
   });
 
+  it('05-FR1 save_item honors closure.itemSource (starter-pack) and defaults to swarm-research', async () => {
+    storageMock.addLearningStreamItem.mockResolvedValue({ id: 11, type: 'Substack', topic: 'T', url: 'https://example.com/sp' });
+    const { typeRunnerFor } = await import('../agents');
+
+    // With itemSource set → persisted source is starter-pack.
+    const quickTools = typeRunnerFor('Substack').buildTools({
+      brainliftId: 1,
+      runId: 2,
+      slotIdx: 0,
+      recordActivity: vi.fn(),
+      existingUrls: new Set<string>(),
+      itemSource: 'starter-pack',
+    });
+    await quickTools.save_item.execute({
+      type: 'Substack', author: 'A', topic: 'T', time: '5 min', facts: 'Facts', url: 'https://example.com/sp',
+    }, toolContext);
+    expect(storageMock.addLearningStreamItem).toHaveBeenLastCalledWith(
+      1,
+      expect.objectContaining({ source: 'starter-pack' }),
+    );
+
+    // Without itemSource → default swarm-research preserved.
+    storageMock.addLearningStreamItem.mockResolvedValue({ id: 12, type: 'Substack', topic: 'T', url: 'https://example.com/sr' });
+    const defaultTools = typeRunnerFor('Substack').buildTools({
+      brainliftId: 1,
+      runId: 2,
+      slotIdx: 0,
+      recordActivity: vi.fn(),
+      existingUrls: new Set<string>(),
+    });
+    await defaultTools.save_item.execute({
+      type: 'Substack', author: 'A', topic: 'T', time: '5 min', facts: 'Facts', url: 'https://example.com/sr',
+    }, toolContext);
+    expect(storageMock.addLearningStreamItem).toHaveBeenLastCalledWith(
+      1,
+      expect.objectContaining({ source: 'swarm-research' }),
+    );
+  });
+
   it('save_item replaces brainlift-level topics with discovered source titles', async () => {
     storageMock.addLearningStreamItem.mockResolvedValue({
       id: 10,
