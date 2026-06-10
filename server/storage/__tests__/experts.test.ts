@@ -131,4 +131,31 @@ describe('expert storage', () => {
     expect(remaining).toHaveLength(1);
     expect(remaining[0].id).toBe(created[1].id);
   });
+
+  // ─── FR3: optional who/why + per-row source ───────────────────────────────
+  it('createExpertsForBrainlift persists a provided source and defaults to listed', async () => {
+    const brainliftId = await createTestBrainlift('source-experts');
+
+    const created = await createExpertsForBrainlift(brainliftId, [
+      { name: 'Onboarding Expert', where: '@onb', source: 'onboarding' },
+      { name: 'Default Expert', who: 'Analyst', why: 'Relevant', where: '@def' },
+    ]);
+
+    const byName = new Map(created.map((e) => [e.name, e]));
+    expect(byName.get('Onboarding Expert')!.source).toBe('onboarding');
+    expect(byName.get('Default Expert')!.source).toBe('listed');
+  });
+
+  it('createExpertsForBrainlift NULLs absent who/why', async () => {
+    const brainliftId = await createTestBrainlift('null-fields-experts');
+
+    const [created] = await createExpertsForBrainlift(brainliftId, [
+      { name: 'Minimal Expert', where: '@minimal' },
+    ]);
+
+    expect(created.who).toBeNull();
+    expect(created.why).toBeNull();
+    expect(created.where).toBe('@minimal');
+    expect(created.twitterHandle).toBe('@minimal');
+  });
 });

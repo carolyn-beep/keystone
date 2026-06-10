@@ -418,4 +418,73 @@ describe('brainlift-curation', () => {
       rerankQueued: true,
     });
   });
+
+  // ─── FR3: source passthrough + optional who/why ──────────────────────────
+  describe('FR3: createBrainliftExperts source + optional fields', () => {
+    it('passes source through to storage when provided (onboarding)', async () => {
+      mockStorage.createExpertsForBrainlift.mockResolvedValue([{ id: 9, name: 'Onb' }]);
+
+      await createBrainliftExperts(authContext, {
+        slug: 'test-bl',
+        source: 'onboarding',
+        experts: [{ name: 'Onb', where: '@onb' }],
+      });
+
+      const [brainliftId, rows] = mockStorage.createExpertsForBrainlift.mock.calls[0];
+      expect(brainliftId).toBe(42);
+      expect(rows[0]).toEqual(
+        expect.objectContaining({ name: 'Onb', where: '@onb', source: 'onboarding' }),
+      );
+    });
+
+    it('maps absent who/why to null and trims provided values', async () => {
+      mockStorage.createExpertsForBrainlift.mockResolvedValue([{ id: 10, name: 'M' }]);
+
+      await createBrainliftExperts(authContext, {
+        slug: 'test-bl',
+        experts: [{ name: '  M  ', where: '@m' }],
+      });
+
+      const rows = mockStorage.createExpertsForBrainlift.mock.calls[0][1];
+      expect(rows[0]).toEqual(
+        expect.objectContaining({ name: 'M', who: null, why: null, where: '@m' }),
+      );
+    });
+
+    it('defaults source to listed when omitted (existing callers unchanged)', async () => {
+      mockStorage.createExpertsForBrainlift.mockResolvedValue([{ id: 11, name: 'L' }]);
+
+      await createBrainliftExperts(authContext, {
+        slug: 'test-bl',
+        experts: [{ name: 'L', who: 'W', why: 'Y' }],
+      });
+
+      const rows = mockStorage.createExpertsForBrainlift.mock.calls[0][1];
+      // source is either omitted (storage defaults to 'listed') or explicitly 'listed'.
+      expect(rows[0].source ?? 'listed').toBe('listed');
+    });
+
+    it('still rejects an empty name', async () => {
+      await expect(
+        createBrainliftExperts(authContext, {
+          slug: 'test-bl',
+          experts: [{ name: '   ', where: '@x' }],
+        }),
+      ).rejects.toThrow(/name/i);
+      expect(mockStorage.createExpertsForBrainlift).not.toHaveBeenCalled();
+    });
+
+    it('still queues a rerank after a successful create', async () => {
+      mockStorage.createExpertsForBrainlift.mockResolvedValue([{ id: 12, name: 'R' }]);
+
+      const result = await createBrainliftExperts(authContext, {
+        slug: 'test-bl',
+        source: 'onboarding',
+        experts: [{ name: 'R', where: '@r' }],
+      });
+
+      expect(mockWithJob).toHaveBeenCalledWith('experts:rerank');
+      expect(result.rerankQueued).toBe(true);
+    });
+  });
 });
