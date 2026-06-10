@@ -77,8 +77,8 @@ export interface DismissStaleArgs {
 
 export interface ExpertInput {
   name: string;
-  who: string;
-  why: string;
+  who?: string;
+  why?: string;
   focus?: string;
   where?: string;
 }
@@ -86,6 +86,14 @@ export interface ExpertInput {
 export interface CreateExpertArgs {
   slug: string;
   experts: ExpertInput[];
+  /** Provenance for the created rows. Defaults to 'listed' (chat-tool path). */
+  source?: 'listed' | 'onboarding';
+}
+
+/** Trim an optional string, returning null when absent or blank. */
+function trimToNull(value: string | undefined): string | null {
+  const trimmed = value?.trim();
+  return trimmed && trimmed.length > 0 ? trimmed : null;
 }
 
 export interface DeleteExpertArgs {
@@ -851,14 +859,16 @@ export async function createBrainliftExperts(
 ) {
   const brainlift = await resolveBrainlift(args.slug, authContext, 'modify');
 
+  const source = args.source ?? 'listed';
   const createdExperts = await storage.createExpertsForBrainlift(
     brainlift.id,
     args.experts.map((expert) => ({
       name: assertNonEmptyString(expert.name, 'experts[].name'),
-      who: assertNonEmptyString(expert.who, 'experts[].who'),
-      why: assertNonEmptyString(expert.why, 'experts[].why'),
-      focus: expert.focus?.trim() || null,
-      where: expert.where?.trim() || null,
+      who: trimToNull(expert.who),
+      why: trimToNull(expert.why),
+      focus: trimToNull(expert.focus),
+      where: trimToNull(expert.where),
+      source,
     })),
   );
 

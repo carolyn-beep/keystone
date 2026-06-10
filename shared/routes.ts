@@ -71,6 +71,44 @@ export const onboardingPatchInput = z.object({
 });
 export type OnboardingPatchInput = z.infer<typeof onboardingPatchInput>;
 
+// POST /api/brainlifts/:slug/onboarding/expert-discovery response.
+// Each candidate carries the Exa result URL(s) that ground it (min 1). The
+// pipeline returns up to 5 candidates (or none on any failure).
+export const expertDiscoveryResponse = z.object({
+  candidates: z
+    .array(
+      z.object({
+        name: z.string(),
+        who: z.string(),
+        why: z.string(),
+        focus: z.string().nullable(),
+        where: z.string(),
+        evidenceUrls: z.array(z.string()).min(1),
+      }),
+    )
+    .max(5),
+});
+export type ExpertDiscoveryResponse = z.infer<typeof expertDiscoveryResponse>;
+
+// POST /api/brainlifts/:slug/experts body. 1-10 experts; name + where are
+// required (trimmed, non-empty); who/why/focus are optional. Persisted with
+// source='onboarding'.
+export const createExpertsInput = z.object({
+  experts: z
+    .array(
+      z.object({
+        name: z.string().trim().min(1),
+        where: z.string().trim().min(1),
+        who: z.string().trim().min(1).optional(),
+        why: z.string().trim().min(1).optional(),
+        focus: z.string().trim().min(1).optional(),
+      }),
+    )
+    .min(1)
+    .max(10),
+});
+export type CreateExpertsInput = z.infer<typeof createExpertsInput>;
+
 // Native brainlift validation schemas
 export const createNativeBrainliftInputSchema = z.object({
   topic: z.string().trim().min(10),
