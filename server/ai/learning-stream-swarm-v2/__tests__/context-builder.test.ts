@@ -321,6 +321,8 @@ describe('digest renderers and budget helper', () => {
       id: 1,
       title: 'Long Brainlift',
       displayPurpose: 'Purpose',
+      inScope: [],
+      outOfScope: [],
       facts: [],
       experts: [],
       spovExcerpts: [],
@@ -357,6 +359,8 @@ describe('digest renderers and budget helper', () => {
         id: 1,
         title: 'Authoring Brainlift',
         displayPurpose: 'Purpose',
+        inScope: [],
+        outOfScope: [],
         facts: Array.from({ length: 15 }, (_, index) => ({
           id: index + 1,
           fact: 'x'.repeat(2000),

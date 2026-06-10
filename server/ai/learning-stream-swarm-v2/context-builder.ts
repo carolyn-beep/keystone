@@ -15,6 +15,9 @@ export interface BrainliftDigest {
   id: number;
   title: string;
   displayPurpose: string | null;
+  /** In/Out scope phrases from the onboarding wizard; empty = no scope context. */
+  inScope: string[];
+  outOfScope: string[];
   facts: Array<{ id: number; fact: string; category: string; score: number }>;
   experts: Array<{ id: number; name: string; twitterHandle: string | null }>;
   spovExcerpts: Array<{ id: number; title: string; body: string }>;
@@ -147,6 +150,24 @@ function renderSecondBrainSection(secondBrain: SecondBrainDigest, budget: number
   return truncateToBudget(lines.join('\n'), budget);
 }
 
+function renderScopeBlock(brainlift: BrainliftDigest, lines: string[], budget: number): void {
+  const inScope = brainlift.inScope ?? [];
+  const outOfScope = brainlift.outOfScope ?? [];
+
+  if (inScope.length > 0) {
+    lines.push('', '### In scope');
+    for (const phrase of inScope) {
+      appendBudgetedLine(lines, `- ${clampText(phrase, SOURCE_TITLE_CHAR_BUDGET)}`, budget);
+    }
+  }
+  if (outOfScope.length > 0) {
+    lines.push('', '### Out of scope (do NOT pursue)');
+    for (const phrase of outOfScope) {
+      appendBudgetedLine(lines, `- ${clampText(phrase, SOURCE_TITLE_CHAR_BUDGET)}`, budget);
+    }
+  }
+}
+
 function renderBrainliftSection(brainlift: BrainliftDigest, experts: SwarmContext['followedExperts'], budget: number, includeAuthoringDetails: boolean): string {
   const lines = [
     '## Brainlift',
@@ -156,6 +177,8 @@ function renderBrainliftSection(brainlift: BrainliftDigest, experts: SwarmContex
   if (brainlift.displayPurpose) {
     lines.push(`Display purpose: ${brainlift.displayPurpose}`);
   }
+
+  renderScopeBlock(brainlift, lines, budget);
 
   lines.push('', '### Followed Experts', ...renderExperts(experts));
 
@@ -290,7 +313,7 @@ function buildBrainliftDigest(
   spovs: Awaited<ReturnType<typeof storage.getDOK4Spovs>>,
   followedExperts: ExpertRow[],
   phase: 'research' | 'authoring',
-): BrainliftDigest {
+): Omit<BrainliftDigest, 'inScope' | 'outOfScope'> {
   const authoringFacts = phase === 'authoring'
     ? [...context.facts]
       .filter((fact) => fact.score >= 3)
@@ -368,7 +391,11 @@ export async function buildSwarmContext(
       rankScore: expert.rankScore,
     }));
   const secondBrain = buildSecondBrainDigest(sources, notes, categories, phase);
-  const brainlift = buildBrainliftDigest(learningStreamContext, spovs, followedExpertsRaw, phase);
+  const brainlift: BrainliftDigest = {
+    ...buildBrainliftDigest(learningStreamContext, spovs, followedExpertsRaw, phase),
+    inScope: brainliftRecord.inScope ?? [],
+    outOfScope: brainliftRecord.outOfScope ?? [],
+  };
   const renderedDigest = phase === 'research'
     ? renderResearchPhaseDigest(brainlift, secondBrain, followedExperts)
     : renderAuthoringPhaseDigest(brainlift, secondBrain, followedExperts);

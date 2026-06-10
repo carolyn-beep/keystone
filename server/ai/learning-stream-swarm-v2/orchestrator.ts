@@ -60,6 +60,23 @@ function resolveAgentCount(runRequest: RunRequest): number {
   return MAX_SLOTS;
 }
 
+function buildScopeGuidance(ctx: SwarmContext): string {
+  const inScope = ctx.brainlift.inScope ?? [];
+  const outOfScope = ctx.brainlift.outOfScope ?? [];
+  if (inScope.length === 0 && outOfScope.length === 0) {
+    return '';
+  }
+
+  const lines = ['- The user defined an explicit project scope. Honor it when planning slots:'];
+  if (inScope.length > 0) {
+    lines.push(`  - In scope (steer searches toward these): ${inScope.join('; ')}`);
+  }
+  if (outOfScope.length > 0) {
+    lines.push(`  - Out of scope (do NOT plan slots about these): ${outOfScope.join('; ')}`);
+  }
+  return `\n${lines.join('\n')}`;
+}
+
 export function buildOrchestratorSystemPrompt(ctx: SwarmContext, runRequest: RunRequest): string {
   const agentCount = resolveAgentCount(runRequest);
   return `You are a Learning Stream Research Orchestrator. Produce exactly ${agentCount} research slot(s) as structured JSON.
@@ -70,7 +87,7 @@ ${ctx.renderedDigest}
 ${buildRunRequestSection(runRequest)}
 
 ## Planning Guidance
-- Return a RunSpec with exactly ${agentCount} agent(s).
+- Return a RunSpec with exactly ${agentCount} agent(s).${buildScopeGuidance(ctx)}
 - Each agent must have type in: ${RETRIEVAL_TYPES.join(', ')}.
 - Each focus must be concrete, search-ready, and non-empty.
 - Each focus must be specialized to this exact project data. Use concrete entities, experts, notes, source gaps, unresolved questions, or SPOV/fact gaps from the digest.
