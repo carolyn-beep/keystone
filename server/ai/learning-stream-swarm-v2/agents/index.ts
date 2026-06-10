@@ -40,6 +40,9 @@ export interface SlotToolClosure {
   existingUrls: Set<string>;
   discoveredTitles?: Map<string, string>;
   incrementSaved?: (duplicate: boolean) => void;
+  /** Provenance written to `learningStreamItems.source`. Quick (starter-pack)
+   *  runs pass `'starter-pack'`; everything else defaults to `'swarm-research'`. */
+  itemSource?: 'swarm-research' | 'starter-pack';
 }
 
 const webSearchInputSchema = z.object({
@@ -279,7 +282,7 @@ export function buildCommonTools(closure: SlotToolClosure) {
           time: input.time,
           facts,
           url: normalizedUrl,
-          source: 'swarm-research',
+          source: closure.itemSource ?? 'swarm-research',
           relevanceScore: input.relevanceScore ?? null,
           aiRationale,
         });

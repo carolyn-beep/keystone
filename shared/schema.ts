@@ -943,7 +943,7 @@ export const learningStreamItems = pgTable("learning_stream_items", {
   status: text("status").$type<'pending' | 'bookmarked' | 'graded' | 'discarded'>()
     .default('pending')
     .notNull(),
-  source: text("source").$type<'quick-search' | 'deep-research' | 'twitter' | 'swarm-research' | 'manual'>().notNull(),
+  source: text("source").$type<'quick-search' | 'deep-research' | 'twitter' | 'swarm-research' | 'manual' | 'starter-pack'>().notNull(),
 
   // Builder Phase 3: category assignment (nullable for non-builder items)
   categoryId: integer("category_id").references(() => categories.id, { onDelete: "set null" }),

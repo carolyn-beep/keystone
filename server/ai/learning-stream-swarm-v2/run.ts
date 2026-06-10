@@ -10,6 +10,10 @@ import { summarizeStreamChunk, swarmVerboseLog } from './verbose-log';
 
 export const SWARM_AGENT_MAX_STEPS = 50;
 export const SWARM_AGENT_RECOVERY_MAX_STEPS = 25;
+/** Per-slot step cap for quick (starter-pack) runs — cheaper, faster. */
+export const SWARM_AGENT_QUICK_MAX_STEPS = 20;
+/** Forced slot model for quick runs (overrides any orchestrator-assigned model). */
+const SWARM_QUICK_MODEL = 'anthropic/claude-haiku-4.5';
 
 export interface SlotUsage {
   slotIdx: number;
@@ -86,6 +90,18 @@ function buildStepBudgetInstructions(maxSteps: number): string {
   ].join('\n');
 }
 
+/** Quick-mode override: supersedes the base prompt's save-exactly-one rule with
+ *  a 2-3 distinct-saves target so each starter-pack slot returns a small set. */
+function buildQuickModeInstructions(): string {
+  return [
+    '## Starter Pack Mode',
+    'This is a quick starter-pack run for a brand-new project. Be fast and approachable.',
+    'Override the earlier "save exactly one" guidance: save 2 to 3 distinct, verified, non-duplicate resources for this slot.',
+    'Each saved resource must be a separate save_item call for a different URL. Check for duplicates before saving.',
+    'Favor accessible, well-known starting points over niche or highly technical sources.',
+  ].join('\n');
+}
+
 async function runSlot(
   brainliftId: number,
   runId: number,
@@ -94,9 +110,13 @@ async function runSlot(
   ctx: SwarmContext,
   existingUrls: Set<string>,
   notesToAgents?: string,
+  quick = false,
 ): Promise<SlotResult> {
   const startedAt = Date.now();
-  const model = slot.model ?? 'anthropic/claude-haiku-4.5';
+  // Quick (starter-pack) runs force the fast model regardless of the
+  // orchestrator-assigned slot model; normal runs honor the slot model.
+  const model = quick ? SWARM_QUICK_MODEL : (slot.model ?? 'anthropic/claude-haiku-4.5');
+  const maxSteps = quick ? SWARM_AGENT_QUICK_MAX_STEPS : SWARM_AGENT_MAX_STEPS;
   const id = registerSlot(brainliftId, runId, slot, idx);
   let saved = 0;
   let duplicates = 0;
@@ -104,7 +124,10 @@ async function runSlot(
   try {
     const runner = typeRunnerFor(slot.type);
     const baseSystemPrompt = runner.buildPrompt(slot, ctx);
-    const promptedWithBudget = `${baseSystemPrompt}\n\n${buildStepBudgetInstructions(SWARM_AGENT_MAX_STEPS)}`;
+    let promptedWithBudget = `${baseSystemPrompt}\n\n${buildStepBudgetInstructions(maxSteps)}`;
+    if (quick) {
+      promptedWithBudget = `${promptedWithBudget}\n\n${buildQuickModeInstructions()}`;
+    }
     const systemPrompt = notesToAgents
       ? `${promptedWithBudget}\n\n## Orchestrator Notes To All Agents\n${notesToAgents}`
       : promptedWithBudget;
@@ -123,6 +146,7 @@ async function runSlot(
         if (duplicate) duplicates += 1;
         else saved += 1;
       },
+      itemSource: quick ? 'starter-pack' : 'swarm-research',
     });
 
     swarmVerboseLog(`AGENT ${idx + 1}`, 'fan-out slot received from orchestrator', {
@@ -141,7 +165,7 @@ async function runSlot(
       system: systemPrompt,
       messages: [{ role: 'user', content: userPrompt }],
       tools,
-      stopWhen: stepCountIs(SWARM_AGENT_MAX_STEPS),
+      stopWhen: stepCountIs(maxSteps),
       onChunk: ({ chunk }) => {
         swarmVerboseLog(`AGENT ${idx + 1}`, 'stream chunk', summarizeStreamChunk(chunk));
       },
@@ -172,7 +196,8 @@ async function runSlot(
       text: firstPassText,
     });
 
-    if (saved === 0) {
+    // Quick runs skip the save-only recovery pass entirely (cheap by design).
+    if (saved === 0 && !quick) {
       const recoveryPrompt = [
         'Your previous attempt ended without calling save_item, so no resource was saved.',
         'You must now finish this slot by calling save_item exactly once for the best non-duplicate resource you found.',
@@ -316,7 +341,7 @@ export async function runResearchSwarm(
 
   const settled = await Promise.allSettled(
     runSpec.agents.map((slot, idx) => (
-      runSlot(brainliftId, runId, slot, idx, ctx, existingUrls, runSpec.notesToAgents)
+      runSlot(brainliftId, runId, slot, idx, ctx, existingUrls, runSpec.notesToAgents, runSpec.quick ?? false)
     )),
   );
 
