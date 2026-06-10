@@ -3,9 +3,12 @@ import { useLocation } from 'wouter';
 import { TactileButton } from '@/components/ui/tactile-button';
 import { useOnboardingWizard } from '@/hooks/useOnboardingWizard';
 import { WizardShell } from '@/components/onboarding-wizard/WizardShell';
-import { TopicStep } from '@/components/onboarding-wizard/TopicStep';
+import { TopicStep, TopicStepRail } from '@/components/onboarding-wizard/TopicStep';
+import { ScopeStep, ScopeStepRail } from '@/components/onboarding-wizard/ScopeStep';
+import { CategoriesStep, CategoriesStepRail } from '@/components/onboarding-wizard/CategoriesStep';
 import { DoneStep } from '@/components/onboarding-wizard/DoneStep';
 import { PlaceholderStep } from '@/components/onboarding-wizard/PlaceholderStep';
+import { buildScopePatch } from '@/components/onboarding-wizard/scope-helpers';
 import {
   WIZARD_STEPS,
   FIRST_STEP,
@@ -48,6 +51,23 @@ export default function OnboardingWizard({ slug }: OnboardingWizardProps) {
   const [activeStep, setActiveStep] = useState<number>(() =>
     resolveActiveStep({ hasSlug: Boolean(slug), onboardingStep: undefined }),
   );
+
+  // Transient step state lifted to the page so a step's main column and its
+  // rail (separate WizardShell slots) share one list.
+  const [topic, setTopic] = useState('');
+  const [inScopeItems, setInScopeItems] = useState<string[]>([]);
+  const [outOfScopeItems, setOutOfScopeItems] = useState<string[]>([]);
+
+  // Hydrate scope from the resumed row once per slug (revisit shows saved
+  // entries). Guarded so local edits aren't clobbered by later resume writes.
+  const hydratedSlugRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!slug || !resume.data) return;
+    if (hydratedSlugRef.current === slug) return;
+    hydratedSlugRef.current = slug;
+    setInScopeItems(resume.data.inScope ?? []);
+    setOutOfScopeItems(resume.data.outOfScope ?? []);
+  }, [slug, resume.data]);
 
   // Jump to the persisted step ONCE when resuming a slug. Guarded per-slug so
   // later high-water PATCHes (which update resume.data via setQueryData) don't
@@ -105,6 +125,21 @@ export default function OnboardingWizard({ slug }: OnboardingWizardProps) {
       });
   };
 
+  // Scope-step Next (steps 2-3). Always PATCHes the scope array; includes the
+  // step only on a forward move past the high-water mark (buildScopePatch).
+  // Holds the step on PATCH failure (spec 03 behaviour preserved).
+  const handleScopeNext = (variant: 'in' | 'out') => {
+    if (!slug) return;
+    const target = clampStep(activeStep + 1);
+    const items = variant === 'in' ? inScopeItems : outOfScopeItems;
+    const patch = buildScopePatch({ variant, items, target, highWater: highWater ?? activeStep });
+    patchProgress({ slug, patch })
+      .then(() => setActiveStep(target))
+      .catch(() => {
+        /* hold on the current step; nothing advanced */
+      });
+  };
+
   const handleBack = () => {
     setActiveStep((s) => Math.max(FIRST_STEP, s - 1));
   };
@@ -143,10 +178,29 @@ export default function OnboardingWizard({ slug }: OnboardingWizardProps) {
   }
 
   let body;
+  let rail;
   if (activeStep === FIRST_STEP) {
     body = (
-      <TopicStep onConfirm={handleConfirmTopic} isSubmitting={isCreating} error={createErrorMessage} />
+      <TopicStep
+        onConfirm={handleConfirmTopic}
+        isSubmitting={isCreating}
+        error={createErrorMessage}
+        topic={topic}
+        onTopicChange={setTopic}
+      />
     );
+    rail = <TopicStepRail onAccept={setTopic} />;
+  } else if (stepMeta.key === 'in-scope') {
+    body = <ScopeStep variant="in" items={inScopeItems} onItemsChange={setInScopeItems} onNext={() => handleScopeNext('in')} />;
+    rail = <ScopeStepRail variant="in" slug={slug} items={inScopeItems} onItemsChange={setInScopeItems} />;
+  } else if (stepMeta.key === 'out-of-scope') {
+    body = <ScopeStep variant="out" items={outOfScopeItems} onItemsChange={setOutOfScopeItems} onNext={() => handleScopeNext('out')} />;
+    rail = <ScopeStepRail variant="out" slug={slug} items={outOfScopeItems} onItemsChange={setOutOfScopeItems} />;
+  } else if (stepMeta.key === 'categories' && slug) {
+    // Step 4 → 5 is a plain forward PATCH (handleNext). No starter-pack
+    // trigger here — spec 05 owns that hookpoint.
+    body = <CategoriesStep slug={slug} onNext={handleNext} />;
+    rail = <CategoriesStepRail slug={slug} />;
   } else if (activeStep === LAST_STEP) {
     body = <DoneStep onEnter={handleEnter} isCompleting={isCompleting} />;
   } else {
@@ -159,6 +213,7 @@ export default function OnboardingWizard({ slug }: OnboardingWizardProps) {
       title={stepMeta.title}
       subtitle={activeStep === FIRST_STEP ? 'Your new BrainLift' : resume.data?.title ?? undefined}
       onBack={handleBack}
+      rail={rail}
     >
       {body}
     </WizardShell>
