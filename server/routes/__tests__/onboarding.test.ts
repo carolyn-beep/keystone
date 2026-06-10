@@ -11,6 +11,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { readFileSync } from 'node:fs';
 import { onboardingCreateInput, onboardingPatchInput } from '@shared/routes';
 import type { Brainlift } from '@shared/schema';
 
@@ -19,13 +20,21 @@ import type { Brainlift } from '@shared/schema';
 const mockCreateOnboardingBrainlift = vi.fn();
 const mockUpdateBrainliftScope = vi.fn();
 const mockUpdateOnboardingStep = vi.fn();
+const mockGetCategoriesWithCountsForSecondBrain = vi.fn();
+const mockDiscoverExperts = vi.fn();
 
 vi.mock('../../storage', () => ({
   storage: {
     createOnboardingBrainlift: (...args: unknown[]) => mockCreateOnboardingBrainlift(...args),
     updateBrainliftScope: (...args: unknown[]) => mockUpdateBrainliftScope(...args),
     updateOnboardingStep: (...args: unknown[]) => mockUpdateOnboardingStep(...args),
+    getCategoriesWithCountsForSecondBrain: (...args: unknown[]) =>
+      mockGetCategoriesWithCountsForSecondBrain(...args),
   },
+}));
+
+vi.mock('../../ai/onboarding/expert-discovery', () => ({
+  discoverExperts: (...args: unknown[]) => mockDiscoverExperts(...args),
 }));
 
 // Error classes used by the simulators (mirror the real handlers).
@@ -122,6 +131,33 @@ async function simulatePatch(params: {
     updated = await mockUpdateOnboardingStep(current.id, step);
   }
   return { status: 200, body: updated };
+}
+
+/**
+ * POST /api/brainlifts/:slug/onboarding/expert-discovery
+ *
+ * No request body. Context is read server-side from the loaded brainlift
+ * (set by requireBrainliftAccess) and the category names. Discovery failure
+ * must degrade to 200 { candidates: [] } — it must NEVER 5xx the wizard.
+ */
+async function simulateExpertDiscovery(params: {
+  authenticated: boolean;
+  brainlift: Brainlift | null; // null = foreign/missing slug (middleware 404)
+}) {
+  if (!params.authenticated) {
+    return { status: 401, body: { message: 'Unauthorized' } };
+  }
+  if (params.brainlift === null) {
+    return { status: 404, body: { message: 'Brainlift not found' } };
+  }
+  const current = params.brainlift;
+  const categoryRows = await mockGetCategoriesWithCountsForSecondBrain(current.id);
+  const candidates = await mockDiscoverExperts({
+    topic: current.title,
+    inScope: current.inScope,
+    categories: (categoryRows as Array<{ name: string }>).map((c) => c.name),
+  });
+  return { status: 200, body: { candidates } };
 }
 
 /** POST /api/brainlifts/:slug/onboarding/complete */
@@ -354,5 +390,80 @@ describe('FR1: POST /api/brainlifts/:slug/onboarding/complete', () => {
     expect(res.status).toBe(200);
     expect(res.body).toEqual({ slug: done.slug });
     expect(mockUpdateOnboardingStep).not.toHaveBeenCalled();
+  });
+});
+
+// ─── POST expert-discovery (FR2) ──────────────────────────────────────────────
+
+describe('FR2: POST /api/brainlifts/:slug/onboarding/expert-discovery', () => {
+  it('returns 200 { candidates } and passes server-read context to discoverExperts', async () => {
+    const bl = makeBrainlift({
+      title: 'Marine Biology',
+      inScope: ['coral reefs', 'whales'],
+    });
+    mockGetCategoriesWithCountsForSecondBrain.mockResolvedValue([
+      { id: 1, name: 'Ecology', sortOrder: 0, sourceCount: 2, noteCount: 1 },
+      { id: 2, name: 'Conservation', sortOrder: 1, sourceCount: 0, noteCount: 0 },
+    ]);
+    const candidates = [
+      {
+        name: 'Dr. Jane Roe',
+        who: 'Marine ecologist',
+        why: 'Leading coral reef researcher',
+        focus: 'Coral reefs',
+        where: 'https://example.com/jane',
+        evidenceUrls: ['https://example.com/jane'],
+      },
+    ];
+    mockDiscoverExperts.mockResolvedValue(candidates);
+
+    const res = await simulateExpertDiscovery({ authenticated: true, brainlift: bl });
+
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({ candidates });
+    expect(mockGetCategoriesWithCountsForSecondBrain).toHaveBeenCalledWith(bl.id);
+    expect(mockDiscoverExperts).toHaveBeenCalledWith({
+      topic: 'Marine Biology',
+      inScope: ['coral reefs', 'whales'],
+      categories: ['Ecology', 'Conservation'],
+    });
+  });
+
+  it('returns 200 { candidates: [] } when discovery yields nothing (never 5xx)', async () => {
+    const bl = makeBrainlift();
+    mockGetCategoriesWithCountsForSecondBrain.mockResolvedValue([]);
+    mockDiscoverExperts.mockResolvedValue([]);
+
+    const res = await simulateExpertDiscovery({ authenticated: true, brainlift: bl });
+
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({ candidates: [] });
+  });
+
+  it('returns 404 for a foreign/missing slug (middleware)', async () => {
+    const res = await simulateExpertDiscovery({ authenticated: true, brainlift: null });
+    expect(res.status).toBe(404);
+    expect(mockDiscoverExperts).not.toHaveBeenCalled();
+  });
+
+  it('returns 401 when unauthenticated', async () => {
+    const res = await simulateExpertDiscovery({ authenticated: false, brainlift: makeBrainlift() });
+    expect(res.status).toBe(401);
+    expect(mockDiscoverExperts).not.toHaveBeenCalled();
+  });
+
+  it('wires the real route: discovery endpoint guarded by access middleware, calls discoverExperts', () => {
+    const src = readFileSync(
+      new URL('../onboarding.ts', import.meta.url),
+      'utf8',
+    );
+    // Endpoint path + read-access middleware (no body to validate).
+    expect(src).toMatch(/onboarding\/expert-discovery/);
+    expect(src).toMatch(/requireBrainliftAccess/);
+    expect(src).toMatch(/discoverExperts/);
+    // Context read server-side: title, inScope, category names.
+    expect(src).toMatch(/getCategoriesWithCountsForSecondBrain/);
+    // Failure must NOT 5xx — the handler swallows discovery errors to [].
+    expect(src).toMatch(/catch/);
   });
 });
