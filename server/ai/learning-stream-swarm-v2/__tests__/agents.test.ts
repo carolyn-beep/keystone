@@ -35,7 +35,7 @@ const ctx: SwarmContext = {
   },
   topExperts: [],
   existingUrls: ['https://seen.example/a'],
-  renderedDigest: '## Second Brain\nDigest body\n\n### Followed Experts\n- Jane Expert',
+  renderedDigest: '## Second Brain\nDigest body\n\n### Experts\n- Jane Expert',
   digestCharCount: 62,
 };
 
@@ -59,7 +59,7 @@ describe('research stream v2 agents', () => {
     expect(prompt).toContain('Carmack Brainlift');
     expect(prompt).toContain(slot.focus);
     expect(prompt).toContain(ctx.renderedDigest);
-    expect(prompt).toContain('### Followed Experts');
+    expect(prompt).toContain('### Experts');
     expect(prompt).toContain('The topic field is the actual resource title');
     expect(prompt).toContain('Do not use the brainlift title');
     expect(prompt).toContain('The facts field becomes "Key Insights"');
