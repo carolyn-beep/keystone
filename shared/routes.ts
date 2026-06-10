@@ -71,6 +71,22 @@ export const onboardingPatchInput = z.object({
 });
 export type OnboardingPatchInput = z.infer<typeof onboardingPatchInput>;
 
+// POST /api/onboarding/topic-suggestions body. Pre-create (no slug yet);
+// `exclude` lists already-shown topics so a refresh asks for different ones.
+export const topicSuggestionsInput = z.object({
+  exclude: z.array(z.string()).max(20).optional(),
+});
+export type TopicSuggestionsInput = z.infer<typeof topicSuggestionsInput>;
+
+// POST /api/brainlifts/:slug/onboarding/suggestions body. `kind` selects the
+// prompt; topic/scope inputs are read server-side from the brainlift row, never
+// from the request. `exclude` lists already-shown items (refresh).
+export const onboardingSuggestionsInput = z.object({
+  kind: z.enum(['in-scope', 'out-of-scope', 'categories']),
+  exclude: z.array(z.string()).max(40).optional(),
+});
+export type OnboardingSuggestionsInput = z.infer<typeof onboardingSuggestionsInput>;
+
 // Native brainlift validation schemas
 export const createNativeBrainliftInputSchema = z.object({
   topic: z.string().trim().min(10),

@@ -88,6 +88,8 @@ source of truth: `1..7` = in progress, `NULL` = finished (or legacy/imported).
 | POST | `/api/onboarding/projects` | `requireAuth` | Create a brainlift from the Topic step (`phase='research'`, `onboardingStep=1`) |
 | PATCH | `/api/brainlifts/:slug/onboarding` | `requireAuth` + `requireBrainliftModify` | Persist wizard progress (forward-only step + scope arrays) |
 | POST | `/api/brainlifts/:slug/onboarding/complete` | `requireAuth` + `requireBrainliftModify` | Finish onboarding (`onboardingStep = NULL`); idempotent |
+| POST | `/api/onboarding/topic-suggestions` | `requireAuth` | Topic idea chips for step 1 (pre-create); non-blocking |
+| POST | `/api/brainlifts/:slug/onboarding/suggestions` | `requireAuth` + `requireBrainliftModify` | Scope / category suggestion chips for steps 2-4; non-blocking |
 
 ### POST `/api/onboarding/projects`
 
@@ -110,6 +112,22 @@ completed brainlift (`onboardingStep` is `NULL`) → `409`. Foreign slug → `40
 No body. Sets `onboardingStep = NULL` and returns `200 { slug }`. Idempotent:
 a repeat call on an already-complete brainlift returns `200 { slug }` without a
 write.
+
+### POST `/api/onboarding/topic-suggestions`
+
+Body `{ exclude?: string[] }` (max 20). Returns `200 { suggestions: string[] }`
+(6-8 topic ideas). Pre-create, so auth-only (no slug). `exclude` lists
+already-shown topics so a refresh asks for different ones. Non-blocking: any AI
+failure / timeout returns `200 { suggestions: [] }` (not an error status).
+
+### POST `/api/brainlifts/:slug/onboarding/suggestions`
+
+Body `{ kind: 'in-scope' | 'out-of-scope' | 'categories', exclude?: string[] }`
+(`exclude` max 40). Returns `200 { suggestions: string[] }` (5-8 scope phrases
+/ 4-6 category names). Topic and scope inputs are read server-side from the
+brainlift row (`title`, `in_scope`, `out_of_scope`) — never from the request
+body. Invalid `kind` → `400`; foreign slug → `404` (via
+`requireBrainliftModify`). Non-blocking: AI failure → `200 { suggestions: [] }`.
 
 ---
 

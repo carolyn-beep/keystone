@@ -1,6 +1,11 @@
 import { Router, type Request, type Response } from "express";
 import { storage } from "../storage";
-import { onboardingCreateInput, onboardingPatchInput } from "@shared/routes";
+import {
+  onboardingCreateInput,
+  onboardingPatchInput,
+  topicSuggestionsInput,
+  onboardingSuggestionsInput,
+} from "@shared/routes";
 import { requireAuth } from "../middleware/auth";
 import {
   asyncHandler,
@@ -8,6 +13,10 @@ import {
   ConflictError,
 } from "../middleware/error-handler";
 import { requireBrainliftModify } from "../middleware/brainlift-auth";
+import {
+  generateTopicSuggestions,
+  generateOnboardingSuggestions,
+} from "../ai/onboarding/suggestions";
 
 /**
  * Onboarding wizard endpoints (features/ux-redesign/onboarding-wizard).
@@ -76,5 +85,40 @@ onboardingRouter.post(
       await storage.updateOnboardingStep(current.id, null);
     }
     res.json({ slug: current.slug });
+  }),
+);
+
+// Topic idea chips for step 1. Pre-create (no brainlift yet), so auth-only.
+// Non-blocking: the generator already resolves [] on any AI failure.
+onboardingRouter.post(
+  "/api/onboarding/topic-suggestions",
+  requireAuth,
+  asyncHandler(async (req: Request, res: Response) => {
+    const { exclude } = topicSuggestionsInput.parse(req.body);
+    const suggestions = await generateTopicSuggestions(exclude);
+    res.json({ suggestions });
+  }),
+);
+
+// Suggestion chips for steps 2-4 (in-scope / out-of-scope / categories).
+// Topic and scope inputs are read from the brainlift row — never trusted from
+// the client. Non-blocking: the generator resolves [] on any AI failure.
+onboardingRouter.post(
+  "/api/brainlifts/:slug/onboarding/suggestions",
+  requireAuth,
+  requireBrainliftModify,
+  asyncHandler(async (req: Request, res: Response) => {
+    const { kind, exclude } = onboardingSuggestionsInput.parse(req.body);
+    const current = req.brainlift!;
+    const suggestions = await generateOnboardingSuggestions(
+      kind,
+      {
+        topic: current.title,
+        inScope: current.inScope ?? [],
+        outOfScope: current.outOfScope ?? [],
+      },
+      exclude,
+    );
+    res.json({ suggestions });
   }),
 );
