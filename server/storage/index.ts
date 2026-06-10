@@ -92,6 +92,7 @@ export const storage = {
   getBrainliftsByOwnerId: brainliftsStorage.getBrainliftsByOwnerId,
   createBrainlift: brainliftsStorage.createBrainlift,
   createBlankBrainlift: brainliftsStorage.createBlankBrainlift,
+  createOnboardingBrainlift: brainliftsStorage.createOnboardingBrainlift,
   setBrainliftPhase: brainliftsStorage.setBrainliftPhase,
   updateBrainliftScope: brainliftsStorage.updateBrainliftScope,
   updateOnboardingStep: brainliftsStorage.updateOnboardingStep,

@@ -266,6 +266,50 @@ export async function createBlankBrainlift(args: {
   throw new Error('Unable to create a unique brainlift slug');
 }
 
+/**
+ * Create a brainlift from the onboarding wizard (features/ux-redesign).
+ * Like createBlankBrainlift (research phase, zeroed summary, slug retry loop)
+ * but additionally seeds onboardingStep = 1 so the wizard state machine has a
+ * server-backed high-water mark from step 1 on.
+ */
+export async function createOnboardingBrainlift(args: {
+  userId: string;
+  topic: string;
+}): Promise<Brainlift> {
+  const baseSlug = slugifyTitle(args.topic);
+  const maxAttempts = 25;
+
+  for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
+    try {
+      const [brainlift] = await db
+        .insert(brainlifts)
+        .values({
+          slug: blankBrainliftSlug(baseSlug, attempt),
+          title: args.topic,
+          description: '',
+          createdByUserId: args.userId,
+          phase: 'research',
+          onboardingStep: 1,
+          summary: {
+            totalFacts: 0,
+            meanScore: '0',
+            score5Count: 0,
+            contradictionCount: 0,
+          },
+        })
+        .returning();
+
+      return brainlift;
+    } catch (error) {
+      if (!isUniqueViolation(error) || attempt === maxAttempts - 1) {
+        throw error;
+      }
+    }
+  }
+
+  throw new Error('Unable to create a unique brainlift slug');
+}
+
 export async function setBrainliftPhase(
   brainliftId: number,
   phase: BrainliftPhase,

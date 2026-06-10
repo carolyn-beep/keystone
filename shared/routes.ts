@@ -55,6 +55,22 @@ export const api = {
   },
 };
 
+// Onboarding wizard validation schemas (features/ux-redesign/onboarding-wizard)
+// POST /api/onboarding/projects body.
+export const onboardingCreateInput = z.object({
+  topic: z.string().trim().min(3).max(200),
+});
+export type OnboardingCreateInput = z.infer<typeof onboardingCreateInput>;
+
+// PATCH /api/brainlifts/:slug/onboarding body. `step` is a forward-only
+// high-water mark (1..7); scope arrays feed brainlifts.in_scope / out_of_scope.
+export const onboardingPatchInput = z.object({
+  step: z.number().int().min(1).max(7).optional(),
+  inScope: z.array(z.string().trim().min(1)).max(30).optional(),
+  outOfScope: z.array(z.string().trim().min(1)).max(30).optional(),
+});
+export type OnboardingPatchInput = z.infer<typeof onboardingPatchInput>;
+
 // Native brainlift validation schemas
 export const createNativeBrainliftInputSchema = z.object({
   topic: z.string().trim().min(10),

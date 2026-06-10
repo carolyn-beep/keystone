@@ -78,6 +78,41 @@ All API endpoints (except `/api/auth/*`) require authentication via Better Auth 
 
 ---
 
+## Onboarding Wizard (`server/routes/onboarding.ts`)
+
+The wizard's server-backed state machine. `brainlifts.onboarding_step` is the
+source of truth: `1..7` = in progress, `NULL` = finished (or legacy/imported).
+
+| Method | Endpoint | Auth | Description |
+|--------|----------|------|-------------|
+| POST | `/api/onboarding/projects` | `requireAuth` | Create a brainlift from the Topic step (`phase='research'`, `onboardingStep=1`) |
+| PATCH | `/api/brainlifts/:slug/onboarding` | `requireAuth` + `requireBrainliftModify` | Persist wizard progress (forward-only step + scope arrays) |
+| POST | `/api/brainlifts/:slug/onboarding/complete` | `requireAuth` + `requireBrainliftModify` | Finish onboarding (`onboardingStep = NULL`); idempotent |
+
+### POST `/api/onboarding/projects`
+
+Body `{ topic: string }` (trimmed, 3-200 chars). Creates the brainlift with
+`title = topic`, `description = ''`, zeroed summary, and a slug derived from the
+topic (uniqueness retry suffix on collision). Returns `201` with the row.
+`400` on invalid topic, `401` unauthenticated.
+
+### PATCH `/api/brainlifts/:slug/onboarding`
+
+Body `{ step?, inScope?, outOfScope? }`. `step` is an int `1..7` and a
+forward-only high-water mark: a regression (`step < onboardingStep`) → `400`;
+`step` out of bounds → `400` (schema). Scope arrays hold up to 30 non-empty
+trimmed strings each and persist via `updateBrainliftScope`. Patching a
+completed brainlift (`onboardingStep` is `NULL`) → `409`. Foreign slug → `404`
+(via `requireBrainliftModify`). Returns `200` with the updated row.
+
+### POST `/api/brainlifts/:slug/onboarding/complete`
+
+No body. Sets `onboardingStep = NULL` and returns `200 { slug }`. Idempotent:
+a repeat call on an already-complete brainlift returns `200 { slug }` without a
+write.
+
+---
+
 ## Native Brainlifts (`server/routes/native-brainlifts.ts`)
 
 Endpoints for creating and managing native (Builder) brainlifts.

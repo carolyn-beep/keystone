@@ -25,6 +25,7 @@ import { sprintsRouter } from "./routes/sprints";
 import { skillsRouter } from "./routes/skills";
 import { secondBrainRouter } from "./routes/second-brain";
 import { usersRouter } from "./routes/users";
+import { onboardingRouter } from "./routes/onboarding";
 import { errorHandler } from "./middleware/error-handler";
 import { seedDatabase, backfillOriginalContent } from "./seed";
 
@@ -58,6 +59,7 @@ export async function registerRoutes(
   app.use(sprintsRouter);
   app.use(skillsRouter);
   app.use(usersRouter);
+  app.use(onboardingRouter);
 
   // Global error handler - must be after all routes
   app.use(errorHandler);
