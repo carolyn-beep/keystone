@@ -55,7 +55,9 @@ describe('FR3: SuggestionSurface', () => {
 
   it('always renders the persona name and conditionally renders the Mascot', () => {
     expect(source).toContain('persona.name');
-    expect(source).toContain('persona.Mascot');
+    // Mascot is pulled off the persona slot and rendered only when present.
+    expect(source).toMatch(/Mascot\s*\}\s*=\s*persona|persona\.Mascot/);
+    expect(source).toMatch(/Mascot\s*\?/);
   });
 
   it('wires chip tap to onAccept(phrase)', () => {
@@ -132,9 +134,11 @@ describe('FR3: TopicStep topic-chip rail', () => {
     expect(source).toMatch(/useOnboardingSuggestions/);
   });
 
-  it('accepting a chip sets the topic input value (no auto-confirm)', () => {
-    // Accept handler updates local topic state; it must NOT call onConfirm.
-    expect(source).toMatch(/setTopic/);
+  it('accepting a chip fills the topic input via onAccept, not a confirm', () => {
+    // The rail's SuggestionSurface onAccept is wired to the topic setter
+    // (onTopicChange), NOT onConfirm — tapping a chip never auto-advances.
+    expect(source).toMatch(/onAccept=\{onAccept\}/);
+    expect(source).toMatch(/onTopicChange/);
     // The confirm path stays gated behind the explicit CONFIRM button handler.
     expect(source).toContain('handleConfirm');
   });

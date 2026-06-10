@@ -35,4 +35,6 @@ export const config: BrandConfig = {
     + 'candid capability preview. If the user has at least one brainlift, land the proactive '
     + '`web_search_exa` offer here per the PROACTIVE RESEARCH OFFER section of the system '
     + 'prompt. Keep the tone neutral and adult.',
+  // Plain label, no character — Brainlift Central's wizard rail.
+  wizardPersona: { name: 'Brainlift Assistant' },
 };

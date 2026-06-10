@@ -1,6 +1,9 @@
 import { useState } from 'react';
 import { TactileButton } from '@/components/ui/tactile-button';
+import { config } from '@/brand';
+import { useOnboardingSuggestions } from '@/hooks/useOnboardingSuggestions';
 import { canConfirmTopic } from './wizard-machine';
+import { SuggestionSurface } from './SuggestionSurface';
 
 interface TopicStepProps {
   /** Fires the create mutation; resolves once the project exists. */
@@ -8,15 +11,18 @@ interface TopicStepProps {
   isSubmitting: boolean;
   /** Inline create error (stays on step 1 on failure). */
   error?: string | null;
+  /** Controlled topic value (lifted so the rail's chip-accept can fill it). */
+  topic: string;
+  onTopicChange: (topic: string) => void;
 }
 
 /**
  * Wizard step 1 — Topic (screen1 restyle). A fill-in-the-blank prompt
  * "I want to become an expert in ___" with a CONFIRM action. Nothing persists
  * until confirm; CONFIRM is disabled until the trimmed topic reaches 3 chars.
+ * Topic state is lifted to the page so the rail's suggestion chips can fill it.
  */
-export function TopicStep({ onConfirm, isSubmitting, error }: TopicStepProps) {
-  const [topic, setTopic] = useState('');
+export function TopicStep({ onConfirm, isSubmitting, error, topic, onTopicChange }: TopicStepProps) {
   const canConfirm = canConfirmTopic(topic) && !isSubmitting;
 
   const handleConfirm = () => {
@@ -45,7 +51,7 @@ export function TopicStep({ onConfirm, isSubmitting, error }: TopicStepProps) {
           value={topic}
           autoFocus
           placeholder="Marine Biology"
-          onChange={(e) => setTopic(e.target.value)}
+          onChange={(e) => onTopicChange(e.target.value)}
           onKeyDown={(e) => {
             if (e.key === 'Enter') handleConfirm();
           }}
@@ -71,5 +77,28 @@ export function TopicStep({ onConfirm, isSubmitting, error }: TopicStepProps) {
         </TactileButton>
       </div>
     </div>
+  );
+}
+
+/**
+ * Rail for step 1: topic-idea chips. Tapping a chip fills the topic input
+ * (the user still confirms explicitly — no auto-advance). Pre-create, so the
+ * topic suggestion endpoint is hit (no slug).
+ */
+export function TopicStepRail({ onAccept }: { onAccept: (topic: string) => void }) {
+  const { suggestions, isLoading, refresh, refreshUsed } = useOnboardingSuggestions({ kind: 'topic' });
+
+  return (
+    <SuggestionSurface
+      persona={config.wizardPersona}
+      title="Need a starting point?"
+      helper="Tap an idea to fill it in, or type your own"
+      suggestions={suggestions}
+      loading={isLoading}
+      onAccept={onAccept}
+      onRefresh={refresh}
+      refreshUsed={refreshUsed}
+      refreshLabel="More ideas"
+    />
   );
 }
