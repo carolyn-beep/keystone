@@ -283,6 +283,76 @@ export async function setBrainliftPhase(
   return brainlift;
 }
 
+/**
+ * Normalize a scope phrase list: trim entries, drop empties, dedupe
+ * (first occurrence wins, order otherwise preserved).
+ */
+function normalizeScopeList(entries: string[]): string[] {
+  const seen = new Set<string>();
+  const normalized: string[] = [];
+  for (const entry of entries) {
+    const trimmed = entry.trim();
+    if (trimmed.length === 0 || seen.has(trimmed)) continue;
+    seen.add(trimmed);
+    normalized.push(trimmed);
+  }
+  return normalized;
+}
+
+/**
+ * Persist In/Out scope phrase arrays (onboarding wizard, ux-redesign).
+ * Omitted keys leave the corresponding column untouched.
+ */
+export async function updateBrainliftScope(
+  brainliftId: number,
+  patch: { inScope?: string[]; outOfScope?: string[] },
+): Promise<Brainlift> {
+  const set: { inScope?: string[]; outOfScope?: string[] } = {};
+  if (patch.inScope !== undefined) set.inScope = normalizeScopeList(patch.inScope);
+  if (patch.outOfScope !== undefined) set.outOfScope = normalizeScopeList(patch.outOfScope);
+
+  if (Object.keys(set).length === 0) {
+    const [brainlift] = await db.select().from(brainlifts).where(eq(brainlifts.id, brainliftId));
+    if (!brainlift) {
+      throw new NotFoundError('Brainlift not found');
+    }
+    return brainlift;
+  }
+
+  const [brainlift] = await db
+    .update(brainlifts)
+    .set(set)
+    .where(eq(brainlifts.id, brainliftId))
+    .returning();
+
+  if (!brainlift) {
+    throw new NotFoundError('Brainlift not found');
+  }
+
+  return brainlift;
+}
+
+/**
+ * Advance or clear onboarding-wizard progress. NULL = not onboarding
+ * (legacy, imported, or finished).
+ */
+export async function updateOnboardingStep(
+  brainliftId: number,
+  step: number | null,
+): Promise<Brainlift> {
+  const [brainlift] = await db
+    .update(brainlifts)
+    .set({ onboardingStep: step })
+    .where(eq(brainlifts.id, brainliftId))
+    .returning();
+
+  if (!brainlift) {
+    throw new NotFoundError('Brainlift not found');
+  }
+
+  return brainlift;
+}
+
 export async function updateBrainlift(
   slug: string,
   brainliftData: InsertBrainlift,

@@ -93,6 +93,8 @@ export const storage = {
   createBrainlift: brainliftsStorage.createBrainlift,
   createBlankBrainlift: brainliftsStorage.createBlankBrainlift,
   setBrainliftPhase: brainliftsStorage.setBrainliftPhase,
+  updateBrainliftScope: brainliftsStorage.updateBrainliftScope,
+  updateOnboardingStep: brainliftsStorage.updateOnboardingStep,
   updateBrainlift: brainliftsStorage.updateBrainlift,
   deleteBrainlift: brainliftsStorage.deleteBrainlift,
   updateBrainliftFields: brainliftsStorage.updateBrainliftFields,
