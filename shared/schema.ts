@@ -161,6 +161,12 @@ export const brainlifts = pgTable("brainlifts", {
   importStatus: text("import_status").$type<ImportStatus>().default('pending'),
   importHierarchy: jsonb("import_hierarchy"),
   phase: text("phase").$type<BrainliftPhase>().default('authoring').notNull(),
+  // Onboarding wizard (features/ux-redesign/onboarding-wizard): In/Out scope
+  // phrases feed the research swarm, the starter-pack filter, and chat prompts.
+  inScope: text("in_scope").array().notNull().default(sql`'{}'::text[]`),
+  outOfScope: text("out_of_scope").array().notNull().default(sql`'{}'::text[]`),
+  // NULL = not onboarding (legacy, imported, or finished); 1..N = wizard in progress.
+  onboardingStep: integer("onboarding_step"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 }, (table) => [
   index("brainlifts_created_by_user_id_idx").on(table.createdByUserId),
