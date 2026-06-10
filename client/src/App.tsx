@@ -16,6 +16,7 @@ const Dashboard = lazy(() => import("@/pages/Dashboard"));
 const Analytics = lazy(() => import("@/pages/Analytics"));
 const AdminProviders = lazy(() => import("@/pages/AdminProviders"));
 const Login = lazy(() => import("@/pages/Login"));
+const OnboardingWizard = lazy(() => import("@/pages/OnboardingWizard"));
 const NotFound = lazy(() => import("@/pages/not-found"));
 
 function PageLoader() {
@@ -75,6 +76,14 @@ function Router() {
       </Route>
       <Route path={CHAT_HOME_ROUTE_PATH}>
         <Shelled><ChatHome /></Shelled>
+      </Route>
+      {/* Onboarding wizard — full-screen, authenticated, OUTSIDE the shell
+          (no RootLayout / AppShell per the mocks). Must precede /:slug so the
+          catch-all doesn't render a Dashboard for slug "new-project". */}
+      <Route path="/new-project/:slug?">
+        {(params) => (
+          <ProtectedRoute><OnboardingWizard slug={params.slug} /></ProtectedRoute>
+        )}
       </Route>
       <Route path="/:slug">
         {(params) => (
