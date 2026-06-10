@@ -45,7 +45,7 @@ describe('rerankExpertsJob', () => {
     });
     mockStorage.getFactsForBrainlift.mockResolvedValue([{ id: 1, fact: 'Fact' }]);
     mockStorage.getExpertsByBrainliftId.mockResolvedValue([
-      { id: 5, name: 'Expert One', who: 'Researcher', why: 'Relevant', focus: 'AI', where: '@expert1', twitterHandle: '@expert1', isFollowing: true },
+      { id: 5, name: 'Expert One', who: 'Researcher', why: 'Relevant', focus: 'AI', where: '@expert1', twitterHandle: '@expert1' },
     ]);
     mockRerankExistingExperts.mockResolvedValue([
       { expertId: 5, rankScore: 9, rationale: '9 citations' },

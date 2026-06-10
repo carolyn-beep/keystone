@@ -68,7 +68,6 @@ describe('expert storage', () => {
         rationale: null,
         source: 'listed',
         twitterHandle: '@unranked',
-        isFollowing: true,
       },
       {
         brainliftId,
@@ -81,7 +80,6 @@ describe('expert storage', () => {
         rationale: '8 citations',
         source: 'listed',
         twitterHandle: '@ranked',
-        isFollowing: true,
       },
     ]);
 
