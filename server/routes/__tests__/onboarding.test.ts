@@ -11,7 +11,12 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { onboardingCreateInput, onboardingPatchInput } from '@shared/routes';
+import {
+  onboardingCreateInput,
+  onboardingPatchInput,
+  topicSuggestionsInput,
+  onboardingSuggestionsInput,
+} from '@shared/routes';
 import type { Brainlift } from '@shared/schema';
 
 // ─── Mocks ──────────────────────────────────────────────────────────────────
@@ -354,5 +359,186 @@ describe('FR1: POST /api/brainlifts/:slug/onboarding/complete', () => {
     expect(res.status).toBe(200);
     expect(res.body).toEqual({ slug: done.slug });
     expect(mockUpdateOnboardingStep).not.toHaveBeenCalled();
+  });
+});
+
+// ════════════════════════════════════════════════════════════════════════════
+// 04-suggestion-steps FR2: suggestion endpoints
+// ════════════════════════════════════════════════════════════════════════════
+
+// Mocked FR1 generators — the route layer is thin and just forwards to these.
+const mockGenerateTopicSuggestions = vi.fn();
+const mockGenerateOnboardingSuggestions = vi.fn();
+
+// ─── FR2 schemas ─────────────────────────────────────────────────────────────
+
+describe('FR2: topicSuggestionsInput schema', () => {
+  it('accepts an empty body (exclude optional)', () => {
+    expect(topicSuggestionsInput.parse({}).exclude).toBeUndefined();
+  });
+
+  it('accepts an exclude array up to 20 entries', () => {
+    expect(topicSuggestionsInput.safeParse({ exclude: Array(20).fill('x') }).success).toBe(true);
+  });
+
+  it('rejects an exclude array over 20 entries', () => {
+    expect(topicSuggestionsInput.safeParse({ exclude: Array(21).fill('x') }).success).toBe(false);
+  });
+});
+
+describe('FR2: onboardingSuggestionsInput schema', () => {
+  it('accepts each valid kind', () => {
+    expect(onboardingSuggestionsInput.parse({ kind: 'in-scope' }).kind).toBe('in-scope');
+    expect(onboardingSuggestionsInput.parse({ kind: 'out-of-scope' }).kind).toBe('out-of-scope');
+    expect(onboardingSuggestionsInput.parse({ kind: 'categories' }).kind).toBe('categories');
+  });
+
+  it('rejects an invalid kind', () => {
+    expect(onboardingSuggestionsInput.safeParse({ kind: 'topic' }).success).toBe(false);
+    expect(onboardingSuggestionsInput.safeParse({ kind: 'nonsense' }).success).toBe(false);
+  });
+
+  it('requires kind (missing → invalid)', () => {
+    expect(onboardingSuggestionsInput.safeParse({}).success).toBe(false);
+  });
+
+  it('accepts an exclude array up to 40 and rejects over 40', () => {
+    expect(onboardingSuggestionsInput.safeParse({ kind: 'in-scope', exclude: Array(40).fill('x') }).success).toBe(true);
+    expect(onboardingSuggestionsInput.safeParse({ kind: 'in-scope', exclude: Array(41).fill('x') }).success).toBe(false);
+  });
+});
+
+// ─── Route simulators (mirror the real handlers) ─────────────────────────────
+
+/** POST /api/onboarding/topic-suggestions */
+async function simulateTopicSuggestions(params: { authenticated: boolean; body: unknown }) {
+  if (!params.authenticated) {
+    return { status: 401, body: { message: 'Unauthorized' } };
+  }
+  const parsed = topicSuggestionsInput.safeParse(params.body);
+  if (!parsed.success) {
+    return { status: 400, body: { message: 'Invalid input' } };
+  }
+  const suggestions = await mockGenerateTopicSuggestions(parsed.data.exclude);
+  return { status: 200, body: { suggestions } };
+}
+
+/** POST /api/brainlifts/:slug/onboarding/suggestions */
+async function simulateSlugSuggestions(params: {
+  authenticated: boolean;
+  brainlift?: Brainlift; // set by requireBrainliftModify; absent → 404
+  body: unknown;
+}) {
+  if (!params.authenticated) {
+    return { status: 401, body: { message: 'Unauthorized' } };
+  }
+  if (!params.brainlift) {
+    // requireBrainliftModify rejects a foreign/missing slug before the handler.
+    return { status: 404, body: { message: 'Not found' } };
+  }
+  const parsed = onboardingSuggestionsInput.safeParse(params.body);
+  if (!parsed.success) {
+    return { status: 400, body: { message: 'Invalid input' } };
+  }
+  const current = params.brainlift;
+  // Inputs are read server-side from the row, NOT the request body.
+  const suggestions = await mockGenerateOnboardingSuggestions(
+    parsed.data.kind,
+    { topic: current.title, inScope: current.inScope, outOfScope: current.outOfScope },
+    parsed.data.exclude,
+  );
+  return { status: 200, body: { suggestions } };
+}
+
+describe('FR2: POST /api/onboarding/topic-suggestions', () => {
+  it('returns 200 { suggestions } from the generator', async () => {
+    mockGenerateTopicSuggestions.mockResolvedValue(['Ocean acidity', 'Sharks']);
+    const res = await simulateTopicSuggestions({ authenticated: true, body: { exclude: ['Biology'] } });
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({ suggestions: ['Ocean acidity', 'Sharks'] });
+    expect(mockGenerateTopicSuggestions).toHaveBeenCalledWith(['Biology']);
+  });
+
+  it('returns 200 { suggestions: [] } when the generator degrades (AI failure is not an HTTP error)', async () => {
+    mockGenerateTopicSuggestions.mockResolvedValue([]);
+    const res = await simulateTopicSuggestions({ authenticated: true, body: {} });
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({ suggestions: [] });
+  });
+
+  it('rejects unauthenticated with 401, never calls the generator', async () => {
+    const res = await simulateTopicSuggestions({ authenticated: false, body: {} });
+    expect(res.status).toBe(401);
+    expect(mockGenerateTopicSuggestions).not.toHaveBeenCalled();
+  });
+
+  it('rejects an over-cap exclude array with 400', async () => {
+    const res = await simulateTopicSuggestions({ authenticated: true, body: { exclude: Array(21).fill('x') } });
+    expect(res.status).toBe(400);
+    expect(mockGenerateTopicSuggestions).not.toHaveBeenCalled();
+  });
+});
+
+describe('FR2: POST /api/brainlifts/:slug/onboarding/suggestions', () => {
+  it('reads topic/scope from the brainlift row (not the request body) and returns 200', async () => {
+    const bl = makeBrainlift({ title: 'Marine Biology', inScope: ['whales'], outOfScope: ['ponds'] });
+    mockGenerateOnboardingSuggestions.mockResolvedValue(['Tide pools']);
+
+    const res = await simulateSlugSuggestions({
+      authenticated: true,
+      brainlift: bl,
+      // Body carries spoofed scope that MUST be ignored.
+      body: { kind: 'in-scope', topic: 'HACKED', inScope: ['spoof'] },
+    });
+
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({ suggestions: ['Tide pools'] });
+    expect(mockGenerateOnboardingSuggestions).toHaveBeenCalledWith(
+      'in-scope',
+      { topic: 'Marine Biology', inScope: ['whales'], outOfScope: ['ponds'] },
+      undefined,
+    );
+  });
+
+  it('forwards exclude to the generator', async () => {
+    const bl = makeBrainlift();
+    mockGenerateOnboardingSuggestions.mockResolvedValue([]);
+    await simulateSlugSuggestions({
+      authenticated: true,
+      brainlift: bl,
+      body: { kind: 'categories', exclude: ['Ecology'] },
+    });
+    expect(mockGenerateOnboardingSuggestions).toHaveBeenCalledWith(
+      'categories',
+      expect.any(Object),
+      ['Ecology'],
+    );
+  });
+
+  it('returns 200 { suggestions: [] } on generator degrade', async () => {
+    const bl = makeBrainlift();
+    mockGenerateOnboardingSuggestions.mockResolvedValue([]);
+    const res = await simulateSlugSuggestions({ authenticated: true, brainlift: bl, body: { kind: 'in-scope' } });
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({ suggestions: [] });
+  });
+
+  it('rejects an invalid kind with 400, never calls the generator', async () => {
+    const bl = makeBrainlift();
+    const res = await simulateSlugSuggestions({ authenticated: true, brainlift: bl, body: { kind: 'topic' } });
+    expect(res.status).toBe(400);
+    expect(mockGenerateOnboardingSuggestions).not.toHaveBeenCalled();
+  });
+
+  it('returns 404 for a foreign/missing slug (middleware boundary), never calls the generator', async () => {
+    const res = await simulateSlugSuggestions({ authenticated: true, brainlift: undefined, body: { kind: 'in-scope' } });
+    expect(res.status).toBe(404);
+    expect(mockGenerateOnboardingSuggestions).not.toHaveBeenCalled();
+  });
+
+  it('rejects unauthenticated with 401', async () => {
+    const res = await simulateSlugSuggestions({ authenticated: false, body: { kind: 'in-scope' } });
+    expect(res.status).toBe(401);
+    expect(mockGenerateOnboardingSuggestions).not.toHaveBeenCalled();
   });
 });
