@@ -91,6 +91,9 @@ source of truth: `1..7` = in progress, `NULL` = finished (or legacy/imported).
 | POST | `/api/onboarding/topic-suggestions` | `requireAuth` | Topic idea chips for step 1 (pre-create); non-blocking |
 | POST | `/api/brainlifts/:slug/onboarding/suggestions` | `requireAuth` + `requireBrainliftModify` | Scope / category suggestion chips for steps 2-4; non-blocking |
 | POST | `/api/brainlifts/:slug/onboarding/expert-discovery` | `requireAuth` + `requireBrainliftAccess` | Search-grounded expert candidates for the Experts step (fail-open) |
+| POST | `/api/brainlifts/:slug/onboarding/starter-pack` | `requireAuth` + `requireBrainliftModify` | Launch the quick, cap-exempt starter-pack swarm (fired on Categories Next) |
+| GET | `/api/brainlifts/:slug/onboarding/starter-pack` | `requireAuth` + `requireBrainliftAccess` | Starter-pack status for the Resources step poll (`idle` / `running` / `ready`) |
+| POST | `/api/brainlifts/:slug/onboarding/resources` | `requireAuth` + `requireBrainliftModify` | Paste a link into the learning stream (`source='manual'`) |
 
 ### POST `/api/onboarding/projects`
 
@@ -139,6 +142,38 @@ extraction, search-grounded in code, deduped, capped at 5), and returns
 `evidenceUrls` with ≥1 entry). **Fail-open:** any search/model failure degrades
 to `200 { candidates: [] }` — it never 5xx's the wizard. Foreign slug → `404`,
 unauthenticated → `401`.
+
+### POST `/api/brainlifts/:slug/onboarding/starter-pack`
+
+No body. Launches the quick (starter-pack) swarm: a 3-agent `quick: true` run
+(forced `anthropic/claude-haiku-4.5`, 20-step cap, no recovery, 2-3 saves/slot,
+items land `source='starter-pack'`), orchestrated synchronously then run in the
+background. After the swarm completes, if the project declared out-of-scope
+topics, a cheap scope filter (`onboarding.scopeFilter`) prunes out-of-scope
+items to `discarded`. **Cap-exempt:** the daily swarm limit is never checked and
+the recorded `swarm_usage` row is excluded from `getSwarmUsageToday`. Guards
+mirror `/learning-stream/launch` minus the cap: an active swarm / pending job /
+in-flight pack → `409 research_run_in_progress` (with `existingRunId`); existing
+starter-pack rows → `409 starter_pack_already_run` (a first run yielding zero
+rows allows a re-fire). Otherwise `200 { runId }`. Foreign slug → `404`,
+unauthenticated → `401`.
+
+### GET `/api/brainlifts/:slug/onboarding/starter-pack`
+
+No body. Returns `200 { status }` where `status` is `running` while the pack is
+in flight (orchestrate → swarm → filter), `ready` once any starter-pack row
+exists, else `idle`. A `ready` with zero surviving pending items is legal
+(paste-only Resources UI). Foreign slug → `404`, unauthenticated → `401`.
+
+### POST `/api/brainlifts/:slug/onboarding/resources`
+
+Body `{ url: string }` (trimmed, valid http/https URL). An existing URL for the
+brainlift → `200 { item, duplicate: true }` (no new row). Otherwise creates a
+pending `source='manual'` learning-stream item with pre-extraction defaults
+(`type='News'`, `author`=URL hostname, `topic`=URL, `time='—'`, `facts=''`; the
+content-extraction job auto-fires at insert) → `201 { item, duplicate: false }`.
+Non-http(s) / invalid URL → `400`; foreign slug → `404`; unauthenticated →
+`401`.
 
 ---
 

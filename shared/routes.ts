@@ -106,6 +106,24 @@ export const expertDiscoveryResponse = z.object({
 });
 export type ExpertDiscoveryResponse = z.infer<typeof expertDiscoveryResponse>;
 
+// POST /api/brainlifts/:slug/onboarding/resources body. A single pasted link;
+// trimmed, must be a valid http/https URL (other schemes rejected to prevent XSS).
+export const onboardingResourceInput = z.object({
+  url: z
+    .string()
+    .trim()
+    .url()
+    .refine((url) => {
+      try {
+        const parsed = new URL(url);
+        return parsed.protocol === 'http:' || parsed.protocol === 'https:';
+      } catch {
+        return false;
+      }
+    }, 'Only http/https URLs allowed'),
+});
+export type OnboardingResourceInput = z.infer<typeof onboardingResourceInput>;
+
 // POST /api/brainlifts/:slug/experts body. 1-10 experts; name + where are
 // required (trimmed, non-empty); who/why/focus are optional. Persisted with
 // source='onboarding'.

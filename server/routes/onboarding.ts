@@ -5,8 +5,14 @@ import {
   onboardingPatchInput,
   topicSuggestionsInput,
   onboardingSuggestionsInput,
+  onboardingResourceInput,
 } from "@shared/routes";
 import { discoverExperts } from "../ai/onboarding/expert-discovery";
+import {
+  launchStarterPack,
+  isStarterPackInFlight,
+} from "../ai/onboarding/starter-pack";
+import { swarmEmitter } from "../ai/learning-stream-swarm-v2/event-emitter";
 import { requireAuth } from "../middleware/auth";
 import {
   asyncHandler,
@@ -154,5 +160,94 @@ onboardingRouter.post(
       exclude,
     );
     res.json({ suggestions });
+  }),
+);
+
+// Launch the quick, cap-exempt starter-pack swarm (fired on Categories Next).
+// Guards mirror the /launch handler MINUS the daily cap: (a) one swarm at a
+// time (active swarm / pending job / in-flight pack → 409 with existingRunId);
+// (b) one pack per brainlift (existing pack rows → 409). A first run that
+// yielded zero rows leaves none, so a re-fire is naturally allowed.
+onboardingRouter.post(
+  "/api/brainlifts/:slug/onboarding/starter-pack",
+  requireAuth,
+  requireBrainliftModify,
+  asyncHandler(async (req: Request, res: Response) => {
+    const brainlift = req.brainlift!;
+
+    if (
+      swarmEmitter.isSwarmActive(brainlift.id) ||
+      (await storage.hasResearchJobPending(brainlift.id)) ||
+      isStarterPackInFlight(brainlift.id)
+    ) {
+      const existingRunId = await storage.getActiveRunIdForBrainlift(brainlift.id);
+      throw new ConflictError(
+        "A research run is already in progress for this brainlift.",
+        "research_run_in_progress",
+        { existingRunId: existingRunId ?? undefined },
+      );
+    }
+
+    if (await storage.hasStarterPackItems(brainlift.id)) {
+      throw new ConflictError(
+        "A starter pack has already been generated for this brainlift.",
+        "starter_pack_already_run",
+      );
+    }
+
+    const { runId } = await launchStarterPack(brainlift, req.authContext!.userId);
+    res.status(200).json({ runId });
+  }),
+);
+
+// Starter-pack status for the Resources step's poll. `running` while in-flight
+// (covers orchestrate → swarm → filter); else `ready` once rows exist; else
+// `idle`. A `ready` with zero surviving pending items is legal (paste-only UI).
+onboardingRouter.get(
+  "/api/brainlifts/:slug/onboarding/starter-pack",
+  requireAuth,
+  requireBrainliftAccess,
+  asyncHandler(async (req: Request, res: Response) => {
+    const brainlift = req.brainlift!;
+    let status: "idle" | "running" | "ready";
+    if (isStarterPackInFlight(brainlift.id)) {
+      status = "running";
+    } else if (await storage.hasStarterPackItems(brainlift.id)) {
+      status = "ready";
+    } else {
+      status = "idle";
+    }
+    res.json({ status });
+  }),
+);
+
+// Paste a link from the Resources step. Existing URL → 200 { item, duplicate:
+// true } (no new row); otherwise a pending source='manual' item with
+// pre-extraction defaults (the extraction job auto-fires at insert) → 201.
+onboardingRouter.post(
+  "/api/brainlifts/:slug/onboarding/resources",
+  requireAuth,
+  requireBrainliftModify,
+  asyncHandler(async (req: Request, res: Response) => {
+    const { url } = onboardingResourceInput.parse(req.body);
+    const brainlift = req.brainlift!;
+
+    const existing = await storage.getLearningStreamItemByUrl(url, brainlift.id);
+    if (existing) {
+      res.status(200).json({ item: existing, duplicate: true });
+      return;
+    }
+
+    const hostname = new URL(url).hostname;
+    const item = await storage.addLearningStreamItem(brainlift.id, {
+      type: "News",
+      author: hostname,
+      topic: url,
+      time: "—",
+      facts: "",
+      url,
+      source: "manual",
+    });
+    res.status(201).json({ item, duplicate: false });
   }),
 );
