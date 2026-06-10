@@ -43,8 +43,10 @@ vi.mock('../base', () => ({
   inArray: (a: unknown, b: unknown) => { inArrayCalls.push([a, b]); return { inArray: [a, b] }; },
   and: (...preds: unknown[]) => { andCalls.push(preds); return { and: preds }; },
   sql: (strings: TemplateStringsArray, ...vals: unknown[]) => {
+    // Record the literal fragments AND the interpolated column refs so tests can
+    // assert on both (the column is an interpolated value, not part of `strings`).
     const raw = strings.join('?');
-    sqlCalls.push(raw);
+    sqlCalls.push(`${raw} || vals=${vals.join(',')}`);
     return { sqlRaw: raw, vals };
   },
   learningStreamItems: {
@@ -55,7 +57,7 @@ vi.mock('../base', () => ({
     createdAt: 'col.created_at',
     updatedAt: 'col.updated_at',
   },
-  swarmUsage: { userId: 'su.user_id', createdAt: 'su.created_at' },
+  swarmUsage: { userId: 'su.user_id', createdAt: 'su.created_at', runSpec: 'su.run_spec' },
 }));
 
 vi.mock('../../utils/withJob', () => ({ withJob: vi.fn() }));
@@ -128,9 +130,11 @@ describe('FR3: getSwarmUsageToday quick-row exclusion', () => {
     selectRows = [{ count: 1 }];
     await getSwarmUsageToday('user-1');
 
-    // The day-boundary + quick-exclusion predicates are SQL fragments.
+    // The day-boundary + quick-exclusion predicates are SQL fragments. The
+    // run_spec column is interpolated (recorded in vals); the quick-exclusion
+    // operator + key are literal fragments.
     const allSql = sqlCalls.join(' | ');
-    expect(allSql).toMatch(/run_spec/);
+    expect(allSql).toMatch(/su\.run_spec|run_spec/);
     expect(allSql).toMatch(/quick/);
     expect(allSql).toMatch(/DISTINCT FROM|<>|!=/i);
   });

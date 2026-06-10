@@ -229,6 +229,9 @@ export const storage = {
   recordSwarmUsage: learningStreamStorage.recordSwarmUsage,
   updateSwarmUsageEstimatedUsd: learningStreamStorage.updateSwarmUsageEstimatedUsd,
   getActiveRunIdForBrainlift: learningStreamStorage.getActiveRunIdForBrainlift,
+  hasStarterPackItems: learningStreamStorage.hasStarterPackItems,
+  getPendingStarterPackItems: learningStreamStorage.getPendingStarterPackItems,
+  discardStarterPackItems: learningStreamStorage.discardStarterPackItems,
 
   // Second Brain
   createSource: secondBrainStorage.createSource,

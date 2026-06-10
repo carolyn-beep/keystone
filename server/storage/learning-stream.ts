@@ -1,5 +1,5 @@
 import {
-  db, eq, and, sql,
+  db, eq, and, sql, inArray,
   learningStreamItems, swarmUsage,
   type LearningStreamItem, type NewLearningStreamItem
 } from './base';
@@ -324,7 +324,11 @@ export async function getSwarmUsageToday(userId: string): Promise<{
     .from(swarmUsage)
     .where(and(
       eq(swarmUsage.userId, userId),
-      sql`${swarmUsage.createdAt} >= date_trunc('day', now() AT TIME ZONE 'UTC')`
+      sql`${swarmUsage.createdAt} >= date_trunc('day', now() AT TIME ZONE 'UTC')`,
+      // Quick (starter-pack) runs are recorded for cost observability but do NOT
+      // consume the daily cap (spec 05 Assumption 1). `IS DISTINCT FROM` keeps
+      // NULL/absent run_spec rows counted.
+      sql`${swarmUsage.runSpec}->>'quick' IS DISTINCT FROM 'true'`
     ));
 
   const used = result?.count ?? 0;
@@ -372,4 +376,61 @@ export async function updateSwarmUsageEstimatedUsd(runId: number, usd: number): 
     .update(swarmUsage)
     .set({ estimatedUsd: usd.toFixed(4) })
     .where(eq(swarmUsage.id, runId));
+}
+
+// === Starter Pack (spec 05) ===
+
+/**
+ * Whether a starter-pack run has ever produced a row for this brainlift (any
+ * status). Used to enforce one pack per brainlift — a first run that yielded
+ * zero items leaves no rows, so a re-fire is naturally allowed.
+ */
+export async function hasStarterPackItems(brainliftId: number): Promise<boolean> {
+  const [existing] = await db.select({ id: learningStreamItems.id })
+    .from(learningStreamItems)
+    .where(and(
+      eq(learningStreamItems.brainliftId, brainliftId),
+      eq(learningStreamItems.source, 'starter-pack'),
+    ))
+    .limit(1);
+
+  return !!existing;
+}
+
+/**
+ * Pending starter-pack candidates for the scope filter (DB-side status+source
+ * filtering). Projects only the fields the filter needs.
+ */
+export async function getPendingStarterPackItems(
+  brainliftId: number,
+): Promise<Array<{ id: number; topic: string; facts: string; url: string }>> {
+  return db.select({
+    id: learningStreamItems.id,
+    topic: learningStreamItems.topic,
+    facts: learningStreamItems.facts,
+    url: learningStreamItems.url,
+  })
+    .from(learningStreamItems)
+    .where(and(
+      eq(learningStreamItems.brainliftId, brainliftId),
+      eq(learningStreamItems.status, 'pending'),
+      eq(learningStreamItems.source, 'starter-pack'),
+    ));
+}
+
+/**
+ * Discard the given starter-pack items in one brainlift-scoped batch UPDATE.
+ * No-op for an empty id list.
+ */
+export async function discardStarterPackItems(
+  itemIds: number[],
+  brainliftId: number,
+): Promise<void> {
+  if (itemIds.length === 0) return;
+  await db.update(learningStreamItems)
+    .set({ status: 'discarded', updatedAt: new Date() })
+    .where(and(
+      inArray(learningStreamItems.id, itemIds),
+      eq(learningStreamItems.brainliftId, brainliftId),
+    ));
 }
