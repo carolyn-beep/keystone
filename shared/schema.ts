@@ -275,7 +275,6 @@ export const experts = pgTable("experts", {
   rationale: text("rationale"), // One-line explanation for ranking (null if unranked)
   source: text("source").notNull(), // "listed" (from brainlift) or "verification" (from fact notes)
   twitterHandle: text("twitter_handle"), // Optional X/Twitter handle
-  isFollowing: boolean("is_following").notNull().default(true), // Auto-follow if rank > 5
 });
 
 // Brainlift Sharing - User-specific and token-based access control
