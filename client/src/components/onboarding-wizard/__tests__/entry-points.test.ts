@@ -76,8 +76,9 @@ describe('FR5: Home.tsx renders the New Project CTA (production-visible)', () =>
     expect(homeSource).toContain('button-new-project');
   });
 
-  it('navigates to /new-project', () => {
-    expect(homeSource).toMatch(/\/new-project/);
+  it('navigates to the wizard via the NEW_PROJECT_ROUTE constant', () => {
+    expect(homeSource).toMatch(/NEW_PROJECT_ROUTE/);
+    expect(homeSource).toMatch(/setLocation\(NEW_PROJECT_ROUTE\)/);
   });
 
   it('is NOT gated behind the non-production check (unlike Create Brainlift)', () => {
@@ -113,9 +114,9 @@ describe('FR5: ChatHome auto-opens the wizard for zero-project users', () => {
     expect(chatHomeSource).toMatch(/useUserBrainlifts/);
   });
 
-  it('decides via shouldAutoOpenWizard and replace-redirects to /new-project', () => {
+  it('decides via shouldAutoOpenWizard and replace-redirects to NEW_PROJECT_ROUTE', () => {
     expect(chatHomeSource).toMatch(/shouldAutoOpenWizard/);
-    expect(chatHomeSource).toMatch(/\/new-project/);
+    expect(chatHomeSource).toMatch(/setLocation\(\s*NEW_PROJECT_ROUTE\s*,/);
     // Replace navigation (not push) so back button doesn't loop into the wizard.
     expect(chatHomeSource).toMatch(/replace:\s*true/);
   });
