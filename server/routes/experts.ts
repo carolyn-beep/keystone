@@ -1,11 +1,31 @@
 import { Router } from 'express';
 import { storage } from '../storage';
 import { extractAndRankExperts, diagnoseExpertFormat } from '../ai/experts';
+import { createBrainliftExperts } from '../services/brainlift-curation';
+import { createExpertsInput } from '@shared/routes';
 import { requireAuth } from '../middleware/auth';
 import { asyncHandler, BadRequestError, NotFoundError } from '../middleware/error-handler';
 import { requireBrainliftAccess, requireBrainliftModify } from '../middleware/brainlift-auth';
 
 export const expertsRouter = Router();
+
+// Create one or more experts directly (used by the onboarding wizard's Experts
+// step — accepting a discovered candidate or a manual add). Wraps the curation
+// service with source='onboarding'; rank refresh is queued by the service.
+expertsRouter.post(
+  '/api/brainlifts/:slug/experts',
+  requireAuth,
+  requireBrainliftModify,
+  asyncHandler(async (req, res) => {
+    const { experts } = createExpertsInput.parse(req.body);
+    const { createdExperts } = await createBrainliftExperts(req.authContext!, {
+      slug: req.brainlift!.slug,
+      experts,
+      source: 'onboarding',
+    });
+    res.status(201).json({ experts: createdExperts });
+  })
+);
 
 // Get experts for a brainlift
 expertsRouter.get(

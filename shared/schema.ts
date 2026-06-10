@@ -273,7 +273,7 @@ export const experts = pgTable("experts", {
   where: text("where"),
   rankScore: integer("rank_score"), // 1-10 impact score (null if unranked)
   rationale: text("rationale"), // One-line explanation for ranking (null if unranked)
-  source: text("source").notNull(), // "listed" (from brainlift) or "verification" (from fact notes)
+  source: text("source").notNull().$type<'listed' | 'verification' | 'cited' | 'onboarding'>(), // provenance: brainlift list, fact-note verification, citation extraction, onboarding wizard
   twitterHandle: text("twitter_handle"), // Optional X/Twitter handle
 });
 

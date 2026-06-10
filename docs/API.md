@@ -90,6 +90,7 @@ source of truth: `1..7` = in progress, `NULL` = finished (or legacy/imported).
 | POST | `/api/brainlifts/:slug/onboarding/complete` | `requireAuth` + `requireBrainliftModify` | Finish onboarding (`onboardingStep = NULL`); idempotent |
 | POST | `/api/onboarding/topic-suggestions` | `requireAuth` | Topic idea chips for step 1 (pre-create); non-blocking |
 | POST | `/api/brainlifts/:slug/onboarding/suggestions` | `requireAuth` + `requireBrainliftModify` | Scope / category suggestion chips for steps 2-4; non-blocking |
+| POST | `/api/brainlifts/:slug/onboarding/expert-discovery` | `requireAuth` + `requireBrainliftAccess` | Search-grounded expert candidates for the Experts step (fail-open) |
 
 ### POST `/api/onboarding/projects`
 
@@ -128,6 +129,16 @@ Body `{ kind: 'in-scope' | 'out-of-scope' | 'categories', exclude?: string[] }`
 brainlift row (`title`, `in_scope`, `out_of_scope`) — never from the request
 body. Invalid `kind` → `400`; foreign slug → `404` (via
 `requireBrainliftModify`). Non-blocking: AI failure → `200 { suggestions: [] }`.
+### POST `/api/brainlifts/:slug/onboarding/expert-discovery`
+
+No body. Reads context server-side from the loaded brainlift (`title`,
+`inScope`, category names via `getCategoriesWithCountsForSecondBrain`), runs
+`discoverExperts` (2-3 Exa `searchWeb` passes → one `anthropic/claude-haiku-4.5`
+extraction, search-grounded in code, deduped, capped at 5), and returns
+`200 { candidates }` (shape per `expertDiscoveryResponse`; each candidate carries
+`evidenceUrls` with ≥1 entry). **Fail-open:** any search/model failure degrades
+to `200 { candidates: [] }` — it never 5xx's the wizard. Foreign slug → `404`,
+unauthenticated → `401`.
 
 ---
 
@@ -200,8 +211,19 @@ All routes nested under `/api/brainlifts/:slug/experts` for authorization contex
 | Method | Endpoint | Auth | Description |
 |--------|----------|------|-------------|
 | GET | `/api/brainlifts/:slug/experts` | `requireAuth` | Get all experts for brainlift |
+| POST | `/api/brainlifts/:slug/experts` | `requireAuth` + `requireBrainliftModify` | Create 1-10 experts (`source='onboarding'`) |
 | POST | `/api/brainlifts/:slug/experts/refresh` | `requireAuth` | Extract/refresh experts using AI |
 | DELETE | `/api/brainlifts/:slug/experts/:id` | `requireAuth` | Delete an expert |
+
+### POST `/api/brainlifts/:slug/experts`
+
+Body `{ experts: [{ name, where, who?, why?, focus? }] }` validated by
+`createExpertsInput` (1-10 experts; `name` and `where` required, trimmed,
+non-empty; `who`/`why`/`focus` optional). Wraps `createBrainliftExperts` with
+`source='onboarding'` (rank refresh queued by the service). Returns
+`201 { experts }`. Used by the onboarding wizard's Experts step for both
+accepting a discovered candidate and a manual add. Invalid body → `400`,
+foreign slug → `404`.
 
 ---
 

@@ -42,10 +42,11 @@ export async function createExpertsForBrainlift(
   brainliftId: number,
   expertsData: Array<{
     name: string;
-    who: string;
-    why: string;
+    who?: string | null;
+    why?: string | null;
     focus?: string | null;
     where?: string | null;
+    source?: 'listed' | 'onboarding';
     twitterHandle?: string | null;
   }>,
 ): Promise<Expert[]> {
@@ -55,13 +56,13 @@ export async function createExpertsForBrainlift(
     expertsData.map((expert) => ({
       brainliftId,
       name: expert.name,
-      who: expert.who,
-      why: expert.why,
+      who: expert.who ?? null,
+      why: expert.why ?? null,
       focus: expert.focus ?? null,
       where: expert.where ?? null,
       rankScore: null,
       rationale: null,
-      source: 'listed',
+      source: expert.source ?? 'listed',
       twitterHandle: expert.twitterHandle ?? normalizeTwitterHandle(expert.where),
     })),
   ).returning();
