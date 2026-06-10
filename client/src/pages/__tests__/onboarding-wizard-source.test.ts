@@ -96,9 +96,13 @@ describe('FR2: OnboardingWizard page wires the step machine + states', () => {
 });
 
 describe('FR3: TopicStep matches the screen1 restyle', () => {
-  it('renders the "Add Topic" header and "Your new BrainLift" subtitle', () => {
-    expect(topicSource).toContain('Add Topic');
-    expect(topicSource).toContain('Your new BrainLift');
+  it('renders the "Add Topic" header and "Your new BrainLift" subtitle (composed by the page/shell)', () => {
+    // The screen1 header eyebrow lives in the shell chrome: the page supplies
+    // the step title ("Add Topic", from WIZARD_STEPS) and the "Your new
+    // BrainLift" subtitle to WizardShell.
+    const machineSource = read('../../components/onboarding-wizard/wizard-machine.ts');
+    expect(machineSource).toContain('Add Topic');
+    expect(wizardSource).toContain('Your new BrainLift');
   });
 
   it('renders the fill-in-the-blank "I want to become an expert in" prompt', () => {
