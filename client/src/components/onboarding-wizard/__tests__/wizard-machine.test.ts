@@ -32,9 +32,12 @@ describe('FR2: wizard step constants', () => {
     expect(LAST_STEP).toBe(7);
   });
 
-  it('marks steps 2-6 as placeholder slots (filled by specs 04-06)', () => {
+  it('marks the remaining placeholder slots (filled incrementally by specs 04-06)', () => {
+    // Spec 06 fills step 5 (Experts), so it is no longer a placeholder. The
+    // other middle steps (2 In Scope, 3 Out of Scope, 4 Categories, 6
+    // Resources) remain placeholders until their specs land.
     const placeholders = WIZARD_STEPS.filter((s) => s.placeholder).map((s) => s.id);
-    expect(placeholders).toEqual([2, 3, 4, 5, 6]);
+    expect(placeholders).toEqual([2, 3, 4, 6]);
   });
 });
 
