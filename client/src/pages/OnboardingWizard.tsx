@@ -8,8 +8,10 @@ import { ScopeStep, ScopeStepRail } from '@/components/onboarding-wizard/ScopeSt
 import { CategoriesStep, CategoriesStepRail } from '@/components/onboarding-wizard/CategoriesStep';
 import { DoneStep } from '@/components/onboarding-wizard/DoneStep';
 import { ExpertsStep } from '@/components/onboarding-wizard/ExpertsStep';
+import { ResourcesStep, ResourcesStepRail } from '@/components/onboarding-wizard/ResourcesStep';
 import { PlaceholderStep } from '@/components/onboarding-wizard/PlaceholderStep';
 import { buildScopePatch } from '@/components/onboarding-wizard/scope-helpers';
+import { useStarterPack } from '@/hooks/useStarterPack';
 import {
   WIZARD_STEPS,
   FIRST_STEP,
@@ -43,6 +45,10 @@ export default function OnboardingWizard({ slug }: OnboardingWizardProps) {
     completeOnboarding,
     isCompleting,
   } = useOnboardingWizard(slug);
+
+  // Starter-pack launch is fired on Categories Next (fire-and-forget) and the
+  // pack's items/decline/paste plumbing is owned by ResourcesStep's own hook.
+  const { launch: launchStarterPack } = useStarterPack(slug);
 
   // Persisted high-water mark from the server (undefined until loaded).
   const highWater = slug ? resume.data?.onboardingStep ?? undefined : undefined;
@@ -141,6 +147,14 @@ export default function OnboardingWizard({ slug }: OnboardingWizardProps) {
       });
   };
 
+  // Categories Next: fire the starter-pack launch best-effort (all errors,
+  // including 409s, are swallowed inside the hook — the pack never blocks the
+  // wizard) and then run the standard forward advance.
+  const handleCategoriesNext = () => {
+    launchStarterPack();
+    handleNext();
+  };
+
   const handleBack = () => {
     setActiveStep((s) => Math.max(FIRST_STEP, s - 1));
   };
@@ -198,9 +212,9 @@ export default function OnboardingWizard({ slug }: OnboardingWizardProps) {
     body = <ScopeStep variant="out" items={outOfScopeItems} onItemsChange={setOutOfScopeItems} onNext={() => handleScopeNext('out')} />;
     rail = <ScopeStepRail variant="out" slug={slug} items={outOfScopeItems} onItemsChange={setOutOfScopeItems} />;
   } else if (stepMeta.key === 'categories' && slug) {
-    // Step 4 → 5 is a plain forward PATCH (handleNext). No starter-pack
-    // trigger here — spec 05 owns that hookpoint.
-    body = <CategoriesStep slug={slug} onNext={handleNext} />;
+    // Categories Next fires the starter-pack launch (fire-and-forget) then
+    // advances — spec 05's trigger hookpoint.
+    body = <CategoriesStep slug={slug} onNext={handleCategoriesNext} />;
     rail = <CategoriesStepRail slug={slug} />;
   } else if (activeStep === LAST_STEP) {
     body = <DoneStep onEnter={handleEnter} isCompleting={isCompleting} />;
@@ -208,6 +222,9 @@ export default function OnboardingWizard({ slug }: OnboardingWizardProps) {
     // Discovery fires only when this step opens (the hook's `enabled` gate is
     // satisfied once ExpertsStep mounts).
     body = <ExpertsStep slug={slug} onNext={handleNext} />;
+  } else if (stepMeta.key === 'resources') {
+    body = <ResourcesStep slug={slug} onNext={handleNext} />;
+    rail = <ResourcesStepRail slug={slug} />;
   } else {
     body = <PlaceholderStep title={stepMeta.title} onNext={handleNext} />;
   }
