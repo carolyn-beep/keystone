@@ -1,13 +1,17 @@
 import { Router, type Request, type Response } from "express";
 import { storage } from "../storage";
 import { onboardingCreateInput, onboardingPatchInput } from "@shared/routes";
+import { discoverExperts } from "../ai/onboarding/expert-discovery";
 import { requireAuth } from "../middleware/auth";
 import {
   asyncHandler,
   BadRequestError,
   ConflictError,
 } from "../middleware/error-handler";
-import { requireBrainliftModify } from "../middleware/brainlift-auth";
+import {
+  requireBrainliftAccess,
+  requireBrainliftModify,
+} from "../middleware/brainlift-auth";
 
 /**
  * Onboarding wizard endpoints (features/ux-redesign/onboarding-wizard).
@@ -61,6 +65,36 @@ onboardingRouter.patch(
     }
 
     res.json(updated);
+  }),
+);
+
+// Search-grounded expert discovery for the wizard's Experts step. No request
+// body — topic/scope/categories are read server-side from the loaded
+// brainlift. Discovery failure degrades to { candidates: [] }; it must NEVER
+// 5xx the wizard (the step falls back to manual entry). discoverExperts is
+// itself fail-open, but the try/catch is a defense-in-depth backstop against
+// the category read or anything else throwing.
+onboardingRouter.post(
+  "/api/brainlifts/:slug/onboarding/expert-discovery",
+  requireAuth,
+  requireBrainliftAccess,
+  asyncHandler(async (req: Request, res: Response) => {
+    const brainlift = req.brainlift!;
+    let candidates: Awaited<ReturnType<typeof discoverExperts>> = [];
+    try {
+      const categoryRows = await storage.getCategoriesWithCountsForSecondBrain(brainlift.id);
+      candidates = await discoverExperts({
+        topic: brainlift.title,
+        inScope: brainlift.inScope,
+        categories: categoryRows.map((c) => c.name),
+      });
+    } catch (error) {
+      console.error(
+        `[onboarding] expert discovery failed for ${brainlift.slug}, returning []:`,
+        error,
+      );
+    }
+    res.json({ candidates });
   }),
 );
 
