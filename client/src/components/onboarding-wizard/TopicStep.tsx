@@ -21,7 +21,10 @@ export function TopicStep({ onConfirm, isSubmitting, error }: TopicStepProps) {
 
   const handleConfirm = () => {
     if (!canConfirm) return;
-    void onConfirm(topic.trim());
+    // The create error is surfaced to the user via the `error` prop (react-query
+    // mutation state); swallow the rejection here so it isn't an unhandled
+    // promise rejection. The wizard stays on step 1 on failure.
+    void onConfirm(topic.trim()).catch(() => {});
   };
 
   return (

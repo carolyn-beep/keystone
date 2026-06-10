@@ -83,6 +83,13 @@ describe('FR2: OnboardingWizard page wires the step machine + states', () => {
     expect(wizardSource).toMatch(/shouldRedirectCompleted/);
   });
 
+  it('guards the resume jump so it fires once per slug (no bounce-back after a forward PATCH)', () => {
+    // A per-slug ref guard prevents the resume effect from re-applying the
+    // server step (lower than the local advanced step) on every cache update.
+    expect(wizardSource).toMatch(/resumedSlugRef/);
+    expect(wizardSource).toMatch(/useRef/);
+  });
+
   it('renders an error state offering a route back Home for a missing/foreign slug', () => {
     // 404 from requireBrainliftModify → wizard shows an error + Home link.
     expect(wizardSource).toMatch(/isError|error/);

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation } from 'wouter';
 import { TactileButton } from '@/components/ui/tactile-button';
 import { useOnboardingWizard } from '@/hooks/useOnboardingWizard';
@@ -49,9 +49,14 @@ export default function OnboardingWizard({ slug }: OnboardingWizardProps) {
     resolveActiveStep({ hasSlug: Boolean(slug), onboardingStep: undefined }),
   );
 
-  // Once the resume row arrives, jump to its persisted step.
+  // Jump to the persisted step ONCE when resuming a slug. Guarded per-slug so
+  // later high-water PATCHes (which update resume.data via setQueryData) don't
+  // yank an advanced user back to the server's lower stored step.
+  const resumedSlugRef = useRef<string | null>(null);
   useEffect(() => {
     if (!slug || resume.data?.onboardingStep == null) return;
+    if (resumedSlugRef.current === slug) return;
+    resumedSlugRef.current = slug;
     setActiveStep(clampStep(resume.data.onboardingStep));
   }, [slug, resume.data?.onboardingStep]);
 
@@ -76,28 +81,43 @@ export default function OnboardingWizard({ slug }: OnboardingWizardProps) {
   // Topic confirm → create → URL gains slug, advance to step 2.
   const handleConfirmTopic = async (topic: string) => {
     const created = await createProject(topic);
+    // We're driving this slug from step 1 forward; suppress the resume jump so
+    // the freshly-loaded server step (1) doesn't bounce us back off step 2.
+    resumedSlugRef.current = created.slug;
     setActiveStep(2);
     setLocation(`/new-project/${created.slug}`, { replace: true });
   };
 
-  // Advance one step. PATCHes only when moving past the high-water mark.
-  const handleNext = async () => {
+  // Advance one step. PATCHes only when moving past the high-water mark. On a
+  // PATCH failure we hold on the current step rather than advancing past
+  // unpersisted progress; the mutation error is logged by react-query.
+  const handleNext = () => {
     const target = clampStep(activeStep + 1);
-    if (slug && highWater != null && isForwardStep({ target, highWater })) {
-      await patchProgress({ slug, patch: { step: target } });
+    const needsPatch = slug && highWater != null && isForwardStep({ target, highWater });
+    if (!needsPatch) {
+      setActiveStep(target);
+      return;
     }
-    setActiveStep(target);
+    patchProgress({ slug: slug!, patch: { step: target } })
+      .then(() => setActiveStep(target))
+      .catch(() => {
+        /* stay on the current step; high-water not advanced */
+      });
   };
 
   const handleBack = () => {
     setActiveStep((s) => Math.max(FIRST_STEP, s - 1));
   };
 
-  // Done CTA → complete → land on the Second Brain tab.
-  const handleEnter = async () => {
+  // Done CTA → complete → land on the Second Brain tab. On failure we stay on
+  // the Done step (no navigation); the mutation error is tracked by react-query.
+  const handleEnter = () => {
     if (!slug) return;
-    await completeOnboarding(slug);
-    setLocation(buildLandingLocation(slug));
+    completeOnboarding(slug)
+      .then(() => setLocation(buildLandingLocation(slug)))
+      .catch(() => {
+        /* stay on Done */
+      });
   };
 
   // Resume fetch failed (missing / foreign slug → 404). Offer a way Home.
