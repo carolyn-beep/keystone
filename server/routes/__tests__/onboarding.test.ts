@@ -17,6 +17,7 @@ import {
   onboardingPatchInput,
   topicSuggestionsInput,
   onboardingSuggestionsInput,
+  onboardingResourceInput,
 } from '@shared/routes';
 import type { Brainlift } from '@shared/schema';
 
@@ -651,5 +652,246 @@ describe('FR2: POST /api/brainlifts/:slug/onboarding/expert-discovery', () => {
     expect(src).toMatch(/getCategoriesWithCountsForSecondBrain/);
     // Failure must NOT 5xx — the handler swallows discovery errors to [].
     expect(src).toMatch(/catch/);
+  });
+});
+
+// ════════════════════════════════════════════════════════════════════════════
+// 05-starter-pack FR4: starter-pack launch / status + resources endpoints
+// ════════════════════════════════════════════════════════════════════════════
+
+const mockLaunchStarterPack = vi.fn();
+const mockIsStarterPackInFlight = vi.fn();
+const mockIsSwarmActive = vi.fn();
+const mockHasResearchJobPending = vi.fn();
+const mockHasStarterPackItems = vi.fn();
+const mockGetActiveRunIdForBrainlift = vi.fn();
+const mockGetLearningStreamItemByUrl = vi.fn();
+const mockAddLearningStreamItem = vi.fn();
+
+// ─── onboardingResourceInput schema ───────────────────────────────────────────
+
+describe('FR4: onboardingResourceInput schema', () => {
+  it('accepts and trims a valid https URL', () => {
+    const parsed = onboardingResourceInput.parse({ url: '  https://example.com/a  ' });
+    expect(parsed.url).toBe('https://example.com/a');
+  });
+
+  it('accepts a valid http URL', () => {
+    expect(onboardingResourceInput.safeParse({ url: 'http://example.com' }).success).toBe(true);
+  });
+
+  it('rejects a non-http(s) scheme (javascript:, file:, ftp:)', () => {
+    expect(onboardingResourceInput.safeParse({ url: 'javascript:alert(1)' }).success).toBe(false);
+    expect(onboardingResourceInput.safeParse({ url: 'file:///etc/passwd' }).success).toBe(false);
+    expect(onboardingResourceInput.safeParse({ url: 'ftp://example.com' }).success).toBe(false);
+  });
+
+  it('rejects a non-URL string and an empty body', () => {
+    expect(onboardingResourceInput.safeParse({ url: 'not a url' }).success).toBe(false);
+    expect(onboardingResourceInput.safeParse({}).success).toBe(false);
+  });
+});
+
+// ─── Route simulators (mirror the real handlers) ─────────────────────────────
+
+/** POST /api/brainlifts/:slug/onboarding/starter-pack */
+async function simulateLaunchPack(params: {
+  authenticated: boolean;
+  brainlift: Brainlift | null;
+}) {
+  if (!params.authenticated) return { status: 401, body: { message: 'Unauthorized' } };
+  if (params.brainlift === null) return { status: 404, body: { message: 'Not found' } };
+  const bl = params.brainlift;
+
+  // Guard (a): concurrency (active swarm / pending job / in-flight pack).
+  if (mockIsSwarmActive(bl.id) || (await mockHasResearchJobPending(bl.id)) || mockIsStarterPackInFlight(bl.id)) {
+    const existingRunId = await mockGetActiveRunIdForBrainlift(bl.id);
+    return { status: 409, body: { code: 'research_run_in_progress', existingRunId: existingRunId ?? undefined } };
+  }
+  // Guard (b): one pack per brainlift (rows from a prior run).
+  if (await mockHasStarterPackItems(bl.id)) {
+    return { status: 409, body: { code: 'starter_pack_already_run' } };
+  }
+  const { runId } = await mockLaunchStarterPack(bl, USER_ID);
+  return { status: 200, body: { runId } };
+}
+
+/** GET /api/brainlifts/:slug/onboarding/starter-pack */
+async function simulatePackStatus(params: { brainlift: Brainlift }) {
+  const bl = params.brainlift;
+  if (mockIsStarterPackInFlight(bl.id)) return { status: 200, body: { status: 'running' } };
+  if (await mockHasStarterPackItems(bl.id)) return { status: 200, body: { status: 'ready' } };
+  return { status: 200, body: { status: 'idle' } };
+}
+
+/** POST /api/brainlifts/:slug/onboarding/resources */
+async function simulateResources(params: {
+  authenticated: boolean;
+  brainlift: Brainlift | null;
+  body: unknown;
+}) {
+  if (!params.authenticated) return { status: 401, body: { message: 'Unauthorized' } };
+  if (params.brainlift === null) return { status: 404, body: { message: 'Not found' } };
+  const parsed = onboardingResourceInput.safeParse(params.body);
+  if (!parsed.success) return { status: 400, body: { message: 'Invalid URL' } };
+  const bl = params.brainlift;
+
+  const existing = await mockGetLearningStreamItemByUrl(parsed.data.url, bl.id);
+  if (existing) return { status: 200, body: { item: existing, duplicate: true } };
+
+  const hostname = new URL(parsed.data.url).hostname;
+  const item = await mockAddLearningStreamItem(bl.id, {
+    type: 'News',
+    author: hostname,
+    topic: parsed.data.url,
+    time: '—',
+    facts: '',
+    url: parsed.data.url,
+    source: 'manual',
+  });
+  return { status: 201, body: { item, duplicate: false } };
+}
+
+describe('FR4: POST /api/brainlifts/:slug/onboarding/starter-pack', () => {
+  beforeEach(() => {
+    mockIsSwarmActive.mockReturnValue(false);
+    mockHasResearchJobPending.mockResolvedValue(false);
+    mockIsStarterPackInFlight.mockReturnValue(false);
+    mockHasStarterPackItems.mockResolvedValue(false);
+    mockGetActiveRunIdForBrainlift.mockResolvedValue(null);
+  });
+
+  it('launches on a clean state and returns 200 { runId }', async () => {
+    mockLaunchStarterPack.mockResolvedValue({ runId: 555 });
+    const res = await simulateLaunchPack({ authenticated: true, brainlift: makeBrainlift() });
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({ runId: 555 });
+    expect(mockLaunchStarterPack).toHaveBeenCalledWith(expect.objectContaining({ id: 42 }), USER_ID);
+  });
+
+  it('409s research_run_in_progress when a swarm is active, surfacing existingRunId', async () => {
+    mockIsSwarmActive.mockReturnValue(true);
+    mockGetActiveRunIdForBrainlift.mockResolvedValue(99);
+    const res = await simulateLaunchPack({ authenticated: true, brainlift: makeBrainlift() });
+    expect(res.status).toBe(409);
+    expect(res.body).toMatchObject({ code: 'research_run_in_progress', existingRunId: 99 });
+    expect(mockLaunchStarterPack).not.toHaveBeenCalled();
+  });
+
+  it('409s research_run_in_progress when a starter pack is already in flight', async () => {
+    mockIsStarterPackInFlight.mockReturnValue(true);
+    const res = await simulateLaunchPack({ authenticated: true, brainlift: makeBrainlift() });
+    expect(res.status).toBe(409);
+    expect(res.body).toMatchObject({ code: 'research_run_in_progress' });
+  });
+
+  it('409s starter_pack_already_run when pack rows already exist', async () => {
+    mockHasStarterPackItems.mockResolvedValue(true);
+    const res = await simulateLaunchPack({ authenticated: true, brainlift: makeBrainlift() });
+    expect(res.status).toBe(409);
+    expect(res.body).toMatchObject({ code: 'starter_pack_already_run' });
+    expect(mockLaunchStarterPack).not.toHaveBeenCalled();
+  });
+
+  it('proceeds when a first run yielded zero rows (no pack rows present)', async () => {
+    mockHasStarterPackItems.mockResolvedValue(false);
+    mockLaunchStarterPack.mockResolvedValue({ runId: 556 });
+    const res = await simulateLaunchPack({ authenticated: true, brainlift: makeBrainlift() });
+    expect(res.status).toBe(200);
+  });
+
+  it('401s unauthenticated and 404s a foreign/missing slug, never launching', async () => {
+    expect((await simulateLaunchPack({ authenticated: false, brainlift: makeBrainlift() })).status).toBe(401);
+    expect((await simulateLaunchPack({ authenticated: true, brainlift: null })).status).toBe(404);
+    expect(mockLaunchStarterPack).not.toHaveBeenCalled();
+  });
+});
+
+describe('FR4: GET /api/brainlifts/:slug/onboarding/starter-pack (status)', () => {
+  beforeEach(() => {
+    mockIsStarterPackInFlight.mockReturnValue(false);
+    mockHasStarterPackItems.mockResolvedValue(false);
+  });
+
+  it('maps in-flight → running (covers orchestrate → swarm → filter)', async () => {
+    mockIsStarterPackInFlight.mockReturnValue(true);
+    expect((await simulatePackStatus({ brainlift: makeBrainlift() })).body).toEqual({ status: 'running' });
+  });
+
+  it('maps not-in-flight + rows exist → ready', async () => {
+    mockHasStarterPackItems.mockResolvedValue(true);
+    expect((await simulatePackStatus({ brainlift: makeBrainlift() })).body).toEqual({ status: 'ready' });
+  });
+
+  it('maps neither → idle', async () => {
+    expect((await simulatePackStatus({ brainlift: makeBrainlift() })).body).toEqual({ status: 'idle' });
+  });
+});
+
+describe('FR4: POST /api/brainlifts/:slug/onboarding/resources', () => {
+  beforeEach(() => {
+    mockGetLearningStreamItemByUrl.mockResolvedValue(null);
+  });
+
+  it('creates a pending manual item with the Assumption 5 defaults and returns 201 { duplicate: false }', async () => {
+    mockAddLearningStreamItem.mockResolvedValue({
+      id: 7, brainliftId: 42, status: 'pending', source: 'manual',
+      type: 'News', author: 'example.com', topic: 'https://example.com/a', time: '—', facts: '', url: 'https://example.com/a',
+    });
+
+    const res = await simulateResources({ authenticated: true, brainlift: makeBrainlift(), body: { url: 'https://example.com/a' } });
+
+    expect(res.status).toBe(201);
+    expect(res.body).toMatchObject({ duplicate: false });
+    expect(res.body.item).toMatchObject({ status: 'pending', source: 'manual' });
+    expect(mockAddLearningStreamItem).toHaveBeenCalledWith(42, expect.objectContaining({
+      source: 'manual',
+      topic: 'https://example.com/a',
+      author: 'example.com',
+      url: 'https://example.com/a',
+    }));
+  });
+
+  it('returns 200 { duplicate: true } for an existing URL and writes no new row', async () => {
+    const existing = { id: 3, url: 'https://example.com/a', status: 'pending', source: 'manual' };
+    mockGetLearningStreamItemByUrl.mockResolvedValue(existing);
+
+    const res = await simulateResources({ authenticated: true, brainlift: makeBrainlift(), body: { url: 'https://example.com/a' } });
+
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({ item: existing, duplicate: true });
+    expect(mockAddLearningStreamItem).not.toHaveBeenCalled();
+  });
+
+  it('400s a non-http(s) / invalid URL and never writes', async () => {
+    expect((await simulateResources({ authenticated: true, brainlift: makeBrainlift(), body: { url: 'javascript:alert(1)' } })).status).toBe(400);
+    expect((await simulateResources({ authenticated: true, brainlift: makeBrainlift(), body: { url: 'nope' } })).status).toBe(400);
+    expect(mockAddLearningStreamItem).not.toHaveBeenCalled();
+  });
+
+  it('401s unauthenticated and 404s a foreign slug', async () => {
+    expect((await simulateResources({ authenticated: false, brainlift: makeBrainlift(), body: { url: 'https://x.com' } })).status).toBe(401);
+    expect((await simulateResources({ authenticated: true, brainlift: null, body: { url: 'https://x.com' } })).status).toBe(404);
+  });
+});
+
+// ─── Real-route wiring (source-pattern) ───────────────────────────────────────
+
+describe('FR4: onboarding.ts wires the three starter-pack endpoints', () => {
+  it('mounts launch (modify), status (access), and resources (modify) with the right guards', () => {
+    const src = readFileSync(new URL('../onboarding.ts', import.meta.url), 'utf8');
+    expect(src).toMatch(/onboarding\/starter-pack/);
+    expect(src).toMatch(/onboarding\/resources/);
+    expect(src).toMatch(/launchStarterPack/);
+    expect(src).toMatch(/isStarterPackInFlight/);
+    expect(src).toMatch(/hasStarterPackItems/);
+    // Concurrency guard mirrors the launch handler.
+    expect(src).toMatch(/research_run_in_progress/);
+    expect(src).toMatch(/starter_pack_already_run/);
+    // Resources duplicate pre-check + manual source.
+    expect(src).toMatch(/getLearningStreamItemByUrl/);
+    expect(src).toMatch(/duplicate/);
+    // The daily cap must NOT be consulted on the starter-pack path.
+    expect(src).not.toMatch(/getSwarmUsageToday/);
   });
 });
