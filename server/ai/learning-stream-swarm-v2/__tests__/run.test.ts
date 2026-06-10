@@ -55,7 +55,7 @@ const contextFixture = {
     sources: [],
     notes: [],
   },
-  followedExperts: [],
+  topExperts: [],
   existingUrls: [],
   renderedDigest: 'digest',
   digestCharCount: 6,

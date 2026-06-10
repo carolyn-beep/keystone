@@ -30,7 +30,7 @@ const contextFixture = {
     sources: [],
     notes: [],
   },
-  followedExperts: [],
+  topExperts: [],
   existingUrls: [],
   renderedDigest: '## Second Brain\nSB-primary digest',
   digestCharCount: 32,

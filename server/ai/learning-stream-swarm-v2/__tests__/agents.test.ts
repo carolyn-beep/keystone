@@ -33,7 +33,7 @@ const ctx: SwarmContext = {
     sources: [],
     notes: [],
   },
-  followedExperts: [],
+  topExperts: [],
   existingUrls: ['https://seen.example/a'],
   renderedDigest: '## Second Brain\nDigest body\n\n### Followed Experts\n- Jane Expert',
   digestCharCount: 62,
