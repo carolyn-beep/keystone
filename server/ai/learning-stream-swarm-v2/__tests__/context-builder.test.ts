@@ -231,6 +231,90 @@ describe('buildSwarmContext authoring phase', () => {
   });
 });
 
+describe('scope rendering (01-scope-foundation FR3)', () => {
+  const scopedRecord = {
+    id: 1,
+    phase: 'research',
+    title: 'Carmack Brainlift',
+    inScope: ['AI compiler internals', 'kernel fusion'],
+    outOfScope: ['GPU pricing', 'crypto mining'],
+  };
+
+  it('renders in/out scope phrases in the research phase digest', async () => {
+    storageMock.getBrainliftById.mockResolvedValue(scopedRecord);
+
+    const context = await buildSwarmContext(1);
+
+    expect(context.brainlift.inScope).toEqual(['AI compiler internals', 'kernel fusion']);
+    expect(context.brainlift.outOfScope).toEqual(['GPU pricing', 'crypto mining']);
+    expect(context.renderedDigest).toContain('In scope');
+    expect(context.renderedDigest).toContain('Out of scope');
+    expect(context.renderedDigest).toContain('AI compiler internals');
+    expect(context.renderedDigest).toContain('kernel fusion');
+    expect(context.renderedDigest).toContain('GPU pricing');
+    expect(context.renderedDigest).toContain('crypto mining');
+  });
+
+  it('renders in/out scope phrases in the authoring phase digest', async () => {
+    storageMock.getBrainliftById.mockResolvedValue({ ...scopedRecord, phase: 'authoring' });
+
+    const context = await buildSwarmContext(1);
+
+    expect(context.phase).toBe('authoring');
+    expect(context.renderedDigest).toContain('AI compiler internals');
+    expect(context.renderedDigest).toContain('GPU pricing');
+  });
+
+  it('renders a scope block when only one of the two arrays is non-empty', async () => {
+    storageMock.getBrainliftById.mockResolvedValue({
+      ...scopedRecord,
+      outOfScope: [],
+    });
+
+    const context = await buildSwarmContext(1);
+
+    expect(context.renderedDigest).toContain('AI compiler internals');
+    expect(context.renderedDigest).not.toContain('Out of scope');
+  });
+
+  it('renders no scope block or headers when both arrays are empty', async () => {
+    storageMock.getBrainliftById.mockResolvedValue({
+      ...scopedRecord,
+      inScope: [],
+      outOfScope: [],
+    });
+
+    const context = await buildSwarmContext(1);
+
+    expect(context.brainlift.inScope).toEqual([]);
+    expect(context.brainlift.outOfScope).toEqual([]);
+    expect(context.renderedDigest).not.toContain('In scope');
+    expect(context.renderedDigest).not.toContain('Out of scope');
+  });
+
+  it('tolerates legacy records without scope fields (treated as empty)', async () => {
+    storageMock.getBrainliftById.mockResolvedValue({ id: 1, phase: 'research', title: 'Carmack Brainlift' });
+
+    const context = await buildSwarmContext(1);
+
+    expect(context.brainlift.inScope).toEqual([]);
+    expect(context.brainlift.outOfScope).toEqual([]);
+    expect(context.renderedDigest).not.toContain('In scope');
+  });
+
+  it('keeps the digest within the 32k budget with very long scope lists', async () => {
+    storageMock.getBrainliftById.mockResolvedValue({
+      ...scopedRecord,
+      inScope: Array.from({ length: 400 }, (_, index) => `in-scope phrase ${index} ${'x'.repeat(80)}`),
+      outOfScope: Array.from({ length: 400 }, (_, index) => `out-of-scope phrase ${index} ${'y'.repeat(80)}`),
+    });
+
+    const context = await buildSwarmContext(1);
+
+    expect(context.digestCharCount).toBeLessThanOrEqual(32000);
+  });
+});
+
 describe('digest renderers and budget helper', () => {
   it('FR3 caps synthetic long research digests and leaves an omitted-items marker', () => {
     const brainlift = {
