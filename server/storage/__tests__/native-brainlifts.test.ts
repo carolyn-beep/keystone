@@ -404,22 +404,23 @@ describe('deriveTwitterHandle (FR5)', () => {
   });
 });
 
-describe('getLearningStreamContext native fallback (FR5)', () => {
+describe('getLearningStreamContext experts (FR2: no follow filter, no builder fallback)', () => {
   let nativeBrainliftId: number;
-  let importedBrainliftId: number;
+  let rankedBrainliftId: number;
+  let unrankedBrainliftId: number;
 
   beforeAll(async () => {
-    // Create native brainlift with saved builder experts
+    // Native brainlift WITH saved builder experts but ZERO `experts` rows.
+    // After FR2 the builder fallback is gone, so this must yield an empty array.
     const result = await createNativeBrainlift({
       topic: 'Learning Stream Context Test',
-      purpose: 'Testing the native fallback for learning stream',
+      purpose: 'Testing FR2: no builder fallback',
       owner: 'LS Test Owner',
       userId: TEST_USER_ID,
     });
     nativeBrainliftId = result.brainlift.id;
     createdBrainliftIds.push(nativeBrainliftId);
 
-    // Add builder experts (some saved, some not)
     await db.insert(builderExperts).values([
       {
         brainliftId: nativeBrainliftId,
@@ -429,109 +430,80 @@ describe('getLearningStreamContext native fallback (FR5)', () => {
         origin: 'suggested' as const,
         status: 'saved' as const,
       },
-      {
-        brainliftId: nativeBrainliftId,
-        name: 'URL Expert',
-        who: 'Data scientist',
-        where: 'https://twitter.com/urlexpert',
-        origin: 'manual' as const,
-        status: 'saved' as const,
-      },
-      {
-        brainliftId: nativeBrainliftId,
-        name: 'Non-Twitter Expert',
-        who: 'Researcher',
-        where: 'https://linkedin.com/in/researcher',
-        origin: 'suggested' as const,
-        status: 'saved' as const,
-      },
-      {
-        brainliftId: nativeBrainliftId,
-        name: 'Pending Expert',
-        who: 'Should not appear',
-        where: '@pending',
-        origin: 'suggested' as const,
-        status: 'pending' as const,
-      },
-      {
-        brainliftId: nativeBrainliftId,
-        name: 'Dismissed Expert',
-        who: 'Should not appear',
-        where: '@dismissed',
-        origin: 'suggested' as const,
-        status: 'dismissed' as const,
-      },
     ]);
 
-    // Create an imported brainlift with facts and ranked experts for comparison
-    const defaultSummary = { totalFacts: 2, meanScore: '4', score5Count: 1, contradictionCount: 0 };
-    const [imported] = await db.insert(brainlifts).values({
-      slug: 'imported-ls-test-' + Date.now(),
-      title: 'Imported LS Test',
-      description: 'Imported brainlift for LS context test',
+    // Brainlift with 12 ranked `experts` rows for the top-10 cap assertion.
+    const defaultSummary = { totalFacts: 0, meanScore: '0', score5Count: 0, contradictionCount: 0 };
+    const [ranked] = await db.insert(brainlifts).values({
+      slug: 'ranked-ls-test-' + Date.now(),
+      title: 'Ranked LS Test',
+      description: 'Twelve ranked experts',
       sourceType: 'html',
       summary: defaultSummary,
     }).returning();
-    importedBrainliftId = imported.id;
-    createdBrainliftIds.push(importedBrainliftId);
+    rankedBrainliftId = ranked.id;
+    createdBrainliftIds.push(rankedBrainliftId);
 
-    // Add facts to imported brainlift
-    await db.insert(facts).values([
-      { brainliftId: importedBrainliftId, originalId: '1.1', category: 'Test', fact: 'A high score fact', score: 5, isGradeable: true },
-      { brainliftId: importedBrainliftId, originalId: '1.2', category: 'Test', fact: 'A low score fact', score: 1, isGradeable: true },
-    ]);
+    await db.insert(experts).values(
+      Array.from({ length: 12 }, (_, index) => ({
+        brainliftId: rankedBrainliftId,
+        name: `Ranked Expert ${index + 1}`,
+        rankScore: index + 1, // 1..12
+        source: 'listed',
+      })),
+    );
 
-    // Add ranked experts to imported brainlift
+    // Brainlift mixing ranked + unranked (NULL rankScore) experts.
+    const [unranked] = await db.insert(brainlifts).values({
+      slug: 'unranked-ls-test-' + Date.now(),
+      title: 'Unranked LS Test',
+      description: 'Ranked and unranked experts',
+      sourceType: 'html',
+      summary: defaultSummary,
+    }).returning();
+    unrankedBrainliftId = unranked.id;
+    createdBrainliftIds.push(unrankedBrainliftId);
+
     await db.insert(experts).values([
-      { brainliftId: importedBrainliftId, name: 'Ranked Expert', rankScore: 8, source: 'listed', isFollowing: true },
+      { brainliftId: unrankedBrainliftId, name: 'Top Ranked', rankScore: 10, source: 'listed' },
+      { brainliftId: unrankedBrainliftId, name: 'Unranked A', rankScore: null, source: 'listed' },
+      { brainliftId: unrankedBrainliftId, name: 'Unranked B', rankScore: null, source: 'listed' },
     ]);
   });
 
-  it('falls back to saved builder experts for native brainlift with no facts', async () => {
+  it('returns an empty experts array for a native brainlift with zero experts rows (no builder fallback)', async () => {
     const context = await getLearningStreamContext(nativeBrainliftId);
 
     expect(context).not.toBeNull();
     expect(context!.title).toBe('Learning Stream Context Test');
-    expect(context!.description).toBe('Testing the native fallback for learning stream');
-    expect(context!.facts).toHaveLength(0); // native brainlift has no facts
+    expect(context!.facts).toHaveLength(0);
+    // The builder-experts fallback is removed: the saved builder expert must NOT appear.
+    expect(context!.experts).toHaveLength(0);
+    expect(context!.experts.map(e => e.name)).not.toContain('Saved Expert');
+  });
 
-    // Should have 3 saved builder experts (not pending/dismissed)
+  it('returns the top 10 experts by rank (DESC) regardless of any prior follow state', async () => {
+    const context = await getLearningStreamContext(rankedBrainliftId);
+
+    expect(context!.experts).toHaveLength(10);
+    // Highest ranks first; ranks 12..3 survive, ranks 2 and 1 are dropped by the cap.
+    expect(context!.experts[0].name).toBe('Ranked Expert 12');
+    expect(context!.experts[0].rankScore).toBe(12);
+    expect(context!.experts[9].name).toBe('Ranked Expert 3');
+    expect(context!.experts.map(e => e.rankScore)).toEqual([12, 11, 10, 9, 8, 7, 6, 5, 4, 3]);
+    const names = context!.experts.map(e => e.name);
+    expect(names).not.toContain('Ranked Expert 2');
+    expect(names).not.toContain('Ranked Expert 1');
+  });
+
+  it('includes unranked experts ordered last (NULLS LAST), still capped at 10', async () => {
+    const context = await getLearningStreamContext(unrankedBrainliftId);
+
     expect(context!.experts).toHaveLength(3);
-
-    // Check Twitter handle derivation
-    const savedExpert = context!.experts.find(e => e.name === 'Saved Expert');
-    expect(savedExpert).toBeDefined();
-    expect(savedExpert!.twitterHandle).toBe('savedexpert');
-    expect(savedExpert!.rankScore).toBeNull();
-
-    const urlExpert = context!.experts.find(e => e.name === 'URL Expert');
-    expect(urlExpert).toBeDefined();
-    expect(urlExpert!.twitterHandle).toBe('urlexpert');
-
-    const nonTwitterExpert = context!.experts.find(e => e.name === 'Non-Twitter Expert');
-    expect(nonTwitterExpert).toBeDefined();
-    expect(nonTwitterExpert!.twitterHandle).toBeNull();
-  });
-
-  it('does not include pending or dismissed experts in fallback', async () => {
-    const context = await getLearningStreamContext(nativeBrainliftId);
-    const expertNames = context!.experts.map(e => e.name);
-
-    expect(expertNames).not.toContain('Pending Expert');
-    expect(expertNames).not.toContain('Dismissed Expert');
-  });
-
-  it('returns normal facts and ranked experts for imported brainlifts', async () => {
-    const context = await getLearningStreamContext(importedBrainliftId);
-
-    expect(context).not.toBeNull();
-    // Should have the high-score fact only (score >= 3)
-    expect(context!.facts.length).toBeGreaterThanOrEqual(1);
-    expect(context!.facts.some(f => f.fact === 'A high score fact')).toBe(true);
-
-    // Should have the ranked expert
-    expect(context!.experts).toHaveLength(1);
-    expect(context!.experts[0].name).toBe('Ranked Expert');
-    expect(context!.experts[0].rankScore).toBe(8);
+    expect(context!.experts[0].name).toBe('Top Ranked');
+    expect(context!.experts[0].rankScore).toBe(10);
+    // Both unranked experts appear after the ranked one.
+    expect(context!.experts.slice(1).map(e => e.rankScore)).toEqual([null, null]);
+    expect(context!.experts.slice(1).map(e => e.name).sort()).toEqual(['Unranked A', 'Unranked B']);
   });
 });
