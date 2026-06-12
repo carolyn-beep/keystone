@@ -11,7 +11,7 @@ function makeProvider(): FireworksProvider {
 
 function makeRequest(overrides: Partial<ProviderRequest> = {}): ProviderRequest {
   return {
-    model: 'accounts/fireworks/models/gpt-oss-20b',
+    model: 'accounts/fireworks/models/gpt-oss-120b',
     messages: [{ role: 'user', content: 'Hello' }],
     ...overrides,
   };
@@ -40,7 +40,7 @@ function mockFetchSuccess(content = '{"ok":true}') {
         completion_tokens: 25,
         total_tokens: 40,
       },
-      model: 'accounts/fireworks/models/gpt-oss-20b',
+      model: 'accounts/fireworks/models/gpt-oss-120b',
       reasoning: 'ignored',
     }),
   });
@@ -129,7 +129,7 @@ describe('FireworksProvider', () => {
 
     const result = await provider.call(makeRequest());
     expect(result.content).toBe('{"value":42}');
-    expect(result.model).toBe('accounts/fireworks/models/gpt-oss-20b');
+    expect(result.model).toBe('accounts/fireworks/models/gpt-oss-120b');
   });
 
   it('classifies 429 with provider + retryAfterMs', async () => {

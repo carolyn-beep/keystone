@@ -1,7 +1,7 @@
 import type { StoredChatMessage } from '@shared/schema';
 import { callModel } from '../client';
 
-const TITLE_MODEL = 'google/gemini-2.0-flash-001';
+const TITLE_MODEL = 'google/gemini-2.5-flash-lite';
 const MAX_CONTEXT_CHARS = 2_000;
 const FALLBACK_TITLE = 'New chat';
 

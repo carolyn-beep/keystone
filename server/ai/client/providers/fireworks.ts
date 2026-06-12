@@ -41,12 +41,24 @@ export class FireworksProvider extends OpenAICompatibleProvider {
     body: Record<string, unknown>,
     request: ProviderRequest,
   ): Record<string, unknown> {
-    if (request.responseFormat?.type !== 'json_schema') {
-      return body;
+    let next = body;
+
+    // gpt-oss is a reasoning model: by default it spends the completion budget on
+    // chain-of-thought, which starves `content` on tight-maxTokens callers (e.g.
+    // the 80/150-token plain-text summarizers) and yields an empty response. As a
+    // tier fallback we want answers, not reasoning, so cap reasoning effort low.
+    // Verified 2026-06-12: with effort=low gpt-oss-120b returns clean content in
+    // ~40 tokens; full-reasoning models on other tiers are left untouched.
+    if (request.model.includes('gpt-oss')) {
+      next = { ...next, reasoning_effort: 'low' };
     }
 
-    const messages = Array.isArray(body.messages)
-      ? [...body.messages]
+    if (request.responseFormat?.type !== 'json_schema') {
+      return next;
+    }
+
+    const messages = Array.isArray(next.messages)
+      ? [...next.messages]
       : [];
 
     messages.push({
@@ -55,7 +67,7 @@ export class FireworksProvider extends OpenAICompatibleProvider {
     });
 
     return {
-      ...body,
+      ...next,
       messages,
     };
   }

@@ -75,7 +75,7 @@ describe('fetchEvidenceForFact - cachedTranscript', () => {
     // No URL in source, should go to AI search
     mockCallModelWithFallback.mockResolvedValue({
       content: 'AI found evidence',
-      model: 'google/gemini-2.0-flash-001',
+      model: 'qwen/qwen-plus',
       durationMs: 200,
       attempts: 1,
     });
@@ -94,7 +94,7 @@ describe('fetchEvidenceForFact - cachedTranscript', () => {
   it('falls back to existing behavior when cachedTranscript is empty string', async () => {
     mockCallModelWithFallback.mockResolvedValue({
       content: 'AI found evidence',
-      model: 'google/gemini-2.0-flash-001',
+      model: 'qwen/qwen-plus',
       durationMs: 200,
       attempts: 1,
     });

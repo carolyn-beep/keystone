@@ -94,7 +94,7 @@ describe('DOK3 Auto-Linker', () => {
 
       expect(mockCallModelWithFallback).toHaveBeenCalledWith(
         expect.objectContaining({
-          models: ['anthropic/claude-haiku-4.5', 'google/gemini-2.0-flash-001'],
+          models: ['qwen/qwen-plus', 'google/gemini-2.5-flash-lite'],
           caller: 'dok3AutoLinker',
           temperature: 0,
           responseFormat: expect.objectContaining({

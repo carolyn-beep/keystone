@@ -32,7 +32,7 @@ describe('factSummarizer', () => {
 
     mockCallModelWithFallback.mockResolvedValue({
       content: 'Summarized fact text',
-      model: 'google/gemini-2.0-flash-001',
+      model: 'qwen/qwen-plus',
       durationMs: 100,
       attempts: 1,
     });
@@ -41,7 +41,7 @@ describe('factSummarizer', () => {
 
     expect(mockCallModelWithFallback).toHaveBeenCalledWith(
       expect.objectContaining({
-        models: ['google/gemini-2.0-flash-001', 'anthropic/claude-haiku-4.5'],
+        models: ['qwen/qwen-plus', 'google/gemini-2.5-flash-lite'],
         temperature: 0.3,
         maxTokens: 150,
         timeout: 20_000,
@@ -82,7 +82,7 @@ describe('factSummarizer', () => {
 
     mockCallModelWithFallback.mockResolvedValue({
       content: 'Summary',
-      model: 'google/gemini-2.0-flash-001',
+      model: 'qwen/qwen-plus',
       durationMs: 50,
       attempts: 1,
     });

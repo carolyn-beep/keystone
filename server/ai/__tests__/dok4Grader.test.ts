@@ -18,7 +18,7 @@ vi.mock('../client', () => ({
 }));
 
 // Helper to create a successful CallModelResult
-function makeCallResult(content: string, model = 'google/gemini-2.0-flash-001') {
+function makeCallResult(content: string, model = 'qwen/qwen-plus') {
   return {
     content,
     model,
@@ -105,8 +105,8 @@ const FIXTURE_EVALUATION_CONTEXT: DOK4EvaluationContext = {
 };
 
 // Model ID constants for assertions
-const MID_TIER_MODELS = ['google/gemini-2.0-flash-001', 'anthropic/claude-sonnet-4.5'];
-const DIVERGENCE_TIER_MODELS = ['google/gemini-2.0-flash-001', 'anthropic/claude-haiku-4.5'];
+const MID_TIER_MODELS = ['qwen/qwen-plus', 'google/gemini-2.5-flash-lite'];
+const DIVERGENCE_TIER_MODELS = ['qwen/qwen-plus', 'google/gemini-2.5-flash-lite'];
 const QUALITY_TIER_MODELS = ['anthropic/claude-opus-4.6', 'anthropic/claude-sonnet-4.5'];
 
 
@@ -522,7 +522,7 @@ describe('Quality Evaluation', () => {
     const opts = mockCallModelWithFallback.mock.calls[0][0];
     expect(opts.models).toEqual(QUALITY_TIER_MODELS);
     expect(opts.temperature).toBe(0.1);
-    expect(opts.timeout).toBe(60_000);
+    expect(opts.timeout).toBe(70_000);
     expect(opts.retries).toBe(2);
     expect(opts.caller).toBe('dok4Grader.qualityEvaluation.v2');
     expect(opts.responseFormat.type).toBe('json_schema');
@@ -619,7 +619,7 @@ describe('Antimemetic Assessment', () => {
     const opts = mockCallModelWithFallback.mock.calls[0][0];
     expect(opts.models).toEqual(QUALITY_TIER_MODELS);
     expect(opts.temperature).toBe(0.3);
-    expect(opts.timeout).toBe(60_000);
+    expect(opts.timeout).toBe(70_000);
     expect(opts.retries).toBe(2);
     expect(opts.caller).toBe('dok4Grader.antimemetic');
     expect(opts.responseFormat.type).toBe('json_schema');
