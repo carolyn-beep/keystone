@@ -36,7 +36,7 @@ async function callRankerModel(
 
   const t0 = performance.now();
   const result = await callModelWithFallback({
-    models: ['qwen/qwen-plus', 'google/gemini-2.0-flash-001'],
+    models: ['qwen/qwen-plus', 'google/gemini-2.5-flash-lite'],
     system: systemPrompt,
     messages: [{ role: 'user', content: userPrompt }],
     temperature: 0,

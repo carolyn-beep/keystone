@@ -263,7 +263,7 @@ async function summarizePurposeForDisplay(fullPurpose: string, title: string): P
 
   try {
     const result = await callModelWithFallback({
-      models: ['qwen/qwen-plus', 'google/gemini-2.0-flash-001'],
+      models: ['qwen/qwen-plus', 'google/gemini-2.5-flash-lite'],
       system: `Compress a purpose statement into ONE punchy sentence (50-120 chars).
 
 FORMAT: "[Topic]: [key question or goal]"

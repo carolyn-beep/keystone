@@ -29,13 +29,14 @@ describe('MODEL_REGISTRY', () => {
     'anthropic/claude-sonnet-4.5',
     'anthropic/claude-sonnet-4',
     'anthropic/claude-haiku-4.5',
-    'google/gemini-2.0-flash-001',
+    'google/gemini-2.5-flash-lite',
     'qwen/qwen-plus',
     'qwen/qwen3-32b',
     'qwen/qwen3-30b-a3b-instruct-2507',
     'meta-llama/llama-3.1-8b-instruct',
   ];
-  const FIREWORKS_MODELS = Object.values(FIREWORKS_TIER_MODELS);
+  // fast and budget share gpt-oss-120b, so the distinct Fireworks ids are 3.
+  const FIREWORKS_MODELS = [...new Set(Object.values(FIREWORKS_TIER_MODELS))];
   const EXPECTED_MODELS = [...OPENROUTER_MODELS, ...FIREWORKS_MODELS];
 
   it('contains all expected OpenRouter and Fireworks models', () => {
@@ -43,7 +44,7 @@ describe('MODEL_REGISTRY', () => {
     for (const modelId of EXPECTED_MODELS) {
       expect(registeredIds).toContain(modelId);
     }
-    expect(registeredIds).toHaveLength(16);
+    expect(registeredIds).toHaveLength(EXPECTED_MODELS.length);
   });
 
   it.each(OPENROUTER_MODELS)('OpenRouter model "%s" has required metadata fields', (modelId) => {
@@ -76,14 +77,15 @@ describe('MODEL_REGISTRY', () => {
     expect(MODEL_REGISTRY['anthropic/claude-sonnet-4.5'].tier).toBe('standard');
     expect(MODEL_REGISTRY['anthropic/claude-sonnet-4'].tier).toBe('standard');
     expect(MODEL_REGISTRY['anthropic/claude-haiku-4.5'].tier).toBe('fast');
-    expect(MODEL_REGISTRY['google/gemini-2.0-flash-001'].tier).toBe('fast');
+    expect(MODEL_REGISTRY['google/gemini-2.5-flash-lite'].tier).toBe('fast');
     expect(MODEL_REGISTRY['qwen/qwen-plus'].tier).toBe('fast');
     expect(MODEL_REGISTRY['qwen/qwen3-32b'].tier).toBe('budget');
     expect(MODEL_REGISTRY['meta-llama/llama-3.1-8b-instruct'].tier).toBe('budget');
     expect(MODEL_REGISTRY[FIREWORKS_TIER_MODELS.premium].tier).toBe('premium');
     expect(MODEL_REGISTRY[FIREWORKS_TIER_MODELS.standard].tier).toBe('standard');
     expect(MODEL_REGISTRY[FIREWORKS_TIER_MODELS.fast].tier).toBe('fast');
-    expect(MODEL_REGISTRY[FIREWORKS_TIER_MODELS.budget].tier).toBe('budget');
+    // budget shares the fast model (gpt-oss-120b), whose registry entry is tier 'fast'.
+    expect(MODEL_REGISTRY[FIREWORKS_TIER_MODELS.budget].tier).toBe('fast');
   });
 });
 
@@ -111,8 +113,8 @@ describe('getModel', () => {
 
 describe('getModelOrThrow', () => {
   it('returns ModelDef for a known model', () => {
-    const model = getModelOrThrow('google/gemini-2.0-flash-001');
-    expect(model.id).toBe('google/gemini-2.0-flash-001');
+    const model = getModelOrThrow('google/gemini-2.5-flash-lite');
+    expect(model.id).toBe('google/gemini-2.5-flash-lite');
     expect(model.tier).toBe('fast');
   });
 
@@ -163,7 +165,7 @@ describe('getFireworksFallback', () => {
     expect(fallback).toBe(FIREWORKS_TIER_MODELS.standard);
   });
 
-  it.each(['anthropic/claude-haiku-4.5', 'google/gemini-2.0-flash-001'])(
+  it.each(['anthropic/claude-haiku-4.5', 'google/gemini-2.5-flash-lite'])(
     'maps fast model "%s" to fast Fireworks model',
     (modelId) => {
       const fallback = getFireworksFallback(modelId);

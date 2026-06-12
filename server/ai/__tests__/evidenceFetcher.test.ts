@@ -104,7 +104,7 @@ describe('generateFallbackEvidenceQuery', () => {
     );
 
     expect(mockCallModelWithFallback).toHaveBeenCalledWith(expect.objectContaining({
-      models: ['qwen/qwen-plus', 'google/gemini-2.0-flash-001'],
+      models: ['qwen/qwen-plus', 'google/gemini-2.5-flash-lite'],
       temperature: 0,
       maxTokens: 120,
       timeout: 12_000,
