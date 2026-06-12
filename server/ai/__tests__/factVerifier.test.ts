@@ -43,7 +43,7 @@ describe('Fact Verifier — Unified Client Migration', () => {
           rationale: 'Well-supported by research',
           isNonGradeable: false,
         }),
-        model: 'google/gemini-2.0-flash-001',
+        model: 'google/gemini-2.5-flash-lite',
         durationMs: 400,
         attempts: 1,
       });
@@ -68,7 +68,7 @@ describe('Fact Verifier — Unified Client Migration', () => {
           rationale: 'Mostly verified',
           isNonGradeable: false,
         }),
-        model: 'google/gemini-2.0-flash-001',
+        model: 'google/gemini-2.5-flash-lite',
         durationMs: 300,
         attempts: 1,
       });
@@ -82,7 +82,7 @@ describe('Fact Verifier — Unified Client Migration', () => {
 
       expect(mockCallModelWithFallback).toHaveBeenCalledTimes(1);
       const callArgs = mockCallModelWithFallback.mock.calls[0][0];
-      expect(callArgs.models).toEqual(['qwen/qwen-plus', 'google/gemini-2.0-flash-001']);
+      expect(callArgs.models).toEqual(['qwen/qwen-plus', 'google/gemini-2.5-flash-lite']);
       expect(callArgs.temperature).toBe(0.1);
       expect(callArgs.maxTokens).toBe(800);
       expect(callArgs.timeout).toBe(45_000);
@@ -129,7 +129,7 @@ describe('Fact Verifier — Unified Client Migration', () => {
           rationale: 'Verified from supplied evidence',
           isNonGradeable: false,
         }),
-        model: 'google/gemini-2.0-flash-001',
+        model: 'google/gemini-2.5-flash-lite',
         durationMs: 300,
         attempts: 1,
       });
@@ -192,7 +192,7 @@ describe('Fact Verifier — Unified Client Migration', () => {
           rationale: 'No supplied evidence was available',
           isNonGradeable: true,
         }),
-        model: 'google/gemini-2.0-flash-001',
+        model: 'google/gemini-2.5-flash-lite',
         durationMs: 300,
         attempts: 1,
       });
@@ -266,7 +266,7 @@ describe('Fact Verifier — Unified Client Migration', () => {
           rationale: 'Cannot evaluate this obscure claim',
           isNonGradeable: true,
         }),
-        model: 'google/gemini-2.0-flash-001',
+        model: 'google/gemini-2.5-flash-lite',
         durationMs: 300,
         attempts: 1,
       });
@@ -290,7 +290,7 @@ describe('Fact Verifier — Unified Client Migration', () => {
 
       mockCallModelWithFallback.mockResolvedValue({
         content: contentWithMarkdown,
-        model: 'google/gemini-2.0-flash-001',
+        model: 'google/gemini-2.5-flash-lite',
         durationMs: 300,
         attempts: 1,
       });
@@ -312,7 +312,7 @@ describe('Fact Verifier — Unified Client Migration', () => {
 
       mockCallModelWithFallback.mockResolvedValue({
         content: contentWithControlChars,
-        model: 'google/gemini-2.0-flash-001',
+        model: 'google/gemini-2.5-flash-lite',
         durationMs: 300,
         attempts: 1,
       });
@@ -333,7 +333,7 @@ describe('Fact Verifier — Unified Client Migration', () => {
     it('returns high confidence for single successful model', () => {
       const modelResults: (ModelGradeResult & { isNonGradeable?: boolean })[] = [
         {
-          model: 'google/gemini-2.0-flash-001',
+          model: 'google/gemini-2.5-flash-lite',
           score: 4,
           rationale: 'Well supported',
           status: 'completed',
@@ -350,7 +350,7 @@ describe('Fact Verifier — Unified Client Migration', () => {
     it('returns low confidence when no models completed', () => {
       const modelResults: (ModelGradeResult & { isNonGradeable?: boolean })[] = [
         {
-          model: 'google/gemini-2.0-flash-001',
+          model: 'google/gemini-2.5-flash-lite',
           score: null,
           rationale: null,
           status: 'failed',
@@ -367,7 +367,7 @@ describe('Fact Verifier — Unified Client Migration', () => {
     it('handles isNonGradeable correctly', () => {
       const modelResults: (ModelGradeResult & { isNonGradeable?: boolean })[] = [
         {
-          model: 'google/gemini-2.0-flash-001',
+          model: 'google/gemini-2.5-flash-lite',
           score: 0,
           rationale: 'Cannot evaluate',
           status: 'completed',

@@ -300,7 +300,7 @@ describe('callModel — retry', () => {
         json: async () => ({
           choices: [{ message: { content: 'failover ok' } }],
           usage: { prompt_tokens: 10, completion_tokens: 20, total_tokens: 30 },
-          model: 'accounts/fireworks/models/llama-v3p3-70b-instruct',
+          model: 'accounts/fireworks/models/gpt-oss-120b',
         }),
       } as Response),
     });
@@ -390,7 +390,7 @@ describe('callModel — retry', () => {
         json: async () => ({
           choices: [{ message: { content: 'fallback ok' } }],
           usage: { prompt_tokens: 10, completion_tokens: 20, total_tokens: 30 },
-          model: 'accounts/fireworks/models/llama-v3p3-70b-instruct',
+          model: 'accounts/fireworks/models/gpt-oss-120b',
         }),
       } as Response),
     });
@@ -458,7 +458,7 @@ describe('callModel — registry errors', () => {
         json: async () => ({
           choices: [{ message: { content: 'fireworks rescue' } }],
           usage: { prompt_tokens: 10, completion_tokens: 20, total_tokens: 30 },
-          model: 'accounts/fireworks/models/llama-v3p3-70b-instruct',
+          model: 'accounts/fireworks/models/gpt-oss-120b',
         }),
       } as Response),
     });
@@ -476,14 +476,14 @@ describe('callModel — registry errors', () => {
       json: async () => ({
         choices: [{ message: { content: 'from-fireworks' } }],
         usage: { prompt_tokens: 1, completion_tokens: 1, total_tokens: 2 },
-        model: 'accounts/fireworks/models/gpt-oss-20b',
+        model: 'accounts/fireworks/models/gpt-oss-120b',
       }),
     });
     globalThis.fetch = fetchMock;
 
     const result = await callModel({
       ...DEFAULT_OPTIONS,
-      model: 'accounts/fireworks/models/gpt-oss-20b',
+      model: 'accounts/fireworks/models/gpt-oss-120b',
     });
 
     expect(result.content).toBe('from-fireworks');
@@ -764,7 +764,7 @@ describe('callModel — provider failover', () => {
         json: async () => ({
           choices: [{ message: { content: 'fireworks ok' } }],
           usage: { prompt_tokens: 10, completion_tokens: 20, total_tokens: 30 },
-          model: 'accounts/fireworks/models/llama-v3p3-70b-instruct',
+          model: 'accounts/fireworks/models/gpt-oss-120b',
         }),
       } as Response),
     });
@@ -772,7 +772,7 @@ describe('callModel — provider failover', () => {
     const result = await callModel({ ...DEFAULT_OPTIONS, retries: 1, timeout: 30_000 });
 
     expect(result.content).toBe('fireworks ok');
-    expect(result.model).toBe('accounts/fireworks/models/llama-v3p3-70b-instruct');
+    expect(result.model).toBe('accounts/fireworks/models/gpt-oss-120b');
     expect(result.attempts).toBe(3);
     expect(records).toHaveLength(1);
     expect(records[0].failedProvider).toBe('openrouter');
@@ -799,7 +799,7 @@ describe('callModel — provider failover', () => {
         json: async () => ({
           choices: [{ message: { content: 'fireworks ok' } }],
           usage: { prompt_tokens: 10, completion_tokens: 20, total_tokens: 30 },
-          model: 'accounts/fireworks/models/llama-v3p3-70b-instruct',
+          model: 'accounts/fireworks/models/gpt-oss-120b',
         }),
       } as Response),
     });
@@ -833,7 +833,7 @@ describe('callModel — provider failover', () => {
         json: async () => ({
           choices: [{ message: { content: 'fireworks ok' } }],
           usage: { prompt_tokens: 10, completion_tokens: 20, total_tokens: 30 },
-          model: 'accounts/fireworks/models/llama-v3p3-70b-instruct',
+          model: 'accounts/fireworks/models/gpt-oss-120b',
         }),
       } as Response),
     });
@@ -869,7 +869,7 @@ describe('callModel — provider failover', () => {
         json: async () => ({
           choices: [{ message: { content: 'fireworks still available' } }],
           usage: { prompt_tokens: 10, completion_tokens: 20, total_tokens: 30 },
-          model: 'accounts/fireworks/models/llama-v3p3-70b-instruct',
+          model: 'accounts/fireworks/models/gpt-oss-120b',
         }),
       } as Response),
     });

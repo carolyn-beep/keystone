@@ -130,7 +130,7 @@ describe('chat title generation', () => {
 
     expect(title).toBe('Robotics Club Brainlift');
     expect(mockCallModel).toHaveBeenCalledWith(expect.objectContaining({
-      model: 'google/gemini-2.0-flash-001',
+      model: 'google/gemini-2.5-flash-lite',
       caller: 'chat.title',
       maxTokens: 24,
       timeout: 4000,

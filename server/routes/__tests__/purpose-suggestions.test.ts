@@ -75,11 +75,11 @@ describe('POST /api/brainlifts/native/purpose-suggestions handler logic', () => 
     ];
     mockCallModel.mockResolvedValue({
       content: JSON.stringify(suggestions),
-      model: 'google/gemini-2.0-flash-001',
+      model: 'qwen/qwen-plus',
     });
 
     const result = await mockCallModel({
-      model: 'google/gemini-2.0-flash-001',
+      model: 'qwen/qwen-plus',
       messages: [{ role: 'user', content: 'topic: Machine Learning' }],
       timeout: 10_000,
       caller: 'builder.purposeSuggestions',
@@ -100,7 +100,7 @@ describe('POST /api/brainlifts/native/purpose-suggestions handler logic', () => 
     let suggestions: string[] = [];
     try {
       await mockCallModel({
-        model: 'google/gemini-2.0-flash-001',
+        model: 'qwen/qwen-plus',
         messages: [{ role: 'user', content: 'topic: Machine Learning' }],
         timeout: 10_000,
         caller: 'builder.purposeSuggestions',
@@ -116,11 +116,11 @@ describe('POST /api/brainlifts/native/purpose-suggestions handler logic', () => 
   it('uses fast-tier model for suggestions', async () => {
     mockCallModel.mockResolvedValue({
       content: JSON.stringify(['suggestion 1', 'suggestion 2', 'suggestion 3']),
-      model: 'google/gemini-2.0-flash-001',
+      model: 'qwen/qwen-plus',
     });
 
     await mockCallModel({
-      model: 'google/gemini-2.0-flash-001',
+      model: 'qwen/qwen-plus',
       messages: [{ role: 'user', content: 'topic: test' }],
       timeout: 10_000,
       caller: 'builder.purposeSuggestions',
@@ -128,7 +128,7 @@ describe('POST /api/brainlifts/native/purpose-suggestions handler logic', () => 
 
     expect(mockCallModel).toHaveBeenCalledWith(
       expect.objectContaining({
-        model: 'google/gemini-2.0-flash-001',
+        model: 'qwen/qwen-plus',
         timeout: 10_000,
       })
     );
@@ -137,11 +137,11 @@ describe('POST /api/brainlifts/native/purpose-suggestions handler logic', () => 
   it('handles AI returning malformed JSON gracefully', async () => {
     mockCallModel.mockResolvedValue({
       content: 'not valid json',
-      model: 'google/gemini-2.0-flash-001',
+      model: 'qwen/qwen-plus',
     });
 
     const result = await mockCallModel({
-      model: 'google/gemini-2.0-flash-001',
+      model: 'qwen/qwen-plus',
       messages: [{ role: 'user', content: 'topic: test' }],
       timeout: 10_000,
       caller: 'builder.purposeSuggestions',

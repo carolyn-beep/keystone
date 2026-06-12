@@ -155,7 +155,7 @@ Rules:
 
   try {
     const result = await callModelWithFallback({
-      models: ['qwen/qwen-plus', 'google/gemini-2.0-flash-001'],
+      models: ['qwen/qwen-plus', 'google/gemini-2.5-flash-lite'],
       messages: [{ role: 'user', content: prompt }],
       temperature: 0,
       maxTokens: 120,

@@ -166,14 +166,14 @@ describe('callModelWithFallback — fallback', () => {
     globalThis.fetch = mockFetchForModel({
       'anthropic/claude-opus-4.6': { ok: false, status: 500 },
       'anthropic/claude-sonnet-4': { ok: false, status: 502 },
-      'google/gemini-2.0-flash-001': { ok: true, status: 200, content: 'gemini saves' },
+      'google/gemini-2.5-flash-lite': { ok: true, status: 200, content: 'gemini saves' },
     });
 
     const result = await callModelWithFallback({
       models: [
         'anthropic/claude-opus-4.6',
         'anthropic/claude-sonnet-4',
-        'google/gemini-2.0-flash-001',
+        'google/gemini-2.5-flash-lite',
       ],
       messages: [{ role: 'user', content: 'test' }],
       caller: 'test',
@@ -182,7 +182,7 @@ describe('callModelWithFallback — fallback', () => {
     });
 
     expect(result.content).toBe('gemini saves');
-    expect(result.model).toBe('google/gemini-2.0-flash-001');
+    expect(result.model).toBe('google/gemini-2.5-flash-lite');
   });
 
   it('tries all primaries before using Fireworks fallbacks', async () => {
@@ -191,7 +191,7 @@ describe('callModelWithFallback — fallback', () => {
     globalThis.fetch = mockFetchForModel({
       'anthropic/claude-opus-4.6': { ok: false, status: 500 },
       'anthropic/claude-sonnet-4.5': { ok: false, status: 500 },
-      'accounts/fireworks/models/minimax-m2p1': { ok: true, status: 200, content: 'minimax rescue' },
+      'accounts/fireworks/models/deepseek-v4-pro': { ok: true, status: 200, content: 'minimax rescue' },
     });
 
     const result = await callModelWithFallback({
@@ -203,7 +203,7 @@ describe('callModelWithFallback — fallback', () => {
     });
 
     expect(result.content).toBe('minimax rescue');
-    expect(result.model).toBe('accounts/fireworks/models/minimax-m2p1');
+    expect(result.model).toBe('accounts/fireworks/models/deepseek-v4-pro');
     expect(globalThis.fetch).toHaveBeenCalledTimes(3);
 
     const calledModels = vi.mocked(globalThis.fetch).mock.calls.map(([, options]) => {
@@ -213,7 +213,7 @@ describe('callModelWithFallback — fallback', () => {
     expect(calledModels).toEqual([
       'anthropic/claude-opus-4.6',
       'anthropic/claude-sonnet-4.5',
-      'accounts/fireworks/models/minimax-m2p1',
+      'accounts/fireworks/models/deepseek-v4-pro',
     ]);
   });
 
@@ -221,13 +221,13 @@ describe('callModelWithFallback — fallback', () => {
     const { callModelWithFallback } = await import('../index');
 
     globalThis.fetch = mockFetchForModel({
-      'google/gemini-2.0-flash-001': { ok: false, status: 500 },
+      'google/gemini-2.5-flash-lite': { ok: false, status: 500 },
       'anthropic/claude-haiku-4.5': { ok: false, status: 500 },
-      'accounts/fireworks/models/llama-v3p3-70b-instruct': { ok: true, status: 200, content: 'llama rescue' },
+      'accounts/fireworks/models/gpt-oss-120b': { ok: true, status: 200, content: 'llama rescue' },
     });
 
     const result = await callModelWithFallback({
-      models: ['google/gemini-2.0-flash-001', 'anthropic/claude-haiku-4.5'],
+      models: ['google/gemini-2.5-flash-lite', 'anthropic/claude-haiku-4.5'],
       messages: [{ role: 'user', content: 'test' }],
       caller: 'test',
       timeout: 30_000,
@@ -235,7 +235,7 @@ describe('callModelWithFallback — fallback', () => {
     });
 
     expect(result.content).toBe('llama rescue');
-    expect(result.model).toBe('accounts/fireworks/models/llama-v3p3-70b-instruct');
+    expect(result.model).toBe('accounts/fireworks/models/gpt-oss-120b');
     expect(globalThis.fetch).toHaveBeenCalledTimes(3);
 
     const calledModels = vi.mocked(globalThis.fetch).mock.calls.map(([, options]) => {
@@ -243,9 +243,9 @@ describe('callModelWithFallback — fallback', () => {
       return body.model;
     });
     expect(calledModels).toEqual([
-      'google/gemini-2.0-flash-001',
+      'google/gemini-2.5-flash-lite',
       'anthropic/claude-haiku-4.5',
-      'accounts/fireworks/models/llama-v3p3-70b-instruct',
+      'accounts/fireworks/models/gpt-oss-120b',
     ]);
   });
 
@@ -299,14 +299,14 @@ describe('callModelWithFallback — fallback', () => {
     const { AllModelsFailed } = await import('../errors');
 
     globalThis.fetch = mockFetchForModel({
-      'google/gemini-2.0-flash-001': { ok: false, status: 500 },
+      'google/gemini-2.5-flash-lite': { ok: false, status: 500 },
       'anthropic/claude-haiku-4.5': { ok: false, status: 400 },
-      'accounts/fireworks/models/llama-v3p3-70b-instruct': { ok: false, status: 503 },
+      'accounts/fireworks/models/gpt-oss-120b': { ok: false, status: 503 },
     });
 
     try {
       await callModelWithFallback({
-        models: ['google/gemini-2.0-flash-001', 'anthropic/claude-haiku-4.5'],
+        models: ['google/gemini-2.5-flash-lite', 'anthropic/claude-haiku-4.5'],
         messages: [{ role: 'user', content: 'test' }],
         caller: 'test',
         timeout: 30_000,
@@ -318,7 +318,7 @@ describe('callModelWithFallback — fallback', () => {
       const allFailed = err as InstanceType<typeof AllModelsFailed>;
       expect(allFailed.errors).toHaveLength(3);
       expect(allFailed.models).toEqual([
-        'google/gemini-2.0-flash-001',
+        'google/gemini-2.5-flash-lite',
         'anthropic/claude-haiku-4.5',
       ]);
     }
@@ -364,7 +364,7 @@ describe('callModelWithFallback — CallRecord emission', () => {
     globalThis.fetch = mockFetchForModel({
       'anthropic/claude-opus-4.6': { ok: false, status: 500 },
       'anthropic/claude-sonnet-4.5': { ok: false, status: 500 },
-      'accounts/fireworks/models/minimax-m2p1': { ok: true, status: 200, content: 'minimax ok' },
+      'accounts/fireworks/models/deepseek-v4-pro': { ok: true, status: 200, content: 'minimax ok' },
     });
 
     await callModelWithFallback({
@@ -378,7 +378,7 @@ describe('callModelWithFallback — CallRecord emission', () => {
     expect(records).toHaveLength(3);
     expect(records[2].status).toBe('success');
     expect(records[2].requestedModel).toBe('anthropic/claude-opus-4.6');
-    expect(records[2].actualModel).toBe('accounts/fireworks/models/minimax-m2p1');
+    expect(records[2].actualModel).toBe('accounts/fireworks/models/deepseek-v4-pro');
     expect(records[2].failedProvider).toBe('openrouter');
   });
 });

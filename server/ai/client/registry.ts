@@ -8,11 +8,18 @@
 
 import type { ModelDef, ModelTier } from './types';
 
+// Per-tier OpenRouter->Fireworks provider failover targets. The previous set
+// (minimax-m2p1 / glm-4p7 / llama-v3p3-70b / gpt-oss-20b) was fully delisted from
+// the Fireworks account (verified 2026-06-12), making provider failover dead
+// app-wide. Replacements below are all live on the account and were picked for
+// tier-role fit: each separates reasoning from `content` at the tier's configured
+// token budget (the provider reads only `message.content`), and latency fits the
+// tier's timeouts. budget shares the fast model (no live budget-tier call sites).
 export const FIREWORKS_TIER_MODELS: Record<ModelTier, string> = {
-  premium: 'accounts/fireworks/models/minimax-m2p1',
-  standard: 'accounts/fireworks/models/glm-4p7',
-  fast: 'accounts/fireworks/models/llama-v3p3-70b-instruct',
-  budget: 'accounts/fireworks/models/gpt-oss-20b',
+  premium: 'accounts/fireworks/models/deepseek-v4-pro',
+  standard: 'accounts/fireworks/models/glm-5p1',
+  fast: 'accounts/fireworks/models/gpt-oss-120b',
+  budget: 'accounts/fireworks/models/gpt-oss-120b',
 };
 
 export const MODEL_REGISTRY: Record<string, ModelDef> = {
@@ -71,11 +78,15 @@ export const MODEL_REGISTRY: Record<string, ModelDef> = {
     tier: 'fast',
     displayName: 'Claude Haiku 4.5',
   },
-  'google/gemini-2.0-flash-001': {
-    id: 'google/gemini-2.0-flash-001',
+  // gemini-2.0-flash-001 was removed from OpenRouter (404 verified 2026-06-12) and
+  // all call sites were migrated to gemini-2.5-flash-lite, so its registry entry
+  // is deleted. server/storage/analytics.ts still lists the old id as a historical
+  // accuracy-tracking label; getModelDisplayName falls back to the raw id for it.
+  'google/gemini-2.5-flash-lite': {
+    id: 'google/gemini-2.5-flash-lite',
     provider: 'openrouter',
     tier: 'fast',
-    displayName: 'Gemini 2.0 Flash',
+    displayName: 'Gemini 2.5 Flash Lite',
   },
   'qwen/qwen-plus': {
     id: 'qwen/qwen-plus',
@@ -98,30 +109,26 @@ export const MODEL_REGISTRY: Record<string, ModelDef> = {
     displayName: 'Llama 3.1 8B',
   },
 
-  // Fireworks tier models
+  // Fireworks tier models. fast and budget share gpt-oss-120b, so it is declared
+  // once (tier: 'fast'); the tier field on a fallback entry is informational only,
+  // since failover dispatches by the resolved model id, not by re-reading the tier.
   [FIREWORKS_TIER_MODELS.premium]: {
     id: FIREWORKS_TIER_MODELS.premium,
     provider: 'fireworks',
     tier: 'premium',
-    displayName: 'Fireworks MiniMax 2.5',
+    displayName: 'Fireworks DeepSeek V4 Pro',
   },
   [FIREWORKS_TIER_MODELS.standard]: {
     id: FIREWORKS_TIER_MODELS.standard,
     provider: 'fireworks',
     tier: 'standard',
-    displayName: 'Fireworks GLM 4.7',
+    displayName: 'Fireworks GLM 5.1',
   },
   [FIREWORKS_TIER_MODELS.fast]: {
     id: FIREWORKS_TIER_MODELS.fast,
     provider: 'fireworks',
     tier: 'fast',
-    displayName: 'Fireworks Llama V3P3 70B Instruct',
-  },
-  [FIREWORKS_TIER_MODELS.budget]: {
-    id: FIREWORKS_TIER_MODELS.budget,
-    provider: 'fireworks',
-    tier: 'budget',
-    displayName: 'Fireworks GPT-OSS 20B',
+    displayName: 'Fireworks GPT-OSS 120B',
   },
 };
 

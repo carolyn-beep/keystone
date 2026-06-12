@@ -213,7 +213,7 @@ export async function gradeDOK2Summary(
     console.log('[DOK2-Grade] Calling unified client for grading...');
     const t0 = performance.now();
     const result = await callModelWithFallback({
-      models: ['qwen/qwen-plus', 'google/gemini-2.0-flash-001'],
+      models: ['qwen/qwen-plus', 'google/gemini-2.5-flash-lite'],
       system: systemPrompt,
       messages: [{ role: 'user', content: userPrompt }],
       temperature: 0.1,
@@ -266,7 +266,7 @@ export async function gradeDOK2SummaryFromFrozenSource(
 
   try {
     const result = await callModelWithFallback({
-      models: ['qwen/qwen-plus', 'google/gemini-2.0-flash-001'],
+      models: ['qwen/qwen-plus', 'google/gemini-2.5-flash-lite'],
       system: systemPrompt,
       messages: [{ role: 'user', content: userPrompt }],
       temperature: 0.1,

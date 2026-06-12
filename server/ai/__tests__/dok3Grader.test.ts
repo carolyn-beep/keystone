@@ -150,7 +150,7 @@ describe('FR1: checkSourceTraceability — unified client', () => {
   it('calls callModelWithFallback with correct models for each source', async () => {
     mockCallModelWithFallback.mockResolvedValue({
       content: TRACEABILITY_RESPONSE,
-      model: 'google/gemini-2.0-flash-001',
+      model: 'qwen/qwen-plus',
       durationMs: 500,
       attempts: 1,
     });
@@ -164,15 +164,15 @@ describe('FR1: checkSourceTraceability — unified client', () => {
     // Check first call has correct models array
     const firstCall = mockCallModelWithFallback.mock.calls[0][0];
     expect(firstCall.models).toEqual([
-      'google/gemini-2.0-flash-001',
-      'anthropic/claude-sonnet-4.5',
+      'qwen/qwen-plus',
+      'google/gemini-2.5-flash-lite',
     ]);
   });
 
   it('passes correct system prompt, temperature, responseFormat, and caller', async () => {
     mockCallModelWithFallback.mockResolvedValue({
       content: TRACEABILITY_RESPONSE,
-      model: 'google/gemini-2.0-flash-001',
+      model: 'qwen/qwen-plus',
       durationMs: 500,
       attempts: 1,
     });
@@ -206,7 +206,7 @@ describe('FR1: checkSourceTraceability — unified client', () => {
   it('passes user message with source-specific content', async () => {
     mockCallModelWithFallback.mockResolvedValue({
       content: TRACEABILITY_RESPONSE,
-      model: 'google/gemini-2.0-flash-001',
+      model: 'qwen/qwen-plus',
       durationMs: 500,
       attempts: 1,
     });
@@ -223,7 +223,7 @@ describe('FR1: checkSourceTraceability — unified client', () => {
   it('returns { flagged: false } when no sources are flagged', async () => {
     mockCallModelWithFallback.mockResolvedValue({
       content: TRACEABILITY_RESPONSE,
-      model: 'google/gemini-2.0-flash-001',
+      model: 'qwen/qwen-plus',
       durationMs: 500,
       attempts: 1,
     });
@@ -240,13 +240,13 @@ describe('FR1: checkSourceTraceability — unified client', () => {
     mockCallModelWithFallback
       .mockResolvedValueOnce({
         content: TRACEABILITY_FLAGGED_RESPONSE,
-        model: 'google/gemini-2.0-flash-001',
+        model: 'qwen/qwen-plus',
         durationMs: 500,
         attempts: 1,
       })
       .mockResolvedValueOnce({
         content: TRACEABILITY_RESPONSE,
-        model: 'google/gemini-2.0-flash-001',
+        model: 'qwen/qwen-plus',
         durationMs: 500,
         attempts: 1,
       });
@@ -263,7 +263,7 @@ describe('FR1: checkSourceTraceability — unified client', () => {
     mockCallModelWithFallback
       .mockResolvedValueOnce({
         content: TRACEABILITY_RESPONSE,
-        model: 'google/gemini-2.0-flash-001',
+        model: 'qwen/qwen-plus',
         durationMs: 500,
         attempts: 1,
       })
@@ -296,7 +296,7 @@ describe('FR2: evaluateConceptualCoherence — unified client (via gradeDOK3Insi
     for (let i = 0; i < sourceCount; i++) {
       mockCallModelWithFallback.mockResolvedValueOnce({
         content: TRACEABILITY_RESPONSE,
-        model: 'google/gemini-2.0-flash-001',
+        model: 'qwen/qwen-plus',
         durationMs: 500,
         attempts: 1,
       });
@@ -357,13 +357,13 @@ describe('FR2: evaluateConceptualCoherence — unified client (via gradeDOK3Insi
     // Traceability calls
     mockCallModelWithFallback.mockResolvedValueOnce({
       content: TRACEABILITY_RESPONSE,
-      model: 'google/gemini-2.0-flash-001',
+      model: 'qwen/qwen-plus',
       durationMs: 500,
       attempts: 1,
     });
     mockCallModelWithFallback.mockResolvedValueOnce({
       content: TRACEABILITY_RESPONSE,
-      model: 'google/gemini-2.0-flash-001',
+      model: 'qwen/qwen-plus',
       durationMs: 500,
       attempts: 1,
     });
@@ -452,7 +452,7 @@ describe('FR4: gradeDOK3Insight — pipeline orchestration preserved', () => {
     for (let i = 0; i < sourceCount; i++) {
       mockCallModelWithFallback.mockResolvedValueOnce({
         content: TRACEABILITY_RESPONSE,
-        model: 'google/gemini-2.0-flash-001',
+        model: 'qwen/qwen-plus',
         durationMs: 500,
         attempts: 1,
       });
@@ -635,7 +635,7 @@ describe('04-token-backend: dok3Grader threads ids into the coherence user promp
     for (let i = 0; i < sourceCount; i++) {
       mockCallModelWithFallback.mockResolvedValueOnce({
         content: TRACEABILITY_RESPONSE,
-        model: 'google/gemini-2.0-flash-001',
+        model: 'qwen/qwen-plus',
         durationMs: 500,
         attempts: 1,
       });
