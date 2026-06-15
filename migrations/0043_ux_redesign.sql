@@ -17,4 +17,8 @@ ALTER TABLE "brainlifts" ADD COLUMN "onboarding_step" integer;--> statement-brea
 ALTER TABLE "experts" DROP COLUMN "is_following";--> statement-breakpoint
 -- Starter-pack "Add" promotes a Learning Stream item to Second Brain with no
 -- category choice presented, so sources may now be uncategorized (NULL).
-ALTER TABLE "sources" ALTER COLUMN "category_id" DROP NOT NULL;
+ALTER TABLE "sources" ALTER COLUMN "category_id" DROP NOT NULL;--> statement-breakpoint
+-- Persist the full three-part topic sentence ("X, specifically focusing on Y,
+-- in order to Z") so downstream prompts use the student's original intent
+-- rather than the AI-generated shortened title.
+ALTER TABLE "brainlifts" ADD COLUMN "onboarding_topic" text;
