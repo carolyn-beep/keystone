@@ -14,4 +14,7 @@
 ALTER TABLE "brainlifts" ADD COLUMN "in_scope" text[] DEFAULT '{}'::text[] NOT NULL;--> statement-breakpoint
 ALTER TABLE "brainlifts" ADD COLUMN "out_of_scope" text[] DEFAULT '{}'::text[] NOT NULL;--> statement-breakpoint
 ALTER TABLE "brainlifts" ADD COLUMN "onboarding_step" integer;--> statement-breakpoint
-ALTER TABLE "experts" DROP COLUMN "is_following";
+ALTER TABLE "experts" DROP COLUMN "is_following";--> statement-breakpoint
+-- Starter-pack "Add" promotes a Learning Stream item to Second Brain with no
+-- category choice presented, so sources may now be uncategorized (NULL).
+ALTER TABLE "sources" ALTER COLUMN "category_id" DROP NOT NULL;

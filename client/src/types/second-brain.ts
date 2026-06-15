@@ -12,7 +12,8 @@ export interface Source {
   title: string;
   url: string;
   author: string;
-  categoryId: number;
+  // Null = uncategorized (e.g. promoted from the onboarding starter pack).
+  categoryId: number | null;
   extractedContent: JsonValue | null;
   learningStreamItemId: number | null;
   // Second Brain v2 enrichment fields. Nullable on existing rows; tolerated by UI.
@@ -22,7 +23,7 @@ export interface Source {
   whyMatters: string | null;
   createdAt: string;
   updatedAt: string;
-  categoryName?: string;
+  categoryName?: string | null;
 }
 
 export interface Note {

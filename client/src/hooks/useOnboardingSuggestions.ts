@@ -12,8 +12,21 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { apiRequest } from '@/lib/queryClient';
+import type { OnboardingTopicSuggestion } from '@shared/routes';
 
 export type SuggestionKind = 'topic' | 'in-scope' | 'out-of-scope' | 'categories';
+
+/** True when a payload element is a structured topic suggestion. */
+function isTopicSuggestion(s: unknown): s is OnboardingTopicSuggestion {
+  if (typeof s !== 'object' || s === null) return false;
+  const o = s as Record<string, unknown>;
+  return (
+    typeof o.text === 'string' &&
+    typeof o.topic === 'string' &&
+    typeof o.focus === 'string' &&
+    typeof o.why === 'string'
+  );
+}
 
 interface BuildRequestArgs {
   kind: SuggestionKind;
@@ -49,7 +62,10 @@ export function buildSuggestionRequest({ kind, slug, exclude }: BuildRequestArgs
 }
 
 export interface UseOnboardingSuggestions {
+  /** Display strings: composed `text` for topic kind, plain items otherwise. */
   suggestions: string[];
+  /** Topic kind only: the same suggestions split for the three-part field. */
+  structured: OnboardingTopicSuggestion[];
   isLoading: boolean;
   /** Re-request once, excluding everything shown so far. No-op after one use. */
   refresh: () => void;
@@ -65,6 +81,7 @@ export function useOnboardingSuggestions(args: {
   const { kind, slug, enabled = true } = args;
 
   const [suggestions, setSuggestions] = useState<string[]>([]);
+  const [structured, setStructured] = useState<OnboardingTopicSuggestion[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [refreshUsed, setRefreshUsed] = useState(false);
 
@@ -79,13 +96,19 @@ export function useOnboardingSuggestions(args: {
       try {
         const res = await apiRequest('POST', req.url, req.body);
         const payload = (await res.json()) as { suggestions?: unknown };
-        const next = Array.isArray(payload.suggestions)
-          ? payload.suggestions.filter((s): s is string => typeof s === 'string')
-          : [];
+        const items = Array.isArray(payload.suggestions) ? payload.suggestions : [];
+        // Topic kind returns structured objects; the other kinds plain strings.
+        const nextStructured = items.filter(isTopicSuggestion);
+        const next =
+          nextStructured.length > 0
+            ? nextStructured.map((s) => s.text)
+            : items.filter((s): s is string => typeof s === 'string');
         shownRef.current = [...shownRef.current, ...next];
+        setStructured(nextStructured);
         setSuggestions(next);
       } catch {
         // Non-blocking: degrade to no suggestions.
+        setStructured([]);
         setSuggestions([]);
       } finally {
         setIsLoading(false);
@@ -109,5 +132,5 @@ export function useOnboardingSuggestions(args: {
     void fetchSuggestions(shownRef.current);
   }, [refreshUsed, isLoading, fetchSuggestions]);
 
-  return { suggestions, isLoading, refresh, refreshUsed };
+  return { suggestions, structured, isLoading, refresh, refreshUsed };
 }

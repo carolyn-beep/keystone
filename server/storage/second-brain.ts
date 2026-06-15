@@ -32,7 +32,7 @@ export type DbTx = Parameters<Parameters<typeof db.transaction>[0]>[0];
 
 export type CreateSourceInput = Omit<InsertSource, 'id' | 'brainliftId' | 'createdAt' | 'updatedAt'>;
 export type UpdateSourceInput = Partial<CreateSourceInput>;
-export type SourceWithCategoryName = Source & { categoryName: string };
+export type SourceWithCategoryName = Source & { categoryName: string | null };
 
 export type CreateNoteInput = Omit<InsertNote, 'id' | 'brainliftId' | 'createdAt' | 'updatedAt'>;
 export type UpdateNoteInput = Partial<CreateNoteInput>;
@@ -156,7 +156,9 @@ export async function createSource(
   brainliftId: number,
   input: CreateSourceInput,
 ): Promise<Source> {
-  await ensureCategoryBelongsToBrainlift(input.categoryId, brainliftId);
+  if (input.categoryId != null) {
+    await ensureCategoryBelongsToBrainlift(input.categoryId, brainliftId);
+  }
 
   if (input.learningStreamItemId != null) {
     await ensureLearningStreamItemBelongsToBrainlift(input.learningStreamItemId, brainliftId);
@@ -195,7 +197,7 @@ export async function getSourcesByBrainlift(brainliftId: number): Promise<Source
       categoryName: categories.name,
     })
     .from(sources)
-    .innerJoin(categories, eq(sources.categoryId, categories.id))
+    .leftJoin(categories, eq(sources.categoryId, categories.id))
     .where(eq(sources.brainliftId, brainliftId))
     .orderBy(asc(sources.createdAt), asc(sources.id));
 
@@ -537,7 +539,7 @@ export async function listSources(
         categoryName: categories.name,
       })
       .from(sources)
-      .innerJoin(categories, eq(sources.categoryId, categories.id))
+      .leftJoin(categories, eq(sources.categoryId, categories.id))
       .where(whereClause)
       .orderBy(desc(sources.createdAt), desc(sources.id))
       .limit(pageSize)
@@ -545,7 +547,7 @@ export async function listSources(
     db
       .select({ count: sql<number>`count(*)::int` })
       .from(sources)
-      .innerJoin(categories, eq(sources.categoryId, categories.id))
+      .leftJoin(categories, eq(sources.categoryId, categories.id))
       .where(whereClause),
   ]);
 
@@ -868,7 +870,9 @@ export async function ensureCategoryByName(
  * `bookmarkResearchItemWithSource` (server/routes/learning-stream.ts).
  *
  * Inside the caller-provided `tx`:
- *   1. Validates `categoryId` belongs to `brainliftId` (BadRequestError on miss).
+ *   1. Validates `categoryId` belongs to `brainliftId` (BadRequestError on
+ *      miss). A null `categoryId` skips the check and mirrors the source as
+ *      uncategorized (onboarding-wizard promotes present no category choice).
  *   2. Loads the learning_stream_items row by (id, brainliftId);
  *      NotFoundError if missing or foreign.
  *   3. Flips the LSI to status='bookmarked' and bumps updatedAt.
@@ -889,21 +893,23 @@ export async function ensureCategoryByName(
  */
 export async function ensureSourceFromLearningStreamItem(
   tx: DbTx,
-  args: { brainliftId: number; itemId: number; categoryId: number },
+  args: { brainliftId: number; itemId: number; categoryId: number | null },
 ): Promise<{ source: Source; item: LearningStreamItem; created: boolean }> {
   const { brainliftId, itemId, categoryId } = args;
 
-  const [category] = await tx
-    .select({ id: categories.id })
-    .from(categories)
-    .where(and(
-      eq(categories.id, categoryId),
-      eq(categories.brainliftId, brainliftId),
-    ))
-    .limit(1);
+  if (categoryId != null) {
+    const [category] = await tx
+      .select({ id: categories.id })
+      .from(categories)
+      .where(and(
+        eq(categories.id, categoryId),
+        eq(categories.brainliftId, brainliftId),
+      ))
+      .limit(1);
 
-  if (!category) {
-    throw new BadRequestError('Category does not belong to this brainlift');
+    if (!category) {
+      throw new BadRequestError('Category does not belong to this brainlift');
+    }
   }
 
   const [item] = await tx

@@ -40,17 +40,36 @@ describe('FR5: useStarterPack hook', () => {
     expect(hookSource).toMatch(/launch/);
   });
 
-  it('derives items as pending ∩ source IN (starter-pack, manual)', () => {
+  it('derives items from a wizard-scoped all-status learning-stream query, source IN (starter-pack, manual)', () => {
     expect(hookSource).toMatch(/starter-pack/);
     expect(hookSource).toMatch(/manual/);
-    // Filters the existing pending learning-stream query (not a new endpoint).
-    expect(hookSource).toMatch(/['"]learning-stream['"]/);
+    // Wizard-scoped child key of the learning-stream family (so the existing
+    // prefix invalidations still catch it), fetching ALL statuses: promoted
+    // (bookmarked) pack items must stay visible as "Added".
+    expect(hookSource).toMatch(/['"]learning-stream['"],\s*slug,\s*['"]wizard-resources['"]/);
+    expect(hookSource).toMatch(/bookmarked/);
+    // The fetch itself carries no status filter.
+    expect(hookSource).not.toMatch(/status=pending/);
   });
 
-  it('declines via the existing discard PATCH and adds via the resources POST (surfacing duplicate)', () => {
+  it('promotes a pack item via the existing bookmark PATCH (no categoryId — uncategorized source)', () => {
+    expect(hookSource).toMatch(/\/bookmark/);
+    expect(hookSource).toMatch(/promote/);
+    // Promotion refreshes the Second Brain sources list.
+    expect(hookSource).toMatch(/['"]sources['"]/);
+    // No restore PATCH — pack items have no decline/undo in the opt-in model.
+    expect(hookSource).not.toMatch(/restore/);
+  });
+
+  it('removes pasted manual items via the existing discard PATCH and adds via the resources POST (surfacing duplicate)', () => {
     expect(hookSource).toMatch(/discard/);
     expect(hookSource).toMatch(/onboarding\/resources/);
     expect(hookSource).toMatch(/duplicate/);
+  });
+
+  it('polls the items query while a pasted item still awaits extraction (metadata backfill)', () => {
+    // refetchInterval keyed on manual items missing extractedContent.
+    expect(hookSource).toMatch(/extractedContent == null/);
   });
 });
 
@@ -84,12 +103,33 @@ describe('FR5: ResourcesStep matches the screen5 restyle', () => {
     expect(stepSource).not.toMatch(/dropzone|onDrop/i);
   });
 
-  it('renders the starter-pack rail section with a progress state and per-item decline', () => {
+  it('renders the starter-pack rail section with a progress state and per-item opt-in Add', () => {
     expect(stepSource).toMatch(/starter pack|Starter pack|starter-pack/i);
     // In-flight progress state keyed on running.
     expect(stepSource).toMatch(/running/);
-    // Keep-by-default with a decline control.
-    expect(stepSource).toMatch(/decline|Decline/);
+    // Opt-in Add promotes to the Second Brain; "Added" is sticky.
+    expect(stepSource).toMatch(/button-promote-pack-item/);
+    expect(stepSource).toMatch(/pack-item-added/);
+    // Check-before-adding: each pack card links out to the source.
+    expect(stepSource).toMatch(/link-open-pack-item/);
+    expect(stepSource).toMatch(/target="_blank"/);
+    // No decline control on pack items (untouched items stay pending).
+    expect(stepSource).not.toMatch(/button-decline-pack-item|button-restore-pack-item/);
+  });
+
+  it('derives the Added state from the server (status === bookmarked), not local-only tracking', () => {
+    expect(stepSource).toMatch(/status === 'bookmarked'/);
+  });
+
+  it('flies a promoted card from the rail to the Added list via shared layoutId (scope-chip pattern)', () => {
+    // One layout id factory used by both the rail card and its list twin.
+    expect(stepSource).toMatch(/packCardLayoutId/);
+    expect(stepSource).toMatch(/layoutId=\{packCardLayoutId\(item\.id\)\}/);
+    // Optimism is lifted to the page (one synchronous setState) so the rail
+    // and the step commit together — required for the layoutId handoff.
+    expect(wizardSource).toMatch(/promotedPackIds/);
+    expect(wizardSource).toMatch(/onPromote=\{handlePromotePackItem\}/);
+    expect(stepSource).toMatch(/promotedIds/);
   });
 
   it('reads the brand persona slot for the rail header (no brand conditionals)', () => {
@@ -100,8 +140,19 @@ describe('FR5: ResourcesStep matches the screen5 restyle', () => {
     expect(stepSource).toMatch(/duplicate|already added|Already added/i);
   });
 
-  it('advances via onNext (forward PATCH to step 7)', () => {
+  it('renders pasted items with the pack-card treatment and a fetching state pre-backfill', () => {
+    // Same type-icon meta as the rail cards.
+    expect(stepSource).toMatch(/metaFor\(item\.type\)/);
+    // Hostname stand-in while topic is still the raw URL, plus the quiet line.
+    expect(stepSource).toMatch(/hostnameOf/);
+    expect(stepSource).toMatch(/resource-item-fetching/);
+  });
+
+  it('finishes the wizard via onNext with a busy state (2026-06-11: Resources is the last step)', () => {
     expect(stepSource).toMatch(/onNext/);
+    expect(stepSource).toMatch(/isFinishing/);
+    // The page wires Finish to completeOnboarding, not a step-7 PATCH.
+    expect(wizardSource).toMatch(/onNext=\{handleFinish\}/);
   });
 });
 

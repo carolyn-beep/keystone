@@ -10,8 +10,7 @@ export type WizardStepKey =
   | 'out-of-scope'
   | 'categories'
   | 'experts'
-  | 'resources'
-  | 'done';
+  | 'resources';
 
 export interface WizardStep {
   id: number; // 1-indexed; mirrors brainlifts.onboarding_step
@@ -21,20 +20,23 @@ export interface WizardStep {
   placeholder: boolean;
 }
 
+// 2026-06-11 amendment: the step-7 "Done" screen was removed. Resources is the
+// last step; its Finish fires complete and hands off to the brainlift page,
+// where the success beat shows as a modal (SetupCompleteModal). Rows persisted
+// with a stale step 7 (pre-amendment) clamp back to 6 on resume.
 export const WIZARD_STEPS: readonly WizardStep[] = [
   { id: 1, key: 'topic', title: 'Add Topic', placeholder: false },
   { id: 2, key: 'in-scope', title: 'In Scope', placeholder: false },
   { id: 3, key: 'out-of-scope', title: 'Out of Scope', placeholder: false },
-  { id: 4, key: 'categories', title: 'Categories', placeholder: false },
+  { id: 4, key: 'categories', title: 'Expertise Areas', placeholder: false },
   { id: 5, key: 'experts', title: 'Experts', placeholder: false },
   { id: 6, key: 'resources', title: 'Resources', placeholder: false },
-  { id: 7, key: 'done', title: 'Done', placeholder: false },
 ] as const;
 
 export const FIRST_STEP = WIZARD_STEPS[0].id;
 export const LAST_STEP = WIZARD_STEPS[WIZARD_STEPS.length - 1].id;
 
-/** Clamp an arbitrary step into the valid 1..7 range. */
+/** Clamp an arbitrary step into the valid 1..6 range. */
 export function clampStep(step: number): number {
   if (step < FIRST_STEP) return FIRST_STEP;
   if (step > LAST_STEP) return LAST_STEP;
@@ -79,9 +81,13 @@ export function shouldRedirectCompleted(args: {
   return args.loaded && args.onboardingStep === null;
 }
 
-/** Done-step handoff: land on the brainlift's Second Brain tab. */
+/**
+ * Finish handoff: land on the brainlift's Second Brain tab. `setup=done` is
+ * the one-shot trigger for the setup-complete modal — Dashboard shows the
+ * modal once and strips the param so refresh/back doesn't re-trigger it.
+ */
 export function buildLandingLocation(slug: string): string {
-  return `/${slug}?tab=second-brain`;
+  return `/${slug}?tab=second-brain&setup=done`;
 }
 
 /** Topic CONFIRM is enabled once the trimmed topic reaches 3 chars. */

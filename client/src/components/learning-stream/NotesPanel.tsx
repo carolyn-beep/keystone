@@ -58,7 +58,7 @@ export function NotesPanel({ slug, item, source, composerRef }: NotesPanelProps)
   }, [source?.categoryId]);
 
   useEffect(() => {
-    if (hasLockedSourceCategory) {
+    if (typeof source?.categoryId === 'number') {
       setComposerCategory({ kind: 'existing', categoryId: source.categoryId });
       return;
     }
@@ -129,7 +129,7 @@ export function NotesPanel({ slug, item, source, composerRef }: NotesPanelProps)
           setComposerCategory(next);
         }}
         categoryReadOnly={hasLockedSourceCategory}
-        categoryLabel={source?.categoryName}
+        categoryLabel={source?.categoryName ?? undefined}
         onSaved={handleSaved}
       />
     </div>

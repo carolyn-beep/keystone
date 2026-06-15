@@ -27,7 +27,7 @@ export interface ScopeFilterItem {
 }
 
 const FILTER_SYSTEM =
-  'You decide which candidate resources clearly fall OUTSIDE a project\'s declared ' +
+  'You decide which candidate resources clearly fall WITHIN a project\'s declared ' +
   'out-of-scope list. Be conservative: only flag a resource when it plainly belongs ' +
   'to an out-of-scope topic. "None" is a valid and often correct answer — never ' +
   'force-fit exclusions. When every resource fits the project, return an empty list.';

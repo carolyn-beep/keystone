@@ -25,6 +25,11 @@ import { storage } from '../../storage';
 import { filterOutOfScopeItems } from './scope-filter';
 
 const STARTER_PACK_AGENT_COUNT = 3;
+/** Planning chain for quick runs: a near-empty digest does not need opus. */
+const STARTER_PACK_ORCHESTRATOR_MODELS = [
+  'anthropic/claude-sonnet-4.6',
+  'qwen/qwen-plus',
+] as const;
 const STARTER_PACK_NOTES =
   'This is a quick starter pack for a brand-new project with little or no material yet. ' +
   'Assemble a small set of approachable, well-known starting points across source types — ' +
@@ -47,14 +52,17 @@ export async function launchStarterPack(
   userId: string,
 ): Promise<{ runId: number }> {
   // Scope + categories reach the agents through the spec 01 swarm-context
-  // digest; only the topic feeds the RunRequest.
+  // digest; only the topic feeds the RunRequest. Use the full descriptive
+  // topic sentence — the display title may be an invented project name.
   const runRequest: RunRequest = {
-    topic: brainlift.title,
+    topic: brainlift.onboardingTopic ?? brainlift.title,
     agentCount: STARTER_PACK_AGENT_COUNT,
     notes: STARTER_PACK_NOTES,
   };
 
-  const orchestrated = await orchestrate(brainlift.id, runRequest);
+  const orchestrated = await orchestrate(brainlift.id, runRequest, {
+    models: STARTER_PACK_ORCHESTRATOR_MODELS,
+  });
   const quickSpec: RunSpec = { ...orchestrated.runSpec, quick: true };
 
   // Record usage WITHOUT a daily-cap check (cap-exempt by design).
@@ -68,8 +76,14 @@ export async function launchStarterPack(
 
   inFlight.add(brainlift.id);
   void (async () => {
+    // runResearchSwarm emits its own endSwarm on completion; only a failure
+    // BEFORE that may emit the failure event. Tail errors (filter reads /
+    // discard / cost write) just log — emitting a second endSwarm would
+    // contradict the success event listeners already received.
+    let swarmFinished = false;
     try {
       const result = await runResearchSwarm(brainlift.id, quickSpec, runId);
+      swarmFinished = true;
 
       // Scope filter runs strictly after swarm completion, only when the project
       // declared out-of-scope topics. Fail-open: the filter never discards on error.
@@ -93,13 +107,15 @@ export async function launchStarterPack(
     } catch (error: any) {
       const message = error?.message ?? String(error);
       console.error(`[starter-pack:run] brainlift=${brainlift.id} runId=${runId} failed`, error);
-      swarmEmitter.endSwarm(brainlift.id, {
-        success: false,
-        totalSaved: 0,
-        duplicatesSkipped: 0,
-        failedCount: quickSpec.agents.length,
-        errors: [message],
-      });
+      if (!swarmFinished) {
+        swarmEmitter.endSwarm(brainlift.id, {
+          success: false,
+          totalSaved: 0,
+          duplicatesSkipped: 0,
+          failedCount: quickSpec.agents.length,
+          errors: [message],
+        });
+      }
     } finally {
       inFlight.delete(brainlift.id);
     }

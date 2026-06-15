@@ -20,6 +20,7 @@ import { FactGradingPanel } from '@/components/fact-grading';
 import { DashboardHeader } from '@/components/DashboardHeader';
 import { ContradictionsTab } from '@/components/ContradictionsTab';
 import { FactDetailModal, HistoryModal, RedundancyModal, ShareModal } from '@/components/modals';
+import { SetupCompleteModal } from '@/components/onboarding-wizard/SetupCompleteModal';
 import { NotBrainliftView } from '@/components/NotBrainliftView';
 import { BrainliftTab } from '@/components/BrainliftTab';
 import { SummariesTab } from '@/components/SummariesTab';
@@ -194,6 +195,22 @@ export default function Dashboard({ slug, isSharedView = false }: DashboardProps
   const [showHistoryModal, setShowHistoryModal] = useState(false);
   const [showShareModal, setShowShareModal] = useState(false);
   const [showExplainerModal, setShowExplainerModal] = useState(false);
+
+  // Onboarding setup-complete celebration: the wizard's Finish lands here
+  // with ?setup=done (buildLandingLocation). Show the modal once, then strip
+  // the param immediately so a refresh or back/forward doesn't re-celebrate.
+  // Deletes ONLY the setup param — `tab=second-brain` must survive (see the
+  // param-wiping bug note on setActiveTab below).
+  const [showSetupComplete, setShowSetupComplete] = useState(false);
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('setup') !== 'done') return;
+    setShowSetupComplete(true);
+    params.delete('setup');
+    const newSearch = params.toString();
+    window.history.replaceState(null, '', newSearch ? `?${newSearch}` : window.location.pathname);
+    window.dispatchEvent(new PopStateEvent('popstate'));
+  }, [searchString]);
 
   // Header collapse-on-scroll. The sentinel is attached to a scroll listener
   // on its scrollable ancestor with HYSTERESIS thresholds so the layout shift
@@ -688,6 +705,13 @@ const { downloadBrainliftPDF } = usePDFExport();
         show={showHistoryModal}
         onClose={() => setShowHistoryModal(false)}
         versions={versions}
+      />
+
+      {/* Onboarding setup-complete celebration — shown once over the Second
+          Brain tab when the wizard's Finish lands here (?setup=done). */}
+      <SetupCompleteModal
+        show={showSetupComplete}
+        onClose={() => setShowSetupComplete(false)}
       />
 
       {/* Redundancy Review Modal */}

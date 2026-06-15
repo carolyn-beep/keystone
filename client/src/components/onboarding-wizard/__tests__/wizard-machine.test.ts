@@ -19,17 +19,20 @@ import {
 } from '../wizard-machine';
 
 describe('FR2: wizard step constants', () => {
-  it('has exactly 7 ordered steps Topic..Done', () => {
-    expect(WIZARD_STEPS).toHaveLength(7);
+  // 2026-06-11 amendment: the step-7 Done screen was removed — Resources is
+  // the last step and the success beat moved to the SetupCompleteModal on the
+  // landing page.
+  it('has exactly 6 ordered steps Topic..Resources (no Done step)', () => {
+    expect(WIZARD_STEPS).toHaveLength(6);
     expect(WIZARD_STEPS[0].id).toBe(1);
     expect(WIZARD_STEPS[0].key).toBe('topic');
-    expect(WIZARD_STEPS[6].id).toBe(7);
-    expect(WIZARD_STEPS[6].key).toBe('done');
+    expect(WIZARD_STEPS[5].id).toBe(6);
+    expect(WIZARD_STEPS[5].key).toBe('resources');
   });
 
   it('exposes first/last step bounds', () => {
     expect(FIRST_STEP).toBe(1);
-    expect(LAST_STEP).toBe(7);
+    expect(LAST_STEP).toBe(6);
   });
 
   it('has no remaining placeholder steps (spec 05 filled Resources, the last one)', () => {
@@ -44,7 +47,11 @@ describe('FR2: clampStep', () => {
     expect(clampStep(-5)).toBe(1);
   });
   it('clamps above the ceiling to LAST_STEP', () => {
-    expect(clampStep(99)).toBe(7);
+    expect(clampStep(99)).toBe(6);
+  });
+
+  it('clamps a stale persisted step 7 (pre-amendment Done rows) to 6', () => {
+    expect(clampStep(7)).toBe(6);
   });
   it('passes valid steps through', () => {
     expect(clampStep(4)).toBe(4);
@@ -61,7 +68,7 @@ describe('FR2: resolveActiveStep (resume jump)', () => {
   });
 
   it('clamps an out-of-range persisted step', () => {
-    expect(resolveActiveStep({ hasSlug: true, onboardingStep: 42 })).toBe(7);
+    expect(resolveActiveStep({ hasSlug: true, onboardingStep: 42 })).toBe(6);
   });
 
   it('falls back to step 1 while the resume row is still loading (step undefined)', () => {
@@ -93,9 +100,11 @@ describe('FR2: shouldRedirectCompleted (/new-project/:slug with onboardingStep n
   });
 });
 
-describe('FR4: buildLandingLocation (Done handoff)', () => {
-  it('targets the Second Brain tab for the completed brainlift', () => {
-    expect(buildLandingLocation('marine-biology')).toBe('/marine-biology?tab=second-brain');
+describe('FR4: buildLandingLocation (Finish handoff)', () => {
+  it('targets the Second Brain tab with the one-shot setup-complete modal trigger', () => {
+    expect(buildLandingLocation('marine-biology')).toBe(
+      '/marine-biology?tab=second-brain&setup=done',
+    );
   });
 });
 

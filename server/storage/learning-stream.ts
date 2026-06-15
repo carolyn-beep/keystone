@@ -113,7 +113,7 @@ export async function getLearningStreamItems(
 export async function updateLearningStreamItemStatus(
   itemId: number,
   brainliftId: number,
-  status: 'bookmarked' | 'discarded'
+  status: 'pending' | 'bookmarked' | 'discarded'
 ): Promise<LearningStreamItem | null> {
   const [updated] = await db.update(learningStreamItems)
     .set({
@@ -127,6 +127,32 @@ export async function updateLearningStreamItemStatus(
     .returning();
 
   return updated || null;
+}
+
+/**
+ * Backfill presentation metadata (topic/author/type) discovered during
+ * content extraction — used for pasted manual items whose insert-time values
+ * are placeholders (raw URL as topic, hostname as author, type 'News').
+ * Only provided, non-empty fields are written. IDOR-safe: brainliftId in the
+ * WHERE clause.
+ */
+export async function updateLearningStreamItemMetadata(
+  itemId: number,
+  brainliftId: number,
+  patch: { topic?: string; author?: string; type?: string },
+): Promise<void> {
+  const set: Partial<{ topic: string; author: string; type: string }> = {};
+  if (patch.topic) set.topic = patch.topic;
+  if (patch.author) set.author = patch.author;
+  if (patch.type) set.type = patch.type;
+  if (Object.keys(set).length === 0) return;
+
+  await db.update(learningStreamItems)
+    .set({ ...set, updatedAt: new Date() })
+    .where(and(
+      eq(learningStreamItems.id, itemId),
+      eq(learningStreamItems.brainliftId, brainliftId)
+    ));
 }
 
 /**

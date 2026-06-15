@@ -2,12 +2,14 @@
  * Search-grounded expert discovery for the onboarding wizard
  * (features/ux-redesign/onboarding-wizard, spec 06).
  *
- * One Exa pass (2-3 `searchWeb` queries via Promise.allSettled) feeds a single
- * fast-tier extraction call through the unified AI client. Candidates are
- * grounded in code against the actual search-result URLs, deduped, and capped
- * at 5. The pipeline NEVER throws: any search/model failure (missing
- * EXA_API_KEY, Exa error, model timeout, garbage JSON) logs and returns `[]`,
- * so discovery can never 5xx the wizard — the step falls back to manual entry.
+ * One Exa pass (a single natural-language `searchWeb` query) feeds a single
+ * fast-tier extraction call through the unified AI client. The model cites
+ * evidence by the bracketed result NUMBERS from the prompt (never by typing
+ * URLs — verbatim echoing was fragile); code maps ids back to the real result
+ * URLs, drops out-of-range ids, dedupes, and caps at 5. The pipeline NEVER
+ * throws: any search/model failure (missing EXA_API_KEY, Exa error, model
+ * timeout, garbage JSON) logs and returns `[]`, so discovery can never 5xx
+ * the wizard — the step falls back to manual entry.
  *
  * Builder quarantine: this module deliberately does NOT import anything from
  * server/ai/brainlift-builder/ (suggest-experts.ts is the memory-based
@@ -37,46 +39,41 @@ export interface DiscoverExpertsContext {
   categories: string[];
 }
 
-/** Build 2-3 search queries from accumulated wizard state. */
-function buildQueries(ctx: DiscoverExpertsContext): string[] {
-  const queries = [`leading researchers and practitioners on ${ctx.topic}`];
-
-  const firstCategory = ctx.categories.find((c) => c.trim().length > 0);
-  if (firstCategory) {
-    queries.push(`${ctx.topic} ${firstCategory} experts`);
-  }
-
-  const scopeTerms = ctx.inScope.filter((s) => s.trim().length > 0).slice(0, 3);
-  if (scopeTerms.length > 0) {
-    queries.push(`${ctx.topic} ${scopeTerms.join(' ')} thought leaders`);
-  }
-
-  return queries;
+/**
+ * Build ONE natural-language search query from accumulated wizard state.
+ * Exa's semantic search handles narrative queries well; an A/B against
+ * Haiku-generated keyword queries (2026-06-12, 3 brainlifts) showed this
+ * framing extracts solidly while the keyword arm came back near-empty.
+ */
+function buildQuery(ctx: DiscoverExpertsContext): string {
+  const areas = ctx.categories.filter((c) => c.trim().length > 0);
+  const expertiseLine = areas.length > 0
+    ? `\n\nTo conduct it well, they want to become an expert in: ${areas.join(', ')}.`
+    : '';
+  return (
+    `A student is working on this project: ${ctx.topic}.${expertiseLine}\n\n` +
+    `Find the leading researchers, practitioners, founders, builders — any leading ` +
+    `voices worth following based on their work in these areas.`
+  );
 }
 
-/**
- * Run all queries, tolerating individual failures. Returns the flattened,
- * surviving results (empty if every query rejected).
- */
-async function runSearches(queries: string[]): Promise<WebSearchResult[]> {
-  const settled = await Promise.allSettled(queries.map((q) => searchWeb(q)));
-  const results: WebSearchResult[] = [];
-  for (const outcome of settled) {
-    if (outcome.status === 'fulfilled') {
-      results.push(...outcome.value);
-    } else {
-      console.error('[onboarding.expertDiscovery] search query failed:', outcome.reason);
-    }
+/** Run the search, tolerating failure. Returns `[]` if the query rejected. */
+async function runSearch(query: string): Promise<WebSearchResult[]> {
+  try {
+    return await searchWeb(query, { numResults: 8 });
+  } catch (error) {
+    console.error('[onboarding.expertDiscovery] search query failed:', error);
+    return [];
   }
-  return results;
 }
 
 const EXTRACTION_SYSTEM =
   'You extract real subject-matter experts from web search results. ' +
   'You ONLY name experts who are directly supported by the provided search ' +
   'result snippets — never from your own memory or training data. Every ' +
-  'expert you return MUST cite the exact result URL(s) that ground them. If ' +
-  'the snippets do not clearly support a named person, do not invent one.';
+  'expert you return MUST cite the bracketed number(s) of the result(s) that ' +
+  'ground them. If the snippets do not clearly support a named person, do ' +
+  'not invent one.';
 
 function buildExtractionPrompt(ctx: DiscoverExpertsContext, results: WebSearchResult[]): string {
   const block = results
@@ -92,12 +89,12 @@ function buildExtractionPrompt(ctx: DiscoverExpertsContext, results: WebSearchRe
     block,
     '',
     `Return up to ${MAX_CANDIDATES} experts as strict JSON with this exact shape:`,
-    '{"candidates":[{"name":string,"who":string,"why":string,"focus":string|null,"where":string,"evidenceUrls":string[]}]}',
+    '{"candidates":[{"name":string,"who":string,"why":string,"focus":string|null,"where":string,"evidenceIds":number[]}]}',
     '',
     '- "who": a one-line identity (e.g. "Marine ecologist at NOAA").',
     '- "why": why they matter for this topic, grounded in the snippets.',
     '- "where": a handle, affiliation, or site for the expert.',
-    '- "evidenceUrls": one or more URLs taken VERBATIM from the result list above that support this person.',
+    '- "evidenceIds": the bracketed result numbers from the list above that support this person, e.g. [1, 3].',
     'Do not include anyone the snippets do not support. Return ONLY the JSON object.',
   ]
     .filter((line) => line !== '')
@@ -122,15 +119,13 @@ function parseCandidatePayload(content: string): unknown {
   }
 }
 
-function isStringArray(value: unknown): value is string[] {
-  return Array.isArray(value) && value.every((v) => typeof v === 'string');
-}
-
 /**
- * Ground, dedupe, and cap the raw model candidates against the real search
- * URL set. Returns at most MAX_CANDIDATES well-formed, grounded candidates.
+ * Ground, dedupe, and cap the raw model candidates. Evidence arrives as
+ * 1-based result ids; ids are bounds-checked and mapped back to the real
+ * search-result URLs in code, so the model never has to reproduce a URL
+ * byte-for-byte. Returns at most MAX_CANDIDATES well-formed candidates.
  */
-function groundAndDedupe(raw: unknown, searchUrls: Set<string>): ExpertCandidate[] {
+function groundAndDedupe(raw: unknown, results: WebSearchResult[]): ExpertCandidate[] {
   if (!raw || typeof raw !== 'object' || !('candidates' in raw)) return [];
   const list = (raw as { candidates: unknown }).candidates;
   if (!Array.isArray(list)) return [];
@@ -147,12 +142,20 @@ function groundAndDedupe(raw: unknown, searchUrls: Set<string>): ExpertCandidate
     const why = typeof e.why === 'string' ? e.why.trim() : '';
     const where = typeof e.where === 'string' ? e.where.trim() : '';
     const focus = typeof e.focus === 'string' && e.focus.trim().length > 0 ? e.focus.trim() : null;
-    const evidence = isStringArray(e.evidenceUrls) ? e.evidenceUrls : [];
+    const evidence = Array.isArray(e.evidenceIds) ? e.evidenceIds : [];
 
     if (!name) continue;
 
-    // Grounding: keep only evidence URLs that appear in the real search set.
-    const groundedUrls = evidence.filter((u) => searchUrls.has(u));
+    // Grounding: keep only in-range result ids (1-based), mapped to URLs.
+    const groundedUrls = Array.from(
+      new Set(
+        evidence
+          .filter(
+            (n): n is number => typeof n === 'number' && Number.isInteger(n) && n >= 1 && n <= results.length,
+          )
+          .map((n) => results[n - 1].url),
+      ),
+    );
     if (groundedUrls.length === 0) continue;
 
     const dedupeKey = name.toLowerCase();
@@ -172,11 +175,8 @@ function groundAndDedupe(raw: unknown, searchUrls: Set<string>): ExpertCandidate
  */
 export async function discoverExperts(ctx: DiscoverExpertsContext): Promise<ExpertCandidate[]> {
   try {
-    const queries = buildQueries(ctx);
-    const results = await runSearches(queries);
+    const results = await runSearch(buildQuery(ctx));
     if (results.length === 0) return [];
-
-    const searchUrls = new Set(results.map((r) => r.url));
 
     const { content } = await callModel({
       model: DISCOVERY_MODEL,
@@ -187,7 +187,7 @@ export async function discoverExperts(ctx: DiscoverExpertsContext): Promise<Expe
       timeout: DISCOVERY_TIMEOUT_MS,
     });
 
-    return groundAndDedupe(parseCandidatePayload(content), searchUrls);
+    return groundAndDedupe(parseCandidatePayload(content), results);
   } catch (error) {
     console.error('[onboarding.expertDiscovery] discovery failed, returning []:', error);
     return [];

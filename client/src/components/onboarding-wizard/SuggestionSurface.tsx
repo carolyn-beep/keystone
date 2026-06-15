@@ -1,5 +1,8 @@
-import { Sparkles } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
+import { motion } from 'framer-motion';
+import { TactileButton } from '@/components/ui/tactile-button';
 import type { WizardPersona } from '@/brand/types';
+import { ThinkingLine, ChipSkeletons } from './loading-states';
 
 interface SuggestionSurfaceProps {
   /** Brand persona (read from the brand config slot — no brand conditionals here). */
@@ -12,14 +15,21 @@ interface SuggestionSurfaceProps {
   loading: boolean;
   /** Tap-to-accept a chip; the accepted phrase leaves the list upstream. */
   onAccept: (phrase: string) => void;
-  /** Single refresh affordance ("Refine"). Disables after one use per step. */
+  /** Single refresh affordance. Disables after one use per step. */
   onRefresh: () => void;
   refreshUsed: boolean;
-  /** Label for the refresh affordance, e.g. "Refine Out of Scope". */
-  refreshLabel: string;
+  /**
+   * Shared-layout id for a chip (framer-motion layoutId). When the accepting
+   * step renders its accepted item with the same id in the same commit, the
+   * chip visually travels from the rail into the step's list (and back when
+   * removed). Omit for steps where accept doesn't move the chip (topic).
+   */
+  chipLayoutId?: (phrase: string) => string;
   /** Optional slot rendered above the chips (e.g. the step-1 pro-tip card). */
   children?: React.ReactNode;
 }
+
+const chipSpring = { type: 'spring', duration: 0.45, bounce: 0 } as const;
 
 /**
  * Wizard suggestion rail (04-suggestion-steps FR3). Persona header + a chip
@@ -36,11 +46,30 @@ export function SuggestionSurface({
   onAccept,
   onRefresh,
   refreshUsed,
-  refreshLabel,
+  chipLayoutId,
   children,
 }: SuggestionSurfaceProps) {
   const { Mascot } = persona;
   const hasChips = suggestions.length > 0;
+
+  // Chips of a fresh batch stack one by one (progressive mount, not a group
+  // pop). `seenRef` distinguishes a genuinely new batch (initial load,
+  // refresh) from filter churn — an accepted chip leaving / coming back must
+  // not restart the stagger.
+  const [revealed, setRevealed] = useState(0);
+  const seenRef = useRef<Set<string>>(new Set());
+
+  useEffect(() => {
+    const hasNew = suggestions.some((s) => !seenRef.current.has(s));
+    suggestions.forEach((s) => seenRef.current.add(s));
+    if (hasNew) setRevealed(0);
+  }, [suggestions]);
+
+  useEffect(() => {
+    if (revealed >= suggestions.length) return;
+    const t = setTimeout(() => setRevealed((r) => r + 1), 90);
+    return () => clearTimeout(t);
+  }, [revealed, suggestions.length]);
 
   return (
     <div className="flex h-full w-full flex-col px-8 py-6" data-testid="suggestion-surface">
@@ -66,45 +95,71 @@ export function SuggestionSurface({
       {/* Chip section — only when loading or when there are chips. */}
       {(loading || hasChips) && (
         <div className="mt-auto pt-10">
-          <h3 className="m-0 text-[18px] font-bold leading-tight text-foreground">{title}</h3>
+          {/* The chip section is bottom-anchored, so each newly stacked chip
+              pushes the heading upward — layout="position" makes that ride
+              smooth instead of jumping row by row. */}
+          <motion.h3
+            layout="position"
+            transition={chipSpring}
+            className="m-0 text-[18px] font-bold leading-tight text-foreground"
+          >
+            {title}
+          </motion.h3>
           {helper && (
-            <p className="m-0 mt-1 font-serif text-[14px] italic text-muted-foreground">{helper}</p>
+            <motion.p
+              layout="position"
+              transition={chipSpring}
+              className="m-0 mt-1 font-serif text-[14px] italic text-muted-foreground"
+            >
+              {helper}
+            </motion.p>
           )}
 
           {loading && !hasChips ? (
-            <p
-              className="m-0 mt-5 font-serif text-[14px] italic text-muted-light"
-              data-testid="suggestions-loading"
-            >
-              Thinking of a few ideas…
-            </p>
+            <div className="mt-5 space-y-4">
+              <ThinkingLine message="Thinking of a few ideas" data-testid="suggestions-loading" />
+              <ChipSkeletons />
+            </div>
           ) : (
-            <div className="mt-5 flex flex-wrap gap-2.5" data-testid="suggestion-chips">
-              {suggestions.map((phrase) => (
-                <button
+            <motion.div
+              layout="position"
+              transition={chipSpring}
+              className="mt-5 flex flex-wrap gap-2.5"
+              data-testid="suggestion-chips"
+            >
+              {suggestions.slice(0, revealed).map((phrase) => (
+                <motion.button
                   key={phrase}
+                  layoutId={chipLayoutId?.(phrase)}
+                  layout
+                  initial={{ opacity: 0, scale: 0.85, y: 8 }}
+                  animate={{ opacity: 1, scale: 1, y: 0 }}
+                  transition={chipSpring}
+                  whileHover={{ y: -2 }}
+                  whileTap={{ scale: 0.96 }}
                   type="button"
                   data-testid="suggestion-chip"
                   onClick={() => onAccept(phrase)}
-                  className="rounded-full bg-card px-4 py-2 text-[14px] text-foreground shadow-card transition-transform duration-200 hover:-translate-y-0.5"
+                  className="rounded-full bg-card px-4 py-2 text-[14px] text-foreground shadow-card"
                 >
                   {phrase}
-                </button>
+                </motion.button>
               ))}
-            </div>
+            </motion.div>
           )}
 
           {/* Single refresh affordance, disabled after one use. */}
-          <button
-            type="button"
-            data-testid="suggestion-refresh"
-            onClick={onRefresh}
-            disabled={refreshUsed || loading}
-            className="mt-6 inline-flex items-center gap-2 rounded-full bg-card px-4 py-2 text-[13px] text-foreground shadow-card transition-transform duration-200 hover:-translate-y-0.5 disabled:cursor-default disabled:opacity-40 disabled:hover:translate-y-0"
-          >
-            <span>{refreshLabel}</span>
-            <Sparkles size={14} className="text-primary" />
-          </button>
+          <motion.div layout="position" transition={chipSpring} className="mt-6">
+            <TactileButton
+              variant="inset"
+              data-testid="suggestion-refresh"
+              onClick={onRefresh}
+              disabled={refreshUsed || loading}
+              className="text-[11px] uppercase tracking-[0.2em] px-4 py-2"
+            >
+              Give me more ideas
+            </TactileButton>
+          </motion.div>
         </div>
       )}
     </div>

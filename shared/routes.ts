@@ -58,32 +58,55 @@ export const api = {
 // Onboarding wizard validation schemas (features/ux-redesign/onboarding-wizard)
 // POST /api/onboarding/projects body.
 export const onboardingCreateInput = z.object({
-  topic: z.string().trim().min(3).max(200),
+  topic: z.string().trim().min(3).max(400),
+  // Three-part topic field (optional: the redesigned Topic step sends all
+  // three; older clients send topic only). Feed title generation.
+  focus: z.string().trim().max(400).optional(),
+  why: z.string().trim().max(400).optional(),
 });
 export type OnboardingCreateInput = z.infer<typeof onboardingCreateInput>;
 
 // PATCH /api/brainlifts/:slug/onboarding body. `step` is a forward-only
-// high-water mark (1..7); scope arrays feed brainlifts.in_scope / out_of_scope.
+// high-water mark (1..6 — the step-7 Done screen was removed 2026-06-11;
+// Resources is the last step); scope arrays feed brainlifts.in_scope /
+// out_of_scope.
 export const onboardingPatchInput = z.object({
-  step: z.number().int().min(1).max(7).optional(),
-  inScope: z.array(z.string().trim().min(1)).max(30).optional(),
-  outOfScope: z.array(z.string().trim().min(1)).max(30).optional(),
+  step: z.number().int().min(1).max(6).optional(),
+  // Per-item length caps: these strings are interpolated into AI prompts
+  // (suggestions, scope filter, orchestrator digest) — bound the spend.
+  inScope: z.array(z.string().trim().min(1).max(300)).max(30).optional(),
+  outOfScope: z.array(z.string().trim().min(1).max(300)).max(30).optional(),
 });
 export type OnboardingPatchInput = z.infer<typeof onboardingPatchInput>;
 
 // POST /api/onboarding/topic-suggestions body. Pre-create (no slug yet);
 // `exclude` lists already-shown topics so a refresh asks for different ones.
 export const topicSuggestionsInput = z.object({
-  exclude: z.array(z.string()).max(20).optional(),
+  // Topic chips are full three-part sentences — 500 covers them comfortably
+  // while bounding what reaches the prompt.
+  exclude: z.array(z.string().max(500)).max(20).optional(),
 });
 export type TopicSuggestionsInput = z.infer<typeof topicSuggestionsInput>;
+
+/**
+ * POST /api/onboarding/topic-suggestions response element. One suggestion for
+ * the three-part topic field ("I'll be working on [topic] / specifically
+ * focusing on [focus] / in order to [why]"). `text` is the full composed
+ * sentence — chip label and refresh-exclude payload.
+ */
+export interface OnboardingTopicSuggestion {
+  text: string;
+  topic: string;
+  focus: string;
+  why: string;
+}
 
 // POST /api/brainlifts/:slug/onboarding/suggestions body. `kind` selects the
 // prompt; topic/scope inputs are read server-side from the brainlift row, never
 // from the request. `exclude` lists already-shown items (refresh).
 export const onboardingSuggestionsInput = z.object({
   kind: z.enum(['in-scope', 'out-of-scope', 'categories']),
-  exclude: z.array(z.string()).max(40).optional(),
+  exclude: z.array(z.string().max(500)).max(40).optional(),
 });
 export type OnboardingSuggestionsInput = z.infer<typeof onboardingSuggestionsInput>;
 

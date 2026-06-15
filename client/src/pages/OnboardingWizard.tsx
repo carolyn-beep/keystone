@@ -6,16 +6,15 @@ import { WizardShell } from '@/components/onboarding-wizard/WizardShell';
 import { TopicStep, TopicStepRail } from '@/components/onboarding-wizard/TopicStep';
 import { ScopeStep, ScopeStepRail } from '@/components/onboarding-wizard/ScopeStep';
 import { CategoriesStep, CategoriesStepRail } from '@/components/onboarding-wizard/CategoriesStep';
-import { DoneStep } from '@/components/onboarding-wizard/DoneStep';
-import { ExpertsStep } from '@/components/onboarding-wizard/ExpertsStep';
+import { ExpertsStep, ExpertsStepRail } from '@/components/onboarding-wizard/ExpertsStep';
 import { ResourcesStep, ResourcesStepRail } from '@/components/onboarding-wizard/ResourcesStep';
 import { PlaceholderStep } from '@/components/onboarding-wizard/PlaceholderStep';
 import { buildScopePatch } from '@/components/onboarding-wizard/scope-helpers';
 import { useStarterPack } from '@/hooks/useStarterPack';
+import { useOnboardingSuggestions } from '@/hooks/useOnboardingSuggestions';
 import {
   WIZARD_STEPS,
   FIRST_STEP,
-  LAST_STEP,
   clampStep,
   resolveActiveStep,
   isForwardStep,
@@ -30,9 +29,10 @@ interface OnboardingWizardProps {
 
 /**
  * Full-screen onboarding wizard (features/ux-redesign/onboarding-wizard).
- * Server-backed 7-step machine: Topic create on confirm, forward-only step
- * persistence, resume from the saved step, Done handoff to the Second Brain
- * tab. Steps 2-6 are placeholders filled by specs 04-06.
+ * Server-backed 6-step machine: Topic create on confirm, forward-only step
+ * persistence, resume from the saved step. Resources' Finish fires complete
+ * and hands off to the Second Brain tab, where the success beat shows as the
+ * SetupCompleteModal (2026-06-11 amendment — no step-7 Done screen).
  */
 export default function OnboardingWizard({ slug }: OnboardingWizardProps) {
   const [, setLocation] = useLocation();
@@ -48,7 +48,21 @@ export default function OnboardingWizard({ slug }: OnboardingWizardProps) {
 
   // Starter-pack launch is fired on Categories Next (fire-and-forget) and the
   // pack's items/decline/paste plumbing is owned by ResourcesStep's own hook.
-  const { launch: launchStarterPack } = useStarterPack(slug);
+  const { launch: launchStarterPack, promote: promotePackItem } = useStarterPack(slug);
+
+  // Optimistic promoted-pack ids, lifted to the page (scope-chip pattern): one
+  // synchronous setState makes the rail card leave and its Added-list twin
+  // mount in the SAME commit, which the shared-layoutId fly animation needs.
+  // Two independent query-cache observers can commit separately and break the
+  // handoff. Server truth (`status === 'bookmarked'`) takes over on refetch;
+  // a failed promote rolls the id back (the card flies home).
+  const [promotedPackIds, setPromotedPackIds] = useState<number[]>([]);
+  const handlePromotePackItem = (itemId: number) => {
+    setPromotedPackIds((prev) => (prev.includes(itemId) ? prev : [...prev, itemId]));
+    promotePackItem(itemId).catch(() => {
+      setPromotedPackIds((prev) => (prev.filter((id) => id !== itemId)));
+    });
+  };
 
   // Persisted high-water mark from the server (undefined until loaded).
   const highWater = slug ? resume.data?.onboardingStep ?? undefined : undefined;
@@ -61,7 +75,31 @@ export default function OnboardingWizard({ slug }: OnboardingWizardProps) {
 
   // Transient step state lifted to the page so a step's main column and its
   // rail (separate WizardShell slots) share one list.
-  const [topic, setTopic] = useState('');
+  const [topicSubject, setTopicSubject] = useState('');
+  const [topicFocus, setTopicFocus] = useState('');
+  const [topicGoal, setTopicGoal] = useState('');
+
+  const stepMeta = WIZARD_STEPS.find((s) => s.id === activeStep) ?? WIZARD_STEPS[0];
+
+  // Suggestion batches are shared between each step's rail (chips) and the
+  // step's rotating input placeholder, so the hooks live here. Each fetches
+  // when its step opens (enabled gate).
+  const topicIdeas = useOnboardingSuggestions({ kind: 'topic', enabled: activeStep === FIRST_STEP });
+  const inScopeIdeas = useOnboardingSuggestions({
+    kind: 'in-scope',
+    slug,
+    enabled: Boolean(slug) && stepMeta.key === 'in-scope',
+  });
+  const outScopeIdeas = useOnboardingSuggestions({
+    kind: 'out-of-scope',
+    slug,
+    enabled: Boolean(slug) && stepMeta.key === 'out-of-scope',
+  });
+  const categoryIdeas = useOnboardingSuggestions({
+    kind: 'categories',
+    slug,
+    enabled: Boolean(slug) && stepMeta.key === 'categories',
+  });
   const [inScopeItems, setInScopeItems] = useState<string[]>([]);
   const [outOfScopeItems, setOutOfScopeItems] = useState<string[]>([]);
 
@@ -102,8 +140,6 @@ export default function OnboardingWizard({ slug }: OnboardingWizardProps) {
     () => (createError instanceof Error ? createError.message : createError ? 'Something went wrong. Try again.' : null),
     [createError],
   );
-
-  const stepMeta = WIZARD_STEPS.find((s) => s.id === activeStep) ?? WIZARD_STEPS[0];
 
   // Topic confirm → create → URL gains slug, advance to step 2.
   const handleConfirmTopic = async (topic: string) => {
@@ -159,14 +195,16 @@ export default function OnboardingWizard({ slug }: OnboardingWizardProps) {
     setActiveStep((s) => Math.max(FIRST_STEP, s - 1));
   };
 
-  // Done CTA → complete → land on the Second Brain tab. On failure we stay on
-  // the Done step (no navigation); the mutation error is tracked by react-query.
-  const handleEnter = () => {
+  // Resources' Finish → complete → land on the Second Brain tab, where the
+  // landing location's `setup=done` param triggers the one-shot
+  // SetupCompleteModal. On failure we stay on Resources (no navigation); the
+  // mutation error is tracked by react-query.
+  const handleFinish = () => {
     if (!slug) return;
     completeOnboarding(slug)
       .then(() => setLocation(buildLandingLocation(slug)))
       .catch(() => {
-        /* stay on Done */
+        /* stay on Resources */
       });
   };
 
@@ -200,31 +238,73 @@ export default function OnboardingWizard({ slug }: OnboardingWizardProps) {
         onConfirm={handleConfirmTopic}
         isSubmitting={isCreating}
         error={createErrorMessage}
-        topic={topic}
-        onTopicChange={setTopic}
+        subject={topicSubject}
+        onSubjectChange={setTopicSubject}
+        focus={topicFocus}
+        onFocusChange={setTopicFocus}
+        goal={topicGoal}
+        onGoalChange={setTopicGoal}
+        placeholderIdeas={topicIdeas.structured}
       />
     );
-    rail = <TopicStepRail onAccept={setTopic} />;
+    rail = (
+      <TopicStepRail
+        ideas={topicIdeas}
+        onAccept={(s) => {
+          setTopicSubject(s.topic);
+          setTopicFocus(s.focus);
+          setTopicGoal(s.why);
+        }}
+      />
+    );
   } else if (stepMeta.key === 'in-scope') {
-    body = <ScopeStep variant="in" items={inScopeItems} onItemsChange={setInScopeItems} onNext={() => handleScopeNext('in')} />;
-    rail = <ScopeStepRail variant="in" slug={slug} items={inScopeItems} onItemsChange={setInScopeItems} />;
+    body = (
+      <ScopeStep
+        variant="in"
+        items={inScopeItems}
+        onItemsChange={setInScopeItems}
+        onNext={() => handleScopeNext('in')}
+        suggestionIdeas={inScopeIdeas.suggestions}
+      />
+    );
+    rail = <ScopeStepRail variant="in" ideas={inScopeIdeas} items={inScopeItems} onItemsChange={setInScopeItems} />;
   } else if (stepMeta.key === 'out-of-scope') {
-    body = <ScopeStep variant="out" items={outOfScopeItems} onItemsChange={setOutOfScopeItems} onNext={() => handleScopeNext('out')} />;
-    rail = <ScopeStepRail variant="out" slug={slug} items={outOfScopeItems} onItemsChange={setOutOfScopeItems} />;
+    body = (
+      <ScopeStep
+        variant="out"
+        items={outOfScopeItems}
+        onItemsChange={setOutOfScopeItems}
+        onNext={() => handleScopeNext('out')}
+        suggestionIdeas={outScopeIdeas.suggestions}
+      />
+    );
+    rail = <ScopeStepRail variant="out" ideas={outScopeIdeas} items={outOfScopeItems} onItemsChange={setOutOfScopeItems} />;
   } else if (stepMeta.key === 'categories' && slug) {
     // Categories Next fires the starter-pack launch (fire-and-forget) then
     // advances — spec 05's trigger hookpoint.
-    body = <CategoriesStep slug={slug} onNext={handleCategoriesNext} />;
-    rail = <CategoriesStepRail slug={slug} />;
-  } else if (activeStep === LAST_STEP) {
-    body = <DoneStep onEnter={handleEnter} isCompleting={isCompleting} />;
+    body = <CategoriesStep slug={slug} onNext={handleCategoriesNext} suggestionIdeas={categoryIdeas.suggestions} />;
+    rail = <CategoriesStepRail slug={slug} ideas={categoryIdeas} />;
   } else if (stepMeta.key === 'experts') {
     // Discovery fires only when this step opens (the hook's `enabled` gate is
     // satisfied once ExpertsStep mounts).
     body = <ExpertsStep slug={slug} onNext={handleNext} />;
+    rail = <ExpertsStepRail />;
   } else if (stepMeta.key === 'resources') {
-    body = <ResourcesStep slug={slug} onNext={handleNext} />;
-    rail = <ResourcesStepRail slug={slug} />;
+    body = (
+      <ResourcesStep
+        slug={slug}
+        onNext={handleFinish}
+        isFinishing={isCompleting}
+        promotedIds={promotedPackIds}
+      />
+    );
+    rail = (
+      <ResourcesStepRail
+        slug={slug}
+        promotedIds={promotedPackIds}
+        onPromote={handlePromotePackItem}
+      />
+    );
   } else {
     body = <PlaceholderStep title={stepMeta.title} onNext={handleNext} />;
   }

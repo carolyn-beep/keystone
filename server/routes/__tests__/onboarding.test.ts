@@ -80,6 +80,7 @@ function makeBrainlift(overrides: Partial<Brainlift> = {}): Brainlift {
     inScope: [],
     outOfScope: [],
     onboardingStep: 1,
+    onboardingTopic: null,
     createdByUserId: USER_ID,
     createdAt: new Date('2026-06-10'),
     ...overrides,
@@ -100,9 +101,14 @@ async function simulateCreate(params: {
   if (!parsed.success) {
     return { status: 400, body: { message: 'Invalid topic' } };
   }
+  const { topic, focus, why } = parsed.data;
+  const parts = [topic.trim()];
+  if (focus?.trim()) parts.push(`specifically focusing on ${focus.trim()}`);
+  if (why?.trim()) parts.push(`in order to ${why.trim()}`);
   const brainlift = await mockCreateOnboardingBrainlift({
     userId: USER_ID,
-    topic: parsed.data.topic,
+    topic,
+    onboardingTopic: parts.join(', '),
   });
   return { status: 201, body: brainlift };
 }
@@ -159,7 +165,7 @@ async function simulateExpertDiscovery(params: {
   const current = params.brainlift;
   const categoryRows = await mockGetCategoriesWithCountsForSecondBrain(current.id);
   const candidates = await mockDiscoverExperts({
-    topic: current.title,
+    topic: current.onboardingTopic ?? current.title,
     inScope: current.inScope,
     categories: (categoryRows as Array<{ name: string }>).map((c) => c.name),
   });
@@ -185,8 +191,8 @@ describe('FR1: onboardingCreateInput schema', () => {
     expect(parsed.topic).toBe('Bio');
   });
 
-  it('accepts a 200-char topic', () => {
-    const topic = 'x'.repeat(200);
+  it('accepts a 400-char topic (three-part field composes long)', () => {
+    const topic = 'x'.repeat(400);
     expect(onboardingCreateInput.parse({ topic }).topic).toBe(topic);
   });
 
@@ -199,20 +205,32 @@ describe('FR1: onboardingCreateInput schema', () => {
     expect(onboardingCreateInput.safeParse({ topic: '   ' }).success).toBe(false);
   });
 
-  it('rejects a topic over 200 chars', () => {
-    expect(onboardingCreateInput.safeParse({ topic: 'x'.repeat(201) }).success).toBe(false);
+  it('rejects a topic over 400 chars', () => {
+    expect(onboardingCreateInput.safeParse({ topic: 'x'.repeat(401) }).success).toBe(false);
+  });
+
+  it('accepts optional focus and why fields', () => {
+    const parsed = onboardingCreateInput.parse({
+      topic: 'a soccer app',
+      focus: ' scheduling ',
+      why: 'help my coach',
+    });
+    expect(parsed.focus).toBe('scheduling');
+    expect(parsed.why).toBe('help my coach');
   });
 });
 
 describe('FR1: onboardingPatchInput schema', () => {
-  it('accepts step in 1..7', () => {
+  // 2026-06-11 amendment: the step-7 Done screen was removed; Resources (6)
+  // is the last step, so the schema ceiling dropped from 7 to 6.
+  it('accepts step in 1..6', () => {
     expect(onboardingPatchInput.parse({ step: 1 }).step).toBe(1);
-    expect(onboardingPatchInput.parse({ step: 7 }).step).toBe(7);
+    expect(onboardingPatchInput.parse({ step: 6 }).step).toBe(6);
   });
 
-  it('rejects step 0 and step 8 (out of bounds)', () => {
+  it('rejects step 0 and step 7 (out of bounds)', () => {
     expect(onboardingPatchInput.safeParse({ step: 0 }).success).toBe(false);
-    expect(onboardingPatchInput.safeParse({ step: 8 }).success).toBe(false);
+    expect(onboardingPatchInput.safeParse({ step: 7 }).success).toBe(false);
   });
 
   it('rejects a non-integer step', () => {
@@ -251,6 +269,7 @@ describe('FR1: POST /api/onboarding/projects', () => {
     expect(mockCreateOnboardingBrainlift).toHaveBeenCalledWith({
       userId: USER_ID,
       topic: 'Marine Biology',
+      onboardingTopic: 'Marine Biology',
     });
     expect(res.body.phase).toBe('research');
     expect(res.body.onboardingStep).toBe(1);
@@ -481,7 +500,11 @@ async function simulateSlugSuggestions(params: {
   // Inputs are read server-side from the row, NOT the request body.
   const suggestions = await mockGenerateOnboardingSuggestions(
     parsed.data.kind,
-    { topic: current.title, inScope: current.inScope, outOfScope: current.outOfScope },
+    {
+      topic: current.onboardingTopic ?? current.title,
+      inScope: current.inScope,
+      outOfScope: current.outOfScope,
+    },
     parsed.data.exclude,
   );
   return { status: 200, body: { suggestions } };

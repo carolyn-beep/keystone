@@ -167,6 +167,11 @@ export const brainlifts = pgTable("brainlifts", {
   outOfScope: text("out_of_scope").array().notNull().default(sql`'{}'::text[]`),
   // NULL = not onboarding (legacy, imported, or finished); 1..N = wizard in progress.
   onboardingStep: integer("onboarding_step"),
+  // Full descriptive topic sentence from the wizard's three-part Topic step,
+  // connectives included ("X, specifically focusing on Y, in order to Z").
+  // Feeds suggestion/discovery/starter-pack prompts; `title` is display-only.
+  // NULL for legacy/imported brainlifts (callers fall back to `title`).
+  onboardingTopic: text("onboarding_topic"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 }, (table) => [
   index("brainlifts_created_by_user_id_idx").on(table.createdByUserId),
@@ -898,7 +903,7 @@ export type ExtractedContent =
   | { contentType: 'embed'; embedType: 'spotify'; embedId: string }
   | { contentType: 'embed'; embedType: 'apple-podcast'; embedUrl: string }
   | { contentType: 'embed'; embedType: 'tweet'; tweetId: string }
-  | { contentType: 'article'; markdown: string; title?: string; siteName?: string }
+  | { contentType: 'article'; markdown: string; title?: string; siteName?: string; author?: string }
   | { contentType: 'pdf'; url: string }
   | { contentType: 'fallback'; reason: string };
 
@@ -978,7 +983,10 @@ export const sources = pgTable("sources", {
   title: text("title").notNull(),
   url: text("url").notNull(),
   author: text("author").notNull(),
-  categoryId: integer("category_id").notNull().references(() => categories.id, { onDelete: "restrict" }),
+  // Nullable: a null categoryId renders as "Uncategorized" (e.g. sources
+  // promoted from the onboarding wizard's starter pack, where no category
+  // choice is presented).
+  categoryId: integer("category_id").references(() => categories.id, { onDelete: "restrict" }),
   extractedContent: jsonb("extracted_content").$type<ExtractedContent | Record<string, unknown> | null>(),
   learningStreamItemId: integer("learning_stream_item_id").references(() => learningStreamItems.id, { onDelete: "set null" }),
   // Second Brain v2 enrichment fields. All nullable; mirrored from

@@ -1,10 +1,11 @@
 /**
  * Tests for 06-expert-discovery FR1: `discoverExperts` pipeline.
  *
- * The pipeline runs 2-3 `searchWeb` queries (Promise.allSettled), feeds the
- * concatenated results into ONE `callModel` extraction (haiku, temp 0, the
+ * The pipeline runs ONE natural-language `searchWeb` query, feeds the
+ * results into ONE `callModel` extraction (haiku, temp 0, the
  * `onboarding.expertDiscovery` caller, 30s timeout), then grounds/dedupes/caps
- * the candidates in code. It must NEVER throw: search or model failure → [].
+ * the candidates in code (evidence cited as 1-based result ids, mapped back to
+ * URLs). It must NEVER throw: search or model failure → [].
  *
  * Both Exa (`searchWeb`) and the unified AI client (`callModel`) are mocked —
  * no network, no LLM.
@@ -73,7 +74,7 @@ describe('FR1: discoverExperts happy path', () => {
               why: 'Leading coral reef researcher',
               focus: 'Coral reefs',
               where: 'https://example.com/jane',
-              evidenceUrls: ['https://example.com/jane'],
+              evidenceIds: [1],
             },
             {
               name: 'Prof. John Doe',
@@ -81,7 +82,7 @@ describe('FR1: discoverExperts happy path', () => {
               why: 'Studies whale migration',
               focus: null,
               where: '@johndoe',
-              evidenceUrls: ['https://example.com/john'],
+              evidenceIds: [2],
             },
           ],
         }),
@@ -120,7 +121,7 @@ describe('FR1: discoverExperts happy path', () => {
             why: 'Why',
             focus: null,
             where: `https://example.com/e${i}`,
-            evidenceUrls: [`https://example.com/e${i}`],
+            evidenceIds: [i + 1],
           })),
         }),
       ),
@@ -145,40 +146,43 @@ describe('FR1: discoverExperts happy path', () => {
     expect(opts.retries ?? 0).toBe(0);
   });
 
-  it('runs multiple search queries and grounds against the union of all results', async () => {
-    // Each query returns a different URL set; a candidate grounded in any of
-    // them must survive.
-    mockSearchWeb
-      .mockResolvedValueOnce([makeResult({ url: 'https://a.com/x' })])
-      .mockResolvedValueOnce([makeResult({ url: 'https://b.com/y' })])
-      .mockResolvedValue([makeResult({ url: 'https://c.com/z' })]);
+  it('runs ONE natural-language search query carrying the project and expertise areas', async () => {
+    mockSearchWeb.mockResolvedValue([
+      makeResult({ url: 'https://a.com/x' }),
+      makeResult({ url: 'https://b.com/y' }),
+    ]);
     mockCallModel.mockResolvedValue(
       modelResult(
         JSON.stringify({
           candidates: [
-            { name: 'B Person', who: 'w', why: 'y', focus: null, where: 'b', evidenceUrls: ['https://b.com/y'] },
+            { name: 'B Person', who: 'w', why: 'y', focus: null, where: 'b', evidenceIds: [2] },
           ],
         }),
       ),
     );
 
     const candidates = await discoverExperts(CTX);
-    expect(mockSearchWeb.mock.calls.length).toBeGreaterThanOrEqual(2);
+    expect(mockSearchWeb).toHaveBeenCalledTimes(1);
+    const [query, options] = mockSearchWeb.mock.calls[0];
+    expect(query).toContain('A student is working on this project: Marine Biology');
+    expect(query).toContain('Ecology, Conservation');
+    expect(query).toContain('researchers, practitioners, founders, builders');
+    expect(options).toEqual({ numResults: 8 });
     expect(candidates).toHaveLength(1);
     expect(candidates[0].name).toBe('B Person');
   });
 });
 
 describe('FR1: discoverExperts grounding enforcement', () => {
-  it('drops a candidate whose evidence URLs are all outside the search set', async () => {
+  it('drops a candidate whose evidence ids are all out of range', async () => {
     mockSearchWeb.mockResolvedValue([makeResult({ url: 'https://example.com/real' })]);
     mockCallModel.mockResolvedValue(
       modelResult(
         JSON.stringify({
           candidates: [
-            { name: 'Real', who: 'w', why: 'y', focus: null, where: 'r', evidenceUrls: ['https://example.com/real'] },
-            // hallucinated: cites a URL that was never in any search result
-            { name: 'Fabricated', who: 'w', why: 'y', focus: null, where: 'f', evidenceUrls: ['https://hallucinated.com/x'] },
+            { name: 'Real', who: 'w', why: 'y', focus: null, where: 'r', evidenceIds: [1] },
+            // hallucinated: cites a result number that does not exist
+            { name: 'Fabricated', who: 'w', why: 'y', focus: null, where: 'f', evidenceIds: [7] },
           ],
         }),
       ),
@@ -188,7 +192,7 @@ describe('FR1: discoverExperts grounding enforcement', () => {
     expect(candidates.map((c) => c.name)).toEqual(['Real']);
   });
 
-  it('strips non-intersecting URLs from a partially-grounded candidate', async () => {
+  it('strips out-of-range ids from a partially-grounded candidate', async () => {
     mockSearchWeb.mockResolvedValue([makeResult({ url: 'https://example.com/real' })]);
     mockCallModel.mockResolvedValue(
       modelResult(
@@ -200,7 +204,7 @@ describe('FR1: discoverExperts grounding enforcement', () => {
               why: 'y',
               focus: null,
               where: 'm',
-              evidenceUrls: ['https://example.com/real', 'https://hallucinated.com/x'],
+              evidenceIds: [1, 9],
             },
           ],
         }),
@@ -212,13 +216,13 @@ describe('FR1: discoverExperts grounding enforcement', () => {
     expect(candidates[0].evidenceUrls).toEqual(['https://example.com/real']);
   });
 
-  it('drops candidates with no evidence URLs at all', async () => {
+  it('drops candidates with no evidence ids at all', async () => {
     mockSearchWeb.mockResolvedValue([makeResult({ url: 'https://example.com/real' })]);
     mockCallModel.mockResolvedValue(
       modelResult(
         JSON.stringify({
           candidates: [
-            { name: 'NoEvidence', who: 'w', why: 'y', focus: null, where: 'n', evidenceUrls: [] },
+            { name: 'NoEvidence', who: 'w', why: 'y', focus: null, where: 'n', evidenceIds: [] },
           ],
         }),
       ),
@@ -239,8 +243,8 @@ describe('FR1: discoverExperts dedupe', () => {
       modelResult(
         JSON.stringify({
           candidates: [
-            { name: 'Jane Roe', who: 'w', why: 'y', focus: null, where: 'j', evidenceUrls: ['https://example.com/1'] },
-            { name: 'JANE ROE', who: 'w2', why: 'y2', focus: null, where: 'j2', evidenceUrls: ['https://example.com/2'] },
+            { name: 'Jane Roe', who: 'w', why: 'y', focus: null, where: 'j', evidenceIds: [1] },
+            { name: 'JANE ROE', who: 'w2', why: 'y2', focus: null, where: 'j2', evidenceIds: [2] },
           ],
         }),
       ),
@@ -262,7 +266,7 @@ describe('FR1: discoverExperts partial / total search failure', () => {
       modelResult(
         JSON.stringify({
           candidates: [
-            { name: 'Survivor', who: 'w', why: 'y', focus: null, where: 's', evidenceUrls: ['https://ok.com/survivor'] },
+            { name: 'Survivor', who: 'w', why: 'y', focus: null, where: 's', evidenceIds: [1] },
           ],
         }),
       ),

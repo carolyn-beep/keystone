@@ -13,7 +13,7 @@ import type { ExpertDiscoveryResponse } from '@shared/routes';
  * an empty result — no error wall.
  *
  * Accept POSTs a one-expert array to the REST create endpoint and invalidates
- * the brainlift query so the accepted expert shows up everywhere it's read.
+ * both the brainlift query and the saved-experts list so UI state stays in sync.
  */
 
 export type ExpertCandidate = ExpertDiscoveryResponse['candidates'][number];
@@ -25,6 +25,15 @@ export interface ExpertAcceptInput {
   who?: string;
   why?: string;
   focus?: string;
+}
+
+/** A saved expert row returned by GET /api/brainlifts/:slug/experts. */
+export interface SavedExpert {
+  id: number;
+  name: string;
+  where: string | null;
+  who: string | null;
+  why: string | null;
 }
 
 export function useExpertDiscovery(slug: string | undefined, enabled: boolean) {
@@ -43,6 +52,16 @@ export function useExpertDiscovery(slug: string | undefined, enabled: boolean) {
     },
   });
 
+  const savedExperts = useQuery<SavedExpert[]>({
+    queryKey: ['experts', slug],
+    enabled: Boolean(slug),
+    staleTime: 30_000,
+    queryFn: async () => {
+      const res = await apiRequest('GET', `/api/brainlifts/${slug}/experts`);
+      return (await res.json()) as SavedExpert[];
+    },
+  });
+
   const accept = useMutation({
     mutationFn: async (expert: ExpertAcceptInput) => {
       const res = await apiRequest('POST', `/api/brainlifts/${slug}/experts`, {
@@ -52,6 +71,7 @@ export function useExpertDiscovery(slug: string | undefined, enabled: boolean) {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['brainlift', slug] });
+      queryClient.invalidateQueries({ queryKey: ['experts', slug] });
     },
   });
 
@@ -61,5 +81,7 @@ export function useExpertDiscovery(slug: string | undefined, enabled: boolean) {
     isError: discovery.isError,
     acceptExpert: accept.mutateAsync,
     isAccepting: accept.isPending,
+    savedExperts: savedExperts.data ?? [],
+    savedExpertsLoaded: savedExperts.isSuccess || savedExperts.isError,
   };
 }

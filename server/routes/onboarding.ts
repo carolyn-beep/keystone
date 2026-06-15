@@ -27,6 +27,7 @@ import {
   generateTopicSuggestions,
   generateOnboardingSuggestions,
 } from "../ai/onboarding/suggestions";
+import { composeTopicSentence, generateProjectTitle } from "../ai/onboarding/title";
 
 /**
  * Onboarding wizard endpoints (features/ux-redesign/onboarding-wizard).
@@ -36,17 +37,31 @@ import {
 export const onboardingRouter = Router();
 
 // Create a brainlift from the wizard's Topic step. Sets phase='research' and
-// onboardingStep=1; slug is derived from the topic with a uniqueness retry.
+// onboardingStep=1. Creation is optimistic: the row is inserted immediately
+// with the raw topic as title (slug derives from it, uniqueness retry) and the
+// full composed topic sentence persisted for downstream prompts; the AI title
+// then backfills in the background (fail-open: on any failure the raw topic
+// simply remains as the title).
 onboardingRouter.post(
   "/api/onboarding/projects",
   requireAuth,
   asyncHandler(async (req: Request, res: Response) => {
-    const { topic } = onboardingCreateInput.parse(req.body);
+    const { topic, focus, why } = onboardingCreateInput.parse(req.body);
     const brainlift = await storage.createOnboardingBrainlift({
       userId: req.authContext!.userId,
       topic,
+      onboardingTopic: composeTopicSentence({ topic, focus, why }),
     });
     res.status(201).json(brainlift);
+
+    void (async () => {
+      try {
+        const title = await generateProjectTitle({ topic, focus, why });
+        if (title) await storage.updateBrainliftTitle(brainlift.id, title);
+      } catch (error) {
+        console.warn(`[onboarding] title backfill failed for ${brainlift.slug}:`, error);
+      }
+    })();
   }),
 );
 
@@ -60,7 +75,7 @@ onboardingRouter.patch(
     const current = req.brainlift!;
 
     // Patching an already-completed onboarding is a conflict, not a no-op:
-    // the wizard should never PATCH after Done cleared the step.
+    // the wizard should never PATCH after completion cleared the step.
     if (current.onboardingStep === null) {
       throw new ConflictError("Onboarding already complete");
     }
@@ -99,7 +114,9 @@ onboardingRouter.post(
     try {
       const categoryRows = await storage.getCategoriesWithCountsForSecondBrain(brainlift.id);
       candidates = await discoverExperts({
-        topic: brainlift.title,
+        // Full descriptive topic sentence; title is display-only (and often an
+        // invented project name no search engine has heard of).
+        topic: brainlift.onboardingTopic ?? brainlift.title,
         inScope: brainlift.inScope,
         categories: categoryRows.map((c) => c.name),
       });
@@ -153,7 +170,8 @@ onboardingRouter.post(
     const suggestions = await generateOnboardingSuggestions(
       kind,
       {
-        topic: current.title,
+        // Full descriptive topic sentence; title is display-only.
+        topic: current.onboardingTopic ?? current.title,
         inScope: current.inScope ?? [],
         outOfScope: current.outOfScope ?? [],
       },

@@ -1,11 +1,16 @@
 import { useState } from 'react';
+import { motion } from 'framer-motion';
 import { TactileButton } from '@/components/ui/tactile-button';
 import { X } from 'lucide-react';
 import { config } from '@/brand';
 import { useCategories } from '@/hooks/useCategories';
-import { useOnboardingSuggestions } from '@/hooks/useOnboardingSuggestions';
+import type { UseOnboardingSuggestions } from '@/hooks/useOnboardingSuggestions';
 import { SuggestionSurface } from './SuggestionSurface';
+import { PlaceholderSwap, useRotatingIdea } from './rotating-placeholder';
 import { isDuplicateCategory } from './scope-helpers';
+
+/** Shared-layout id linking a rail chip to its created-category twin. */
+const categoryChipId = (name: string) => `chip-cat-${name.trim().toLowerCase()}`;
 
 /**
  * Wizard step 4 — Categories. Suggested + manually-added category names seed
@@ -16,9 +21,25 @@ import { isDuplicateCategory } from './scope-helpers';
  * vocabulary + neo-editorial conventions, deliberately separable so a restyle
  * pass can swap the presentation without touching the seeding logic.
  */
-export function CategoriesStep({ slug, onNext }: { slug: string; onNext: () => void }) {
+export function CategoriesStep({
+  slug,
+  onNext,
+  suggestionIdeas,
+}: {
+  slug: string;
+  onNext: () => void;
+  /** Loaded category ideas (shared with the rail) for the rotating placeholder. */
+  suggestionIdeas: string[];
+}) {
   const { categories, createCategory, deleteCategory, isCreating, isRemoving } = useCategories(slug);
   const [draft, setDraft] = useState('');
+
+  // Rotating placeholder over the not-yet-created suggestions; static step
+  // copy until ideas load.
+  const currentIdea = useRotatingIdea(
+    suggestionIdeas.filter((s) => !isDuplicateCategory(categories, s)),
+    'Expertise Area',
+  );
 
   // Selected state derives from created rows (the canonical ['categories', slug]
   // query) — no separate selection state to drift.
@@ -35,32 +56,37 @@ export function CategoriesStep({ slug, onNext }: { slug: string; onNext: () => v
   };
 
   return (
-    <div className="max-w-[760px]">
-      <span className="text-[12px] uppercase tracking-[0.35em] font-semibold text-primary">Categories</span>
-      <h2 className="text-[28px] font-bold tracking-tight leading-[1.1] m-0 mt-3">Map out the territory</h2>
+    <div className="flex flex-1 flex-col max-w-[760px]">
+      <h2 className="text-[28px] font-bold tracking-tight leading-[1.1] m-0">Map out the territory</h2>
       <p className="font-serif italic text-[15px] text-muted-foreground m-0 mt-2">
-        Pick a few categories to organise what you learn. You can always change these later.
+        Name the areas you need to get good at to make this project great. We'll build your learning around each one.
       </p>
 
-      <div className="mt-10">
+      <div className="relative mt-10">
         <input
           data-testid="input-category"
           type="text"
           value={draft}
-          placeholder="Add a category."
+          placeholder=""
+          aria-placeholder={currentIdea}
           onChange={(e) => setDraft(e.target.value)}
           onKeyDown={(e) => {
             if (e.key === 'Enter') void commitDraft();
           }}
-          className="font-serif text-[34px] leading-[1.25] text-foreground bg-transparent border-0 border-b border-border focus:border-foreground focus:outline-none placeholder:text-muted-light w-full pb-1"
+          className="font-serif text-[34px] leading-[1.25] text-foreground bg-transparent border-0 border-b border-border focus:border-muted-foreground focus:outline-none w-full pb-1"
         />
+        {/* Animated placeholder — hidden the moment the student types. */}
+        {draft === '' && <PlaceholderSwap text={currentIdea} />}
       </div>
 
       {categories.length > 0 && (
         <div className="mt-8 flex flex-wrap gap-2.5" data-testid="category-items">
           {categories.map((cat) => (
-            <span
+            <motion.span
               key={cat.id}
+              layoutId={categoryChipId(cat.name)}
+              layout
+              transition={{ type: 'spring', duration: 0.45, bounce: 0 }}
               data-testid="category-chip"
               className="inline-flex items-center gap-2 rounded-full bg-card px-4 py-2 text-[14px] text-foreground shadow-card"
             >
@@ -75,12 +101,12 @@ export function CategoriesStep({ slug, onNext }: { slug: string; onNext: () => v
               >
                 <X size={14} />
               </button>
-            </span>
+            </motion.span>
           ))}
         </div>
       )}
 
-      <div className="mt-16">
+      <div className="mt-auto pt-8">
         <TactileButton
           variant="raised"
           data-testid="button-categories-next"
@@ -97,15 +123,18 @@ export function CategoriesStep({ slug, onNext }: { slug: string; onNext: () => v
 
 /**
  * Rail for step 4: category-name suggestions. Accepting a chip seeds a real
- * category row (deduped, case-insensitive). One refresh per step.
+ * category row (deduped, case-insensitive). One refresh per step. The
+ * suggestions hook lives on the page so the step's rotating placeholder shares
+ * the same batch.
  */
-export function CategoriesStepRail({ slug }: { slug: string | undefined }) {
+export function CategoriesStepRail({
+  slug,
+  ideas,
+}: {
+  slug: string | undefined;
+  ideas: UseOnboardingSuggestions;
+}) {
   const { categories, createCategory } = useCategories(slug ?? '');
-  const { suggestions, isLoading, refresh, refreshUsed } = useOnboardingSuggestions({
-    kind: 'categories',
-    slug,
-    enabled: Boolean(slug),
-  });
 
   const accept = async (name: string) => {
     const trimmed = name.trim();
@@ -114,17 +143,21 @@ export function CategoriesStepRail({ slug }: { slug: string | undefined }) {
     await createCategory(trimmed);
   };
 
+  // Created categories leave the rail; chip + created row share a layoutId so
+  // the chip travels into the step's list when the row lands.
+  const visibleSuggestions = ideas.suggestions.filter((s) => !isDuplicateCategory(categories, s));
+
   return (
     <SuggestionSurface
       persona={config.wizardPersona}
-      title="Suggested categories"
+      title="Suggested areas"
       helper="Tap to add, or type your own"
-      suggestions={suggestions}
-      loading={isLoading}
+      suggestions={visibleSuggestions}
+      loading={ideas.isLoading}
       onAccept={(phrase) => void accept(phrase)}
-      onRefresh={refresh}
-      refreshUsed={refreshUsed}
-      refreshLabel="Generate more"
+      onRefresh={ideas.refresh}
+      refreshUsed={ideas.refreshUsed}
+      chipLayoutId={categoryChipId}
     />
   );
 }

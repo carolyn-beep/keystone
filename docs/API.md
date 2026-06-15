@@ -81,7 +81,9 @@ All API endpoints (except `/api/auth/*`) require authentication via Better Auth 
 ## Onboarding Wizard (`server/routes/onboarding.ts`)
 
 The wizard's server-backed state machine. `brainlifts.onboarding_step` is the
-source of truth: `1..7` = in progress, `NULL` = finished (or legacy/imported).
+source of truth: `1..6` = in progress, `NULL` = finished (or legacy/imported).
+(2026-06-11: the step-7 Done screen was removed — Resources (6) is the last
+step; the success beat is a client-side modal on the landing page.)
 
 | Method | Endpoint | Auth | Description |
 |--------|----------|------|-------------|
@@ -97,17 +99,24 @@ source of truth: `1..7` = in progress, `NULL` = finished (or legacy/imported).
 
 ### POST `/api/onboarding/projects`
 
-Body `{ topic: string }` (trimmed, 3-200 chars). Creates the brainlift with
-`title = topic`, `description = ''`, zeroed summary, and a slug derived from the
-topic (uniqueness retry suffix on collision). Returns `201` with the row.
-`400` on invalid topic, `401` unauthenticated.
+Body `{ topic: string, focus?: string, why?: string }` (trimmed; topic 3-400
+chars, focus/why up to 400) — the three-part Topic-step field. Creation is
+optimistic: the row is inserted immediately with `title = topic`, the full
+composed topic sentence persisted as `onboarding_topic` (feeds all downstream
+AI prompts), `description = ''`, zeroed summary, and a slug derived from the
+topic (capped at 60 chars, uniqueness retry suffix on collision). Returns
+`201` with the row right away; the AI project title (gemini-2.5-flash-lite,
+caller `onboarding.projectTitle`) then backfills `title` in the background
+(fail-open: on any model failure the raw topic stays). `400` on invalid body,
+`401` unauthenticated.
 
 ### PATCH `/api/brainlifts/:slug/onboarding`
 
-Body `{ step?, inScope?, outOfScope? }`. `step` is an int `1..7` and a
+Body `{ step?, inScope?, outOfScope? }`. `step` is an int `1..6` and a
 forward-only high-water mark: a regression (`step < onboardingStep`) → `400`;
 `step` out of bounds → `400` (schema). Scope arrays hold up to 30 non-empty
-trimmed strings each and persist via `updateBrainliftScope`. Patching a
+trimmed strings (max 300 chars each — they are interpolated into AI prompts)
+and persist via `updateBrainliftScope`. Patching a
 completed brainlift (`onboardingStep` is `NULL`) → `409`. Foreign slug → `404`
 (via `requireBrainliftModify`). Returns `200` with the updated row.
 
@@ -119,10 +128,15 @@ write.
 
 ### POST `/api/onboarding/topic-suggestions`
 
-Body `{ exclude?: string[] }` (max 20). Returns `200 { suggestions: string[] }`
-(6-8 topic ideas). Pre-create, so auth-only (no slug). `exclude` lists
-already-shown topics so a refresh asks for different ones. Non-blocking: any AI
+Body `{ exclude?: string[] }` (max 20). Returns
+`200 { suggestions: OnboardingTopicSuggestion[] }` where each element is
+`{ text, topic, focus, why }` (see `shared/routes.ts`) — the suggestion split
+for the three-part topic field ("I'll be working on [topic] / specifically
+focusing on [focus] / in order to [why]"); `text` is the full composed
+sentence. Pre-create, so auth-only (no slug). `exclude` lists already-shown
+suggestion texts so a refresh asks for different ones. Non-blocking: any AI
 failure / timeout returns `200 { suggestions: [] }` (not an error status).
+Generated sentences that don't match the template are dropped server-side.
 
 ### POST `/api/brainlifts/:slug/onboarding/suggestions`
 
@@ -335,8 +349,9 @@ All routes nested under `/api/brainlifts/:slug/learning-stream` for authorizatio
 |--------|----------|------|-------------|
 | GET | `/api/brainlifts/:slug/learning-stream` | `requireBrainliftAccess` | Get learning stream items (with filters) |
 | GET | `/api/brainlifts/:slug/learning-stream/stats` | `requireBrainliftAccess` | Get stream stats (pending/saved/graded counts) |
-| PATCH | `/api/brainlifts/:slug/learning-stream/:itemId/bookmark` | `requireBrainliftModify` | Bookmark/unbookmark an item |
+| PATCH | `/api/brainlifts/:slug/learning-stream/:itemId/bookmark` | `requireBrainliftModify` | Bookmark an item into Second Brain (mirrors a `sources` row, item → `bookmarked`). `categoryId` optional — omitted saves the source uncategorized (wizard starter-pack Add) |
 | PATCH | `/api/brainlifts/:slug/learning-stream/:itemId/discard` | `requireBrainliftModify` | Discard/undiscard an item |
+| PATCH | `/api/brainlifts/:slug/learning-stream/:itemId/restore` | `requireBrainliftModify` | Restore a discarded item to pending |
 | POST | `/api/brainlifts/:slug/learning-stream/:itemId/grade` | `requireBrainliftModify` | Grade an item |
 | GET | `/api/brainlifts/:slug/learning-stream/:itemId/content` | `requireBrainliftAccess` | Get extracted content for an item |
 | POST | `/api/brainlifts/:slug/learning-stream/refresh` | `requireBrainliftModify` | Trigger research refill |

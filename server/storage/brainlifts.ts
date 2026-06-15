@@ -275,8 +275,14 @@ export async function createBlankBrainlift(args: {
 export async function createOnboardingBrainlift(args: {
   userId: string;
   topic: string;
+  /** Explicit title; defaults to the raw topic (AI title backfills async). */
+  title?: string;
+  /** Full three-part topic sentence (connectives included) for AI prompts. */
+  onboardingTopic?: string;
 }): Promise<Brainlift> {
-  const baseSlug = slugifyTitle(args.topic);
+  const title = args.title?.trim() || args.topic;
+  // Raw topics run up to 400 chars; keep slugs readable.
+  const baseSlug = slugifyTitle(title).slice(0, 60).replace(/-$/, '');
   const maxAttempts = 25;
 
   for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
@@ -285,11 +291,12 @@ export async function createOnboardingBrainlift(args: {
         .insert(brainlifts)
         .values({
           slug: blankBrainliftSlug(baseSlug, attempt),
-          title: args.topic,
+          title,
           description: '',
           createdByUserId: args.userId,
           phase: 'research',
           onboardingStep: 1,
+          onboardingTopic: args.onboardingTopic ?? args.topic,
           summary: {
             totalFacts: 0,
             meanScore: '0',
@@ -366,6 +373,28 @@ export async function updateBrainliftScope(
   const [brainlift] = await db
     .update(brainlifts)
     .set(set)
+    .where(eq(brainlifts.id, brainliftId))
+    .returning();
+
+  if (!brainlift) {
+    throw new NotFoundError('Brainlift not found');
+  }
+
+  return brainlift;
+}
+
+/**
+ * Replace the display title (async AI-title backfill after onboarding
+ * creation). The slug is intentionally left untouched — it is already shared
+ * with the client by the time the title resolves.
+ */
+export async function updateBrainliftTitle(
+  brainliftId: number,
+  title: string,
+): Promise<Brainlift> {
+  const [brainlift] = await db
+    .update(brainlifts)
+    .set({ title })
     .where(eq(brainlifts.id, brainliftId))
     .returning();
 
@@ -1003,6 +1032,7 @@ export interface LearningStreamContext {
   title: string;
   description: string;
   displayPurpose: string | null;
+  onboardingTopic: string | null;
   facts: Array<{
     id: number;
     fact: string;
@@ -1046,6 +1076,7 @@ export async function getLearningStreamContext(brainliftId: number): Promise<Lea
       title: brainlifts.title,
       description: brainlifts.description,
       displayPurpose: brainlifts.displayPurpose,
+      onboardingTopic: brainlifts.onboardingTopic,
     })
     .from(brainlifts)
     .where(eq(brainlifts.id, brainliftId));
@@ -1095,6 +1126,7 @@ export async function getLearningStreamContext(brainliftId: number): Promise<Lea
     title: brainlift.title,
     description: brainlift.description,
     displayPurpose: brainlift.displayPurpose,
+    onboardingTopic: brainlift.onboardingTopic ?? null,
     facts: topFacts,
     experts: expertsList,
     existingTopics: existingItems.map(i => i.topic),

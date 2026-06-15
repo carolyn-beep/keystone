@@ -15,6 +15,8 @@ export interface BrainliftDigest {
   id: number;
   title: string;
   displayPurpose: string | null;
+  /** Full composed topic sentence from the onboarding wizard ("X, specifically focusing on Y, in order to Z"). */
+  onboardingTopic: string | null;
   /** In/Out scope phrases from the onboarding wizard; empty = no scope context. */
   inScope: string[];
   outOfScope: string[];
@@ -27,7 +29,7 @@ export interface SecondBrainDigest {
   totalSources: number;
   totalNotes: number;
   categories: Array<{ id: number; name: string; sourceCount: number; noteCount: number }>;
-  sources: Array<{ id: number; title: string; url: string; author: string; categoryName: string }>;
+  sources: Array<{ id: number; title: string; url: string; author: string; categoryName: string | null }>;
   notes: Array<{
     id: number;
     content: string;
@@ -174,7 +176,9 @@ function renderBrainliftSection(brainlift: BrainliftDigest, experts: SwarmContex
     `Title: ${brainlift.title}`,
   ];
 
-  if (brainlift.displayPurpose) {
+  if (brainlift.onboardingTopic) {
+    lines.push(`Project: ${brainlift.onboardingTopic}`);
+  } else if (brainlift.displayPurpose) {
     lines.push(`Display purpose: ${brainlift.displayPurpose}`);
   }
 
@@ -313,7 +317,7 @@ function buildBrainliftDigest(
   spovs: Awaited<ReturnType<typeof storage.getDOK4Spovs>>,
   topExperts: ExpertRow[],
   phase: 'research' | 'authoring',
-): Omit<BrainliftDigest, 'inScope' | 'outOfScope'> {
+): Omit<BrainliftDigest, 'inScope' | 'outOfScope' | 'onboardingTopic'> {
   const authoringFacts = phase === 'authoring'
     ? [...context.facts]
       .filter((fact) => fact.score >= 3)
@@ -393,6 +397,7 @@ export async function buildSwarmContext(
   const secondBrain = buildSecondBrainDigest(sources, notes, categories, phase);
   const brainlift: BrainliftDigest = {
     ...buildBrainliftDigest(learningStreamContext, spovs, topExpertsRaw, phase),
+    onboardingTopic: learningStreamContext.onboardingTopic ?? null,
     inScope: brainliftRecord.inScope ?? [],
     outOfScope: brainliftRecord.outOfScope ?? [],
   };

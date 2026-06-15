@@ -103,7 +103,7 @@ beforeEach(() => {
 });
 
 describe('FR3: quick RunRequest', () => {
-  it('orchestrates with topic = brainlift.title and agentCount 3', async () => {
+  it('orchestrates with agentCount 3, a sonnet-first planning chain, and topic falling back to the title', async () => {
     await launchStarterPack(makeBrainlift(), 'user-1');
     // Wait for the background task to drain.
     await new Promise((r) => setImmediate(r));
@@ -111,10 +111,32 @@ describe('FR3: quick RunRequest', () => {
     expect(mocks.orchestrate).toHaveBeenCalledWith(
       42,
       expect.objectContaining({ topic: 'Online Education', agentCount: 3 }),
+      expect.objectContaining({
+        models: ['anthropic/claude-sonnet-4.6', 'qwen/qwen-plus'],
+      }),
     );
     const req = mocks.orchestrate.mock.calls[0][1] as { notes?: string };
     expect(typeof req.notes).toBe('string');
     expect(req.notes!.length).toBeGreaterThan(0);
+  });
+
+  it('prefers the full onboardingTopic sentence over the display title', async () => {
+    await launchStarterPack(
+      makeBrainlift({
+        onboardingTopic:
+          'online tutoring, specifically focusing on rural students, in order to close the access gap',
+      }),
+      'user-1',
+    );
+    await new Promise((r) => setImmediate(r));
+
+    expect(mocks.orchestrate).toHaveBeenCalledWith(
+      42,
+      expect.objectContaining({
+        topic: 'online tutoring, specifically focusing on rural students, in order to close the access gap',
+      }),
+      expect.anything(),
+    );
   });
 
   it('hands recordSwarmUsage AND runResearchSwarm a quick: true spec, and returns the recorded runId', async () => {

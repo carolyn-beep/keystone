@@ -18,7 +18,8 @@ const appSource = read('../../App.tsx');
 const wizardSource = read('../OnboardingWizard.tsx');
 const hookSource = read('../../hooks/useOnboardingWizard.ts');
 const topicSource = read('../../components/onboarding-wizard/TopicStep.tsx');
-const doneSource = read('../../components/onboarding-wizard/DoneStep.tsx');
+const modalSource = read('../../components/onboarding-wizard/SetupCompleteModal.tsx');
+const dashboardSource = read('../Dashboard.tsx');
 const routesSource = read('../../app-routes.ts');
 
 describe('FR2: App.tsx registers /new-project/:slug? outside the shell', () => {
@@ -112,13 +113,16 @@ describe('FR3: TopicStep matches the screen1 restyle', () => {
     expect(wizardSource).toContain('Your new BrainLift');
   });
 
-  it('renders the fill-in-the-blank "I want to become an expert in" prompt', () => {
-    expect(topicSource).toMatch(/I want to become an expert in/);
+  it('renders the fill-in-the-blank "I\'ll be working on" prompt', () => {
+    expect(topicSource).toMatch(/I'll be working on/);
   });
 
-  it('renders a CONFIRM action gated on canConfirmTopic', () => {
+  it('renders a CONFIRM action gated on all three topic parts', () => {
     expect(topicSource).toMatch(/CONFIRM/i);
-    expect(topicSource).toMatch(/canConfirmTopic/);
+    expect(topicSource).toMatch(/input-topic-subject/);
+    expect(topicSource).toMatch(/input-topic-focus/);
+    expect(topicSource).toMatch(/input-topic-goal/);
+    expect(topicSource).not.toMatch(/canConfirmTopic/);
   });
 
   it('surfaces an inline create error (stays on step 1 on failure)', () => {
@@ -126,12 +130,32 @@ describe('FR3: TopicStep matches the screen1 restyle', () => {
   });
 });
 
-describe('FR4: DoneStep matches the screen6 restyle', () => {
-  it('renders the "Your BrainLift is set!" success card', () => {
-    expect(doneSource).toContain('Your BrainLift is set!');
+// FR4 amendment (2026-06-11): the step-7 Done screen was replaced by the
+// SetupCompleteModal shown over the Second Brain tab. Resources' Finish fires
+// complete and navigates with the one-shot `setup=done` trigger; Dashboard
+// shows the modal once and strips the param.
+describe('FR4 (2026-06-11): setup-complete modal replaces the Done step', () => {
+  it('renders the "Your project is set!" success card (screen6 restyle) in the modal', () => {
+    expect(modalSource).toContain('Your project is set!');
   });
 
-  it('renders the "Enter Learning Stream" CTA', () => {
-    expect(doneSource).toMatch(/Enter Learning Stream/);
+  it('dismisses via a "Start learning" CTA (already standing on the destination)', () => {
+    expect(modalSource).toMatch(/Start learning/);
+    expect(modalSource).toMatch(/onClose/);
+  });
+
+  it('the wizard no longer renders a DoneStep', () => {
+    expect(wizardSource).not.toMatch(/DoneStep/);
+  });
+
+  it('Resources Finish fires complete then navigates via buildLandingLocation', () => {
+    expect(wizardSource).toMatch(/completeOnboarding/);
+    expect(wizardSource).toMatch(/buildLandingLocation/);
+  });
+
+  it('Dashboard mounts the modal and strips the one-shot setup param (tab param survives)', () => {
+    expect(dashboardSource).toMatch(/SetupCompleteModal/);
+    expect(dashboardSource).toMatch(/params\.get\('setup'\)\s*!==\s*'done'/);
+    expect(dashboardSource).toMatch(/params\.delete\('setup'\)/);
   });
 });
