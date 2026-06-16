@@ -401,4 +401,41 @@ describe('FR3 - save_item resolves category name to ID', () => {
       expect.objectContaining({ categoryId: null }),
     );
   });
+
+  it('resolves an empty-string category to null (falsy guard, not a match attempt)', async () => {
+    const saveItem = await buildSaveItem([{ id: 3, name: 'History of Education' }])();
+
+    await saveItem.execute({ ...baseInput, category: '' }, toolContext);
+
+    expect(storageMock.addLearningStreamItem).toHaveBeenCalledWith(
+      1,
+      expect.objectContaining({ categoryId: null }),
+    );
+  });
+
+  it('requires an exact name match, not a substring (guards against includes-based matching)', async () => {
+    const saveItem = await buildSaveItem([{ id: 3, name: 'History of Education' }])();
+
+    // "History" is a substring of the real category but must NOT resolve.
+    await saveItem.execute({ ...baseInput, category: 'History' }, toolContext);
+
+    expect(storageMock.addLearningStreamItem).toHaveBeenCalledWith(
+      1,
+      expect.objectContaining({ categoryId: null }),
+    );
+  });
+
+  it('disambiguates between multiple categories, returning the exact match id', async () => {
+    const saveItem = await buildSaveItem([
+      { id: 3, name: 'History of Education' },
+      { id: 7, name: 'Assessment Methods' },
+    ])();
+
+    await saveItem.execute({ ...baseInput, category: 'assessment methods' }, toolContext);
+
+    expect(storageMock.addLearningStreamItem).toHaveBeenCalledWith(
+      1,
+      expect.objectContaining({ categoryId: 7 }),
+    );
+  });
 });
