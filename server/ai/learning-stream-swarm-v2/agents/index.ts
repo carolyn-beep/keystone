@@ -38,6 +38,8 @@ export interface SlotToolClosure {
   slotFocus?: string;
   recordActivity: (event: { eventType: string; data: Record<string, unknown> }) => void;
   existingUrls: Set<string>;
+  /** Project categories, used to resolve a name to an ID in save_item. Empty when project has none. */
+  categories: Array<{ id: number; name: string }>;
   discoveredTitles?: Map<string, string>;
   incrementSaved?: (duplicate: boolean) => void;
   /** Provenance written to `learningStreamItems.source`. Quick (starter-pack)

@@ -139,6 +139,7 @@ async function runSlot(
       brainliftTitle: ctx.brainlift.title,
       slotFocus: slot.focus,
       existingUrls,
+      categories: ctx.secondBrain.categories.map(({ id, name }) => ({ id, name })),
       recordActivity: ({ eventType, data }) => {
         swarmEmitter.recordAgentActivity(brainliftId, id, eventType, { ...data, idx });
       },
