@@ -26,3 +26,34 @@ generated-images/
 
 # Local-only dev tools (not part of the shipped app)
 tools/prompt-explorer/
+.venv/
+
+# One-off experiment and simulation scripts (never part of the app)
+scripts/brevity-*.mjs
+scripts/readability-*.mjs
+scripts/readability-*.py
+scripts/fk-*.mjs
+scripts/fk-*.mts
+scripts/mistral-examples.mjs
+scripts/title-gen-sim.ts
+scripts/topic-suggestions-sim*.ts
+scripts/create-test-account.ts
+scripts/verify-model-prices.ts
+scripts/ux-mockups/
+scripts/optimal-prompt/
+
+# Root-level ad-hoc probe/test scripts
+test-*.ts
+
+# Temp script files
+script/_tmp_*.ts
+
+# Notes / raw feedback / planning docs (local reference only)
+alphax-buddy.env
+alphax-prompt-changes.md
+onboarding-pre-project-copy.md
+chloe-feedback-round-2-notes.md
+chloe-feedback-round-2-raw.md
+roadmap-mid-2027.md
+backups/
+.codex
