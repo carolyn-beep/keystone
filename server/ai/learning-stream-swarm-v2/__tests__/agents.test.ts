@@ -278,3 +278,37 @@ describe('research stream v2 agents', () => {
     expect(saved.aiRationale).toMatch(/\.\.\.$/);
   });
 });
+
+describe('FR4 - prompt includes category instruction', () => {
+  it('built prompt contains the category field instruction (digest with categories)', async () => {
+    const { typeRunnerFor } = await import('../agents');
+    const slot: Slot = { type: 'Substack', focus: 'Focus for Substack' };
+    const ctxWithCategories: SwarmContext = {
+      ...ctx,
+      renderedDigest:
+        '## Second Brain\nTotals: 7 sources, 4 notes, 2 categories.\n' +
+        '- History of Education: 5 sources, 3 notes\n' +
+        '- Assessment Methods: 2 sources, 1 note',
+    };
+
+    const prompt = typeRunnerFor('Substack').buildPrompt(slot, ctxWithCategories);
+
+    // Instructs use of the category field, matched verbatim against the digest.
+    expect(prompt).toMatch(/category/i);
+    expect(prompt).toMatch(/verbatim/i);
+    expect(prompt).toContain('Project Data Digest');
+  });
+
+  it('category instruction is present even when the project has no categories', async () => {
+    const { typeRunnerFor } = await import('../agents');
+    const slot: Slot = { type: 'Substack', focus: 'Focus for Substack' };
+
+    // ctx.secondBrain.categories is [] and renderedDigest has no categories;
+    // the instruction is unconditional and tells the agent to omit if none exist.
+    const prompt = typeRunnerFor('Substack').buildPrompt(slot, ctx);
+
+    expect(prompt).toMatch(/category/i);
+    expect(prompt).toMatch(/omit/i);
+    expect(prompt).toMatch(/no categor/i);
+  });
+});
