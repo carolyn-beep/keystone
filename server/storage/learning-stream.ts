@@ -35,6 +35,7 @@ export async function addLearningStreamItem(
     source: 'quick-search' | 'deep-research' | 'twitter' | 'swarm-research' | 'manual' | 'starter-pack';
     relevanceScore?: string | null;
     aiRationale?: string | null;
+    categoryId?: number | null;
   }
 ): Promise<LearningStreamItem> {
   // Validate URL to prevent XSS attacks (javascript:, data:, file:// protocols)
@@ -53,6 +54,7 @@ export async function addLearningStreamItem(
       status: 'pending',
       relevanceScore: item.relevanceScore || null,
       aiRationale: item.aiRationale || null,
+      categoryId: item.categoryId ?? null,
     }).returning();
 
     // Fire-and-forget: queue content extraction in background
