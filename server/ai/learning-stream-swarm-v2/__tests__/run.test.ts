@@ -8,6 +8,8 @@ const mocks = vi.hoisted(() => ({
   storage: {
     addLearningStreamItem: vi.fn(),
   },
+  // Records every closure passed to a runner's buildTools so FR2 can assert on it.
+  capturedClosures: [] as any[],
 }));
 
 vi.mock('ai', () => ({
@@ -27,6 +29,25 @@ vi.mock('../../chat/provider', () => ({
 vi.mock('../../../storage', () => ({
   storage: mocks.storage,
 }));
+
+// Wrap the real agents module so every closure passed to a runner's buildTools is
+// recorded (FR2). The real buildTools/save_item path is preserved for all other tests.
+vi.mock('../agents', async () => {
+  const actual = await vi.importActual<typeof import('../agents')>('../agents');
+  return {
+    ...actual,
+    typeRunnerFor: (type: any) => {
+      const runner = actual.typeRunnerFor(type);
+      return {
+        ...runner,
+        buildTools: (closure: any) => {
+          mocks.capturedClosures.push(closure);
+          return runner.buildTools(closure);
+        },
+      };
+    },
+  };
+});
 
 const runSpec = {
   agents: [
@@ -64,6 +85,7 @@ const contextFixture = {
 describe('runResearchSwarm', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mocks.capturedClosures.length = 0;
     delete process.env.SWARM_VERBOSE_LOG;
     mocks.buildSwarmContext.mockResolvedValue(contextFixture);
     mocks.storage.addLearningStreamItem.mockImplementation(async (_brainliftId, item) => ({
@@ -380,5 +402,71 @@ describe('runResearchSwarm', () => {
       expect(mocks.stepCountIs).toHaveBeenCalledWith(SWARM_AGENT_RECOVERY_MAX_STEPS);
       expect(mocks.getChatModel).toHaveBeenCalledWith('anthropic/claude-haiku-4.5');
     });
+  });
+});
+
+// ─── 01-swarm-classification FR2: SlotToolClosure carries categories ─────────
+describe('FR2 - SlotToolClosure carries categories', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mocks.capturedClosures.length = 0;
+    delete process.env.SWARM_VERBOSE_LOG;
+    mocks.storage.addLearningStreamItem.mockImplementation(async (_brainliftId, item) => ({
+      id: Math.floor(Math.random() * 100000),
+      ...item,
+    }));
+    // Minimal streamText stub: no tool calls, no saves needed — FR2 only inspects
+    // the closure handed to buildTools, which happens before any streaming.
+    mocks.streamText.mockImplementation(() => ({
+      consumeStream: vi.fn().mockResolvedValue(undefined),
+      totalUsage: Promise.resolve({ inputTokens: 1, outputTokens: 1 }),
+      text: Promise.resolve('saved'),
+      reasoningText: Promise.resolve(''),
+    }));
+  });
+
+  function contextWithCategories(categories: any[]) {
+    return {
+      ...contextFixture,
+      secondBrain: {
+        ...contextFixture.secondBrain,
+        categories,
+      },
+    };
+  }
+
+  it('builds the closure with id+name only (sourceCount and other fields stripped) for a 2-category secondBrain', async () => {
+    mocks.buildSwarmContext.mockResolvedValue(
+      contextWithCategories([
+        { id: 3, name: 'History of Education', sourceCount: 5, noteCount: 3 },
+        { id: 7, name: 'Assessment Methods', sourceCount: 2, noteCount: 1 },
+      ]),
+    );
+    const { runResearchSwarm } = await import('../run');
+
+    await runResearchSwarm(1, { agents: [{ type: 'Substack', focus: 'A' }] }, 300);
+
+    expect(mocks.capturedClosures).toHaveLength(1);
+    const closure = mocks.capturedClosures[0];
+    expect(closure.categories).toEqual([
+      { id: 3, name: 'History of Education' },
+      { id: 7, name: 'Assessment Methods' },
+    ]);
+    // sourceCount / noteCount must be stripped on every entry.
+    for (const entry of closure.categories) {
+      expect(entry).not.toHaveProperty('sourceCount');
+      expect(entry).not.toHaveProperty('noteCount');
+      expect(Object.keys(entry).sort()).toEqual(['id', 'name']);
+    }
+  });
+
+  it('builds the closure with an empty categories array when secondBrain has no categories', async () => {
+    mocks.buildSwarmContext.mockResolvedValue(contextWithCategories([]));
+    const { runResearchSwarm } = await import('../run');
+
+    await runResearchSwarm(1, { agents: [{ type: 'Substack', focus: 'A' }] }, 301);
+
+    expect(mocks.capturedClosures).toHaveLength(1);
+    expect(mocks.capturedClosures[0].categories).toEqual([]);
   });
 });
