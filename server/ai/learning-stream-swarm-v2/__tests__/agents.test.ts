@@ -312,3 +312,93 @@ describe('FR4 - prompt includes category instruction', () => {
     expect(prompt).toMatch(/no categor/i);
   });
 });
+
+describe('FR3 - save_item resolves category name to ID', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    storageMock.addLearningStreamItem.mockResolvedValue({
+      id: 42,
+      type: 'Substack',
+      topic: 'T',
+      url: 'https://example.com/cat',
+    });
+  });
+
+  function buildSaveItem(categories: Array<{ id: number; name: string }>) {
+    return async () => {
+      const { typeRunnerFor } = await import('../agents');
+      return typeRunnerFor('Substack').buildTools({
+        brainliftId: 1,
+        runId: 2,
+        slotIdx: 0,
+        recordActivity: vi.fn(),
+        existingUrls: new Set<string>(),
+        categories,
+      } as any).save_item;
+    };
+  }
+
+  const baseInput = {
+    type: 'Substack' as const,
+    author: 'A',
+    topic: 'T',
+    time: '5 min',
+    facts: 'Facts',
+    url: 'https://example.com/cat',
+  };
+
+  it('resolves an exact category name match to its ID', async () => {
+    const saveItem = await buildSaveItem([{ id: 3, name: 'History of Education' }])();
+
+    await saveItem.execute({ ...baseInput, category: 'History of Education' }, toolContext);
+
+    expect(storageMock.addLearningStreamItem).toHaveBeenCalledWith(
+      1,
+      expect.objectContaining({ categoryId: 3 }),
+    );
+  });
+
+  it('resolves a category name case-insensitively', async () => {
+    const saveItem = await buildSaveItem([{ id: 3, name: 'History of Education' }])();
+
+    await saveItem.execute({ ...baseInput, category: 'history of education' }, toolContext);
+
+    expect(storageMock.addLearningStreamItem).toHaveBeenCalledWith(
+      1,
+      expect.objectContaining({ categoryId: 3 }),
+    );
+  });
+
+  it('resolves to null when the category name does not match any project category', async () => {
+    const saveItem = await buildSaveItem([{ id: 3, name: 'History of Education' }])();
+
+    await saveItem.execute({ ...baseInput, category: 'Quantum Physics' }, toolContext);
+
+    expect(storageMock.addLearningStreamItem).toHaveBeenCalledWith(
+      1,
+      expect.objectContaining({ categoryId: null }),
+    );
+  });
+
+  it('resolves to null when the category field is omitted', async () => {
+    const saveItem = await buildSaveItem([{ id: 3, name: 'History of Education' }])();
+
+    await saveItem.execute({ ...baseInput }, toolContext);
+
+    expect(storageMock.addLearningStreamItem).toHaveBeenCalledWith(
+      1,
+      expect.objectContaining({ categoryId: null }),
+    );
+  });
+
+  it('resolves to null when the project has no categories', async () => {
+    const saveItem = await buildSaveItem([])();
+
+    await saveItem.execute({ ...baseInput, category: 'History of Education' }, toolContext);
+
+    expect(storageMock.addLearningStreamItem).toHaveBeenCalledWith(
+      1,
+      expect.objectContaining({ categoryId: null }),
+    );
+  });
+});
