@@ -55,6 +55,117 @@ export const api = {
   },
 };
 
+// Onboarding wizard validation schemas (features/ux-redesign/onboarding-wizard)
+// POST /api/onboarding/projects body.
+export const onboardingCreateInput = z.object({
+  topic: z.string().trim().min(3).max(400),
+  // Three-part topic field (optional: the redesigned Topic step sends all
+  // three; older clients send topic only). Feed title generation.
+  focus: z.string().trim().max(400).optional(),
+  why: z.string().trim().max(400).optional(),
+});
+export type OnboardingCreateInput = z.infer<typeof onboardingCreateInput>;
+
+// PATCH /api/brainlifts/:slug/onboarding body. `step` is a forward-only
+// high-water mark (1..6 — the step-7 Done screen was removed 2026-06-11;
+// Resources is the last step); scope arrays feed brainlifts.in_scope /
+// out_of_scope.
+export const onboardingPatchInput = z.object({
+  step: z.number().int().min(1).max(6).optional(),
+  // Per-item length caps: these strings are interpolated into AI prompts
+  // (suggestions, scope filter, orchestrator digest) — bound the spend.
+  inScope: z.array(z.string().trim().min(1).max(300)).max(30).optional(),
+  outOfScope: z.array(z.string().trim().min(1).max(300)).max(30).optional(),
+});
+export type OnboardingPatchInput = z.infer<typeof onboardingPatchInput>;
+
+// POST /api/onboarding/topic-suggestions body. Pre-create (no slug yet);
+// `exclude` lists already-shown topics so a refresh asks for different ones.
+export const topicSuggestionsInput = z.object({
+  // Topic chips are full three-part sentences — 500 covers them comfortably
+  // while bounding what reaches the prompt.
+  exclude: z.array(z.string().max(500)).max(20).optional(),
+});
+export type TopicSuggestionsInput = z.infer<typeof topicSuggestionsInput>;
+
+/**
+ * POST /api/onboarding/topic-suggestions response element. One suggestion for
+ * the three-part topic field ("I'll be working on [topic] / specifically
+ * focusing on [focus] / in order to [why]"). `text` is the full composed
+ * sentence — chip label and refresh-exclude payload.
+ */
+export interface OnboardingTopicSuggestion {
+  text: string;
+  topic: string;
+  focus: string;
+  why: string;
+}
+
+// POST /api/brainlifts/:slug/onboarding/suggestions body. `kind` selects the
+// prompt; topic/scope inputs are read server-side from the brainlift row, never
+// from the request. `exclude` lists already-shown items (refresh).
+export const onboardingSuggestionsInput = z.object({
+  kind: z.enum(['in-scope', 'out-of-scope', 'categories']),
+  exclude: z.array(z.string().max(500)).max(40).optional(),
+});
+export type OnboardingSuggestionsInput = z.infer<typeof onboardingSuggestionsInput>;
+
+// POST /api/brainlifts/:slug/onboarding/expert-discovery response.
+// Each candidate carries the Exa result URL(s) that ground it (min 1). The
+// pipeline returns up to 5 candidates (or none on any failure).
+export const expertDiscoveryResponse = z.object({
+  candidates: z
+    .array(
+      z.object({
+        name: z.string(),
+        who: z.string(),
+        why: z.string(),
+        focus: z.string().nullable(),
+        where: z.string(),
+        evidenceUrls: z.array(z.string()).min(1),
+      }),
+    )
+    .max(5),
+});
+export type ExpertDiscoveryResponse = z.infer<typeof expertDiscoveryResponse>;
+
+// POST /api/brainlifts/:slug/onboarding/resources body. A single pasted link;
+// trimmed, must be a valid http/https URL (other schemes rejected to prevent XSS).
+export const onboardingResourceInput = z.object({
+  url: z
+    .string()
+    .trim()
+    .url()
+    .refine((url) => {
+      try {
+        const parsed = new URL(url);
+        return parsed.protocol === 'http:' || parsed.protocol === 'https:';
+      } catch {
+        return false;
+      }
+    }, 'Only http/https URLs allowed'),
+});
+export type OnboardingResourceInput = z.infer<typeof onboardingResourceInput>;
+
+// POST /api/brainlifts/:slug/experts body. 1-10 experts; name + where are
+// required (trimmed, non-empty); who/why/focus are optional. Persisted with
+// source='onboarding'.
+export const createExpertsInput = z.object({
+  experts: z
+    .array(
+      z.object({
+        name: z.string().trim().min(1),
+        where: z.string().trim().min(1),
+        who: z.string().trim().min(1).optional(),
+        why: z.string().trim().min(1).optional(),
+        focus: z.string().trim().min(1).optional(),
+      }),
+    )
+    .min(1)
+    .max(10),
+});
+export type CreateExpertsInput = z.infer<typeof createExpertsInput>;
+
 // Native brainlift validation schemas
 export const createNativeBrainliftInputSchema = z.object({
   topic: z.string().trim().min(10),

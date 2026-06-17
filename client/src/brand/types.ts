@@ -61,6 +61,27 @@ export interface BrandConfig {
    * tag). Consumed by `client/src/chat/chat-opener.ts`.
    */
   chatOpenerInstruction: string;
+  /**
+   * Onboarding-wizard suggestion-rail persona (spec 04). The plain `config`
+   * object carries the `name` (and, for brands with a character, the brand
+   * barrel augments it with a `Mascot` component that imports the asset).
+   */
+  wizardPersona: WizardPersona;
+}
+
+/**
+ * Onboarding-wizard persona shown atop the suggestion rail
+ * (features/ux-redesign/onboarding-wizard, spec 04). AlphaX presents a named
+ * character with a mascot image ("AlphaX Buddy"); Brainlift Central uses a
+ * plain label ("Brainlift Assistant") with no character (`Mascot` omitted).
+ * The wizard's SuggestionSurface reads this slot — no brand conditionals live
+ * inside wizard components.
+ */
+export interface WizardPersona {
+  /** Display label always rendered in the rail header. */
+  name: string;
+  /** Optional mascot image component; absent brands render label-only. */
+  Mascot?: ComponentType<{ className?: string }>;
 }
 
 export type WordmarkVariant = 'hero' | 'mobile' | 'compact';

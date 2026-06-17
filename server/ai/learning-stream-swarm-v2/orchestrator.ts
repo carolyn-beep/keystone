@@ -60,6 +60,23 @@ function resolveAgentCount(runRequest: RunRequest): number {
   return MAX_SLOTS;
 }
 
+function buildScopeGuidance(ctx: SwarmContext): string {
+  const inScope = ctx.brainlift.inScope ?? [];
+  const outOfScope = ctx.brainlift.outOfScope ?? [];
+  if (inScope.length === 0 && outOfScope.length === 0) {
+    return '';
+  }
+
+  const lines = ['- The user defined an explicit project scope. Honor it when planning slots:'];
+  if (inScope.length > 0) {
+    lines.push(`  - In scope (steer searches toward these): ${inScope.join('; ')}`);
+  }
+  if (outOfScope.length > 0) {
+    lines.push(`  - Out of scope (do NOT plan slots about these): ${outOfScope.join('; ')}`);
+  }
+  return `\n${lines.join('\n')}`;
+}
+
 export function buildOrchestratorSystemPrompt(ctx: SwarmContext, runRequest: RunRequest): string {
   const agentCount = resolveAgentCount(runRequest);
   return `You are a Learning Stream Research Orchestrator. Produce exactly ${agentCount} research slot(s) as structured JSON.
@@ -70,7 +87,7 @@ ${ctx.renderedDigest}
 ${buildRunRequestSection(runRequest)}
 
 ## Planning Guidance
-- Return a RunSpec with exactly ${agentCount} agent(s).
+- Return a RunSpec with exactly ${agentCount} agent(s).${buildScopeGuidance(ctx)}
 - Each agent must have type in: ${RETRIEVAL_TYPES.join(', ')}.
 - Each focus must be concrete, search-ready, and non-empty.
 - Each focus must be specialized to this exact project data. Use concrete entities, experts, notes, source gaps, unresolved questions, or SPOV/fact gaps from the digest.
@@ -158,8 +175,14 @@ function buildDefaultRunSpec(ctx: SwarmContext, runRequest: RunRequest): RunSpec
 export async function orchestrate(
   brainliftId: number,
   runRequestInput: RunRequest = {},
+  opts: {
+    /** Override the model fallback chain (e.g. quick starter-pack runs plan
+     *  with sonnet-first — a near-empty digest does not need opus). */
+    models?: readonly string[];
+  } = {},
 ): Promise<OrchestrateResult> {
   const startedAt = Date.now();
+  const models = opts.models ?? ORCHESTRATOR_MODELS;
   const runRequest = runRequestSchema.parse(runRequestInput);
   const ctx = await buildSwarmContext(brainliftId);
   const system = buildOrchestratorSystemPrompt(ctx, runRequest);
@@ -176,7 +199,7 @@ export async function orchestrate(
       totalNotes: ctx.secondBrain.totalNotes,
       categories: ctx.secondBrain.categories.map((category) => category.name),
     },
-    followedExperts: ctx.followedExperts.map((expert) => expert.name),
+    topExperts: ctx.topExperts.map((expert) => expert.name),
     existingUrlCount: ctx.existingUrls.length,
   });
   swarmVerboseLog('ORCH', 'project data digest sent to orchestrator', ctx.renderedDigest);
@@ -185,9 +208,9 @@ export async function orchestrate(
   swarmVerboseLog('ORCH', 'user prompt sent to orchestrator', prompt);
 
   try {
-    swarmVerboseLog('ORCH', 'unified AI client JSON attempt start', { models: ORCHESTRATOR_MODELS });
+    swarmVerboseLog('ORCH', 'unified AI client JSON attempt start', { models });
     const result = await callModelWithFallback({
-      models: [...ORCHESTRATOR_MODELS],
+      models: [...models],
       system,
       messages: [{ role: 'user', content: prompt }],
       temperature: 0.2,
@@ -202,7 +225,7 @@ export async function orchestrate(
     const parsed = extractJsonObject(result.content);
     const runSpec = validateRunSpec(parsed, runRequest);
     swarmVerboseLog('ORCH', 'unified AI client JSON attempt complete', {
-      requestedModels: ORCHESTRATOR_MODELS,
+      requestedModels: models,
       modelUsed: result.model,
       usage: lastUsage,
       costUsd: result.costUsd,
@@ -220,9 +243,9 @@ export async function orchestrate(
       durationMs: Date.now() - startedAt,
     };
   } catch (error) {
-    console.warn('[Research Stream v2] orchestrator models failed', { models: ORCHESTRATOR_MODELS, error });
+    console.warn('[Research Stream v2] orchestrator models failed', { models, error });
     swarmVerboseLog('ORCH', 'unified AI client JSON attempt failed', {
-      models: ORCHESTRATOR_MODELS,
+      models,
       error: error instanceof Error ? { message: error.message, stack: error.stack } : error,
     });
   }

@@ -108,6 +108,8 @@ export default {
       boxShadow: {
         card: "var(--shadow-card)",
         "card-hover": "var(--shadow-card-hover)",
+        "wizard-header": "var(--shadow-wizard-header)",
+        "wizard-panel": "var(--shadow-wizard-panel)",
       },
       keyframes: {
         "accordion-down": {

@@ -81,9 +81,23 @@ describe('App.tsx routing classification (FR4)', () => {
     expect(source).toMatch(/<Suspense\s+fallback=\{\s*<PageLoader\s*\/>\s*\}/);
   });
 
-  it('does NOT wrap individual shelled pages in their own per-route <ProtectedRoute> (the Shelled helper owns the auth gate)', () => {
-    // The Shelled helper holds the only <ProtectedRoute> JSX site now.
+  it('does NOT wrap individual shelled pages in their own per-route <ProtectedRoute> (the Shelled helper owns the shelled auth gate)', () => {
+    // Two <ProtectedRoute> JSX sites exist: the Shelled helper (all shelled
+    // pages) and the onboarding wizard's outside-shell gate (full-screen,
+    // authenticated, no RootLayout). No OTHER shelled page gets its own gate.
     const protectedOpens = (source.match(/<ProtectedRoute>/g) ?? []).length;
-    expect(protectedOpens).toBeLessThanOrEqual(1);
+    expect(protectedOpens).toBeLessThanOrEqual(2);
+  });
+
+  it('gates the onboarding wizard with ProtectedRoute but NOT the Shelled wrapper (outside-shell, full-screen)', () => {
+    expect(source).toMatch(/<ProtectedRoute>\s*<OnboardingWizard\b/);
+    expect(source).not.toMatch(/<Shelled[^>]*>\s*<OnboardingWizard/);
+  });
+
+  it('registers /new-project/:slug? before the /:slug catch-all', () => {
+    const newProjectIdx = source.indexOf('/new-project/:slug?');
+    const slugIdx = source.search(/path=['"]\/:slug['"]/);
+    expect(newProjectIdx).toBeGreaterThan(-1);
+    expect(newProjectIdx).toBeLessThan(slugIdx);
   });
 });

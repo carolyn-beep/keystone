@@ -90,10 +90,25 @@ export function formatCurrentProject(
     ? formatSecondBrainSummary(conversation?.secondBrainSummary)
     : null;
 
+  // In/Out scope phrases from the onboarding wizard (ux-redesign). Rendered
+  // inside this existing block on purpose: no new section markers, so the
+  // Prompt Explorer provenance map stays untouched. Empty scope renders
+  // nothing, keeping scope-less projects byte-identical to the legacy block.
+  const inScope = brainlift.inScope ?? [];
+  const outOfScope = brainlift.outOfScope ?? [];
+  const scopeLines: string[] = [];
+  if (inScope.length > 0) {
+    scopeLines.push(`In scope (the user explicitly wants this project to cover): ${inScope.join('; ')}.`);
+  }
+  if (outOfScope.length > 0) {
+    scopeLines.push(`Out of scope (the user explicitly excluded these — do not steer research or suggestions toward them): ${outOfScope.join('; ')}.`);
+  }
+
   return [
     '=== START OF CURRENT PROJECT ===',
     '## CURRENT PROJECT',
     `This conversation is currently scoped to the project "${brainlift.title}" (slug: \`${brainlift.slug}\`, phase: ${brainlift.phase}).`,
+    ...(scopeLines.length > 0 ? ['', ...scopeLines] : []),
     'Refer to it by name. Do NOT ask the user which project they mean — the binding is unambiguous and visible to them in the project picker.',
     'Do NOT call `list_brainlifts` when the user is asking about THIS project. Only call `list_brainlifts` when the user explicitly wants to switch projects or work across projects.',
     'Every research / authoring action you take in this turn (categories, sources, notes, DOK items, grading, sprint, deliverables — whichever apply in the current mode) is scoped to this project.',

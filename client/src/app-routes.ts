@@ -28,12 +28,15 @@ export const APP_SHELLED_AUTH_ROUTES = [
 export const APP_BARE_AUTH_ROUTES = [] as const;
 
 /**
- * Routes that render outside of authentication or the shell. `/view/:slug`
- * is the shared brainlift view (read-only public link).
+ * Routes that render outside the unified shell (no sidebar / chrome).
+ * `/view/:slug` is the shared brainlift view (read-only public link, no auth
+ * gate). `/new-project/:slug?` is the onboarding wizard — authenticated
+ * (ProtectedRoute) but full-screen, outside RootLayout/AppShell per the mocks.
  */
 export const APP_OUTSIDE_SHELL_ROUTES = [
   '/login',
   '/view/:slug',
+  '/new-project/:slug?',
 ] as const;
 
 /**

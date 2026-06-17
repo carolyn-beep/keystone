@@ -278,6 +278,34 @@ describe('buildAlphaXSystemPrompt', () => {
     expect(prompt).toContain('Do NOT ask the user which project they mean');
   });
 
+  it('renders in/out scope inside the CURRENT PROJECT block for a scoped brainlift (01-scope-foundation FR4)', () => {
+    const prompt = buildAlphaXSystemPrompt({
+      userContext: oneBrainliftContext,
+      skills: [],
+      mode: 'authoring',
+      conversation: {
+        conversationId: 99,
+        brainliftId: 7,
+        brainlift: {
+          id: 7,
+          slug: 'solo-brainlift',
+          title: 'Solo Brainlift',
+          phase: 'authoring',
+          inScope: ['solid-state electrolytes', 'anode materials'],
+          outOfScope: ['EV market analysis'],
+        } as never,
+      },
+    } as never);
+
+    const currentProjectBlock = prompt.slice(
+      prompt.indexOf('=== START OF CURRENT PROJECT ==='),
+      prompt.indexOf('=== END OF CURRENT PROJECT ==='),
+    );
+    expect(currentProjectBlock).toContain('solid-state electrolytes');
+    expect(currentProjectBlock).toContain('anode materials');
+    expect(currentProjectBlock).toContain('EV market analysis');
+  });
+
   it('omits the CURRENT PROJECT block when the conversation is unbound', () => {
     const prompt = buildAlphaXSystemPrompt({
       userContext: zeroBrainliftContext,

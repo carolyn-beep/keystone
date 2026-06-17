@@ -33,9 +33,9 @@ const ctx: SwarmContext = {
     sources: [],
     notes: [],
   },
-  followedExperts: [],
+  topExperts: [],
   existingUrls: ['https://seen.example/a'],
-  renderedDigest: '## Second Brain\nDigest body\n\n### Followed Experts\n- Jane Expert',
+  renderedDigest: '## Second Brain\nDigest body\n\n### Experts\n- Jane Expert',
   digestCharCount: 62,
 };
 
@@ -59,7 +59,7 @@ describe('research stream v2 agents', () => {
     expect(prompt).toContain('Carmack Brainlift');
     expect(prompt).toContain(slot.focus);
     expect(prompt).toContain(ctx.renderedDigest);
-    expect(prompt).toContain('### Followed Experts');
+    expect(prompt).toContain('### Experts');
     expect(prompt).toContain('The topic field is the actual resource title');
     expect(prompt).toContain('Do not use the brainlift title');
     expect(prompt).toContain('The facts field becomes "Key Insights"');
@@ -159,6 +159,45 @@ describe('research stream v2 agents', () => {
     expect(recordActivity).toHaveBeenCalledWith(expect.objectContaining({ eventType: 'save_item' }));
   });
 
+  it('05-FR1 save_item honors closure.itemSource (starter-pack) and defaults to swarm-research', async () => {
+    storageMock.addLearningStreamItem.mockResolvedValue({ id: 11, type: 'Substack', topic: 'T', url: 'https://example.com/sp' });
+    const { typeRunnerFor } = await import('../agents');
+
+    // With itemSource set → persisted source is starter-pack.
+    const quickTools = typeRunnerFor('Substack').buildTools({
+      brainliftId: 1,
+      runId: 2,
+      slotIdx: 0,
+      recordActivity: vi.fn(),
+      existingUrls: new Set<string>(),
+      itemSource: 'starter-pack',
+    });
+    await quickTools.save_item.execute({
+      type: 'Substack', author: 'A', topic: 'T', time: '5 min', facts: 'Facts', url: 'https://example.com/sp',
+    }, toolContext);
+    expect(storageMock.addLearningStreamItem).toHaveBeenLastCalledWith(
+      1,
+      expect.objectContaining({ source: 'starter-pack' }),
+    );
+
+    // Without itemSource → default swarm-research preserved.
+    storageMock.addLearningStreamItem.mockResolvedValue({ id: 12, type: 'Substack', topic: 'T', url: 'https://example.com/sr' });
+    const defaultTools = typeRunnerFor('Substack').buildTools({
+      brainliftId: 1,
+      runId: 2,
+      slotIdx: 0,
+      recordActivity: vi.fn(),
+      existingUrls: new Set<string>(),
+    });
+    await defaultTools.save_item.execute({
+      type: 'Substack', author: 'A', topic: 'T', time: '5 min', facts: 'Facts', url: 'https://example.com/sr',
+    }, toolContext);
+    expect(storageMock.addLearningStreamItem).toHaveBeenLastCalledWith(
+      1,
+      expect.objectContaining({ source: 'swarm-research' }),
+    );
+  });
+
   it('save_item replaces brainlift-level topics with discovered source titles', async () => {
     storageMock.addLearningStreamItem.mockResolvedValue({
       id: 10,
@@ -237,5 +276,166 @@ describe('research stream v2 agents', () => {
     expect(saved.facts).not.toContain('Third insight should be dropped entirely');
     expect(saved.facts).toMatch(/\.\.\.$/);
     expect(saved.aiRationale).toMatch(/\.\.\.$/);
+  });
+});
+
+describe('FR4 - prompt includes category instruction', () => {
+  it('built prompt contains the category field instruction (digest with categories)', async () => {
+    const { typeRunnerFor } = await import('../agents');
+    const slot: Slot = { type: 'Substack', focus: 'Focus for Substack' };
+    const ctxWithCategories: SwarmContext = {
+      ...ctx,
+      renderedDigest:
+        '## Second Brain\nTotals: 7 sources, 4 notes, 2 categories.\n' +
+        '- History of Education: 5 sources, 3 notes\n' +
+        '- Assessment Methods: 2 sources, 1 note',
+    };
+
+    const prompt = typeRunnerFor('Substack').buildPrompt(slot, ctxWithCategories);
+
+    // Instructs use of the category field, matched verbatim against the digest.
+    expect(prompt).toMatch(/category/i);
+    expect(prompt).toMatch(/verbatim/i);
+    expect(prompt).toContain('Project Data Digest');
+  });
+
+  it('category instruction is present even when the project has no categories', async () => {
+    const { typeRunnerFor } = await import('../agents');
+    const slot: Slot = { type: 'Substack', focus: 'Focus for Substack' };
+
+    // ctx.secondBrain.categories is [] and renderedDigest has no categories;
+    // the instruction is unconditional and tells the agent to omit if none exist.
+    const prompt = typeRunnerFor('Substack').buildPrompt(slot, ctx);
+
+    expect(prompt).toMatch(/category/i);
+    expect(prompt).toMatch(/omit/i);
+    expect(prompt).toMatch(/no categor/i);
+  });
+});
+
+describe('FR3 - save_item resolves category name to ID', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    storageMock.addLearningStreamItem.mockResolvedValue({
+      id: 42,
+      type: 'Substack',
+      topic: 'T',
+      url: 'https://example.com/cat',
+    });
+  });
+
+  function buildSaveItem(categories: Array<{ id: number; name: string }>) {
+    return async () => {
+      const { typeRunnerFor } = await import('../agents');
+      return typeRunnerFor('Substack').buildTools({
+        brainliftId: 1,
+        runId: 2,
+        slotIdx: 0,
+        recordActivity: vi.fn(),
+        existingUrls: new Set<string>(),
+        categories,
+      } as any).save_item;
+    };
+  }
+
+  const baseInput = {
+    type: 'Substack' as const,
+    author: 'A',
+    topic: 'T',
+    time: '5 min',
+    facts: 'Facts',
+    url: 'https://example.com/cat',
+  };
+
+  it('resolves an exact category name match to its ID', async () => {
+    const saveItem = await buildSaveItem([{ id: 3, name: 'History of Education' }])();
+
+    await saveItem.execute({ ...baseInput, category: 'History of Education' }, toolContext);
+
+    expect(storageMock.addLearningStreamItem).toHaveBeenCalledWith(
+      1,
+      expect.objectContaining({ categoryId: 3 }),
+    );
+  });
+
+  it('resolves a category name case-insensitively', async () => {
+    const saveItem = await buildSaveItem([{ id: 3, name: 'History of Education' }])();
+
+    await saveItem.execute({ ...baseInput, category: 'history of education' }, toolContext);
+
+    expect(storageMock.addLearningStreamItem).toHaveBeenCalledWith(
+      1,
+      expect.objectContaining({ categoryId: 3 }),
+    );
+  });
+
+  it('resolves to null when the category name does not match any project category', async () => {
+    const saveItem = await buildSaveItem([{ id: 3, name: 'History of Education' }])();
+
+    await saveItem.execute({ ...baseInput, category: 'Quantum Physics' }, toolContext);
+
+    expect(storageMock.addLearningStreamItem).toHaveBeenCalledWith(
+      1,
+      expect.objectContaining({ categoryId: null }),
+    );
+  });
+
+  it('resolves to null when the category field is omitted', async () => {
+    const saveItem = await buildSaveItem([{ id: 3, name: 'History of Education' }])();
+
+    await saveItem.execute({ ...baseInput }, toolContext);
+
+    expect(storageMock.addLearningStreamItem).toHaveBeenCalledWith(
+      1,
+      expect.objectContaining({ categoryId: null }),
+    );
+  });
+
+  it('resolves to null when the project has no categories', async () => {
+    const saveItem = await buildSaveItem([])();
+
+    await saveItem.execute({ ...baseInput, category: 'History of Education' }, toolContext);
+
+    expect(storageMock.addLearningStreamItem).toHaveBeenCalledWith(
+      1,
+      expect.objectContaining({ categoryId: null }),
+    );
+  });
+
+  it('resolves an empty-string category to null (falsy guard, not a match attempt)', async () => {
+    const saveItem = await buildSaveItem([{ id: 3, name: 'History of Education' }])();
+
+    await saveItem.execute({ ...baseInput, category: '' }, toolContext);
+
+    expect(storageMock.addLearningStreamItem).toHaveBeenCalledWith(
+      1,
+      expect.objectContaining({ categoryId: null }),
+    );
+  });
+
+  it('requires an exact name match, not a substring (guards against includes-based matching)', async () => {
+    const saveItem = await buildSaveItem([{ id: 3, name: 'History of Education' }])();
+
+    // "History" is a substring of the real category but must NOT resolve.
+    await saveItem.execute({ ...baseInput, category: 'History' }, toolContext);
+
+    expect(storageMock.addLearningStreamItem).toHaveBeenCalledWith(
+      1,
+      expect.objectContaining({ categoryId: null }),
+    );
+  });
+
+  it('disambiguates between multiple categories, returning the exact match id', async () => {
+    const saveItem = await buildSaveItem([
+      { id: 3, name: 'History of Education' },
+      { id: 7, name: 'Assessment Methods' },
+    ])();
+
+    await saveItem.execute({ ...baseInput, category: 'assessment methods' }, toolContext);
+
+    expect(storageMock.addLearningStreamItem).toHaveBeenCalledWith(
+      1,
+      expect.objectContaining({ categoryId: 7 }),
+    );
   });
 });

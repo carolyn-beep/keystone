@@ -39,9 +39,17 @@ function parseBookmarkItemId(rawValue: string | undefined): number {
   return itemId;
 }
 
-function parseBookmarkCategoryId(rawValue: unknown): number {
+/**
+ * A missing/null categoryId is legal and saves the source as uncategorized
+ * (the onboarding wizard's starter-pack "Add" presents no category choice).
+ * Anything else non-numeric is still a 400.
+ */
+function parseBookmarkCategoryId(rawValue: unknown): number | null {
+  if (rawValue == null) {
+    return null;
+  }
   if (typeof rawValue !== 'number' || !Number.isFinite(rawValue)) {
-    throw new BadRequestError('categoryId required before save to Second Brain');
+    throw new BadRequestError('categoryId must be a number when provided');
   }
   return rawValue;
 }
@@ -62,7 +70,7 @@ function parseBookmarkCategoryId(rawValue: unknown): number {
 export async function bookmarkResearchItemWithSource(args: {
   brainliftId: number;
   itemId: number;
-  categoryId: number;
+  categoryId: number | null;
 }) {
   return db.transaction(async (tx) => {
     const { source, item } = await ensureSourceFromLearningStreamItem(tx, args);
@@ -264,6 +272,37 @@ learningStreamRouter.patch(
       itemId,
       brainlift.id,
       'discarded'
+    );
+
+    if (!updated) {
+      throw new NotFoundError('Item not found or does not belong to this brainlift');
+    }
+
+    res.json(updated);
+  })
+);
+
+/**
+ * PATCH /api/brainlifts/:slug/learning-stream/:itemId/restore
+ * Restore a discarded learning stream item back to pending (e.g. re-adding a
+ * declined starter-pack suggestion in the onboarding wizard).
+ */
+learningStreamRouter.patch(
+  '/api/brainlifts/:slug/learning-stream/:itemId/restore',
+  requireAuth,
+  requireBrainliftModify,
+  asyncHandler(async (req, res) => {
+    const brainlift = req.brainlift!;
+    const itemId = parseInt(req.params.itemId);
+
+    if (isNaN(itemId)) {
+      throw new BadRequestError('Invalid item ID');
+    }
+
+    const updated = await storage.updateLearningStreamItemStatus(
+      itemId,
+      brainlift.id,
+      'pending'
     );
 
     if (!updated) {

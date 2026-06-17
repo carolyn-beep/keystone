@@ -1,5 +1,6 @@
 import type { JobHelpers } from 'graphile-worker';
 import { extractContent } from '../services/content-extractor';
+import { deriveManualItemMetadata } from '../services/manual-item-metadata';
 import { storage } from '../storage';
 import { isQuizzableContent } from '../utils/item-text-content';
 import { withJob } from '../utils/withJob';
@@ -28,6 +29,23 @@ export async function contentExtractJob(
       itemId,
       contentType: result.contentType,
     });
+
+    // Pasted manual items are inserted with placeholders (raw URL as topic,
+    // hostname as author, type 'News'); backfill real title/author/type now
+    // that extraction has told us what the link is. Best-effort: a failure
+    // here never fails the extraction itself.
+    try {
+      const item = await storage.getLearningStreamItemById(itemId, brainliftId);
+      if (item?.source === 'manual') {
+        const metadata = await deriveManualItemMetadata(url, result);
+        await storage.updateLearningStreamItemMetadata(itemId, brainliftId, metadata);
+      }
+    } catch (error: any) {
+      helpers.logger.error('Manual item metadata backfill failed', {
+        itemId,
+        error: error.message,
+      });
+    }
 
     // Reactively trigger quiz generation for quizzable content types
     if (isQuizzableContent(result)) {

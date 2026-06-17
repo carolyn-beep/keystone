@@ -73,7 +73,7 @@ Format:
 
 type ExistingExpertForRerank = Pick<
   Expert,
-  'id' | 'name' | 'who' | 'why' | 'focus' | 'where' | 'twitterHandle' | 'isFollowing'
+  'id' | 'name' | 'who' | 'why' | 'focus' | 'where' | 'twitterHandle'
 >;
 
 function descriptionFromExpert(expert: {
@@ -105,7 +105,6 @@ function createInsertExpert(
     rationale: ranking?.rationale ?? null,
     source: ranking?.source ?? 'listed',
     twitterHandle: ranking?.twitterHandle ?? expert.twitterHandle,
-    isFollowing: true,
   };
 }
 
