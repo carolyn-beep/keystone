@@ -27,7 +27,7 @@ The topic field is the actual resource title: article headline, paper title, vid
 Do not use the brainlift title, project topic, or slot focus as the saved item topic.
 The facts field becomes "Key Insights" in the UI. Write a preview, not a summary: 1-2 compact sentences or max 2 short bullets, <= 320 characters. Only include the source's most decision-relevant takeaway.
 The aiRationale field becomes "Why this matters" in the UI. Write 1-2 project-specific sentences, <= 520 characters. Explain why this exact resource matters for this brainlift/user by connecting it to the slot focus, project facts, followed experts, SPOV, gaps, notes, or current research phase.
-The category field is optional. If the Project Data Digest lists expertise areas, pick the name that best fits this item verbatim. Omit the field if no category fits or if the project has no categories.
+The categoryId field is required. Set it to the numeric ID (the [ID] prefix) of the best-fit expertise area from ### Categories, or null if no category fits or if there are none listed.
 
 ## Critical Rules
 - Verify candidates before saving whenever the tool set allows it.

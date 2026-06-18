@@ -380,6 +380,28 @@ export async function recordSwarmUsage(userId: string, brainliftId: number, runS
 }
 
 /**
+ * Return the slot focuses from the last N completed swarm runs for a brainlift.
+ * Used to inject recent searches into the orchestrator prompt to avoid repetition.
+ */
+export async function getRecentRunFocuses(brainliftId: number, limit: number): Promise<string[]> {
+  const rows = await db
+    .select({ runSpec: swarmUsage.runSpec })
+    .from(swarmUsage)
+    .where(and(
+      eq(swarmUsage.brainliftId, brainliftId),
+      sql`${swarmUsage.runSpec} IS NOT NULL`,
+      sql`${swarmUsage.runSpec}->>'quick' IS DISTINCT FROM 'true'`,
+    ))
+    .orderBy(sql`${swarmUsage.id} DESC`)
+    .limit(limit);
+
+  return rows.flatMap((r) => {
+    const spec = r.runSpec as { agents?: { focus?: string }[] } | null;
+    return spec?.agents?.map((a) => a.focus).filter(Boolean) ?? [];
+  }) as string[];
+}
+
+/**
  * Return the runId of the most recent swarm_usage row for this brainlift.
  * Used to surface `existingRunId` in 409 responses when a research job is
  * already in flight. The pairing with `hasResearchJobPending` is an

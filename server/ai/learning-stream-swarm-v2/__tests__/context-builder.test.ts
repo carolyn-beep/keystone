@@ -242,32 +242,33 @@ describe('scope rendering (01-scope-foundation FR3)', () => {
     outOfScope: ['GPU pricing', 'crypto mining'],
   };
 
-  it('renders in/out scope phrases in the research phase digest', async () => {
+  it('renders out-of-scope but not in-scope phrases in the research phase digest', async () => {
     storageMock.getBrainliftById.mockResolvedValue(scopedRecord);
 
     const context = await buildSwarmContext(1);
 
     expect(context.brainlift.inScope).toEqual(['AI compiler internals', 'kernel fusion']);
     expect(context.brainlift.outOfScope).toEqual(['GPU pricing', 'crypto mining']);
-    expect(context.renderedDigest).toContain('In scope');
+    // In-scope is intentionally not rendered; only the out-of-scope exclusion filter appears.
+    expect(context.renderedDigest).not.toContain('In scope');
+    expect(context.renderedDigest).not.toContain('AI compiler internals');
+    expect(context.renderedDigest).not.toContain('kernel fusion');
     expect(context.renderedDigest).toContain('Out of scope');
-    expect(context.renderedDigest).toContain('AI compiler internals');
-    expect(context.renderedDigest).toContain('kernel fusion');
     expect(context.renderedDigest).toContain('GPU pricing');
     expect(context.renderedDigest).toContain('crypto mining');
   });
 
-  it('renders in/out scope phrases in the authoring phase digest', async () => {
+  it('renders out-of-scope but not in-scope phrases in the authoring phase digest', async () => {
     storageMock.getBrainliftById.mockResolvedValue({ ...scopedRecord, phase: 'authoring' });
 
     const context = await buildSwarmContext(1);
 
     expect(context.phase).toBe('authoring');
-    expect(context.renderedDigest).toContain('AI compiler internals');
+    expect(context.renderedDigest).not.toContain('AI compiler internals');
     expect(context.renderedDigest).toContain('GPU pricing');
   });
 
-  it('renders a scope block when only one of the two arrays is non-empty', async () => {
+  it('renders no scope block when only in-scope is non-empty', async () => {
     storageMock.getBrainliftById.mockResolvedValue({
       ...scopedRecord,
       outOfScope: [],
@@ -275,7 +276,9 @@ describe('scope rendering (01-scope-foundation FR3)', () => {
 
     const context = await buildSwarmContext(1);
 
-    expect(context.renderedDigest).toContain('AI compiler internals');
+    // In-scope alone renders nothing (out-of-scope is the only scope surface rendered).
+    expect(context.renderedDigest).not.toContain('AI compiler internals');
+    expect(context.renderedDigest).not.toContain('In scope');
     expect(context.renderedDigest).not.toContain('Out of scope');
   });
 
@@ -314,6 +317,53 @@ describe('scope rendering (01-scope-foundation FR3)', () => {
     const context = await buildSwarmContext(1);
 
     expect(context.digestCharCount).toBeLessThanOrEqual(32000);
+  });
+});
+
+// 01-swarm-classification FR2: the digest surfaces category IDs so agents can pass
+// numeric categoryId values to save_item (direct-ID contract, no name resolution).
+describe('category ID rendering in the digest (FR2)', () => {
+  it('prefixes each rendered category with its numeric [id]', async () => {
+    storageMock.getBrainliftById.mockResolvedValue({
+      id: 1,
+      phase: 'research',
+      title: 'Carmack Brainlift',
+    });
+    storageMock.getLearningStreamContext.mockResolvedValue(learningStreamContext());
+    storageMock.getSourcesByBrainlift.mockResolvedValue([]);
+    storageMock.getNotesByBrainlift.mockResolvedValue([]);
+    storageMock.listCategories.mockResolvedValue([
+      { id: 3, name: 'History of Education', sortOrder: 0, sourceCount: 5, noteCount: 3 },
+      { id: 7, name: 'Assessment Methods', sortOrder: 1, sourceCount: 2, noteCount: 1 },
+    ]);
+    storageMock.getDOK4Spovs.mockResolvedValue([]);
+    storageMock.getExpertsByBrainliftId.mockResolvedValue([]);
+    storageMock.getLearningStreamUrls.mockResolvedValue([]);
+
+    const context = await buildSwarmContext(1);
+
+    // Each line carries the [id] prefix the agent echoes back as categoryId.
+    expect(context.renderedDigest).toContain('[3] History of Education');
+    expect(context.renderedDigest).toContain('[7] Assessment Methods');
+  });
+
+  it('renders the (no categories yet) marker when there are none', async () => {
+    storageMock.getBrainliftById.mockResolvedValue({
+      id: 1,
+      phase: 'research',
+      title: 'Carmack Brainlift',
+    });
+    storageMock.getLearningStreamContext.mockResolvedValue(learningStreamContext());
+    storageMock.getSourcesByBrainlift.mockResolvedValue([]);
+    storageMock.getNotesByBrainlift.mockResolvedValue([]);
+    storageMock.listCategories.mockResolvedValue([]);
+    storageMock.getDOK4Spovs.mockResolvedValue([]);
+    storageMock.getExpertsByBrainliftId.mockResolvedValue([]);
+    storageMock.getLearningStreamUrls.mockResolvedValue([]);
+
+    const context = await buildSwarmContext(1);
+
+    expect(context.renderedDigest).toContain('(no categories yet)');
   });
 });
 

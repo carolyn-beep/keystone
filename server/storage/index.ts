@@ -231,6 +231,7 @@ export const storage = {
   recordSwarmUsage: learningStreamStorage.recordSwarmUsage,
   updateSwarmUsageEstimatedUsd: learningStreamStorage.updateSwarmUsageEstimatedUsd,
   getActiveRunIdForBrainlift: learningStreamStorage.getActiveRunIdForBrainlift,
+  getRecentRunFocuses: learningStreamStorage.getRecentRunFocuses,
   hasStarterPackItems: learningStreamStorage.hasStarterPackItems,
   getPendingStarterPackItems: learningStreamStorage.getPendingStarterPackItems,
   discardStarterPackItems: learningStreamStorage.discardStarterPackItems,

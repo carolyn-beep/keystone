@@ -113,7 +113,7 @@ function renderSecondBrainSection(secondBrain: SecondBrainDigest, budget: number
     lines.push('(no categories yet)');
   } else {
     lines.push(...secondBrain.categories.map((category) =>
-      `- ${category.name}: ${category.sourceCount} sources, ${category.noteCount} notes`,
+      `- [${category.id}] ${category.name}: ${category.sourceCount} sources, ${category.noteCount} notes`,
     ));
   }
 
@@ -153,15 +153,11 @@ function renderSecondBrainSection(secondBrain: SecondBrainDigest, budget: number
 }
 
 function renderScopeBlock(brainlift: BrainliftDigest, lines: string[], budget: number): void {
-  const inScope = brainlift.inScope ?? [];
+  // In-scope is intentionally NOT rendered: the swarm searches broadly within each
+  // expertise category and uses project data only to pick an angle, not to narrow the
+  // query. Out-of-scope remains as an exclusion filter.
   const outOfScope = brainlift.outOfScope ?? [];
 
-  if (inScope.length > 0) {
-    lines.push('', '### In scope');
-    for (const phrase of inScope) {
-      appendBudgetedLine(lines, `- ${clampText(phrase, SOURCE_TITLE_CHAR_BUDGET)}`, budget);
-    }
-  }
   if (outOfScope.length > 0) {
     lines.push('', '### Out of scope (do NOT pursue)');
     for (const phrase of outOfScope) {
