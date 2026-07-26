@@ -1,16 +1,16 @@
-/* AlphaX-specific CSS module.
+/* Keystone-specific CSS module.
  *
  * Imported only from `client/src/brand/keystone/index.ts` so Vite tree-shakes
  * the entire block out of the inactive (Brainlift Central) brand bundle.
  * The shared chrome (`brand-nameplate-*`) stays in the global `index.css`.
  *
- * AlphaX login-hero-plate-* classes are AlphaX-only and live here too,
+ * Keystone login-hero-plate-* classes are Keystone-only and live here too,
  * even though their names lack the `keystone-` prefix -- they describe the
- * AlphaX plate framing (corner ornaments, sepia filter, captioned figure)
+ * Keystone plate framing (corner ornaments, sepia filter, captioned figure)
  * and are not consumed anywhere else in the codebase.
  */
 
-/* ===== AlphaX login-hero-plate (frontispiece) ===== */
+/* ===== Keystone login-hero-plate (frontispiece) ===== */
 
 .login-hero-plate {
   margin: 0 0 2.2rem;
@@ -89,7 +89,7 @@
   opacity: 0.5;
 }
 
-/* ===== AlphaX wordmark hero / mobile (typography overrides) ===== */
+/* ===== Keystone wordmark hero / mobile (typography overrides) ===== */
 
 .keystone-wordmark-hero {
   margin: 0;
@@ -128,7 +128,7 @@
   font-size: 32px;
 }
 
-/* ===== AlphaX login-card-avatar (login plate avatar overlay) ===== */
+/* ===== Keystone login-card-avatar (login plate avatar overlay) ===== */
 
 .login-card-avatar {
   position: relative;
@@ -166,7 +166,7 @@
   overflow: hidden;
 }
 
-/* ===== AlphaX nameplate (sidebar avatar + wordmark visuals) ===== */
+/* ===== Keystone nameplate (sidebar avatar + wordmark visuals) ===== */
 
 .keystone-nameplate-avatar {
   display: inline-flex;
@@ -261,7 +261,7 @@
   opacity: 0.7;
 }
 
-/* Compact nameplate variant -- AlphaX-specific size overrides applied
+/* Compact nameplate variant -- Keystone-specific size overrides applied
    when the sidebar uses brand-nameplate--compact. */
 .brand-nameplate--compact .keystone-nameplate-avatar {
   height: 2.25rem;

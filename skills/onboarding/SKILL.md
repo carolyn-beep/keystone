@@ -1,11 +1,11 @@
 ---
 name: onboarding
-description: Use this skill when the student has zero brainlifts, has a brainlift but no active sprint plan, has no recent conversations, or signals they don't know where to start ("what should I do?", "where do I begin?"). Walks the student through the AlphaX journey from wherever they currently are - first identifying their actual state with the available tools, then branching into business-idea ideation and brainlift construction, sprint plan generation, or daily task execution.
+description: Use this skill when the student has zero brainlifts, has a brainlift but no active sprint plan, has no recent conversations, or signals they don't know where to start ("what should I do?", "where do I begin?"). Walks the student through the Keystone journey from wherever they currently are - first identifying their actual state with the available tools, then branching into business-idea ideation and brainlift construction, sprint plan generation, or daily task execution.
 ---
 
 # Onboarding
 
-Walk the student through the AlphaX journey from wherever they currently are. Use the available tools to figure out their actual state before branching, then meet them there.
+Walk the student through the Keystone journey from wherever they currently are. Use the available tools to figure out their actual state before branching, then meet them there.
 
 ## Step 1: Figure Out Where The Student Is
 
@@ -19,12 +19,12 @@ Then branch on what you found. Do not branch on guesses.
 
 ## Sell The Value Every Time
 
-Whenever you propose a concrete next step — building a brainlift, generating a sprint plan, running a skill, or any other meaningful move — explain why that step matters for the student's AlphaX journey *before* you do it. Do not just suggest the action; connect it to where the student is in the journey and what it unlocks next.
+Whenever you propose a concrete next step — building a brainlift, generating a sprint plan, running a skill, or any other meaningful move — explain why that step matters for the student's Keystone journey *before* you do it. Do not just suggest the action; connect it to where the student is in the journey and what it unlocks next.
 
 Pull from your system prompt to do this well. Everything you need is already there:
 
 - The Brainlift Operating Protocols section explains why a brainlift matters, what makes it the foundation, and how it powers everything downstream — use it when selling the value of building or refining one.
-- The AlphaX Journey section explains what each stage produces — use it to frame why a sprint plan turns the idea into something shippable, and why each stage-week matters.
+- The Keystone Journey section explains what each stage produces — use it to frame why a sprint plan turns the idea into something shippable, and why each stage-week matters.
 - The skills catalogue framing in the journey section explains that skills only land when grounded in the brainlift — use it when selling why a particular skill is the right next move and what specific artifact it produces.
 
 Do not invent fresh justifications when the system prompt already has the canonical framing. Reference it, adapt it to the student's specific situation, and keep your phrasing tight.
@@ -33,7 +33,7 @@ Do not invent fresh justifications when the system prompt already has the canoni
 
 Goal: get the student to a Business Brainlift they actually own.
 
-1. Interview them. Surface their passions, hobbies, what they spend their time on, communities they're part of, things they already have access to — a family business, a network, a domain they grew up around. Most strong AlphaX ideas come from these intersections.
+1. Interview them. Surface their passions, hobbies, what they spend their time on, communities they're part of, things they already have access to — a family business, a network, a domain they grew up around. Most strong Keystone ideas come from these intersections.
 2. Ask whether they already have a business idea. If yes, probe it: what is it, why this one, what do they know about the space, who is it for.
 3. If no idea yet, work with them to surface a few candidates from what they told you. The strongest candidates usually combine something they care about, something they already have access to, and a real problem they've seen up close. Surface candidates — they pick. Do not pick for them.
 4. Once they're committed to an idea, explain why the next step is to build a brainlift around it (it becomes the foundation for every later step in the journey — research, plan, deliverables, skills), then hand off to the `build-a-brainlift` skill (call `load_skill` with `name=build-a-brainlift`) to drive the actual construction. Do not try to author the brainlift inline from this skill.

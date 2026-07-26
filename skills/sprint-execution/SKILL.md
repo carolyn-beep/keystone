@@ -1,6 +1,6 @@
 ---
 name: sprint-execution
-description: Use this skill when the student is working with their 30-day sprint plan - generating one, sequencing tasks, picking what to work on next, executing today's or overdue tasks, or producing a deliverable for a task. Anchors sprint work to concrete deliverables, real dependencies, and evidence from the brainlift, while keeping AlphaX Buddy in its coach-not-doer posture and refusing to fabricate any specific claim that lacks a verified source.
+description: Use this skill when the student is working with their 30-day sprint plan - generating one, sequencing tasks, picking what to work on next, executing today's or overdue tasks, or producing a deliverable for a task. Anchors sprint work to concrete deliverables, real dependencies, and evidence from the brainlift, while keeping Keystone Buddy in its coach-not-doer posture and refusing to fabricate any specific claim that lacks a verified source.
 ---
 
 # Sprint Execution

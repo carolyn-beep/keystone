@@ -1,7 +1,7 @@
 /* Brainlift Central-specific CSS module.
  *
  * Imported only from `client/src/brand/brainlift/index.ts` so Vite tree-
- * shakes the entire block out of the inactive (AlphaX) brand bundle. The
+ * shakes the entire block out of the inactive (Keystone) brand bundle. The
  * shared chrome (`brand-nameplate-*`) stays in the global `index.css`.
  *
  * Treatment: single-piece serif wordmark in Libre Baskerville (matching the
@@ -46,10 +46,10 @@
   letter-spacing: -0.01em;
 }
 
-/* ===== Avatar -- circular frame + glow halo (mirrors AlphaX treatment) ===== */
+/* ===== Avatar -- circular frame + glow halo (mirrors Keystone treatment) ===== */
 
 /* Login variant -- 4.5rem circle that overlaps the top of the login card,
-   matching AlphaX positioning byte-for-byte. */
+   matching Keystone positioning byte-for-byte. */
 .brainlift-avatar-login {
   position: relative;
   width: 4.5rem;
@@ -181,9 +181,9 @@
 }
 
 /* ===== Hero tagline override =====
-   Global `.login-hero-tagline` is italic (AlphaX backcompat). For brainlift,
+   Global `.login-hero-tagline` is italic (Keystone backcompat). For brainlift,
    the lead reads regular weight (matches the landing-page hero) and the
-   italic stays on the `taglineEmphasis` tail. Sibling-scoped so AlphaX is
+   italic stays on the `taglineEmphasis` tail. Sibling-scoped so Keystone is
    untouched. */
 .brainlift-wordmark-hero ~ .login-hero-tagline {
   font-style: normal;

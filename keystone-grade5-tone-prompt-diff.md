@@ -1,7 +1,7 @@
-# AlphaX Grade-5 Tone — Prompt Diff
+# Keystone Grade-5 Tone — Prompt Diff
 
 Branch: `feat/keystone-grade5-tone`
-Scope: AlphaX brand only. Brainlift brand untouched.
+Scope: Keystone brand only. Brainlift brand untouched.
 
 ## Architecture
 

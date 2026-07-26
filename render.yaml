@@ -4,7 +4,7 @@
 #                        prod service in the Render dashboard (display
 #                        name "DOK1GraderV3", service ID
 #                        srv-d5fu0p4hg0os73e072ng), which was repurposed
-#                        for BC. AlphaX moved to its own service below.
+#                        for BC. Keystone moved to its own service below.
 #
 #   keystone-buddy      -> serves the Keystone student brand. New service to be created
 #                        on cutover.
