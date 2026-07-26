@@ -18,7 +18,7 @@ const FETCH_TIMEOUT_MS = 8_000;
 const MAX_HTML_BYTES = 512 * 1024; // 512 KB is enough for <head> on most pages.
 
 const USER_AGENT =
-  'Mozilla/5.0 (compatible; KeystoneBuddy/1.0; +https://alphaxbuddy.local)';
+  'Mozilla/5.0 (compatible; Keystone/1.0; +https://keystone.local)';
 
 export async function fetchAuthorFromUrl(url: string): Promise<string | undefined> {
   try {

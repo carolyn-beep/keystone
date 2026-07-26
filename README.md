@@ -1137,12 +1137,12 @@ Neo-editorial aesthetic with warm parchment surfaces, earth-tone ink colors, ser
 
 ## Dual-Brand Deployment
 
-The same codebase ships as two distinct products on two domains, off one Neon database:
+The same codebase ships as two distinct products — one for students, one for professionals — selected by an env var at build time, off one shared database:
 
-| Brand | Domain | Audience | Posture |
-|-------|--------|----------|---------|
-| **Keystone** | student deploy | high-school students | pedagogical gatekeeping, refuses to draft substantive content, pulls passive students back in |
-| **Keystone Central** | not yet deployed | adult researchers, analysts, professionals | permissive peer-researcher posture, drafting and analysis are fair game, engagement enforced downstream by the grader |
+| Brand | Audience | Posture |
+|-------|----------|---------|
+| **Keystone** | high-school students | pedagogical gatekeeping — refuses to draft substantive content, pulls passive students back in |
+| **Keystone Central** | adult researchers, analysts, professionals | permissive peer-researcher — drafting and analysis are fair game, engagement enforced downstream by the grader |
 
 One env var picks the brand at build time on the client (`VITE_BRAND`) and at boot on the server (`BRAND`). Two Render services share `DATABASE_URL` and the Google OAuth client; cookie scopes per domain mean separate sign-ins on each.
 
