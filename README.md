@@ -1142,11 +1142,11 @@ The same codebase ships as two distinct products on two domains, off one Neon da
 | Brand | Domain | Audience | Posture |
 |-------|--------|----------|---------|
 | **Keystone** | student deploy | high-school students | pedagogical gatekeeping, refuses to draft substantive content, pulls passive students back in |
-| **Keystone Central** | `brainliftcentral.com` | adult researchers, analysts, professionals | permissive peer-researcher posture, drafting and analysis are fair game, engagement enforced downstream by the grader |
+| **Keystone Central** | not yet deployed | adult researchers, analysts, professionals | permissive peer-researcher posture, drafting and analysis are fair game, engagement enforced downstream by the grader |
 
 One env var picks the brand at build time on the client (`VITE_BRAND`) and at boot on the server (`BRAND`). Two Render services share `DATABASE_URL` and the Google OAuth client; cookie scopes per domain mean separate sign-ins on each.
 
-> **Legacy deploy identifiers.** The student brand is **Keystone**, but at the code/deploy level it still selects with `BRAND=alphax` and currently ships under the legacy display name **"AlphaX Buddy"**; the professional brand's domain is still `brainliftcentral.com`. These deploy-level names are part of the scheduled clean-break migration and will move to Keystone naming.
+> **Legacy deploy identifiers.** The student brand is **Keystone**, but at the code/deploy level it still selects with `BRAND=alphax` and currently ships under the legacy display name **"AlphaX Buddy"**. These deploy-level names are part of the scheduled clean-break migration and will move to Keystone naming. (The Keystone Central professional edition is defined but not yet deployed.)
 
 ### Brand Module
 
@@ -1203,7 +1203,7 @@ Both builds emit clean bundle-grep results and produce the same application code
 
 ### Render Blueprint
 
-`render.yaml` declares both services with shared infra (region, plan, runtime, health-check path, build/start commands) and brand-specific env vars. The Keystone Central service binds the `brainliftcentral.com` and `www.brainliftcentral.com` custom domains. `DATABASE_URL` and `OPENROUTER_API_KEY` use `sync: false` so each service holds the same secret values without Blueprint coupling. See `features/branding/dual-brand-deployment/specs/04-second-deploy/CUTOVER.md` for the operator checklist (env var ordering, OAuth callback URLs, DNS, smoke tests).
+`render.yaml` declares both services with shared infra (region, plan, runtime, health-check path, build/start commands) and brand-specific env vars. The Keystone Central service is defined but **not yet deployed**; a custom domain would be attached in the Render dashboard at cutover (nothing is declared in `render.yaml`). `DATABASE_URL` and `OPENROUTER_API_KEY` use `sync: false` so each service holds the same secret values without Blueprint coupling. See `features/branding/dual-brand-deployment/specs/04-second-deploy/CUTOVER.md` for the operator checklist (env var ordering, OAuth callback URLs, DNS, smoke tests).
 
 ---
 

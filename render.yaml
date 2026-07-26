@@ -9,8 +9,8 @@
 #   alphax-buddy      -> serves AlphaX Buddy. New service to be created
 #                        on cutover.
 #
-# Custom domains (brainliftcentral.com, alphaxbuddy.com) are attached
-# manually in the Render dashboard — not declared here.
+# Custom domains are attached manually in the Render dashboard at deploy
+# time — not declared here. (The second service is not yet deployed.)
 
 services:
   - type: web
