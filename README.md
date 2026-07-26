@@ -1,6 +1,6 @@
 # Keystone
 
-**An AI learning platform that turns students into genuine experts — by making them do the thinking.**
+**An AI learning platform that turns students into genuine experts by making them do the thinking.**
 
 Keystone is built on one uncompromising principle: *knowledge only counts when it passes through the student's own mind.* Most AI tools do the thinking **for** the learner — they summarize, they draft, they answer. Keystone deliberately refuses to. It acts as a Socratic guide: it surfaces the raw material, asks the questions that force students to articulate their own understanding, and then rigorously grades the depth of what they produced.
 
@@ -41,7 +41,7 @@ A single arc, start to finish:
 4. **Synthesize in their own words (DOK2).** The Discussion Agent asks how the facts connect. The student writes the synthesis; the grader checks whether real reorganization happened — not just compression.
 5. **Find the insight (DOK3).** Across sources, the student names a non-obvious pattern. The agent refuses to name it for them — a missing insight beats an invented one.
 6. **Take a position (DOK4).** The student commits to a defensible point of view on a contested question, graded for whether it actually *diverges* from what a generic AI would say.
-7. **Defend it. 🚧** In the roadmap Adversary Defense, the student defends that position against an escalating AI opponent across 12 rounds — the final proof of ownership.
+7. **Defend it. Adversary Defense, the student defends that position against an escalating AI opponent across 12 rounds — the final proof of ownership.
 
 By the end, the student hasn't collected AI-generated notes. They've built — and can defend — a body of expertise that is unmistakably their own.
 
