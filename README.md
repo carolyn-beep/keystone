@@ -825,9 +825,9 @@ Each resource gets three AI-generated discussion suggestions (via Haiku for spee
 
 ## Knowledge Check — DOK1 Retrieval Practice
 
-The Knowledge Check is the retrieval practice companion to the Discussion Agent. Both live in the right panel of the expanded learning stream item view, toggled via a **Discuss / Knowledge Check** switch. Where the Discussion Agent guides open-ended DOK2 synthesis, the Knowledge Check tests whether the student can recall specific DOK1 facts from the content — the foundation that DOK2 synthesis depends on.
+Keystone's pedagogy is deliberately grounded in learning science, and the Knowledge Check is where that shows most directly: it turns passive reading into **active recall**. It is the retrieval-practice companion to the Discussion Agent. Both live in the right panel of the expanded learning stream item view, toggled via a **Discuss / Knowledge Check** switch. Where the Discussion Agent guides open-ended DOK2 synthesis, the Knowledge Check tests whether the student can recall specific DOK1 facts from the content — the foundation that DOK2 synthesis depends on.
 
-The design is grounded in testing effect research (Roediger & Karpicke, 2006): active retrieval practice drives stronger retention than re-reading or conversational exploration. The Knowledge Check doesn't gate anything — it has no impact on grades. It's a low-stakes self-assessment that nudges the student toward DOK2 summarization after completion.
+The design is grounded in **testing-effect research** (Roediger & Karpicke, 2006): actively retrieving a fact from memory drives far stronger retention than re-reading or conversational exploration. Two research-backed design choices follow from this: the check is **low-stakes** (it never affects a grade, so retrieval isn't distorted by test anxiety), and there are **no retakes** (the first retrieval attempt is the one that matters most for retention). On completion it nudges — but never forces — the student toward DOK2 summarization. Together with the Socratic Discussion Agent and the DOK depth model, it gives Keystone a coherent, evidence-based learning spine rather than a bag of features.
 
 ### Quiz Generation (Two-Phase)
 
