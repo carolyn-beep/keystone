@@ -914,7 +914,7 @@ The student experience is deliberately simple — no timer, no penalty, no retak
 4. An encouraging nudge suggests moving to the Discussion tab to start DOK2 summarization
 5. On revisit, the student sees their previous results (first retrieval attempt is most valuable per testing effect research — no retakes)
 
-Quiz results (answers, score) are persisted as JSONB in the database, tied to the brainlift and item.
+Quiz results (answers, score) are persisted as JSONB in the database, tied to the Keystone Document and item.
 
 ---
 
