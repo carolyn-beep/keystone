@@ -34,18 +34,14 @@ export function Wordmark({ variant }: WordmarkProps) {
   if (variant === 'compact') {
     return (
       <span className={variantClass(variant)}>
-        <span className="alphax-nameplate-word">Alpha</span>
-        <span className="alphax-nameplate-x" aria-hidden="true">x</span>
-        <span className="alphax-nameplate-word">Buddy</span>
+        <span className="alphax-nameplate-word">Keystone</span>
       </span>
     );
   }
 
   return (
     <h1 className={variantClass(variant)}>
-      <span className="alphax-nameplate-word">Alpha</span>
-      <span className="alphax-nameplate-x">x</span>
-      <span className="alphax-nameplate-word">Buddy</span>
+      <span className="alphax-nameplate-word">Keystone</span>
     </h1>
   );
 }

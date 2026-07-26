@@ -19,11 +19,9 @@ function readSource(relativePath: string): string {
 describe('FR3 AlphaX Wordmark.tsx', () => {
   const source = readSource('./Wordmark.tsx');
 
-  it('preserves the three-span Alpha/x/Buddy structure', () => {
+  it('renders the Keystone wordmark', () => {
     expect(source).toContain('alphax-nameplate-word');
-    expect(source).toContain('alphax-nameplate-x');
-    expect(source).toContain('Alpha');
-    expect(source).toContain('Buddy');
+    expect(source).toContain('Keystone');
   });
 
   it('handles all three variants (hero, mobile, compact)', () => {
@@ -41,9 +39,9 @@ describe('FR3 AlphaX Wordmark.tsx', () => {
 describe('FR3 AlphaX Avatar.tsx', () => {
   const source = readSource('./Avatar.tsx');
 
-  it('imports the alpha-buddy asset from the brand assets folder', () => {
-    expect(source).toMatch(/alpha-buddy/);
-    expect(source).toMatch(/['"]\.\/assets\/alpha-buddy\.png['"]/);
+  it('imports the keystone-avatar asset from the brand assets folder', () => {
+    expect(source).toMatch(/keystone-avatar/);
+    expect(source).toMatch(/['"]\.\/assets\/keystone-avatar\.png['"]/);
   });
 
   it('renders the login-card-avatar markup for the login variant', () => {
@@ -82,15 +80,14 @@ describe('FR3 AlphaX LoginIllustration.tsx', () => {
     expect(source).toContain('bottom-right');
   });
 
-  it('renders the figcaption with Plate I. and Builds at night', () => {
-    expect(source).toContain('login-hero-plate-caption');
-    expect(source).toContain('Plate I.');
-    expect(source).toContain('Builds at night');
+  it('does not render the removed Plate I. / Builds at night caption', () => {
+    expect(source).not.toContain('Plate I.');
+    expect(source).not.toContain('Builds at night');
   });
 
-  it('imports the owl-counsel asset from the brand assets folder', () => {
-    expect(source).toMatch(/owl-counsel/);
-    expect(source).toMatch(/['"]\.\/assets\/owl-counsel\.png['"]/);
+  it('imports the keystone-login asset from the brand assets folder', () => {
+    expect(source).toMatch(/keystone-login/);
+    expect(source).toMatch(/['"]\.\/assets\/keystone-login\.png['"]/);
   });
 });
 
@@ -107,14 +104,14 @@ describe('FR3 AlphaX index.ts barrel', () => {
 });
 
 describe('FR3 AlphaX assets exist on disk', () => {
-  it('alpha-buddy.png is present and non-empty', () => {
-    const url = new URL('./assets/alpha-buddy.png', import.meta.url);
+  it('keystone-avatar.png is present and non-empty', () => {
+    const url = new URL('./assets/keystone-avatar.png', import.meta.url);
     const stat = fs.statSync(url);
     expect(stat.size).toBeGreaterThan(0);
   });
 
-  it('owl-counsel.png is present and non-empty', () => {
-    const url = new URL('./assets/owl-counsel.png', import.meta.url);
+  it('keystone-login.png is present and non-empty', () => {
+    const url = new URL('./assets/keystone-login.png', import.meta.url);
     const stat = fs.statSync(url);
     expect(stat.size).toBeGreaterThan(0);
   });

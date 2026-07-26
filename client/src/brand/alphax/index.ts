@@ -8,8 +8,8 @@
 
 import { createElement } from 'react';
 import type { BrandConfig, BrandModule, ChatAvatarConfig } from '../types';
-import alphaBuddyAvatar from './assets/alpha-buddy.png';
-import alphaBuddyMascot from './assets/alphabuddy-mascot-relaxed.png';
+import keystoneAvatar from './assets/keystone-avatar.png';
+import keystoneMascot from './assets/keystone-mascot.png';
 // Brand-specific stylesheet. Imported as a side-effect so it is included in
 // the bundle only when this barrel is reachable. With the `@/brand` alias
 // resolving directly to the active brand barrel at build time, the inactive
@@ -24,7 +24,7 @@ import { buildAlphaXOpenerText } from './opener-text';
 
 /** Relaxed-pose mascot for the onboarding wizard suggestion rail (spec 04). */
 function Mascot({ className }: { className?: string }) {
-  return createElement('img', { src: alphaBuddyMascot, alt: '', draggable: false, className });
+  return createElement('img', { src: keystoneMascot, alt: '', draggable: false, className });
 }
 
 // Augment the plain config with the Mascot component; the config object can't
@@ -38,9 +38,9 @@ export { Wordmark, Avatar, LoginIllustration };
 export const syntheticOpenerText = buildAlphaXOpenerText;
 
 export const chatAvatar: ChatAvatarConfig = {
-  src: alphaBuddyAvatar,
-  alt: 'Alpha Buddy',
-  fallback: 'AB',
+  src: keystoneAvatar,
+  alt: 'Keystone',
+  fallback: 'K',
 };
 
 export const brand: BrandModule = {

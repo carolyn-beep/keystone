@@ -22,9 +22,9 @@ function readSource(relativePath: string): string {
 // ─── Persona brand slot ──────────────────────────────────────────────────────
 
 describe('FR3: wizardPersona brand slot', () => {
-  it('alphax config defines wizardPersona named "AlphaX Buddy"', () => {
+  it('alphax config defines wizardPersona named "Keystone"', () => {
     expect(alphaxConfig.wizardPersona).toBeDefined();
-    expect(alphaxConfig.wizardPersona.name).toBe('AlphaX Buddy');
+    expect(alphaxConfig.wizardPersona.name).toBe('Keystone');
   });
 
   it('alphax barrel wires a Mascot component onto the persona', () => {
@@ -33,7 +33,7 @@ describe('FR3: wizardPersona brand slot', () => {
     const barrel = readSource('../../../brand/alphax/index.ts');
     expect(barrel).toMatch(/wizardPersona/);
     expect(barrel).toMatch(/Mascot/);
-    expect(barrel).toMatch(/alphabuddy-mascot-relaxed/);
+    expect(barrel).toMatch(/keystone-mascot/);
   });
 
   it('brainlift config defines wizardPersona named "Brainlift Assistant" with no Mascot', () => {
@@ -43,7 +43,7 @@ describe('FR3: wizardPersona brand slot', () => {
   });
 
   it('the mascot asset exists on disk and is non-empty', () => {
-    const url = new URL('../../../brand/alphax/assets/alphabuddy-mascot-relaxed.png', import.meta.url);
+    const url = new URL('../../../brand/alphax/assets/keystone-mascot.png', import.meta.url);
     expect(fs.statSync(url).size).toBeGreaterThan(0);
   });
 });

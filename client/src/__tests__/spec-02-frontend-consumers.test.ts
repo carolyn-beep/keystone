@@ -138,12 +138,12 @@ describe('FR11 duplicated assets are deleted', () => {
     expect(fs.existsSync(p)).toBe(false);
   });
 
-  it('AlphaX assets remain present under client/src/brand/alphax/assets/', () => {
+  it('Keystone brand assets remain present under client/src/brand/alphax/assets/', () => {
     expect(
-      fs.existsSync(path.join(clientSrc, 'brand/alphax/assets/alpha-buddy.png')),
+      fs.existsSync(path.join(clientSrc, 'brand/alphax/assets/keystone-avatar.png')),
     ).toBe(true);
     expect(
-      fs.existsSync(path.join(clientSrc, 'brand/alphax/assets/owl-counsel.png')),
+      fs.existsSync(path.join(clientSrc, 'brand/alphax/assets/keystone-login.png')),
     ).toBe(true);
   });
 });

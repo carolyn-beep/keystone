@@ -15,7 +15,7 @@
  */
 
 import type { AvatarProps } from '../types';
-import alphaBuddyAvatar from './assets/alpha-buddy.png';
+import keystoneAvatar from './assets/keystone-avatar.png';
 
 export function Avatar({ variant }: AvatarProps) {
   if (variant === 'login') {
@@ -27,7 +27,7 @@ export function Avatar({ variant }: AvatarProps) {
         <span className="login-card-avatar-glow" />
         <span className="login-card-avatar-frame">
           <img
-            src={alphaBuddyAvatar}
+            src={keystoneAvatar}
             alt=""
             draggable={false}
             className="h-full w-full object-contain"
@@ -44,7 +44,7 @@ export function Avatar({ variant }: AvatarProps) {
         <span className="alphax-nameplate-glow" aria-hidden="true" />
         <span className="alphax-nameplate-frame">
           <img
-            src={alphaBuddyAvatar}
+            src={keystoneAvatar}
             alt=""
             aria-hidden="true"
             draggable={false}
@@ -59,8 +59,8 @@ export function Avatar({ variant }: AvatarProps) {
   // the config-object form should read `chatAvatar` from `./index.ts`.
   return (
     <img
-      src={alphaBuddyAvatar}
-      alt="Alpha Buddy"
+      src={keystoneAvatar}
+      alt="Keystone"
       draggable={false}
       className="h-full w-full object-contain"
     />

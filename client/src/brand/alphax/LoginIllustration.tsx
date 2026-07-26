@@ -1,20 +1,18 @@
 /**
  * AlphaX login illustration component.
  *
- * Verbatim extraction of `Login.tsx:76-94`: a `<figure>` element wrapping the
- * frame + image + four corner ornaments + figcaption with "Plate I." /
- * "Builds at night". The CSS classes (`login-hero-plate*`) live in
- * `client/src/index.css` and are untouched in spec 01.
+ * A `<figure>` element wrapping the frame + image + four corner ornaments.
+ * The CSS classes (`login-hero-plate*`) live in `client/src/index.css`.
  */
 
-import owlCounsel from './assets/owl-counsel.png';
+import keystoneLogin from './assets/keystone-login.png';
 
 export function LoginIllustration() {
   return (
     <figure className="login-hero-plate">
       <div className="login-hero-plate-frame">
         <img
-          src={owlCounsel}
+          src={keystoneLogin}
           alt=""
           draggable={false}
           className="login-hero-plate-image"
@@ -24,11 +22,6 @@ export function LoginIllustration() {
         <span className="login-hero-plate-corner bottom-left" aria-hidden="true" />
         <span className="login-hero-plate-corner bottom-right" aria-hidden="true" />
       </div>
-      <figcaption className="login-hero-plate-caption">
-        <span className="login-hero-plate-caption-numeral">Plate I.</span>
-        <span className="login-hero-plate-caption-divider">·</span>
-        <span className="login-hero-plate-caption-title">Builds at night</span>
-      </figcaption>
     </figure>
   );
 }
