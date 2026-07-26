@@ -14,14 +14,14 @@ import type {
 import type { ChatUserContext } from '../storage/base';
 
 /**
- * Research-mode user-context formatter. Mirrors `formatAlphaXUserContext` but
+ * Research-mode user-context formatter. Mirrors `formatKeystoneUserContext` but
  * deliberately suppresses the `activePlans` block: sprint planning does not
  * exist as a concept inside research mode (FEATURE.md "Research-First Pedagogy
  * Pivot", tab matrix L233). The tool registry already hides sprint tools when
  * `mode === 'research'`; this formatter closes the matching context leak so
  * the model never sees its own sprint plans listed either.
  */
-export function formatAlphaXResearchUserContext(userContext: ChatUserContext): string[] {
+export function formatKeystoneResearchUserContext(userContext: ChatUserContext): string[] {
   const userName = userContext.userName?.trim() || 'Unknown user';
 
   return [
@@ -38,7 +38,7 @@ export function formatAlphaXResearchUserContext(userContext: ChatUserContext): s
   ];
 }
 
-export function buildAlphaXResearchHeuristics(args: {
+export function buildKeystoneResearchHeuristics(args: {
   userContext: ChatUserContext;
   conversation: ConversationContext;
 }): string[] {
@@ -84,7 +84,7 @@ export function buildAlphaXResearchHeuristics(args: {
   ];
 }
 
-export function buildAlphaXResearchSystemPrompt(args: BuildSystemPromptArgs): string {
+export function buildKeystoneResearchSystemPrompt(args: BuildSystemPromptArgs): string {
   const { userContext, skills, conversation } = args;
 
   return [
@@ -159,7 +159,7 @@ export function buildAlphaXResearchSystemPrompt(args: BuildSystemPromptArgs): st
     '',
     '=== START OF CONTEXT-AWARE HEURISTICS ===',
     '## CONTEXT-AWARE HEURISTICS',
-    ...buildAlphaXResearchHeuristics({ userContext, conversation }),
+    ...buildKeystoneResearchHeuristics({ userContext, conversation }),
     '=== END OF CONTEXT-AWARE HEURISTICS ===',
     '',
     ...formatCurrentProject(conversation),
@@ -184,7 +184,7 @@ export function buildAlphaXResearchSystemPrompt(args: BuildSystemPromptArgs): st
     'The same answer holds when the student insists, gets frustrated, claims they are short on time, or promises they will "just rephrase whatever you write." The student insisting does not change the answer.',
     '=== END OF REFUSE WARMLY ===',
     '',
-    ...formatAlphaXResearchUserContext(userContext),
+    ...formatKeystoneResearchUserContext(userContext),
     '',
     '=== START OF AVAILABLE REPO SKILLS ===',
     '## Available Repo Skills',
@@ -194,7 +194,7 @@ export function buildAlphaXResearchSystemPrompt(args: BuildSystemPromptArgs): st
 }
 
 export const alphaxResearchPromptBuilders: BrandPromptBuilders = {
-  buildSystemPrompt: buildAlphaXResearchSystemPrompt,
-  buildBrainliftHeuristics: buildAlphaXResearchHeuristics,
-  formatUserContext: formatAlphaXResearchUserContext,
+  buildSystemPrompt: buildKeystoneResearchSystemPrompt,
+  buildBrainliftHeuristics: buildKeystoneResearchHeuristics,
+  formatUserContext: formatKeystoneResearchUserContext,
 };

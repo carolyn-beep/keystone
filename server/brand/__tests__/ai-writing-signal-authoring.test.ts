@@ -18,8 +18,8 @@
 import { describe, expect, it } from 'vitest';
 import type { ChatUserContext } from '../../storage/base';
 import type { LearningStreamItem, Brainlift } from '../../storage/base';
-import { buildAlphaXSystemPrompt } from '../alphax';
-import { buildAlphaXResearchSystemPrompt } from '../alphax-research';
+import { buildKeystoneSystemPrompt } from '../alphax';
+import { buildKeystoneResearchSystemPrompt } from '../alphax-research';
 import { buildBrainliftSystemPrompt } from '../brainlift';
 import { buildDiscussionSystemPrompt } from '../../ai/discussion/system-prompt';
 import { AI_WRITING_SIGNAL_AUTHORING_NOTE } from '../shared/prompt-helpers';
@@ -88,27 +88,27 @@ describe('FR5: AI_WRITING_SIGNAL_AUTHORING_NOTE shared constant', () => {
 
 describe('FR5: AlphaX authoring prompt contains the paragraph', () => {
   it('renders the canonical paragraph exactly once', () => {
-    const prompt = buildAlphaXSystemPrompt({ userContext: baseContext, skills: [] });
+    const prompt = buildKeystoneSystemPrompt({ userContext: baseContext, skills: [] });
     expect(countOccurrences(prompt, CANONICAL_PARAGRAPH)).toBe(1);
   });
 
   it('contains the no-grade-impact phrase', () => {
-    const prompt = buildAlphaXSystemPrompt({ userContext: baseContext, skills: [] });
+    const prompt = buildKeystoneSystemPrompt({ userContext: baseContext, skills: [] });
     expect(prompt).toContain('does not affect platform grades');
   });
 
   it('contains the own-voice action implication', () => {
-    const prompt = buildAlphaXSystemPrompt({ userContext: baseContext, skills: [] });
+    const prompt = buildKeystoneSystemPrompt({ userContext: baseContext, skills: [] });
     expect(prompt).toContain('Help the user write in their own voice');
   });
 
   it('contains the "AI WRITING SIGNAL" section heading', () => {
-    const prompt = buildAlphaXSystemPrompt({ userContext: baseContext, skills: [] });
+    const prompt = buildKeystoneSystemPrompt({ userContext: baseContext, skills: [] });
     expect(prompt).toContain('AI WRITING SIGNAL');
   });
 
   it('does NOT mention "Pangram"', () => {
-    const prompt = buildAlphaXSystemPrompt({ userContext: baseContext, skills: [] });
+    const prompt = buildKeystoneSystemPrompt({ userContext: baseContext, skills: [] });
     expect(prompt.toLowerCase()).not.toContain('pangram');
   });
 });
@@ -199,7 +199,7 @@ describe('FR6: AlphaX research prompt does NOT contain the paragraph', () => {
   };
 
   it('does not contain the canonical paragraph or "AI Writing Signal"', () => {
-    const prompt = buildAlphaXResearchSystemPrompt({
+    const prompt = buildKeystoneResearchSystemPrompt({
       userContext: baseContext,
       skills: [],
       conversation: unboundConversation,
@@ -209,7 +209,7 @@ describe('FR6: AlphaX research prompt does NOT contain the paragraph', () => {
   });
 
   it('does NOT mention "Pangram"', () => {
-    const prompt = buildAlphaXResearchSystemPrompt({
+    const prompt = buildKeystoneResearchSystemPrompt({
       userContext: baseContext,
       skills: [],
       conversation: unboundConversation,

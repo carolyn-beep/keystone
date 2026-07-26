@@ -10,7 +10,7 @@
 import { describe, expect, it } from 'vitest';
 import type { ChatUserContext } from '../../storage/base';
 import type { ConversationContext } from '../types';
-import { buildAlphaXResearchSystemPrompt } from '../alphax-research';
+import { buildKeystoneResearchSystemPrompt } from '../alphax-research';
 
 const baseUserContext: ChatUserContext = {
   userId: 'user-1',
@@ -35,7 +35,7 @@ const boundConversation: ConversationContext = {
 
 describe('alphax-research SECOND BRAIN MODEL — reader-originated notes heuristic (FR4)', () => {
   function renderPrompt(): string {
-    return buildAlphaXResearchSystemPrompt({
+    return buildKeystoneResearchSystemPrompt({
       userContext: baseUserContext,
       conversation: boundConversation,
       skills: [],

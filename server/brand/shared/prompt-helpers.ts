@@ -1,7 +1,7 @@
 /**
  * Shared prompt-builder helpers.
  *
- * Both `buildAlphaXSystemPrompt` and `buildBrainliftSystemPrompt` import the
+ * Both `buildKeystoneSystemPrompt` and `buildBrainliftSystemPrompt` import the
  * brand-agnostic formatters here. The transferable prose blocks
  * (`BRAINLIFT_OPERATING_PROTOCOLS`, `TOOLS_PROTOCOL`) are byte-identical to
  * the existing AlphaX prompt -- relocating them here keeps the AlphaX prompt

@@ -16,7 +16,7 @@ function titleCase(name: string): string {
   return name.charAt(0).toUpperCase() + name.slice(1);
 }
 
-export function buildAlphaXSyntheticOpenerText(firstName: string | null | undefined): string {
+export function buildKeystoneSyntheticOpenerText(firstName: string | null | undefined): string {
   const trimmed = firstName?.trim();
   const greeting = trimmed && trimmed.length > 0
     ? `Hey ${titleCase(trimmed)}!`

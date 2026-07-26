@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { ChatUserContext } from '../../storage/base';
 import type { ConversationContext } from '../types';
-import { buildAlphaXResearchHeuristics } from '../alphax-research';
+import { buildKeystoneResearchHeuristics } from '../alphax-research';
 
 const brandNewUserContext: ChatUserContext = {
   userId: 'user-1',
@@ -20,7 +20,7 @@ const unboundConversation: ConversationContext = {
 };
 
 function onboardingLines() {
-  return buildAlphaXResearchHeuristics({
+  return buildKeystoneResearchHeuristics({
     userContext: brandNewUserContext,
     conversation: unboundConversation,
   }).join('\n');

@@ -20,7 +20,7 @@ import { config as baseConfig } from './config';
 import { Wordmark } from './Wordmark';
 import { Avatar } from './Avatar';
 import { LoginIllustration } from './LoginIllustration';
-import { buildAlphaXOpenerText } from './opener-text';
+import { buildKeystoneOpenerText } from './opener-text';
 
 /** Relaxed-pose mascot for the onboarding wizard suggestion rail (spec 04). */
 function Mascot({ className }: { className?: string }) {
@@ -35,7 +35,7 @@ export const config: BrandConfig = {
 };
 
 export { Wordmark, Avatar, LoginIllustration };
-export const syntheticOpenerText = buildAlphaXOpenerText;
+export const syntheticOpenerText = buildKeystoneOpenerText;
 
 export const chatAvatar: ChatAvatarConfig = {
   src: keystoneAvatar,

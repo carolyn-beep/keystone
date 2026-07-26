@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { buildAlphaXSyntheticOpenerText } from '@shared/alphax-synthetic-opener';
+import { buildKeystoneSyntheticOpenerText } from '@shared/alphax-synthetic-opener';
 import { DEFAULT_CHAT_MODEL_ID } from '@shared/chat-models';
 
 const {
@@ -377,7 +377,7 @@ describe('chat route handlers', () => {
         messages: [{
           id: 'welcome',
           role: 'assistant',
-          parts: [{ type: 'text', text: buildAlphaXSyntheticOpenerText('James') }],
+          parts: [{ type: 'text', text: buildKeystoneSyntheticOpenerText('James') }],
         }],
       },
     });

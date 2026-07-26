@@ -30,9 +30,9 @@ export function buildNativeChatTools(
   // has no chat changes). It also requires a bound brainlift because the tool
   // execute checks `hasResearchJobPending(brainliftId)`; without a brainlift
   // there's nothing for the agent to propose a swarm against, so we skip it.
-  const isAlphaX = brandId === 'alphax';
+  const isKeystone = brandId === 'alphax';
   const researchStreamTools =
-    isAlphaX && conversation.brainliftId != null
+    isKeystone && conversation.brainliftId != null
       ? buildResearchStreamChatTools({ brainliftId: conversation.brainliftId })
       : {};
 

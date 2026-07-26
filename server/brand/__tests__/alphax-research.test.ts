@@ -3,9 +3,9 @@ import type { ChatUserContext } from '../../storage/base';
 import type { ConversationContext } from '../types';
 import {
   alphaxResearchPromptBuilders,
-  buildAlphaXResearchHeuristics,
-  buildAlphaXResearchSystemPrompt,
-  formatAlphaXResearchUserContext,
+  buildKeystoneResearchHeuristics,
+  buildKeystoneResearchSystemPrompt,
+  formatKeystoneResearchUserContext,
 } from '../alphax-research';
 
 const baseUserContext: ChatUserContext = {
@@ -37,7 +37,7 @@ const boundConversation: ConversationContext = {
 
 describe('AlphaX research prompt heuristics', () => {
   it('guides new unbound students through project discovery and project-idea-generator', () => {
-    const lines = buildAlphaXResearchHeuristics({
+    const lines = buildKeystoneResearchHeuristics({
       userContext: baseUserContext,
       conversation: unboundConversation,
     }).join('\n');
@@ -48,7 +48,7 @@ describe('AlphaX research prompt heuristics', () => {
   });
 
   it('asks repeat unbound students to start new or continue existing', () => {
-    const lines = buildAlphaXResearchHeuristics({
+    const lines = buildKeystoneResearchHeuristics({
       userContext: {
         ...baseUserContext,
         brainliftCount: 2,
@@ -62,7 +62,7 @@ describe('AlphaX research prompt heuristics', () => {
   });
 
   it('gives active research guidance when a project is bound', () => {
-    const lines = buildAlphaXResearchHeuristics({
+    const lines = buildKeystoneResearchHeuristics({
       userContext: {
         ...baseUserContext,
         brainliftCount: 1,
@@ -79,7 +79,7 @@ describe('AlphaX research prompt heuristics', () => {
 
 describe('AlphaX research prompt', () => {
   it('renders the required research-mode sections and guardrails', () => {
-    const prompt = buildAlphaXResearchSystemPrompt({
+    const prompt = buildKeystoneResearchSystemPrompt({
       userContext: baseUserContext,
       skills: [{ name: 'project-idea-generator', description: 'Help students choose a project.' }],
       mode: 'research',
@@ -99,7 +99,7 @@ describe('AlphaX research prompt', () => {
   });
 
   it('nudges the agent to populate Second Brain v2 enrichment fields when saving sources (FR5)', () => {
-    const prompt = buildAlphaXResearchSystemPrompt({
+    const prompt = buildKeystoneResearchSystemPrompt({
       userContext: baseUserContext,
       skills: [],
       mode: 'research',
@@ -121,7 +121,7 @@ describe('AlphaX research prompt', () => {
   });
 
   it('uses the research-mode user-context formatter (sprint-plan suppressed)', () => {
-    expect(alphaxResearchPromptBuilders.formatUserContext).toBe(formatAlphaXResearchUserContext);
+    expect(alphaxResearchPromptBuilders.formatUserContext).toBe(formatKeystoneResearchUserContext);
   });
 
   it('suppresses activePlans/sprint plan context in research mode', () => {
@@ -152,7 +152,7 @@ describe('AlphaX research prompt', () => {
       ],
     };
 
-    const prompt = buildAlphaXResearchSystemPrompt({
+    const prompt = buildKeystoneResearchSystemPrompt({
       userContext,
       skills: [],
       mode: 'research',
@@ -170,7 +170,7 @@ describe('AlphaX research prompt', () => {
   });
 
   it('renders the CURRENT PROJECT block with title/slug/phase when a project is bound', () => {
-    const prompt = buildAlphaXResearchSystemPrompt({
+    const prompt = buildKeystoneResearchSystemPrompt({
       userContext: baseUserContext,
       skills: [],
       mode: 'research',
@@ -200,7 +200,7 @@ describe('AlphaX research prompt', () => {
       } as ConversationContext['brainlift'],
     };
 
-    const prompt = buildAlphaXResearchSystemPrompt({
+    const prompt = buildKeystoneResearchSystemPrompt({
       userContext: baseUserContext,
       skills: [],
       mode: 'research',
@@ -216,7 +216,7 @@ describe('AlphaX research prompt', () => {
   });
 
   it('omits the CURRENT PROJECT block entirely when unbound', () => {
-    const prompt = buildAlphaXResearchSystemPrompt({
+    const prompt = buildKeystoneResearchSystemPrompt({
       userContext: baseUserContext,
       skills: [],
       mode: 'research',
@@ -244,7 +244,7 @@ describe('AlphaX research prompt', () => {
       },
     };
 
-    const prompt = buildAlphaXResearchSystemPrompt({
+    const prompt = buildKeystoneResearchSystemPrompt({
       userContext: baseUserContext,
       skills: [],
       mode: 'research',
@@ -271,7 +271,7 @@ describe('AlphaX research prompt', () => {
       },
     };
 
-    const prompt = buildAlphaXResearchSystemPrompt({
+    const prompt = buildKeystoneResearchSystemPrompt({
       userContext: baseUserContext,
       skills: [],
       mode: 'research',
@@ -282,7 +282,7 @@ describe('AlphaX research prompt', () => {
   });
 
   it('does NOT render the Second Brain summary when the conversation is unbound', () => {
-    const prompt = buildAlphaXResearchSystemPrompt({
+    const prompt = buildKeystoneResearchSystemPrompt({
       userContext: baseUserContext,
       skills: [],
       mode: 'research',
@@ -322,7 +322,7 @@ describe('AlphaX research prompt', () => {
       },
     };
 
-    const prompt = buildAlphaXResearchSystemPrompt({
+    const prompt = buildKeystoneResearchSystemPrompt({
       userContext: baseUserContext,
       skills: [],
       mode: 'research',

@@ -2,14 +2,14 @@
  * AlphaX prompt regression suite.
  *
  * Migrated from the pre-Spec-03 `server/ai/chat/__tests__/system-prompt.test.ts`.
- * Calls `buildAlphaXSystemPrompt` directly; no env stubbing required.
+ * Calls `buildKeystoneSystemPrompt` directly; no env stubbing required.
  * The `buildChatSystemPrompt` dispatcher is exercised separately by
  * `server/ai/chat/__tests__/system-prompt.test.ts`.
  */
 
 import { describe, expect, it } from 'vitest';
 import type { ChatUserContext } from '../../storage/base';
-import { buildAlphaXSystemPrompt } from '../alphax';
+import { buildKeystoneSystemPrompt } from '../alphax';
 
 const zeroBrainliftContext: ChatUserContext = {
   userId: 'user-0',
@@ -94,9 +94,9 @@ const multiBrainliftContext: ChatUserContext = {
   ],
 };
 
-describe('buildAlphaXSystemPrompt', () => {
+describe('buildKeystoneSystemPrompt', () => {
   it('renders identity, user context, tool guidance, and skill summaries', () => {
-    const prompt = buildAlphaXSystemPrompt({
+    const prompt = buildKeystoneSystemPrompt({
       userContext: multiBrainliftContext,
       skills: [
         { name: 'onboarding', description: 'Help new users get to a first BrainLift quickly.' },
@@ -117,7 +117,7 @@ describe('buildAlphaXSystemPrompt', () => {
   });
 
   it('renders recent conversations under user context with last-activity dates', () => {
-    const prompt = buildAlphaXSystemPrompt({
+    const prompt = buildKeystoneSystemPrompt({
       userContext: multiBrainliftContext,
       skills: [],
     });
@@ -128,7 +128,7 @@ describe('buildAlphaXSystemPrompt', () => {
   });
 
   it("emits '- none' when the user has no recent conversations", () => {
-    const prompt = buildAlphaXSystemPrompt({
+    const prompt = buildKeystoneSystemPrompt({
       userContext: zeroBrainliftContext,
       skills: [],
     });
@@ -138,7 +138,7 @@ describe('buildAlphaXSystemPrompt', () => {
   });
 
   it('emits the zero-brainlift heuristic that hands off to the onboarding skill', () => {
-    const prompt = buildAlphaXSystemPrompt({
+    const prompt = buildKeystoneSystemPrompt({
       userContext: zeroBrainliftContext,
       skills: [{ name: 'onboarding', description: 'Help new users get started.' }],
     });
@@ -148,7 +148,7 @@ describe('buildAlphaXSystemPrompt', () => {
   });
 
   it('locks the single-brainlift heuristic to the resolved slug', () => {
-    const prompt = buildAlphaXSystemPrompt({
+    const prompt = buildKeystoneSystemPrompt({
       userContext: oneBrainliftContext,
       skills: [{ name: 'onboarding', description: 'Help new users get started.' }],
     });
@@ -159,7 +159,7 @@ describe('buildAlphaXSystemPrompt', () => {
   });
 
   it('refuses to guess a slug when multiple brainlifts exist', () => {
-    const prompt = buildAlphaXSystemPrompt({
+    const prompt = buildKeystoneSystemPrompt({
       userContext: multiBrainliftContext,
       skills: [{ name: 'sprint-execution', description: 'Keep sprint work concrete and deliverable-driven.' }],
     });
@@ -172,7 +172,7 @@ describe('buildAlphaXSystemPrompt', () => {
   });
 
   it('renders active sprint plans with today and overdue tasks inline', () => {
-    const prompt = buildAlphaXSystemPrompt({
+    const prompt = buildKeystoneSystemPrompt({
       userContext: oneBrainliftContext,
       skills: [],
     });
@@ -187,7 +187,7 @@ describe('buildAlphaXSystemPrompt', () => {
   });
 
   it('renders multiple active plans across different brainlifts', () => {
-    const prompt = buildAlphaXSystemPrompt({
+    const prompt = buildKeystoneSystemPrompt({
       userContext: multiBrainliftContext,
       skills: [],
     });
@@ -199,7 +199,7 @@ describe('buildAlphaXSystemPrompt', () => {
   });
 
   it('emits "- none" when the user has no active plans', () => {
-    const prompt = buildAlphaXSystemPrompt({
+    const prompt = buildKeystoneSystemPrompt({
       userContext: zeroBrainliftContext,
       skills: [],
     });
@@ -222,7 +222,7 @@ describe('buildAlphaXSystemPrompt', () => {
       ],
     };
 
-    const prompt = buildAlphaXSystemPrompt({
+    const prompt = buildKeystoneSystemPrompt({
       userContext: idleContext,
       skills: [],
     });
@@ -233,7 +233,7 @@ describe('buildAlphaXSystemPrompt', () => {
   });
 
   it('contains the Keystone Journey section', () => {
-    const prompt = buildAlphaXSystemPrompt({
+    const prompt = buildKeystoneSystemPrompt({
       userContext: zeroBrainliftContext,
       skills: [],
     });
@@ -244,7 +244,7 @@ describe('buildAlphaXSystemPrompt', () => {
   });
 
   it('contains the AlphaX MAIN OPERATIONAL POSTURE Socratic language', () => {
-    const prompt = buildAlphaXSystemPrompt({
+    const prompt = buildKeystoneSystemPrompt({
       userContext: oneBrainliftContext,
       skills: [],
     });
@@ -255,7 +255,7 @@ describe('buildAlphaXSystemPrompt', () => {
   });
 
   it('renders the CURRENT PROJECT block when the conversation is bound to a brainlift', () => {
-    const prompt = buildAlphaXSystemPrompt({
+    const prompt = buildKeystoneSystemPrompt({
       userContext: oneBrainliftContext,
       skills: [],
       mode: 'authoring',
@@ -279,7 +279,7 @@ describe('buildAlphaXSystemPrompt', () => {
   });
 
   it('renders in/out scope inside the CURRENT PROJECT block for a scoped brainlift (01-scope-foundation FR4)', () => {
-    const prompt = buildAlphaXSystemPrompt({
+    const prompt = buildKeystoneSystemPrompt({
       userContext: oneBrainliftContext,
       skills: [],
       mode: 'authoring',
@@ -307,7 +307,7 @@ describe('buildAlphaXSystemPrompt', () => {
   });
 
   it('omits the CURRENT PROJECT block when the conversation is unbound', () => {
-    const prompt = buildAlphaXSystemPrompt({
+    const prompt = buildKeystoneSystemPrompt({
       userContext: zeroBrainliftContext,
       skills: [],
     });

@@ -1,17 +1,17 @@
 /**
  * AlphaX server-side brand module.
  *
- * `buildAlphaXSystemPrompt` produces output that is byte-identical to the
+ * `buildKeystoneSystemPrompt` produces output that is byte-identical to the
  * pre-Spec-03 `buildChatSystemPrompt` in `server/ai/chat/system-prompt.ts`.
  * This is the regression contract: the existing test suite is the source of
  * truth, every assertion against the prior prompt continues to pass against
  * this builder.
  *
- * `buildAlphaXBrainliftHeuristics` is the verbatim move of the prior private
+ * `buildKeystoneBrainliftHeuristics` is the verbatim move of the prior private
  * helper of the same name. AlphaX heuristics revolve around `activePlans`
  * (sprint-driven coaching).
  *
- * `formatAlphaXUserContext` is the AlphaX flavour of the USER CONTEXT block.
+ * `formatKeystoneUserContext` is the AlphaX flavour of the USER CONTEXT block.
  * It includes the `Active sprint plans (across ALL brainlifts...)` block; BC
  * omits that line entirely because BC has no exposed sprint concept.
  */
@@ -36,7 +36,7 @@ export const config: ServerBrandConfig = {
   platformName: 'Keystone',
 };
 
-export function buildAlphaXBrainliftHeuristics(userContext: ChatUserContext): string[] {
+export function buildKeystoneBrainliftHeuristics(userContext: ChatUserContext): string[] {
   if (userContext.brainliftCount === 0) {
     return [
       'The user currently has zero brainlifts — they are new to the platform or have not started yet.',
@@ -68,7 +68,7 @@ export function buildAlphaXBrainliftHeuristics(userContext: ChatUserContext): st
   ];
 }
 
-export function formatAlphaXUserContext(userContext: ChatUserContext): string[] {
+export function formatKeystoneUserContext(userContext: ChatUserContext): string[] {
   const userName = userContext.userName?.trim() || 'Unknown user';
 
   return [
@@ -87,7 +87,7 @@ export function formatAlphaXUserContext(userContext: ChatUserContext): string[] 
   ];
 }
 
-export function buildAlphaXSystemPrompt(args: BuildSystemPromptArgs): string {
+export function buildKeystoneSystemPrompt(args: BuildSystemPromptArgs): string {
   const { userContext, skills, conversation } = args;
 
   return [
@@ -167,13 +167,13 @@ export function buildAlphaXSystemPrompt(args: BuildSystemPromptArgs): string {
     '',
     ...TOOLS_PROTOCOL,
     '',
-    ...formatAlphaXUserContext(userContext),
+    ...formatKeystoneUserContext(userContext),
     '',
     ...formatCurrentProject(conversation),
     ...(conversation?.brainlift ? [''] : []),
     '=== START OF BRAINLIFT HEURISTICS ===',
     '## Brainlift Heuristics',
-    ...buildAlphaXBrainliftHeuristics(userContext),
+    ...buildKeystoneBrainliftHeuristics(userContext),
     '=== END OF BRAINLIFT HEURISTICS ===',
     '',
     '=== START OF AVAILABLE REPO SKILLS ===',
@@ -184,7 +184,7 @@ export function buildAlphaXSystemPrompt(args: BuildSystemPromptArgs): string {
 }
 
 export const promptBuilders: BrandPromptBuilders = {
-  buildSystemPrompt: buildAlphaXSystemPrompt,
-  buildBrainliftHeuristics: ({ userContext }) => buildAlphaXBrainliftHeuristics(userContext),
-  formatUserContext: formatAlphaXUserContext,
+  buildSystemPrompt: buildKeystoneSystemPrompt,
+  buildBrainliftHeuristics: ({ userContext }) => buildKeystoneBrainliftHeuristics(userContext),
+  formatUserContext: formatKeystoneUserContext,
 };
