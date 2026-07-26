@@ -10,6 +10,9 @@ import {
 import { callModelWithFallback } from '../client';
 import { buildSwarmContext, type SwarmContext } from './context-builder';
 import { swarmVerboseLog } from './verbose-log';
+import { storage } from '../../storage';
+
+const RECENT_RUNS_LOOKBACK = 3;
 
 const ORCHESTRATOR_MODELS = [
   'anthropic/claude-opus-4.7',
@@ -60,52 +63,53 @@ function resolveAgentCount(runRequest: RunRequest): number {
   return MAX_SLOTS;
 }
 
-function buildScopeGuidance(ctx: SwarmContext): string {
-  const inScope = ctx.brainlift.inScope ?? [];
+function buildOutScopeGuidance(ctx: SwarmContext): string {
   const outOfScope = ctx.brainlift.outOfScope ?? [];
-  if (inScope.length === 0 && outOfScope.length === 0) {
-    return '';
-  }
-
-  const lines = ['- The user defined an explicit project scope. Honor it when planning slots:'];
-  if (inScope.length > 0) {
-    lines.push(`  - In scope (steer searches toward these): ${inScope.join('; ')}`);
-  }
-  if (outOfScope.length > 0) {
-    lines.push(`  - Out of scope (do NOT plan slots about these): ${outOfScope.join('; ')}`);
-  }
-  return `\n${lines.join('\n')}`;
+  if (outOfScope.length === 0) return '';
+  return `\n- Topics to avoid entirely: ${outOfScope.join('; ')}`;
 }
 
-export function buildOrchestratorSystemPrompt(ctx: SwarmContext, runRequest: RunRequest): string {
+function buildRecentSearchesBlock(recentFocuses: string[]): string {
+  if (recentFocuses.length === 0) return '';
+  return `\n## Recent Searches — do not repeat these angles
+These focuses were used in recent runs. Find fresh angles within each category instead.
+${recentFocuses.map((f) => `- ${f}`).join('\n')}`;
+}
+
+export function buildOrchestratorSystemPrompt(
+  ctx: SwarmContext,
+  runRequest: RunRequest,
+  recentFocuses: string[] = [],
+): string {
   const agentCount = resolveAgentCount(runRequest);
-  return `You are a Learning Stream Research Orchestrator. Produce exactly ${agentCount} research slot(s) as structured JSON.
+  const digest = ctx.renderedDigest;
+  const recentBlock = buildRecentSearchesBlock(recentFocuses);
+
+  return `You are a Learning Stream Research Orchestrator. Your goal is to build the student's expertise across the areas they must master to succeed at their project. Plan exactly ${agentCount} research slot(s) as structured JSON.
 
 ## Project Data Digest
-${ctx.renderedDigest}
+${digest}
+${recentBlock}
 
 ${buildRunRequestSection(runRequest)}
 
 ## Planning Guidance
-- Return a RunSpec with exactly ${agentCount} agent(s).${buildScopeGuidance(ctx)}
-- Each agent must have type in: ${RETRIEVAL_TYPES.join(', ')}.
-- Each focus must be concrete, search-ready, and non-empty.
-- Each focus must be specialized to this exact project data. Use concrete entities, experts, notes, source gaps, unresolved questions, or SPOV/fact gaps from the digest.
-- Do not produce generic focuses that merely restate the brainlift title or topic (for example "find resources about X") unless the digest truly has no usable project data.
-- Prefer prompts that make a sub-agent search for a specific angle, named expert, named source family, missing evidence type, or contradiction in the digest.
+- Return a RunSpec with exactly ${agentCount} agent(s).${buildOutScopeGuidance(ctx)}
+- Spread slots as evenly as possible across the expertise categories in ### Categories. Do not assign a second slot to a category while another has zero.
+- Each slot focus should target the expertise area broadly — search where the best content in that domain lives. Quality adjacent content from analogous industries beats narrow exact-match results.
+- Use the project data only to pick the most relevant angle within each category, not to hyper-specialise the search query.
+${recentFocuses.length > 0 ? '- Do NOT repeat or closely paraphrase any focus listed in ## Recent Searches. Find genuinely different angles.\n' : ''}- Each agent must have type in: ${RETRIEVAL_TYPES.join(', ')}.
+- Each focus must be concrete and search-ready.
 - Honor slotOverrides as pinned constraints for the matching slot index.
-- Treat preferredTypes as a soft distribution preference unless it conflicts with slotOverrides or project data.
-- Use notesToAgents for global guidance that every slot should remember.
-- Blend diversity across source types, experts, Second Brain gaps, and the current brainlift phase.
-- In research phase, lead from Second Brain sources/notes and use brainlift facts sparingly.
-- In authoring phase, lead from DOK1 facts, experts, and SPOV excerpts while still considering Second Brain sources.
+- Treat preferredTypes as a soft distribution preference unless it conflicts with slotOverrides.
+- Use notesToAgents for out-of-scope exclusions only — do not add in-scope constraints there.
 - Do not launch tools or describe a multi-step plan.
 - Return only valid JSON matching this shape:
 {
   "agents": [
     { "type": "Substack", "focus": "specific search focus", "model": "optional model id" }
   ],
-  "notesToAgents": "optional global guidance"
+  "notesToAgents": "optional"
 }
 - The agents array must contain exactly ${agentCount} object(s).`;
 }
@@ -184,8 +188,11 @@ export async function orchestrate(
   const startedAt = Date.now();
   const models = opts.models ?? ORCHESTRATOR_MODELS;
   const runRequest = runRequestSchema.parse(runRequestInput);
-  const ctx = await buildSwarmContext(brainliftId);
-  const system = buildOrchestratorSystemPrompt(ctx, runRequest);
+  const [ctx, recentFocuses] = await Promise.all([
+    buildSwarmContext(brainliftId),
+    storage.getRecentRunFocuses(brainliftId, RECENT_RUNS_LOOKBACK),
+  ]);
+  const system = buildOrchestratorSystemPrompt(ctx, runRequest, recentFocuses);
   let lastUsage = { inputTokens: 0, outputTokens: 0 };
 
   swarmVerboseLog('ORCH', 'launch input', {
@@ -201,6 +208,7 @@ export async function orchestrate(
     },
     topExperts: ctx.topExperts.map((expert) => expert.name),
     existingUrlCount: ctx.existingUrls.length,
+    recentFocusCount: recentFocuses.length,
   });
   swarmVerboseLog('ORCH', 'project data digest sent to orchestrator', ctx.renderedDigest);
   swarmVerboseLog('ORCH', 'system prompt sent to orchestrator', system);

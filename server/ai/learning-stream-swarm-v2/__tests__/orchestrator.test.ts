@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 const mocks = vi.hoisted(() => ({
   callModelWithFallback: vi.fn(),
   buildSwarmContext: vi.fn(),
+  getRecentRunFocuses: vi.fn().mockResolvedValue([]),
 }));
 
 vi.mock('../../client', () => ({
@@ -11,6 +12,12 @@ vi.mock('../../client', () => ({
 
 vi.mock('../context-builder', () => ({
   buildSwarmContext: (...args: unknown[]) => mocks.buildSwarmContext(...args),
+}));
+
+vi.mock('../../../storage', () => ({
+  storage: {
+    getRecentRunFocuses: (...args: unknown[]) => mocks.getRecentRunFocuses(...args),
+  },
 }));
 
 const contextFixture = {
@@ -101,9 +108,10 @@ describe('orchestrate', () => {
     expect(system).toContain('Preferred type distribution (soft preference): Podcast, Podcast, AcademicPaper');
     expect(system).toContain('Notes (verbatim): post-2022 only');
     expect(system).toContain('## Second Brain');
-    expect(system).toContain('Each focus must be specialized to this exact project data');
-    expect(system).toContain('Do not produce generic focuses');
     expect(system).toContain('Return only valid JSON');
+    // New prompt: broad search, category distribution, no hyper-specialisation
+    expect(system).toContain('Spread slots as evenly as possible across the expertise categories');
+    expect(system).toContain('broadly');
   });
 
   it('logs orchestrator prompts, reasoning, tokens, and fan-out instructions when SWARM_VERBOSE_LOG is enabled', async () => {
@@ -165,11 +173,13 @@ describe('orchestrate', () => {
 });
 
 describe('buildOrchestratorSystemPrompt scope guidance (01-scope-foundation FR3)', () => {
-  it('mentions scope guidance when the context carries scope', async () => {
+  it('includes out-of-scope exclusions but not in-scope steering', async () => {
     const { buildOrchestratorSystemPrompt } = await import('../orchestrator');
 
     const scopedContext = {
       ...contextFixture,
+      // Reflects what context-builder now produces: out-of-scope rendered, in-scope omitted.
+      renderedDigest: '## Second Brain\nSB-primary digest\n### Out of scope (do NOT pursue)\n- crypto mining',
       brainlift: {
         ...contextFixture.brainlift,
         inScope: ['AI compiler internals'],
@@ -179,12 +189,15 @@ describe('buildOrchestratorSystemPrompt scope guidance (01-scope-foundation FR3)
 
     const prompt = buildOrchestratorSystemPrompt(scopedContext as never, {});
 
-    expect(prompt.toLowerCase()).toContain('out of scope');
-    expect(prompt).toContain('AI compiler internals');
+    // Out-of-scope must appear (exclusion filter is retained)
     expect(prompt).toContain('crypto mining');
+    // In-scope is never rendered upstream nor re-introduced by the orchestrator — the
+    // swarm searches broadly within categories instead of steering toward in-scope.
+    expect(prompt.toLowerCase()).not.toContain('in scope');
+    expect(prompt).not.toContain('AI compiler internals');
   });
 
-  it('omits scope guidance when the context has empty scope', async () => {
+  it('omits scope guidance entirely when context has no scope', async () => {
     const { buildOrchestratorSystemPrompt } = await import('../orchestrator');
 
     const unscopedContext = {
@@ -200,5 +213,27 @@ describe('buildOrchestratorSystemPrompt scope guidance (01-scope-foundation FR3)
 
     expect(prompt.toLowerCase()).not.toContain('out of scope');
     expect(prompt.toLowerCase()).not.toContain('in scope');
+  });
+
+  it('injects recent searches block when recentFocuses provided', async () => {
+    const { buildOrchestratorSystemPrompt } = await import('../orchestrator');
+
+    const prompt = buildOrchestratorSystemPrompt(contextFixture as never, {}, [
+      'subscription box churn rates DTC',
+      'cold chain logistics exotic fruit',
+    ]);
+
+    expect(prompt).toContain('Recent Searches');
+    expect(prompt).toContain('subscription box churn rates DTC');
+    expect(prompt).toContain('cold chain logistics exotic fruit');
+    expect(prompt).toContain('do not repeat');
+  });
+
+  it('omits recent searches block when no recent focuses', async () => {
+    const { buildOrchestratorSystemPrompt } = await import('../orchestrator');
+
+    const prompt = buildOrchestratorSystemPrompt(contextFixture as never, {}, []);
+
+    expect(prompt).not.toContain('Recent Searches');
   });
 });

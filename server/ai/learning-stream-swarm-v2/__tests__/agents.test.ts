@@ -279,41 +279,44 @@ describe('research stream v2 agents', () => {
   });
 });
 
-describe('FR4 - prompt includes category instruction', () => {
-  it('built prompt contains the category field instruction (digest with categories)', async () => {
+describe('FR4 - prompt includes categoryId instruction', () => {
+  it('instructs the agent to set categoryId from the [ID] prefix when categories exist', async () => {
     const { typeRunnerFor } = await import('../agents');
     const slot: Slot = { type: 'Substack', focus: 'Focus for Substack' };
     const ctxWithCategories: SwarmContext = {
       ...ctx,
       renderedDigest:
         '## Second Brain\nTotals: 7 sources, 4 notes, 2 categories.\n' +
-        '- History of Education: 5 sources, 3 notes\n' +
-        '- Assessment Methods: 2 sources, 1 note',
+        '- [3] History of Education: 5 sources, 3 notes\n' +
+        '- [7] Assessment Methods: 2 sources, 1 note',
     };
 
     const prompt = typeRunnerFor('Substack').buildPrompt(slot, ctxWithCategories);
 
-    // Instructs use of the category field, matched verbatim against the digest.
-    expect(prompt).toMatch(/category/i);
-    expect(prompt).toMatch(/verbatim/i);
+    // Direct-ID contract: agent sets the numeric categoryId from the [ID] prefix.
+    expect(prompt).toMatch(/categoryId/i);
+    expect(prompt).toMatch(/\[ID\]|\[id\]/i);
     expect(prompt).toContain('Project Data Digest');
   });
 
-  it('category instruction is present even when the project has no categories', async () => {
+  it('instructs the agent to set categoryId to null when the project has no categories', async () => {
     const { typeRunnerFor } = await import('../agents');
     const slot: Slot = { type: 'Substack', focus: 'Focus for Substack' };
 
     // ctx.secondBrain.categories is [] and renderedDigest has no categories;
-    // the instruction is unconditional and tells the agent to omit if none exist.
+    // the instruction is unconditional and tells the agent to use null when none are listed.
     const prompt = typeRunnerFor('Substack').buildPrompt(slot, ctx);
 
-    expect(prompt).toMatch(/category/i);
-    expect(prompt).toMatch(/omit/i);
+    expect(prompt).toMatch(/categoryId/i);
+    expect(prompt).toMatch(/null/i);
     expect(prompt).toMatch(/no categor/i);
   });
 });
 
-describe('FR3 - save_item resolves category name to ID', () => {
+describe('FR3 - save_item passes categoryId straight through to storage', () => {
+  // Direct-ID contract: the agent supplies the numeric categoryId (read from the
+  // [ID] prefix in the digest). The tool performs NO name resolution — it forwards
+  // whatever number (or null) the agent supplies to storage verbatim.
   beforeEach(() => {
     vi.clearAllMocks();
     storageMock.addLearningStreamItem.mockResolvedValue({
@@ -324,18 +327,15 @@ describe('FR3 - save_item resolves category name to ID', () => {
     });
   });
 
-  function buildSaveItem(categories: Array<{ id: number; name: string }>) {
-    return async () => {
-      const { typeRunnerFor } = await import('../agents');
-      return typeRunnerFor('Substack').buildTools({
-        brainliftId: 1,
-        runId: 2,
-        slotIdx: 0,
-        recordActivity: vi.fn(),
-        existingUrls: new Set<string>(),
-        categories,
-      } as any).save_item;
-    };
+  async function buildSaveItem() {
+    const { typeRunnerFor } = await import('../agents');
+    return typeRunnerFor('Substack').buildTools({
+      brainliftId: 1,
+      runId: 2,
+      slotIdx: 0,
+      recordActivity: vi.fn(),
+      existingUrls: new Set<string>(),
+    } as any).save_item;
   }
 
   const baseInput = {
@@ -347,95 +347,39 @@ describe('FR3 - save_item resolves category name to ID', () => {
     url: 'https://example.com/cat',
   };
 
-  it('resolves an exact category name match to its ID', async () => {
-    const saveItem = await buildSaveItem([{ id: 3, name: 'History of Education' }])();
+  it('forwards a numeric categoryId to storage unchanged', async () => {
+    const saveItem = await buildSaveItem();
 
-    await saveItem.execute({ ...baseInput, category: 'History of Education' }, toolContext);
-
-    expect(storageMock.addLearningStreamItem).toHaveBeenCalledWith(
-      1,
-      expect.objectContaining({ categoryId: 3 }),
-    );
-  });
-
-  it('resolves a category name case-insensitively', async () => {
-    const saveItem = await buildSaveItem([{ id: 3, name: 'History of Education' }])();
-
-    await saveItem.execute({ ...baseInput, category: 'history of education' }, toolContext);
-
-    expect(storageMock.addLearningStreamItem).toHaveBeenCalledWith(
-      1,
-      expect.objectContaining({ categoryId: 3 }),
-    );
-  });
-
-  it('resolves to null when the category name does not match any project category', async () => {
-    const saveItem = await buildSaveItem([{ id: 3, name: 'History of Education' }])();
-
-    await saveItem.execute({ ...baseInput, category: 'Quantum Physics' }, toolContext);
-
-    expect(storageMock.addLearningStreamItem).toHaveBeenCalledWith(
-      1,
-      expect.objectContaining({ categoryId: null }),
-    );
-  });
-
-  it('resolves to null when the category field is omitted', async () => {
-    const saveItem = await buildSaveItem([{ id: 3, name: 'History of Education' }])();
-
-    await saveItem.execute({ ...baseInput }, toolContext);
-
-    expect(storageMock.addLearningStreamItem).toHaveBeenCalledWith(
-      1,
-      expect.objectContaining({ categoryId: null }),
-    );
-  });
-
-  it('resolves to null when the project has no categories', async () => {
-    const saveItem = await buildSaveItem([])();
-
-    await saveItem.execute({ ...baseInput, category: 'History of Education' }, toolContext);
-
-    expect(storageMock.addLearningStreamItem).toHaveBeenCalledWith(
-      1,
-      expect.objectContaining({ categoryId: null }),
-    );
-  });
-
-  it('resolves an empty-string category to null (falsy guard, not a match attempt)', async () => {
-    const saveItem = await buildSaveItem([{ id: 3, name: 'History of Education' }])();
-
-    await saveItem.execute({ ...baseInput, category: '' }, toolContext);
-
-    expect(storageMock.addLearningStreamItem).toHaveBeenCalledWith(
-      1,
-      expect.objectContaining({ categoryId: null }),
-    );
-  });
-
-  it('requires an exact name match, not a substring (guards against includes-based matching)', async () => {
-    const saveItem = await buildSaveItem([{ id: 3, name: 'History of Education' }])();
-
-    // "History" is a substring of the real category but must NOT resolve.
-    await saveItem.execute({ ...baseInput, category: 'History' }, toolContext);
-
-    expect(storageMock.addLearningStreamItem).toHaveBeenCalledWith(
-      1,
-      expect.objectContaining({ categoryId: null }),
-    );
-  });
-
-  it('disambiguates between multiple categories, returning the exact match id', async () => {
-    const saveItem = await buildSaveItem([
-      { id: 3, name: 'History of Education' },
-      { id: 7, name: 'Assessment Methods' },
-    ])();
-
-    await saveItem.execute({ ...baseInput, category: 'assessment methods' }, toolContext);
+    await saveItem.execute({ ...baseInput, categoryId: 7 }, toolContext);
 
     expect(storageMock.addLearningStreamItem).toHaveBeenCalledWith(
       1,
       expect.objectContaining({ categoryId: 7 }),
+    );
+  });
+
+  it('forwards categoryId: null to storage when the agent sets no category', async () => {
+    const saveItem = await buildSaveItem();
+
+    await saveItem.execute({ ...baseInput, categoryId: null }, toolContext);
+
+    expect(storageMock.addLearningStreamItem).toHaveBeenCalledWith(
+      1,
+      expect.objectContaining({ categoryId: null }),
+    );
+  });
+
+  it('forwards a zero categoryId unchanged (no falsy coercion to null)', async () => {
+    // Guards against a regression where `categoryId || null` would silently drop a
+    // legitimate id of 0. IDs start at 1 in practice, but the pass-through must be
+    // unconditional, not truthiness-based.
+    const saveItem = await buildSaveItem();
+
+    await saveItem.execute({ ...baseInput, categoryId: 0 }, toolContext);
+
+    expect(storageMock.addLearningStreamItem).toHaveBeenCalledWith(
+      1,
+      expect.objectContaining({ categoryId: 0 }),
     );
   });
 });
