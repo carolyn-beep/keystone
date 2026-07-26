@@ -588,9 +588,19 @@ The assessment includes a concrete strategy for making the SPOV more transmissib
 
 ---
 
-## Research Stream — Project-Data-Aware Multi-Agent Retrieval
+## Research Stream — a Team of AI Research Agents Working for the Student
 
-The Research Stream (formerly Learning Stream) surfaces relevant, high-quality sources aligned to a project's evolving research context. The v2 architecture (`server/ai/learning-stream-swarm-v2/`) replaces the original Claude Agent SDK swarm with a thin orchestrator + `Promise.allSettled` fan-out over Vercel AI SDK `streamText` calls. The legacy `learning-stream-swarm/` path is kept available for rollback during the soak window.
+Expertise starts with reading the right things. The Research Stream is Keystone's discovery engine: on demand, it dispatches a **team of specialized AI agents** that fan out across the internet — academic papers, news, podcasts, YouTube, Twitter/X, and the open web — and return a curated feed of high-quality sources aligned to exactly what the student is working on. The student never has to know where to look or how to search.
+
+What makes it more than a search box:
+
+- **It reads the student's work first.** Before dispatching anything, an orchestrator model reviews the student's Keystone Document — its purpose, their strongest facts, the experts they follow — *and* everything they've already gathered in their Second Brain, then plans a run that fills the actual gaps instead of repeating what they already have.
+- **Specialists, not a generalist.** Each source type has its own agent, tuned to find the best of that medium — a paper-hunter, a news-hunter, a podcast-hunter, and so on — all running in parallel and verifying every source before it's saved.
+- **It gets smarter every round (the flywheel).** As the student extracts facts, writes summaries, and bookmarks sources, all of it flows back into their Second Brain — so the *next* research run is aware of everything learned so far and pushes into new territory. Curiosity compounds.
+
+The effect for a learner: instead of drowning in tabs or settling for the first search result, they get a steady, personalized stream of the material an expert in their field would actually be reading — and it keeps pace as their thinking evolves.
+
+**Under the hood.** The Research Stream (formerly Learning Stream) surfaces relevant, high-quality sources aligned to a project's evolving research context. The v2 architecture (`server/ai/learning-stream-swarm-v2/`) replaces the original Claude Agent SDK swarm with a thin orchestrator + `Promise.allSettled` fan-out over Vercel AI SDK `streamText` calls. The legacy `learning-stream-swarm/` path is kept available for rollback during the soak window.
 
 ### Two Co-Equal Entry Points, One Contract
 
