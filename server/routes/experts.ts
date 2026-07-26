@@ -1,11 +1,31 @@
 import { Router } from 'express';
 import { storage } from '../storage';
 import { extractAndRankExperts, diagnoseExpertFormat } from '../ai/experts';
+import { createBrainliftExperts } from '../services/brainlift-curation';
+import { createExpertsInput } from '@shared/routes';
 import { requireAuth } from '../middleware/auth';
 import { asyncHandler, BadRequestError, NotFoundError } from '../middleware/error-handler';
 import { requireBrainliftAccess, requireBrainliftModify } from '../middleware/brainlift-auth';
 
 export const expertsRouter = Router();
+
+// Create one or more experts directly (used by the onboarding wizard's Experts
+// step — accepting a discovered candidate or a manual add). Wraps the curation
+// service with source='onboarding'; rank refresh is queued by the service.
+expertsRouter.post(
+  '/api/brainlifts/:slug/experts',
+  requireAuth,
+  requireBrainliftModify,
+  asyncHandler(async (req, res) => {
+    const { experts } = createExpertsInput.parse(req.body);
+    const { createdExperts } = await createBrainliftExperts(req.authContext!, {
+      slug: req.brainlift!.slug,
+      experts,
+      source: 'onboarding',
+    });
+    res.status(201).json({ experts: createdExperts });
+  })
+);
 
 // Get experts for a brainlift
 expertsRouter.get(
@@ -59,32 +79,6 @@ expertsRouter.post(
   })
 );
 
-// Update expert following status (nested under brainlift for authorization)
-expertsRouter.patch(
-  '/api/brainlifts/:slug/experts/:id/follow',
-  requireAuth,
-  requireBrainliftModify,
-  asyncHandler(async (req, res) => {
-    const expertId = parseInt(req.params.id);
-    if (isNaN(expertId)) {
-      throw new BadRequestError('Invalid expert ID');
-    }
-    const { isFollowing } = req.body;
-
-    if (typeof isFollowing !== 'boolean') {
-      throw new BadRequestError('isFollowing must be a boolean');
-    }
-
-    const updated = await storage.updateExpertFollowingForBrainlift(
-      expertId, req.brainlift!.id, isFollowing
-    );
-    if (!updated) {
-      throw new NotFoundError('Expert not found');
-    }
-    res.json(updated);
-  })
-);
-
 // Delete an expert (nested under brainlift for authorization)
 expertsRouter.delete(
   '/api/brainlifts/:slug/experts/:id',
@@ -100,16 +94,5 @@ expertsRouter.delete(
       throw new NotFoundError('Expert not found');
     }
     res.json({ success: true });
-  })
-);
-
-// Get followed experts for a brainlift (used by tweet search)
-expertsRouter.get(
-  '/api/brainlifts/:slug/experts/following',
-  requireAuth,
-  requireBrainliftAccess,
-  asyncHandler(async (req, res) => {
-    const followedExperts = await storage.getFollowedExperts(req.brainlift!.id);
-    res.json(followedExperts);
   })
 );

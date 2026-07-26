@@ -42,10 +42,11 @@ export async function createExpertsForBrainlift(
   brainliftId: number,
   expertsData: Array<{
     name: string;
-    who: string;
-    why: string;
+    who?: string | null;
+    why?: string | null;
     focus?: string | null;
     where?: string | null;
+    source?: 'listed' | 'onboarding';
     twitterHandle?: string | null;
   }>,
 ): Promise<Expert[]> {
@@ -55,42 +56,16 @@ export async function createExpertsForBrainlift(
     expertsData.map((expert) => ({
       brainliftId,
       name: expert.name,
-      who: expert.who,
-      why: expert.why,
+      who: expert.who ?? null,
+      why: expert.why ?? null,
       focus: expert.focus ?? null,
       where: expert.where ?? null,
       rankScore: null,
       rationale: null,
-      source: 'listed',
+      source: expert.source ?? 'listed',
       twitterHandle: expert.twitterHandle ?? normalizeTwitterHandle(expert.where),
-      isFollowing: true,
     })),
   ).returning();
-}
-
-export async function getFollowedExperts(brainliftId: number): Promise<Expert[]> {
-  return await db.select().from(experts)
-    .where(and(
-      eq(experts.brainliftId, brainliftId),
-      eq(experts.isFollowing, true)
-    ))
-    .orderBy(...expertOrderBy());
-}
-
-/**
- * Update expert following status with brainlift ownership verification.
- * Returns null if expert doesn't exist or doesn't belong to the brainlift.
- */
-export async function updateExpertFollowingForBrainlift(
-  expertId: number,
-  brainliftId: number,
-  isFollowing: boolean
-): Promise<Expert | null> {
-  const [updated] = await db.update(experts)
-    .set({ isFollowing })
-    .where(and(eq(experts.id, expertId), eq(experts.brainliftId, brainliftId)))
-    .returning();
-  return updated || null;
 }
 
 /**

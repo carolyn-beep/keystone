@@ -384,7 +384,11 @@ export function ResearchMaterialsTab({ slug }: ResearchMaterialsTabProps) {
             <SourceGridCard
               key={source.id}
               source={source}
-              categoryName={categoryNameById.get(source.categoryId) ?? null}
+              categoryName={
+                source.categoryId != null
+                  ? categoryNameById.get(source.categoryId) ?? null
+                  : null
+              }
               notesCount={notesCountById.get(source.id) ?? 0}
               isSelected={selectedIds.has(source.id)}
               anySelected={anySelected}

@@ -38,8 +38,13 @@ export interface SlotToolClosure {
   slotFocus?: string;
   recordActivity: (event: { eventType: string; data: Record<string, unknown> }) => void;
   existingUrls: Set<string>;
+  /** Project categories, used to resolve a name to an ID in save_item. Empty when project has none. */
+  categories: Array<{ id: number; name: string }>;
   discoveredTitles?: Map<string, string>;
   incrementSaved?: (duplicate: boolean) => void;
+  /** Provenance written to `learningStreamItems.source`. Quick (starter-pack)
+   *  runs pass `'starter-pack'`; everything else defaults to `'swarm-research'`. */
+  itemSource?: 'swarm-research' | 'starter-pack';
 }
 
 const webSearchInputSchema = z.object({
@@ -94,6 +99,9 @@ const saveItemInputSchema = z.object({
   url: z.string().trim().min(1),
   relevanceScore: z.string().trim().optional(),
   aiRationale: z.string().trim().optional().describe('Why this matters: project-specific rationale tied to the current brainlift, user context, experts, gaps, SPOV, or slot focus'),
+  category: z.string().trim().optional().describe(
+    'Name of the project expertise area (category) this item belongs to. Must exactly match one of the category names listed in the Project Data Digest. Omit if no category fits or if the project has none.'
+  ),
 });
 
 const checkDuplicateInputSchema = z.object({
@@ -272,6 +280,13 @@ export function buildCommonTools(closure: SlotToolClosure) {
         const aiRationale = input.aiRationale
           ? compactPreview(input.aiRationale, MAX_PROJECT_RATIONALE_CHARS)
           : null;
+        const categoryId = (() => {
+          if (!input.category || !closure.categories.length) return null;
+          const match = closure.categories.find(
+            (c) => c.name.toLowerCase() === input.category!.toLowerCase()
+          );
+          return match?.id ?? null;
+        })();
         const item = await storage.addLearningStreamItem(closure.brainliftId, {
           type: input.type,
           author: input.author,
@@ -279,9 +294,10 @@ export function buildCommonTools(closure: SlotToolClosure) {
           time: input.time,
           facts,
           url: normalizedUrl,
-          source: 'swarm-research',
+          source: closure.itemSource ?? 'swarm-research',
           relevanceScore: input.relevanceScore ?? null,
           aiRationale,
+          categoryId,
         });
 
         const duplicate = duplicateBeforeSave;

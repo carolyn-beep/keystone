@@ -9,6 +9,7 @@ const MIN_ARTICLE_CONTENT_CHARS = 50;
 interface ExaContentsResult {
   url?: string;
   title?: string;
+  author?: string;
   text?: string;
 }
 
@@ -189,6 +190,7 @@ async function fetchArticleViaExaContents(url: string): Promise<ExtractedContent
       contentType: 'article',
       markdown,
       title: data?.title || undefined,
+      author: data?.author || undefined,
       siteName: getSiteName(data?.url || url),
     };
   } catch (error: any) {

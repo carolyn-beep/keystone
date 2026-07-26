@@ -266,6 +266,57 @@ export async function createBlankBrainlift(args: {
   throw new Error('Unable to create a unique brainlift slug');
 }
 
+/**
+ * Create a brainlift from the onboarding wizard (features/ux-redesign).
+ * Like createBlankBrainlift (research phase, zeroed summary, slug retry loop)
+ * but additionally seeds onboardingStep = 1 so the wizard state machine has a
+ * server-backed high-water mark from step 1 on.
+ */
+export async function createOnboardingBrainlift(args: {
+  userId: string;
+  topic: string;
+  /** Explicit title; defaults to the raw topic (AI title backfills async). */
+  title?: string;
+  /** Full three-part topic sentence (connectives included) for AI prompts. */
+  onboardingTopic?: string;
+}): Promise<Brainlift> {
+  const title = args.title?.trim() || args.topic;
+  // Raw topics run up to 400 chars; keep slugs readable.
+  const baseSlug = slugifyTitle(title).slice(0, 60).replace(/-$/, '');
+  const maxAttempts = 25;
+
+  for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
+    try {
+      const [brainlift] = await db
+        .insert(brainlifts)
+        .values({
+          slug: blankBrainliftSlug(baseSlug, attempt),
+          title,
+          description: '',
+          createdByUserId: args.userId,
+          phase: 'research',
+          onboardingStep: 1,
+          onboardingTopic: args.onboardingTopic ?? args.topic,
+          summary: {
+            totalFacts: 0,
+            meanScore: '0',
+            score5Count: 0,
+            contradictionCount: 0,
+          },
+        })
+        .returning();
+
+      return brainlift;
+    } catch (error) {
+      if (!isUniqueViolation(error) || attempt === maxAttempts - 1) {
+        throw error;
+      }
+    }
+  }
+
+  throw new Error('Unable to create a unique brainlift slug');
+}
+
 export async function setBrainliftPhase(
   brainliftId: number,
   phase: BrainliftPhase,
@@ -273,6 +324,98 @@ export async function setBrainliftPhase(
   const [brainlift] = await db
     .update(brainlifts)
     .set({ phase })
+    .where(eq(brainlifts.id, brainliftId))
+    .returning();
+
+  if (!brainlift) {
+    throw new NotFoundError('Brainlift not found');
+  }
+
+  return brainlift;
+}
+
+/**
+ * Normalize a scope phrase list: trim entries, drop empties, dedupe
+ * (first occurrence wins, order otherwise preserved).
+ */
+function normalizeScopeList(entries: string[]): string[] {
+  const seen = new Set<string>();
+  const normalized: string[] = [];
+  for (const entry of entries) {
+    const trimmed = entry.trim();
+    if (trimmed.length === 0 || seen.has(trimmed)) continue;
+    seen.add(trimmed);
+    normalized.push(trimmed);
+  }
+  return normalized;
+}
+
+/**
+ * Persist In/Out scope phrase arrays (onboarding wizard, ux-redesign).
+ * Omitted keys leave the corresponding column untouched.
+ */
+export async function updateBrainliftScope(
+  brainliftId: number,
+  patch: { inScope?: string[]; outOfScope?: string[] },
+): Promise<Brainlift> {
+  const set: { inScope?: string[]; outOfScope?: string[] } = {};
+  if (patch.inScope !== undefined) set.inScope = normalizeScopeList(patch.inScope);
+  if (patch.outOfScope !== undefined) set.outOfScope = normalizeScopeList(patch.outOfScope);
+
+  if (Object.keys(set).length === 0) {
+    const [brainlift] = await db.select().from(brainlifts).where(eq(brainlifts.id, brainliftId));
+    if (!brainlift) {
+      throw new NotFoundError('Brainlift not found');
+    }
+    return brainlift;
+  }
+
+  const [brainlift] = await db
+    .update(brainlifts)
+    .set(set)
+    .where(eq(brainlifts.id, brainliftId))
+    .returning();
+
+  if (!brainlift) {
+    throw new NotFoundError('Brainlift not found');
+  }
+
+  return brainlift;
+}
+
+/**
+ * Replace the display title (async AI-title backfill after onboarding
+ * creation). The slug is intentionally left untouched — it is already shared
+ * with the client by the time the title resolves.
+ */
+export async function updateBrainliftTitle(
+  brainliftId: number,
+  title: string,
+): Promise<Brainlift> {
+  const [brainlift] = await db
+    .update(brainlifts)
+    .set({ title })
+    .where(eq(brainlifts.id, brainliftId))
+    .returning();
+
+  if (!brainlift) {
+    throw new NotFoundError('Brainlift not found');
+  }
+
+  return brainlift;
+}
+
+/**
+ * Advance or clear onboarding-wizard progress. NULL = not onboarding
+ * (legacy, imported, or finished).
+ */
+export async function updateOnboardingStep(
+  brainliftId: number,
+  step: number | null,
+): Promise<Brainlift> {
+  const [brainlift] = await db
+    .update(brainlifts)
+    .set({ onboardingStep: step })
     .where(eq(brainlifts.id, brainliftId))
     .returning();
 
@@ -889,6 +1032,7 @@ export interface LearningStreamContext {
   title: string;
   description: string;
   displayPurpose: string | null;
+  onboardingTopic: string | null;
   facts: Array<{
     id: number;
     fact: string;
@@ -932,7 +1076,7 @@ export async function getLearningStreamContext(brainliftId: number): Promise<Lea
       title: brainlifts.title,
       description: brainlifts.description,
       displayPurpose: brainlifts.displayPurpose,
-      sourceType: brainlifts.sourceType,
+      onboardingTopic: brainlifts.onboardingTopic,
     })
     .from(brainlifts)
     .where(eq(brainlifts.id, brainliftId));
@@ -957,8 +1101,8 @@ export async function getLearningStreamContext(brainliftId: number): Promise<Lea
     .orderBy(desc(facts.score))
     .limit(15);
 
-  // Get followed experts (top 10 by rank)
-  const followedExperts = await db
+  // Get top 10 experts by rank (rankScore DESC NULLS LAST, id DESC)
+  const expertsList = await db
     .select({
       id: experts.id,
       name: experts.name,
@@ -966,41 +1110,9 @@ export async function getLearningStreamContext(brainliftId: number): Promise<Lea
       rankScore: experts.rankScore,
     })
     .from(experts)
-    .where(
-      and(
-        eq(experts.brainliftId, brainliftId),
-        eq(experts.isFollowing, true)
-      )
-    )
+    .where(eq(experts.brainliftId, brainliftId))
     .orderBy(...expertOrderBy())
     .limit(10);
-
-  // Native fallback: use builder experts when no ranked experts exist
-  let expertsList: Array<{ id: number; name: string; twitterHandle: string | null; rankScore: number | null }> = followedExperts;
-
-  if (brainlift.sourceType === 'native' && followedExperts.length === 0) {
-    const savedBuilderExperts = await db
-      .select({
-        id: builderExperts.id,
-        name: builderExperts.name,
-        where: builderExperts.where,
-      })
-      .from(builderExperts)
-      .where(
-        and(
-          eq(builderExperts.brainliftId, brainliftId),
-          eq(builderExperts.status, 'saved')
-        )
-      )
-      .limit(10);
-
-    expertsList = savedBuilderExperts.map(e => ({
-      id: e.id,
-      name: e.name,
-      twitterHandle: deriveTwitterHandle(e.where),
-      rankScore: null,
-    }));
-  }
 
   // Get existing learning stream topics
   const { learningStreamItems } = await import('./base');
@@ -1014,6 +1126,7 @@ export async function getLearningStreamContext(brainliftId: number): Promise<Lea
     title: brainlift.title,
     description: brainlift.description,
     displayPurpose: brainlift.displayPurpose,
+    onboardingTopic: brainlift.onboardingTopic ?? null,
     facts: topFacts,
     experts: expertsList,
     existingTopics: existingItems.map(i => i.topic),

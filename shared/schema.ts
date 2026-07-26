@@ -161,6 +161,17 @@ export const brainlifts = pgTable("brainlifts", {
   importStatus: text("import_status").$type<ImportStatus>().default('pending'),
   importHierarchy: jsonb("import_hierarchy"),
   phase: text("phase").$type<BrainliftPhase>().default('authoring').notNull(),
+  // Onboarding wizard (features/ux-redesign/onboarding-wizard): In/Out scope
+  // phrases feed the research swarm, the starter-pack filter, and chat prompts.
+  inScope: text("in_scope").array().notNull().default(sql`'{}'::text[]`),
+  outOfScope: text("out_of_scope").array().notNull().default(sql`'{}'::text[]`),
+  // NULL = not onboarding (legacy, imported, or finished); 1..N = wizard in progress.
+  onboardingStep: integer("onboarding_step"),
+  // Full descriptive topic sentence from the wizard's three-part Topic step,
+  // connectives included ("X, specifically focusing on Y, in order to Z").
+  // Feeds suggestion/discovery/starter-pack prompts; `title` is display-only.
+  // NULL for legacy/imported brainlifts (callers fall back to `title`).
+  onboardingTopic: text("onboarding_topic"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 }, (table) => [
   index("brainlifts_created_by_user_id_idx").on(table.createdByUserId),
@@ -267,9 +278,8 @@ export const experts = pgTable("experts", {
   where: text("where"),
   rankScore: integer("rank_score"), // 1-10 impact score (null if unranked)
   rationale: text("rationale"), // One-line explanation for ranking (null if unranked)
-  source: text("source").notNull(), // "listed" (from brainlift) or "verification" (from fact notes)
+  source: text("source").notNull().$type<'listed' | 'verification' | 'cited' | 'onboarding'>(), // provenance: brainlift list, fact-note verification, citation extraction, onboarding wizard
   twitterHandle: text("twitter_handle"), // Optional X/Twitter handle
-  isFollowing: boolean("is_following").notNull().default(true), // Auto-follow if rank > 5
 });
 
 // Brainlift Sharing - User-specific and token-based access control
@@ -893,7 +903,7 @@ export type ExtractedContent =
   | { contentType: 'embed'; embedType: 'spotify'; embedId: string }
   | { contentType: 'embed'; embedType: 'apple-podcast'; embedUrl: string }
   | { contentType: 'embed'; embedType: 'tweet'; tweetId: string }
-  | { contentType: 'article'; markdown: string; title?: string; siteName?: string }
+  | { contentType: 'article'; markdown: string; title?: string; siteName?: string; author?: string }
   | { contentType: 'pdf'; url: string }
   | { contentType: 'fallback'; reason: string };
 
@@ -938,7 +948,7 @@ export const learningStreamItems = pgTable("learning_stream_items", {
   status: text("status").$type<'pending' | 'bookmarked' | 'graded' | 'discarded'>()
     .default('pending')
     .notNull(),
-  source: text("source").$type<'quick-search' | 'deep-research' | 'twitter' | 'swarm-research' | 'manual'>().notNull(),
+  source: text("source").$type<'quick-search' | 'deep-research' | 'twitter' | 'swarm-research' | 'manual' | 'starter-pack'>().notNull(),
 
   // Builder Phase 3: category assignment (nullable for non-builder items)
   categoryId: integer("category_id").references(() => categories.id, { onDelete: "set null" }),
@@ -973,7 +983,10 @@ export const sources = pgTable("sources", {
   title: text("title").notNull(),
   url: text("url").notNull(),
   author: text("author").notNull(),
-  categoryId: integer("category_id").notNull().references(() => categories.id, { onDelete: "restrict" }),
+  // Nullable: a null categoryId renders as "Uncategorized" (e.g. sources
+  // promoted from the onboarding wizard's starter pack, where no category
+  // choice is presented).
+  categoryId: integer("category_id").references(() => categories.id, { onDelete: "restrict" }),
   extractedContent: jsonb("extracted_content").$type<ExtractedContent | Record<string, unknown> | null>(),
   learningStreamItemId: integer("learning_stream_item_id").references(() => learningStreamItems.id, { onDelete: "set null" }),
   // Second Brain v2 enrichment fields. All nullable; mirrored from

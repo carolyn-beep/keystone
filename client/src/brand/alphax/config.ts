@@ -29,4 +29,7 @@ export const config: BrandConfig = {
   chatOpenerInstruction:
     'The user just landed on the AlphaX chat homepage with a fresh empty conversation. '
     + 'Open per your system prompt. The User Context block is your ground truth for who they are.',
+  // The barrel (index.ts) augments this with the relaxed-mascot component; the
+  // plain config object can't import the asset without coupling to a bundler.
+  wizardPersona: { name: 'AlphaX Buddy' },
 };

@@ -92,7 +92,11 @@ export const storage = {
   getBrainliftsByOwnerId: brainliftsStorage.getBrainliftsByOwnerId,
   createBrainlift: brainliftsStorage.createBrainlift,
   createBlankBrainlift: brainliftsStorage.createBlankBrainlift,
+  createOnboardingBrainlift: brainliftsStorage.createOnboardingBrainlift,
   setBrainliftPhase: brainliftsStorage.setBrainliftPhase,
+  updateBrainliftScope: brainliftsStorage.updateBrainliftScope,
+  updateBrainliftTitle: brainliftsStorage.updateBrainliftTitle,
+  updateOnboardingStep: brainliftsStorage.updateOnboardingStep,
   updateBrainlift: brainliftsStorage.updateBrainlift,
   deleteBrainlift: brainliftsStorage.deleteBrainlift,
   updateBrainliftFields: brainliftsStorage.updateBrainliftFields,
@@ -138,8 +142,6 @@ export const storage = {
   getExpertsByBrainliftId: expertsStorage.getExpertsByBrainliftId,
   saveExperts: expertsStorage.saveExperts,
   createExpertsForBrainlift: expertsStorage.createExpertsForBrainlift,
-  getFollowedExperts: expertsStorage.getFollowedExperts,
-  updateExpertFollowingForBrainlift: expertsStorage.updateExpertFollowingForBrainlift,
   updateExpertRankings: expertsStorage.updateExpertRankings,
   deleteExpertForBrainlift: expertsStorage.deleteExpertForBrainlift,
 
@@ -217,6 +219,7 @@ export const storage = {
   getLearningStreamItemById: learningStreamStorage.getLearningStreamItemById,
   getLearningStreamItemByUrl: learningStreamStorage.getLearningStreamItemByUrl,
   updateLearningStreamItemStatus: learningStreamStorage.updateLearningStreamItemStatus,
+  updateLearningStreamItemMetadata: learningStreamStorage.updateLearningStreamItemMetadata,
   gradeLearningStreamItem: learningStreamStorage.gradeLearningStreamItem,
   getLearningStreamStats: learningStreamStorage.getLearningStreamStats,
   hasResearchJobPending: learningStreamStorage.hasResearchJobPending,
@@ -228,6 +231,9 @@ export const storage = {
   recordSwarmUsage: learningStreamStorage.recordSwarmUsage,
   updateSwarmUsageEstimatedUsd: learningStreamStorage.updateSwarmUsageEstimatedUsd,
   getActiveRunIdForBrainlift: learningStreamStorage.getActiveRunIdForBrainlift,
+  hasStarterPackItems: learningStreamStorage.hasStarterPackItems,
+  getPendingStarterPackItems: learningStreamStorage.getPendingStarterPackItems,
+  discardStarterPackItems: learningStreamStorage.discardStarterPackItems,
 
   // Second Brain
   createSource: secondBrainStorage.createSource,

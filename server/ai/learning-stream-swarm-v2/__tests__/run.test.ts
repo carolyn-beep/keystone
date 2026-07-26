@@ -8,6 +8,8 @@ const mocks = vi.hoisted(() => ({
   storage: {
     addLearningStreamItem: vi.fn(),
   },
+  // Records every closure passed to a runner's buildTools so FR2 can assert on it.
+  capturedClosures: [] as any[],
 }));
 
 vi.mock('ai', () => ({
@@ -27,6 +29,25 @@ vi.mock('../../chat/provider', () => ({
 vi.mock('../../../storage', () => ({
   storage: mocks.storage,
 }));
+
+// Wrap the real agents module so every closure passed to a runner's buildTools is
+// recorded (FR2). The real buildTools/save_item path is preserved for all other tests.
+vi.mock('../agents', async () => {
+  const actual = await vi.importActual<typeof import('../agents')>('../agents');
+  return {
+    ...actual,
+    typeRunnerFor: (type: any) => {
+      const runner = actual.typeRunnerFor(type);
+      return {
+        ...runner,
+        buildTools: (closure: any) => {
+          mocks.capturedClosures.push(closure);
+          return runner.buildTools(closure);
+        },
+      };
+    },
+  };
+});
 
 const runSpec = {
   agents: [
@@ -55,7 +76,7 @@ const contextFixture = {
     sources: [],
     notes: [],
   },
-  followedExperts: [],
+  topExperts: [],
   existingUrls: [],
   renderedDigest: 'digest',
   digestCharCount: 6,
@@ -64,6 +85,7 @@ const contextFixture = {
 describe('runResearchSwarm', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mocks.capturedClosures.length = 0;
     delete process.env.SWARM_VERBOSE_LOG;
     mocks.buildSwarmContext.mockResolvedValue(contextFixture);
     mocks.storage.addLearningStreamItem.mockImplementation(async (_brainliftId, item) => ({
@@ -283,5 +305,168 @@ describe('runResearchSwarm', () => {
 
     await expect(runResearchSwarm(1, { agents: [] }, 1)).rejects.toThrow(/between 1 and/);
     await expect(runResearchSwarm(1, { agents: tooMany }, 1)).rejects.toThrow(/between 1 and/);
+  });
+
+  // ─── 05-starter-pack FR1: quick mode ────────────────────────────────────────
+  describe('05-FR1 quick mode', () => {
+    it('configures the quick step cap (20) and builds the budget block from 20', async () => {
+      const {
+        runResearchSwarm,
+        SWARM_AGENT_QUICK_MAX_STEPS,
+      } = await import('../run');
+
+      await runResearchSwarm(1, { agents: [{ type: 'Substack', focus: 'A' }], quick: true }, 200);
+
+      expect(SWARM_AGENT_QUICK_MAX_STEPS).toBe(20);
+      expect(mocks.stepCountIs).toHaveBeenCalledWith(20);
+      expect(mocks.stepCountIs).not.toHaveBeenCalledWith(50);
+      const call = mocks.streamText.mock.calls[0][0];
+      expect(call.system).toContain('You have at most 20 model/tool steps');
+      // 20 - ceil(20*0.2) = 16.
+      expect(call.system).toContain('Plan to call save_item by about step 16');
+    });
+
+    it('skips the save-only recovery pass even when a quick slot saves nothing', async () => {
+      let call = 0;
+      mocks.streamText.mockImplementation(() => {
+        call += 1;
+        return {
+          consumeStream: vi.fn().mockResolvedValue(undefined),
+          totalUsage: Promise.resolve({ inputTokens: call, outputTokens: call }),
+          text: Promise.resolve('researched but did not save'),
+          reasoningText: Promise.resolve(''),
+        };
+      });
+      const { runResearchSwarm } = await import('../run');
+
+      const result = await runResearchSwarm(1, { agents: [{ type: 'Podcast', focus: 'A' }], quick: true }, 201);
+
+      // Exactly one streamText call per slot — no recovery second pass.
+      expect(mocks.streamText).toHaveBeenCalledTimes(1);
+      expect(mocks.stepCountIs).not.toHaveBeenCalledWith(25);
+      expect(result.failedCount).toBe(1);
+    });
+
+    it('forces the haiku model on a quick slot even when the slot names another model', async () => {
+      const { runResearchSwarm } = await import('../run');
+
+      await runResearchSwarm(1, {
+        agents: [{ type: 'Substack', focus: 'A', model: 'anthropic/claude-sonnet-4.6' }],
+        quick: true,
+      }, 202);
+
+      expect(mocks.getChatModel).toHaveBeenCalledWith('anthropic/claude-haiku-4.5');
+      expect(mocks.getChatModel).not.toHaveBeenCalledWith('anthropic/claude-sonnet-4.6');
+    });
+
+    it('appends the 2-3 save-target block to a quick slot prompt', async () => {
+      const { runResearchSwarm } = await import('../run');
+
+      await runResearchSwarm(1, { agents: [{ type: 'Substack', focus: 'A' }], quick: true }, 203);
+
+      const system = mocks.streamText.mock.calls[0][0].system as string;
+      expect(system).toMatch(/save (2 to 3|2-3)/i);
+      // The quick override must supersede the base save-exactly-one rule.
+      expect(system).toContain('Starter Pack Mode');
+    });
+
+    it('saves quick items with source starter-pack', async () => {
+      const { runResearchSwarm } = await import('../run');
+
+      await runResearchSwarm(1, { agents: [{ type: 'Substack', focus: 'A' }], quick: true }, 204);
+
+      expect(mocks.storage.addLearningStreamItem).toHaveBeenCalledWith(
+        1,
+        expect.objectContaining({ source: 'starter-pack' }),
+      );
+    });
+
+    it('leaves a non-quick run on swarm-research source, 50 steps, recovery and slot model default', async () => {
+      let call = 0;
+      mocks.streamText.mockImplementation(() => {
+        call += 1;
+        return {
+          consumeStream: vi.fn().mockResolvedValue(undefined),
+          totalUsage: Promise.resolve({ inputTokens: call, outputTokens: call }),
+          text: Promise.resolve('no save'),
+          reasoningText: Promise.resolve(''),
+        };
+      });
+      const { runResearchSwarm, SWARM_AGENT_MAX_STEPS, SWARM_AGENT_RECOVERY_MAX_STEPS } = await import('../run');
+
+      await runResearchSwarm(1, { agents: [{ type: 'Podcast', focus: 'A' }] }, 205);
+
+      // Recovery still fires on a non-quick zero-save slot.
+      expect(mocks.streamText).toHaveBeenCalledTimes(2);
+      expect(mocks.stepCountIs).toHaveBeenCalledWith(SWARM_AGENT_MAX_STEPS);
+      expect(mocks.stepCountIs).toHaveBeenCalledWith(SWARM_AGENT_RECOVERY_MAX_STEPS);
+      expect(mocks.getChatModel).toHaveBeenCalledWith('anthropic/claude-haiku-4.5');
+    });
+  });
+});
+
+// ─── 01-swarm-classification FR2: SlotToolClosure carries categories ─────────
+describe('FR2 - SlotToolClosure carries categories', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mocks.capturedClosures.length = 0;
+    delete process.env.SWARM_VERBOSE_LOG;
+    mocks.storage.addLearningStreamItem.mockImplementation(async (_brainliftId, item) => ({
+      id: Math.floor(Math.random() * 100000),
+      ...item,
+    }));
+    // Minimal streamText stub: no tool calls, no saves needed — FR2 only inspects
+    // the closure handed to buildTools, which happens before any streaming.
+    mocks.streamText.mockImplementation(() => ({
+      consumeStream: vi.fn().mockResolvedValue(undefined),
+      totalUsage: Promise.resolve({ inputTokens: 1, outputTokens: 1 }),
+      text: Promise.resolve('saved'),
+      reasoningText: Promise.resolve(''),
+    }));
+  });
+
+  function contextWithCategories(categories: any[]) {
+    return {
+      ...contextFixture,
+      secondBrain: {
+        ...contextFixture.secondBrain,
+        categories,
+      },
+    };
+  }
+
+  it('builds the closure with id+name only (sourceCount and other fields stripped) for a 2-category secondBrain', async () => {
+    mocks.buildSwarmContext.mockResolvedValue(
+      contextWithCategories([
+        { id: 3, name: 'History of Education', sourceCount: 5, noteCount: 3 },
+        { id: 7, name: 'Assessment Methods', sourceCount: 2, noteCount: 1 },
+      ]),
+    );
+    const { runResearchSwarm } = await import('../run');
+
+    await runResearchSwarm(1, { agents: [{ type: 'Substack', focus: 'A' }] }, 300);
+
+    expect(mocks.capturedClosures).toHaveLength(1);
+    const closure = mocks.capturedClosures[0];
+    expect(closure.categories).toEqual([
+      { id: 3, name: 'History of Education' },
+      { id: 7, name: 'Assessment Methods' },
+    ]);
+    // sourceCount / noteCount must be stripped on every entry.
+    for (const entry of closure.categories) {
+      expect(entry).not.toHaveProperty('sourceCount');
+      expect(entry).not.toHaveProperty('noteCount');
+      expect(Object.keys(entry).sort()).toEqual(['id', 'name']);
+    }
+  });
+
+  it('builds the closure with an empty categories array when secondBrain has no categories', async () => {
+    mocks.buildSwarmContext.mockResolvedValue(contextWithCategories([]));
+    const { runResearchSwarm } = await import('../run');
+
+    await runResearchSwarm(1, { agents: [{ type: 'Substack', focus: 'A' }] }, 301);
+
+    expect(mocks.capturedClosures).toHaveLength(1);
+    expect(mocks.capturedClosures[0].categories).toEqual([]);
   });
 });

@@ -42,6 +42,12 @@ export interface RunSpec {
    *  `agentCount` from the request when provided, defaulting to MAX_SLOTS. */
   agents: Slot[];
   notesToAgents?: string;
+  /** Quick (starter-pack) mode: forces the fast slot model, lowers the per-slot
+   *  step cap, skips the save-only recovery pass, targets 2-3 saves per slot,
+   *  and lands items with `source: 'starter-pack'`. Persisted on
+   *  `swarm_usage.run_spec` so `getSwarmUsageToday` can exempt these from the
+   *  daily cap. Omitted/false leaves the normal swarm path unchanged. */
+  quick?: boolean;
 }
 
 export const retrievalTypeSchema = z.enum(RETRIEVAL_TYPES);
@@ -66,6 +72,7 @@ export const runRequestSchema = z.object({
 export const runSpecSchema = z.object({
   agents: z.array(slotSchema).min(1).max(MAX_SLOTS),
   notesToAgents: z.string().trim().max(2000).optional(),
+  quick: z.boolean().optional(),
 });
 
 export type RunRequestInput = z.infer<typeof runRequestSchema>;

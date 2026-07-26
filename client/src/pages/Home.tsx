@@ -17,6 +17,7 @@ import { LoadMoreButton } from '@/components/home/LoadMoreButton';
 import { AddBrainliftModal } from '@/components/home/AddBrainliftModal';
 import { FilterTabs } from '@/components/home/FilterTabs';
 import { buildLibraryLocation } from '@/components/chat/chat-home-helpers';
+import { NEW_PROJECT_ROUTE } from '@/components/onboarding-wizard/entry-points';
 
 export default function Home() {
   const [, setLocation] = useLocation();
@@ -250,7 +251,17 @@ export default function Home() {
       )}
 
       <TactileButton
-        variant={process.env.NODE_ENV === 'production' ? 'raised' : 'inset'}
+        variant="raised"
+        data-testid="button-new-project"
+        onClick={() => setLocation(NEW_PROJECT_ROUTE)}
+        className="flex items-center gap-2"
+      >
+        <Plus size={18} />
+        New Project
+      </TactileButton>
+
+      <TactileButton
+        variant="inset"
         data-testid="button-import-brainlift"
         onClick={() => setModalMode('import')}
         className="flex items-center gap-2"

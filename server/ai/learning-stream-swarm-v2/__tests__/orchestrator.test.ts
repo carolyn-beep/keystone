@@ -30,7 +30,7 @@ const contextFixture = {
     sources: [],
     notes: [],
   },
-  followedExperts: [],
+  topExperts: [],
   existingUrls: [],
   renderedDigest: '## Second Brain\nSB-primary digest',
   digestCharCount: 32,
@@ -161,5 +161,44 @@ describe('orchestrate', () => {
     expect(result.usedDefault).toBe(true);
     expect(result.runSpec.agents).toHaveLength(5);
     expect(result.runSpec.agents.map((agent) => agent.focus)).toEqual(Array(5).fill('Default focus'));
+  });
+});
+
+describe('buildOrchestratorSystemPrompt scope guidance (01-scope-foundation FR3)', () => {
+  it('mentions scope guidance when the context carries scope', async () => {
+    const { buildOrchestratorSystemPrompt } = await import('../orchestrator');
+
+    const scopedContext = {
+      ...contextFixture,
+      brainlift: {
+        ...contextFixture.brainlift,
+        inScope: ['AI compiler internals'],
+        outOfScope: ['crypto mining'],
+      },
+    };
+
+    const prompt = buildOrchestratorSystemPrompt(scopedContext as never, {});
+
+    expect(prompt.toLowerCase()).toContain('out of scope');
+    expect(prompt).toContain('AI compiler internals');
+    expect(prompt).toContain('crypto mining');
+  });
+
+  it('omits scope guidance when the context has empty scope', async () => {
+    const { buildOrchestratorSystemPrompt } = await import('../orchestrator');
+
+    const unscopedContext = {
+      ...contextFixture,
+      brainlift: {
+        ...contextFixture.brainlift,
+        inScope: [],
+        outOfScope: [],
+      },
+    };
+
+    const prompt = buildOrchestratorSystemPrompt(unscopedContext as never, {});
+
+    expect(prompt.toLowerCase()).not.toContain('out of scope');
+    expect(prompt.toLowerCase()).not.toContain('in scope');
   });
 });

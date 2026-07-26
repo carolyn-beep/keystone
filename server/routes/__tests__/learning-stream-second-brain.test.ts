@@ -53,11 +53,28 @@ beforeEach(() => {
 });
 
 describe('learning stream bookmark mirror handler', () => {
-  it('requires categoryId before mirroring a bookmark to Second Brain', async () => {
+  it('mirrors an uncategorized bookmark when categoryId is omitted (starter-pack promote)', async () => {
+    const { bookmarkLearningStreamItemHandler } = await import('../learning-stream');
+    const res = createRes();
+    const mirrored = {
+      item: { id: 25, brainliftId: 7, status: 'bookmarked' },
+      source: { id: 99, brainliftId: 7, categoryId: null, learningStreamItemId: 25 },
+    };
+    mockDb.transaction.mockResolvedValue(mirrored);
+
+    await bookmarkLearningStreamItemHandler(createReq(), res);
+
+    expect(mockDb.transaction).toHaveBeenCalled();
+    expect(res.json).toHaveBeenCalledWith(mirrored);
+  });
+
+  it('rejects a non-numeric categoryId', async () => {
     const { bookmarkLearningStreamItemHandler } = await import('../learning-stream');
 
-    await expect(bookmarkLearningStreamItemHandler(createReq(), createRes()))
-      .rejects.toThrow('categoryId required before save to Second Brain');
+    await expect(bookmarkLearningStreamItemHandler(
+      createReq({ body: { categoryId: 'eleven' } }),
+      createRes(),
+    )).rejects.toThrow('categoryId must be a number when provided');
 
     expect(mockStorage.updateLearningStreamItemStatus).not.toHaveBeenCalled();
   });

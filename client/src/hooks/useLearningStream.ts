@@ -21,7 +21,7 @@ export interface LearningStreamItem {
   time: string;                     // "5 min", "15 min"
   facts: string;                    // Key Insights preview
   url: string;
-  source: 'quick-search' | 'deep-research' | 'twitter' | 'swarm-research';
+  source: 'quick-search' | 'deep-research' | 'twitter' | 'swarm-research' | 'manual' | 'starter-pack';
   status: 'pending' | 'bookmarked' | 'graded' | 'discarded';
   relevanceScore: string | null;    // AI relevance score "0.5" to "1.0"
   aiRationale: string | null;       // Project-specific "Why this matters"

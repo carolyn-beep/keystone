@@ -28,7 +28,6 @@ export interface InternalBrainliftExpert {
   rankScore: number | null;
   rationale: string | null;
   twitterHandle: string | null;
-  isFollowing: boolean;
 }
 
 export interface InternalBrainliftDok1 {
@@ -226,7 +225,6 @@ export async function getInternalBrainliftDetailForAuthContext(
       rankScore: expert.rankScore ?? null,
       rationale: expert.rationale ?? null,
       twitterHandle: expert.twitterHandle ?? null,
-      isFollowing: expert.isFollowing ?? false,
     })),
     dok1: detail.dok1.map((item) => ({
       id: item.id,

@@ -1,5 +1,5 @@
 import {
-  db, eq, and, sql,
+  db, eq, and, sql, inArray,
   learningStreamItems, swarmUsage,
   type LearningStreamItem, type NewLearningStreamItem
 } from './base';
@@ -32,9 +32,10 @@ export async function addLearningStreamItem(
     time: string;
     facts: string;
     url: string;
-    source: 'quick-search' | 'deep-research' | 'twitter' | 'swarm-research' | 'manual';
+    source: 'quick-search' | 'deep-research' | 'twitter' | 'swarm-research' | 'manual' | 'starter-pack';
     relevanceScore?: string | null;
     aiRationale?: string | null;
+    categoryId?: number | null;
   }
 ): Promise<LearningStreamItem> {
   // Validate URL to prevent XSS attacks (javascript:, data:, file:// protocols)
@@ -53,6 +54,7 @@ export async function addLearningStreamItem(
       status: 'pending',
       relevanceScore: item.relevanceScore || null,
       aiRationale: item.aiRationale || null,
+      categoryId: item.categoryId ?? null,
     }).returning();
 
     // Fire-and-forget: queue content extraction in background
@@ -113,7 +115,7 @@ export async function getLearningStreamItems(
 export async function updateLearningStreamItemStatus(
   itemId: number,
   brainliftId: number,
-  status: 'bookmarked' | 'discarded'
+  status: 'pending' | 'bookmarked' | 'discarded'
 ): Promise<LearningStreamItem | null> {
   const [updated] = await db.update(learningStreamItems)
     .set({
@@ -127,6 +129,32 @@ export async function updateLearningStreamItemStatus(
     .returning();
 
   return updated || null;
+}
+
+/**
+ * Backfill presentation metadata (topic/author/type) discovered during
+ * content extraction — used for pasted manual items whose insert-time values
+ * are placeholders (raw URL as topic, hostname as author, type 'News').
+ * Only provided, non-empty fields are written. IDOR-safe: brainliftId in the
+ * WHERE clause.
+ */
+export async function updateLearningStreamItemMetadata(
+  itemId: number,
+  brainliftId: number,
+  patch: { topic?: string; author?: string; type?: string },
+): Promise<void> {
+  const set: Partial<{ topic: string; author: string; type: string }> = {};
+  if (patch.topic) set.topic = patch.topic;
+  if (patch.author) set.author = patch.author;
+  if (patch.type) set.type = patch.type;
+  if (Object.keys(set).length === 0) return;
+
+  await db.update(learningStreamItems)
+    .set({ ...set, updatedAt: new Date() })
+    .where(and(
+      eq(learningStreamItems.id, itemId),
+      eq(learningStreamItems.brainliftId, brainliftId)
+    ));
 }
 
 /**
@@ -324,7 +352,11 @@ export async function getSwarmUsageToday(userId: string): Promise<{
     .from(swarmUsage)
     .where(and(
       eq(swarmUsage.userId, userId),
-      sql`${swarmUsage.createdAt} >= date_trunc('day', now() AT TIME ZONE 'UTC')`
+      sql`${swarmUsage.createdAt} >= date_trunc('day', now() AT TIME ZONE 'UTC')`,
+      // Quick (starter-pack) runs are recorded for cost observability but do NOT
+      // consume the daily cap (spec 05 Assumption 1). `IS DISTINCT FROM` keeps
+      // NULL/absent run_spec rows counted.
+      sql`${swarmUsage.runSpec}->>'quick' IS DISTINCT FROM 'true'`
     ));
 
   const used = result?.count ?? 0;
@@ -372,4 +404,61 @@ export async function updateSwarmUsageEstimatedUsd(runId: number, usd: number): 
     .update(swarmUsage)
     .set({ estimatedUsd: usd.toFixed(4) })
     .where(eq(swarmUsage.id, runId));
+}
+
+// === Starter Pack (spec 05) ===
+
+/**
+ * Whether a starter-pack run has ever produced a row for this brainlift (any
+ * status). Used to enforce one pack per brainlift — a first run that yielded
+ * zero items leaves no rows, so a re-fire is naturally allowed.
+ */
+export async function hasStarterPackItems(brainliftId: number): Promise<boolean> {
+  const [existing] = await db.select({ id: learningStreamItems.id })
+    .from(learningStreamItems)
+    .where(and(
+      eq(learningStreamItems.brainliftId, brainliftId),
+      eq(learningStreamItems.source, 'starter-pack'),
+    ))
+    .limit(1);
+
+  return !!existing;
+}
+
+/**
+ * Pending starter-pack candidates for the scope filter (DB-side status+source
+ * filtering). Projects only the fields the filter needs.
+ */
+export async function getPendingStarterPackItems(
+  brainliftId: number,
+): Promise<Array<{ id: number; topic: string; facts: string; url: string }>> {
+  return db.select({
+    id: learningStreamItems.id,
+    topic: learningStreamItems.topic,
+    facts: learningStreamItems.facts,
+    url: learningStreamItems.url,
+  })
+    .from(learningStreamItems)
+    .where(and(
+      eq(learningStreamItems.brainliftId, brainliftId),
+      eq(learningStreamItems.status, 'pending'),
+      eq(learningStreamItems.source, 'starter-pack'),
+    ));
+}
+
+/**
+ * Discard the given starter-pack items in one brainlift-scoped batch UPDATE.
+ * No-op for an empty id list.
+ */
+export async function discardStarterPackItems(
+  itemIds: number[],
+  brainliftId: number,
+): Promise<void> {
+  if (itemIds.length === 0) return;
+  await db.update(learningStreamItems)
+    .set({ status: 'discarded', updatedAt: new Date() })
+    .where(and(
+      inArray(learningStreamItems.id, itemIds),
+      eq(learningStreamItems.brainliftId, brainliftId),
+    ));
 }

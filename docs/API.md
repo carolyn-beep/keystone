@@ -78,6 +78,119 @@ All API endpoints (except `/api/auth/*`) require authentication via Better Auth 
 
 ---
 
+## Onboarding Wizard (`server/routes/onboarding.ts`)
+
+The wizard's server-backed state machine. `brainlifts.onboarding_step` is the
+source of truth: `1..6` = in progress, `NULL` = finished (or legacy/imported).
+(2026-06-11: the step-7 Done screen was removed — Resources (6) is the last
+step; the success beat is a client-side modal on the landing page.)
+
+| Method | Endpoint | Auth | Description |
+|--------|----------|------|-------------|
+| POST | `/api/onboarding/projects` | `requireAuth` | Create a brainlift from the Topic step (`phase='research'`, `onboardingStep=1`) |
+| PATCH | `/api/brainlifts/:slug/onboarding` | `requireAuth` + `requireBrainliftModify` | Persist wizard progress (forward-only step + scope arrays) |
+| POST | `/api/brainlifts/:slug/onboarding/complete` | `requireAuth` + `requireBrainliftModify` | Finish onboarding (`onboardingStep = NULL`); idempotent |
+| POST | `/api/onboarding/topic-suggestions` | `requireAuth` | Topic idea chips for step 1 (pre-create); non-blocking |
+| POST | `/api/brainlifts/:slug/onboarding/suggestions` | `requireAuth` + `requireBrainliftModify` | Scope / category suggestion chips for steps 2-4; non-blocking |
+| POST | `/api/brainlifts/:slug/onboarding/expert-discovery` | `requireAuth` + `requireBrainliftAccess` | Search-grounded expert candidates for the Experts step (fail-open) |
+| POST | `/api/brainlifts/:slug/onboarding/starter-pack` | `requireAuth` + `requireBrainliftModify` | Launch the quick, cap-exempt starter-pack swarm (fired on Categories Next) |
+| GET | `/api/brainlifts/:slug/onboarding/starter-pack` | `requireAuth` + `requireBrainliftAccess` | Starter-pack status for the Resources step poll (`idle` / `running` / `ready`) |
+| POST | `/api/brainlifts/:slug/onboarding/resources` | `requireAuth` + `requireBrainliftModify` | Paste a link into the learning stream (`source='manual'`) |
+
+### POST `/api/onboarding/projects`
+
+Body `{ topic: string, focus?: string, why?: string }` (trimmed; topic 3-400
+chars, focus/why up to 400) — the three-part Topic-step field. Creation is
+optimistic: the row is inserted immediately with `title = topic`, the full
+composed topic sentence persisted as `onboarding_topic` (feeds all downstream
+AI prompts), `description = ''`, zeroed summary, and a slug derived from the
+topic (capped at 60 chars, uniqueness retry suffix on collision). Returns
+`201` with the row right away; the AI project title (gemini-2.5-flash-lite,
+caller `onboarding.projectTitle`) then backfills `title` in the background
+(fail-open: on any model failure the raw topic stays). `400` on invalid body,
+`401` unauthenticated.
+
+### PATCH `/api/brainlifts/:slug/onboarding`
+
+Body `{ step?, inScope?, outOfScope? }`. `step` is an int `1..6` and a
+forward-only high-water mark: a regression (`step < onboardingStep`) → `400`;
+`step` out of bounds → `400` (schema). Scope arrays hold up to 30 non-empty
+trimmed strings (max 300 chars each — they are interpolated into AI prompts)
+and persist via `updateBrainliftScope`. Patching a
+completed brainlift (`onboardingStep` is `NULL`) → `409`. Foreign slug → `404`
+(via `requireBrainliftModify`). Returns `200` with the updated row.
+
+### POST `/api/brainlifts/:slug/onboarding/complete`
+
+No body. Sets `onboardingStep = NULL` and returns `200 { slug }`. Idempotent:
+a repeat call on an already-complete brainlift returns `200 { slug }` without a
+write.
+
+### POST `/api/onboarding/topic-suggestions`
+
+Body `{ exclude?: string[] }` (max 20). Returns
+`200 { suggestions: OnboardingTopicSuggestion[] }` where each element is
+`{ text, topic, focus, why }` (see `shared/routes.ts`) — the suggestion split
+for the three-part topic field ("I'll be working on [topic] / specifically
+focusing on [focus] / in order to [why]"); `text` is the full composed
+sentence. Pre-create, so auth-only (no slug). `exclude` lists already-shown
+suggestion texts so a refresh asks for different ones. Non-blocking: any AI
+failure / timeout returns `200 { suggestions: [] }` (not an error status).
+Generated sentences that don't match the template are dropped server-side.
+
+### POST `/api/brainlifts/:slug/onboarding/suggestions`
+
+Body `{ kind: 'in-scope' | 'out-of-scope' | 'categories', exclude?: string[] }`
+(`exclude` max 40). Returns `200 { suggestions: string[] }` (5-8 scope phrases
+/ 4-6 category names). Topic and scope inputs are read server-side from the
+brainlift row (`title`, `in_scope`, `out_of_scope`) — never from the request
+body. Invalid `kind` → `400`; foreign slug → `404` (via
+`requireBrainliftModify`). Non-blocking: AI failure → `200 { suggestions: [] }`.
+### POST `/api/brainlifts/:slug/onboarding/expert-discovery`
+
+No body. Reads context server-side from the loaded brainlift (`title`,
+`inScope`, category names via `getCategoriesWithCountsForSecondBrain`), runs
+`discoverExperts` (2-3 Exa `searchWeb` passes → one `anthropic/claude-haiku-4.5`
+extraction, search-grounded in code, deduped, capped at 5), and returns
+`200 { candidates }` (shape per `expertDiscoveryResponse`; each candidate carries
+`evidenceUrls` with ≥1 entry). **Fail-open:** any search/model failure degrades
+to `200 { candidates: [] }` — it never 5xx's the wizard. Foreign slug → `404`,
+unauthenticated → `401`.
+
+### POST `/api/brainlifts/:slug/onboarding/starter-pack`
+
+No body. Launches the quick (starter-pack) swarm: a 3-agent `quick: true` run
+(forced `anthropic/claude-haiku-4.5`, 20-step cap, no recovery, 2-3 saves/slot,
+items land `source='starter-pack'`), orchestrated synchronously then run in the
+background. After the swarm completes, if the project declared out-of-scope
+topics, a cheap scope filter (`onboarding.scopeFilter`) prunes out-of-scope
+items to `discarded`. **Cap-exempt:** the daily swarm limit is never checked and
+the recorded `swarm_usage` row is excluded from `getSwarmUsageToday`. Guards
+mirror `/learning-stream/launch` minus the cap: an active swarm / pending job /
+in-flight pack → `409 research_run_in_progress` (with `existingRunId`); existing
+starter-pack rows → `409 starter_pack_already_run` (a first run yielding zero
+rows allows a re-fire). Otherwise `200 { runId }`. Foreign slug → `404`,
+unauthenticated → `401`.
+
+### GET `/api/brainlifts/:slug/onboarding/starter-pack`
+
+No body. Returns `200 { status }` where `status` is `running` while the pack is
+in flight (orchestrate → swarm → filter), `ready` once any starter-pack row
+exists, else `idle`. A `ready` with zero surviving pending items is legal
+(paste-only Resources UI). Foreign slug → `404`, unauthenticated → `401`.
+
+### POST `/api/brainlifts/:slug/onboarding/resources`
+
+Body `{ url: string }` (trimmed, valid http/https URL). An existing URL for the
+brainlift → `200 { item, duplicate: true }` (no new row). Otherwise creates a
+pending `source='manual'` learning-stream item with pre-extraction defaults
+(`type='News'`, `author`=URL hostname, `topic`=URL, `time='—'`, `facts=''`; the
+content-extraction job auto-fires at insert) → `201 { item, duplicate: false }`.
+Non-http(s) / invalid URL → `400`; foreign slug → `404`; unauthenticated →
+`401`.
+
+---
+
 ## Native Brainlifts (`server/routes/native-brainlifts.ts`)
 
 Endpoints for creating and managing native (Builder) brainlifts.
@@ -147,10 +260,19 @@ All routes nested under `/api/brainlifts/:slug/experts` for authorization contex
 | Method | Endpoint | Auth | Description |
 |--------|----------|------|-------------|
 | GET | `/api/brainlifts/:slug/experts` | `requireAuth` | Get all experts for brainlift |
+| POST | `/api/brainlifts/:slug/experts` | `requireAuth` + `requireBrainliftModify` | Create 1-10 experts (`source='onboarding'`) |
 | POST | `/api/brainlifts/:slug/experts/refresh` | `requireAuth` | Extract/refresh experts using AI |
-| PATCH | `/api/brainlifts/:slug/experts/:id/follow` | `requireAuth` | Update expert following status |
 | DELETE | `/api/brainlifts/:slug/experts/:id` | `requireAuth` | Delete an expert |
-| GET | `/api/brainlifts/:slug/experts/following` | `requireAuth` | Get followed experts only |
+
+### POST `/api/brainlifts/:slug/experts`
+
+Body `{ experts: [{ name, where, who?, why?, focus? }] }` validated by
+`createExpertsInput` (1-10 experts; `name` and `where` required, trimmed,
+non-empty; `who`/`why`/`focus` optional). Wraps `createBrainliftExperts` with
+`source='onboarding'` (rank refresh queued by the service). Returns
+`201 { experts }`. Used by the onboarding wizard's Experts step for both
+accepting a discovered candidate and a manual add. Invalid body → `400`,
+foreign slug → `404`.
 
 ---
 
@@ -227,8 +349,9 @@ All routes nested under `/api/brainlifts/:slug/learning-stream` for authorizatio
 |--------|----------|------|-------------|
 | GET | `/api/brainlifts/:slug/learning-stream` | `requireBrainliftAccess` | Get learning stream items (with filters) |
 | GET | `/api/brainlifts/:slug/learning-stream/stats` | `requireBrainliftAccess` | Get stream stats (pending/saved/graded counts) |
-| PATCH | `/api/brainlifts/:slug/learning-stream/:itemId/bookmark` | `requireBrainliftModify` | Bookmark/unbookmark an item |
+| PATCH | `/api/brainlifts/:slug/learning-stream/:itemId/bookmark` | `requireBrainliftModify` | Bookmark an item into Second Brain (mirrors a `sources` row, item → `bookmarked`). `categoryId` optional — omitted saves the source uncategorized (wizard starter-pack Add) |
 | PATCH | `/api/brainlifts/:slug/learning-stream/:itemId/discard` | `requireBrainliftModify` | Discard/undiscard an item |
+| PATCH | `/api/brainlifts/:slug/learning-stream/:itemId/restore` | `requireBrainliftModify` | Restore a discarded item to pending |
 | POST | `/api/brainlifts/:slug/learning-stream/:itemId/grade` | `requireBrainliftModify` | Grade an item |
 | GET | `/api/brainlifts/:slug/learning-stream/:itemId/content` | `requireBrainliftAccess` | Get extracted content for an item |
 | POST | `/api/brainlifts/:slug/learning-stream/refresh` | `requireBrainliftModify` | Trigger research refill |
@@ -517,10 +640,10 @@ All child resource routes include the parent brainlift slug for authorization:
 
 ```
 # Good - authorization context in URL
-PATCH /api/brainlifts/:slug/experts/:id/follow
+DELETE /api/brainlifts/:slug/experts/:id
 
 # Avoid - requires extra DB lookup for authorization
-PATCH /api/experts/:id/follow
+DELETE /api/experts/:id
 ```
 
 ### Authorization Flow
@@ -531,8 +654,8 @@ PATCH /api/experts/:id/follow
 4. Handler uses `req.brainlift` directly
 
 ```typescript
-router.patch(
-  '/api/brainlifts/:slug/experts/:id/follow',
+router.delete(
+  '/api/brainlifts/:slug/experts/:id',
   requireAuth,
   requireBrainliftModify,
   asyncHandler(async (req, res) => {
@@ -540,12 +663,12 @@ router.patch(
     if (isNaN(expertId)) throw new BadRequestError('Invalid expert ID');
 
     // Use *ForBrainlift function to verify child resource ownership
-    const updated = await storage.updateExpertFollowingForBrainlift(
-      expertId, req.brainlift!.id, req.body.isFollowing
+    const deleted = await storage.deleteExpertForBrainlift(
+      expertId, req.brainlift!.id
     );
-    if (!updated) throw new NotFoundError('Expert not found');
+    if (!deleted) throw new NotFoundError('Expert not found');
 
-    res.json(updated);
+    res.json({ success: true });
   })
 );
 ```

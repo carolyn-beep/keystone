@@ -15,6 +15,11 @@ export interface BrainliftDigest {
   id: number;
   title: string;
   displayPurpose: string | null;
+  /** Full composed topic sentence from the onboarding wizard ("X, specifically focusing on Y, in order to Z"). */
+  onboardingTopic: string | null;
+  /** In/Out scope phrases from the onboarding wizard; empty = no scope context. */
+  inScope: string[];
+  outOfScope: string[];
   facts: Array<{ id: number; fact: string; category: string; score: number }>;
   experts: Array<{ id: number; name: string; twitterHandle: string | null }>;
   spovExcerpts: Array<{ id: number; title: string; body: string }>;
@@ -24,7 +29,7 @@ export interface SecondBrainDigest {
   totalSources: number;
   totalNotes: number;
   categories: Array<{ id: number; name: string; sourceCount: number; noteCount: number }>;
-  sources: Array<{ id: number; title: string; url: string; author: string; categoryName: string }>;
+  sources: Array<{ id: number; title: string; url: string; author: string; categoryName: string | null }>;
   notes: Array<{
     id: number;
     content: string;
@@ -38,7 +43,7 @@ export interface SwarmContext {
   phase: 'research' | 'authoring';
   brainlift: BrainliftDigest;
   secondBrain: SecondBrainDigest;
-  followedExperts: Array<{ id: number; name: string; twitterHandle: string | null; rankScore: number | null }>;
+  topExperts: Array<{ id: number; name: string; twitterHandle: string | null; rankScore: number | null }>;
   existingUrls: string[];
   renderedDigest: string;
   digestCharCount: number;
@@ -49,7 +54,7 @@ type NonNullLearningStreamContext = NonNullable<LearningStreamContext>;
 type SourceRow = Awaited<ReturnType<typeof storage.getSourcesByBrainlift>>[number];
 type NoteRow = Awaited<ReturnType<typeof storage.getNotesByBrainlift>>[number];
 type CategoryRow = Awaited<ReturnType<typeof storage.listCategories>>[number] & { noteCount?: number };
-type ExpertRow = Awaited<ReturnType<typeof storage.getFollowedExperts>>[number];
+type ExpertRow = Awaited<ReturnType<typeof storage.getExpertsByBrainliftId>>[number];
 
 function normalizeTwitterHandle(handle: string | null | undefined): string | null {
   if (!handle) return null;
@@ -88,7 +93,7 @@ function renderNote(note: SecondBrainDigest['notes'][number]): string {
 }
 
 function renderExperts(experts: Array<{ name: string; twitterHandle: string | null; rankScore?: number | null }>): string[] {
-  if (experts.length === 0) return ['(no followed experts yet)'];
+  if (experts.length === 0) return ['(no experts yet)'];
   return experts.map((expert) => {
     const handle = expert.twitterHandle ? ` @${normalizeTwitterHandle(expert.twitterHandle)}` : '';
     const rank = expert.rankScore == null ? '' : ` rank=${expert.rankScore}`;
@@ -147,17 +152,39 @@ function renderSecondBrainSection(secondBrain: SecondBrainDigest, budget: number
   return truncateToBudget(lines.join('\n'), budget);
 }
 
-function renderBrainliftSection(brainlift: BrainliftDigest, experts: SwarmContext['followedExperts'], budget: number, includeAuthoringDetails: boolean): string {
+function renderScopeBlock(brainlift: BrainliftDigest, lines: string[], budget: number): void {
+  const inScope = brainlift.inScope ?? [];
+  const outOfScope = brainlift.outOfScope ?? [];
+
+  if (inScope.length > 0) {
+    lines.push('', '### In scope');
+    for (const phrase of inScope) {
+      appendBudgetedLine(lines, `- ${clampText(phrase, SOURCE_TITLE_CHAR_BUDGET)}`, budget);
+    }
+  }
+  if (outOfScope.length > 0) {
+    lines.push('', '### Out of scope (do NOT pursue)');
+    for (const phrase of outOfScope) {
+      appendBudgetedLine(lines, `- ${clampText(phrase, SOURCE_TITLE_CHAR_BUDGET)}`, budget);
+    }
+  }
+}
+
+function renderBrainliftSection(brainlift: BrainliftDigest, experts: SwarmContext['topExperts'], budget: number, includeAuthoringDetails: boolean): string {
   const lines = [
     '## Brainlift',
     `Title: ${brainlift.title}`,
   ];
 
-  if (brainlift.displayPurpose) {
+  if (brainlift.onboardingTopic) {
+    lines.push(`Project: ${brainlift.onboardingTopic}`);
+  } else if (brainlift.displayPurpose) {
     lines.push(`Display purpose: ${brainlift.displayPurpose}`);
   }
 
-  lines.push('', '### Followed Experts', ...renderExperts(experts));
+  renderScopeBlock(brainlift, lines, budget);
+
+  lines.push('', '### Experts', ...renderExperts(experts));
 
   if (includeAuthoringDetails) {
     lines.push('', '### DOK1 Facts');
@@ -183,7 +210,7 @@ function renderBrainliftSection(brainlift: BrainliftDigest, experts: SwarmContex
 export function renderResearchPhaseDigest(
   brainlift: BrainliftDigest,
   secondBrain: SecondBrainDigest,
-  followedExperts: SwarmContext['followedExperts'],
+  topExperts: SwarmContext['topExperts'],
 ): string {
   const header = [`# ${brainlift.title}`];
   if (brainlift.displayPurpose) {
@@ -193,7 +220,7 @@ export function renderResearchPhaseDigest(
   const secondBrainSection = renderSecondBrainSection(secondBrain, 24_000, true);
   const brainliftSection = renderBrainliftSection(
     { ...brainlift, facts: [], spovExcerpts: [] },
-    followedExperts,
+    topExperts,
     8_000,
     false,
   );
@@ -207,14 +234,14 @@ export function renderResearchPhaseDigest(
 export function renderAuthoringPhaseDigest(
   brainlift: BrainliftDigest,
   secondBrain: SecondBrainDigest,
-  followedExperts: SwarmContext['followedExperts'],
+  topExperts: SwarmContext['topExperts'],
 ): string {
   const header = [`# ${brainlift.title}`];
   if (brainlift.displayPurpose) {
     header.push('', brainlift.displayPurpose);
   }
 
-  const brainliftSection = renderBrainliftSection(brainlift, followedExperts, 20_000, true);
+  const brainliftSection = renderBrainliftSection(brainlift, topExperts, 20_000, true);
   const secondBrainSection = renderSecondBrainSection(secondBrain, 12_000, false);
 
   return truncateToBudget(
@@ -288,9 +315,9 @@ function buildSecondBrainDigest(
 function buildBrainliftDigest(
   context: NonNullLearningStreamContext,
   spovs: Awaited<ReturnType<typeof storage.getDOK4Spovs>>,
-  followedExperts: ExpertRow[],
+  topExperts: ExpertRow[],
   phase: 'research' | 'authoring',
-): BrainliftDigest {
+): Omit<BrainliftDigest, 'inScope' | 'outOfScope' | 'onboardingTopic'> {
   const authoringFacts = phase === 'authoring'
     ? [...context.facts]
       .filter((fact) => fact.score >= 3)
@@ -298,7 +325,7 @@ function buildBrainliftDigest(
       .slice(0, MAX_AUTHORING_FACTS)
     : [];
   const authoringExperts = phase === 'authoring'
-    ? (context.experts.length > 0 ? context.experts : followedExperts)
+    ? (context.experts.length > 0 ? context.experts : topExperts)
       .slice(0, MAX_AUTHORING_EXPERTS)
       .map((expert) => ({
         id: expert.id,
@@ -341,7 +368,7 @@ export async function buildSwarmContext(
     notes,
     categories,
     spovs,
-    followedExpertsRaw,
+    topExpertsRaw,
     existingUrls,
   ] = await Promise.all([
     storage.getBrainliftById(brainliftId),
@@ -350,7 +377,7 @@ export async function buildSwarmContext(
     storage.getNotesByBrainlift(brainliftId),
     storage.listCategories(brainliftId),
     storage.getDOK4Spovs(brainliftId),
-    storage.getFollowedExperts(brainliftId),
+    storage.getExpertsByBrainliftId(brainliftId),
     storage.getLearningStreamUrls(brainliftId),
   ]);
 
@@ -359,7 +386,7 @@ export async function buildSwarmContext(
   }
 
   const phase = brainliftRecord.phase === 'research' ? 'research' : 'authoring';
-  const followedExperts = followedExpertsRaw
+  const topExperts = topExpertsRaw
     .slice(0, MAX_AUTHORING_EXPERTS)
     .map((expert) => ({
       id: expert.id,
@@ -368,16 +395,21 @@ export async function buildSwarmContext(
       rankScore: expert.rankScore,
     }));
   const secondBrain = buildSecondBrainDigest(sources, notes, categories, phase);
-  const brainlift = buildBrainliftDigest(learningStreamContext, spovs, followedExpertsRaw, phase);
+  const brainlift: BrainliftDigest = {
+    ...buildBrainliftDigest(learningStreamContext, spovs, topExpertsRaw, phase),
+    onboardingTopic: learningStreamContext.onboardingTopic ?? null,
+    inScope: brainliftRecord.inScope ?? [],
+    outOfScope: brainliftRecord.outOfScope ?? [],
+  };
   const renderedDigest = phase === 'research'
-    ? renderResearchPhaseDigest(brainlift, secondBrain, followedExperts)
-    : renderAuthoringPhaseDigest(brainlift, secondBrain, followedExperts);
+    ? renderResearchPhaseDigest(brainlift, secondBrain, topExperts)
+    : renderAuthoringPhaseDigest(brainlift, secondBrain, topExperts);
 
   return {
     phase,
     brainlift,
     secondBrain,
-    followedExperts,
+    topExperts,
     existingUrls,
     renderedDigest,
     digestCharCount: renderedDigest.length,
