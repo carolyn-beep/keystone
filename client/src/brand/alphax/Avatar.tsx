@@ -1,5 +1,5 @@
 /**
- * AlphaX avatar component.
+ * Keystone avatar component.
  *
  * Three variants matching the three call sites that exist today:
  *

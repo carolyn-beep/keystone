@@ -81,13 +81,13 @@ const CALLER: Record<OnboardingSuggestionKind, string> = {
 };
 
 /**
- * The AlphaX population, as the suggestion model needs to see it: mostly
+ * The Keystone population, as the suggestion model needs to see it: mostly
  * entrepreneurial, a minority chasing audience / competitive / research goals.
  * Without this block the model falls back on its own "teen hobbyist"
  * stereotype (fermentation, gardening, beekeeping — 0% of real projects).
  */
 const PERSONA =
-  `AlphaX is an entrepreneurial high-school program where students graduate with a working business ` +
+  `Keystone is an entrepreneurial high-school program where students graduate with a working business ` +
   `of their own; most are building real businesses, apps, and brands. A few chase other ambitions at ` +
   `the same bar: a real audience, a competitive result, research the field notices, often as their ` +
   `edge into college or a career. Money is rarely the constraint.`;
@@ -166,7 +166,7 @@ function parseSuggestions(content: string, cap: number): string[] {
  */
 function buildTopicStage1Prompt(anchors: string[], exclude?: string[]): string {
   return (
-    `Invent 6-8 projects a high-school student in the AlphaX program might actually build or chase. ` +
+    `Invent 6-8 projects a high-school student in the Keystone program might actually build or chase. ` +
     `${PERSONA}\n\n` +
     `Real projects from students on this platform:\n` +
     anchors.map((a) => `- ${a}`).join('\n') +

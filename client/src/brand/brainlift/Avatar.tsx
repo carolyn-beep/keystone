@@ -2,7 +2,7 @@
  * Brainlift Central avatar.
  *
  * Renders the Brainlift Central mark (the gold brain-with-arrow logo).
- * Mirrors the AlphaX avatar treatment: glow + circular frame + image
+ * Mirrors the Keystone avatar treatment: glow + circular frame + image
  * triplet on the login card and sidebar; bare img for runtime chat avatars.
  *
  * Variants:

@@ -1,5 +1,5 @@
 /**
- * AlphaX login illustration component.
+ * Keystone login illustration component.
  *
  * A `<figure>` element wrapping the frame + image + four corner ornaments.
  * The CSS classes (`login-hero-plate*`) live in `client/src/index.css`.

@@ -47,7 +47,7 @@ const firedAskForConversation = new Set<number>();
  *      (module-level Set guard).
  *
  * Brand behaviour differs:
- *   - AlphaX: appends a synthetic ASSISTANT message with hardcoded welcome
+ *   - Keystone: appends a synthetic ASSISTANT message with hardcoded welcome
  *     text personalized with the student's first name. The AI SDK adapter's
  *     `onNew` callback still fires a request to `/api/chat/stream`, but the
  *     server detects "last message is assistant" and short-circuits without

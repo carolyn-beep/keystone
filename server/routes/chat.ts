@@ -8,7 +8,7 @@ import {
   streamText,
   type UIMessage,
 } from 'ai';
-import { isSyntheticAlphaXAssistantOpener } from '@shared/alphax-synthetic-opener';
+import { isSyntheticKeystoneAssistantOpener } from '@shared/alphax-synthetic-opener';
 import { DEFAULT_CHAT_MODEL_ID, isChatModelId } from '@shared/chat-models';
 import { requireAuth } from '../middleware/auth';
 import { asyncHandler, BadRequestError, NotFoundError } from '../middleware/error-handler';
@@ -243,12 +243,12 @@ export async function streamChatHandler(req: Request, res: Response): Promise<vo
     return { ...message, parts: kept };
   });
 
-  // Opener short-circuit: only the exact synthetic AlphaX welcome should be
+  // Opener short-circuit: only the exact synthetic Keystone welcome should be
   // swallowed here. Any other assistant-last message must continue normally;
   // client-resolved tools resume with assistant-last `tool-*` messages, and
   // future plain assistant messages should not be silently dropped.
   const lastMessage = messages.at(-1);
-  if (isSyntheticAlphaXAssistantOpener(lastMessage)) {
+  if (isSyntheticKeystoneAssistantOpener(lastMessage)) {
     const stream = createUIMessageStream({
       execute: async () => {
         // Intentionally empty — no model call, no parts written.

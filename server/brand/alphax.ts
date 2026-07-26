@@ -1,5 +1,5 @@
 /**
- * AlphaX server-side brand module.
+ * Keystone server-side brand module.
  *
  * `buildKeystoneSystemPrompt` produces output that is byte-identical to the
  * pre-Spec-03 `buildChatSystemPrompt` in `server/ai/chat/system-prompt.ts`.
@@ -8,10 +8,10 @@
  * this builder.
  *
  * `buildKeystoneBrainliftHeuristics` is the verbatim move of the prior private
- * helper of the same name. AlphaX heuristics revolve around `activePlans`
+ * helper of the same name. Keystone heuristics revolve around `activePlans`
  * (sprint-driven coaching).
  *
- * `formatKeystoneUserContext` is the AlphaX flavour of the USER CONTEXT block.
+ * `formatKeystoneUserContext` is the Keystone flavour of the USER CONTEXT block.
  * It includes the `Active sprint plans (across ALL brainlifts...)` block; BC
  * omits that line entirely because BC has no exposed sprint concept.
  */

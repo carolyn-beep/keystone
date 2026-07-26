@@ -4,13 +4,13 @@
  * Both `buildKeystoneSystemPrompt` and `buildBrainliftSystemPrompt` import the
  * brand-agnostic formatters here. The transferable prose blocks
  * (`BRAINLIFT_OPERATING_PROTOCOLS`, `TOOLS_PROTOCOL`) are byte-identical to
- * the existing AlphaX prompt -- relocating them here keeps the AlphaX prompt
+ * the existing Keystone prompt -- relocating them here keeps the Keystone prompt
  * unchanged while letting BC reuse the same wording.
  *
- * The TONE block is NOT shared verbatim because the existing AlphaX bullets
+ * The TONE block is NOT shared verbatim because the existing Keystone bullets
  * reference "student" and the "older sibling, mentor, startup coach" persona,
  * neither of which fits BC's adult peer-researcher posture. `TONE_HELPERS_SHARED`
- * exposes a neutralized version BC composes with its own intro line; AlphaX
+ * exposes a neutralized version BC composes with its own intro line; Keystone
  * embeds its tone block inline to preserve byte-identity.
  */
 
@@ -199,7 +199,7 @@ export function formatSkillSummaries(skills: SkillSummary[]): string[] {
 }
 
 /**
- * Tone helpers neutralized for cross-brand use. AlphaX does NOT consume this
+ * Tone helpers neutralized for cross-brand use. Keystone does NOT consume this
  * constant -- it embeds its own tone block inline to keep its prompt
  * byte-identical to the pre-Spec-03 prose. BC composes this after its own
  * peer-researcher intro line.
@@ -212,7 +212,7 @@ export const TONE_HELPERS_SHARED: string[] = [
 
 /**
  * The full BRAINLIFT OPERATING PROTOCOLS section, byte-identical to the
- * pre-Spec-03 AlphaX prose. Both brand builders include this verbatim.
+ * pre-Spec-03 Keystone prose. Both brand builders include this verbatim.
  */
 export const BRAINLIFT_OPERATING_PROTOCOLS: string[] = [
   '=== START OF BRAINLIFT OPERATING PROTOCOLS ===',
@@ -288,13 +288,13 @@ export const TOOLS_PROTOCOL: string[] = [
 
 /**
  * Brand-agnostic Second Brain capture posture. Included verbatim by both
- * AlphaX authoring and Brainlift Central authoring prompts so the agent
+ * Keystone authoring and Brainlift Central authoring prompts so the agent
  * captures user signal as notes aggressively in any project context.
  * Research mode has its own, longer capture instructions inline.
  */
 /**
  * Authoring-mode note about the AI Writing Signal. Inserted into the three
- * authoring system prompts (AlphaX, Brainlift Central, Discussion authoring
+ * authoring system prompts (Keystone, Brainlift Central, Discussion authoring
  * branch) between MAIN OPERATIONAL POSTURE and SECOND BRAIN CAPTURE. Research
  * prompts intentionally omit this section because no DOK2/3/4 authoring
  * happens in research mode. See features/integrity/pangram-ai-detection
@@ -336,10 +336,10 @@ export const SECOND_BRAIN_CAPTURE: string[] = [
 
 /**
  * Brainlift Central variant of BRAINLIFT OPERATING PROTOCOLS. Same structure
- * and behaviour as the AlphaX original, rewritten for an adult peer-research
+ * and behaviour as the Keystone original, rewritten for an adult peer-research
  * audience: "the user" / "researcher" replaces "the student", references to
- * "AlphaX" become "Brainlift Central", and the downstream-deliverables
- * paragraph drops the AlphaX-only artifacts (sprint plans, market plans,
+ * "Keystone" become "Brainlift Central", and the downstream-deliverables
+ * paragraph drops the Keystone-only artifacts (sprint plans, market plans,
  * patents) that BC does not surface.
  */
 export const BRAINLIFT_OPERATING_PROTOCOLS_BC: string[] = [

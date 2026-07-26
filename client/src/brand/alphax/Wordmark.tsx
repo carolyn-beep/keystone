@@ -1,5 +1,5 @@
 /**
- * AlphaX wordmark component.
+ * Keystone wordmark component.
  *
  * Three-span "Alpha" / "x" / "Buddy" structure extracted byte-for-byte from
  * the current `Login.tsx` (hero & mobile variants) and `AppSidebar.tsx`

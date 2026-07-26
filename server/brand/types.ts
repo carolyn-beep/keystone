@@ -3,7 +3,7 @@
  *
  * Spec 03 tightens `BrandPromptBuilders` from the Spec 01 forward-declared
  * placeholder to the concrete shape: typed against `ChatUserContext` and
- * `SkillSummary`, plus a `formatUserContext` slot since AlphaX renders a
+ * `SkillSummary`, plus a `formatUserContext` slot since Keystone renders a
  * sprint-plans block that BC omits.
  */
 
@@ -17,7 +17,7 @@ export type BrandId = 'alphax' | 'brainlift';
 
 export interface ServerBrandConfig {
   id: BrandId;
-  /** Product name (e.g. "AlphaX Buddy" or "Brainlift Central"). */
+  /** Product name (e.g. "Keystone Buddy" or "Brainlift Central"). */
   productName: string;
   /** Platform name -- identical for both brands today. */
   platformName: string;

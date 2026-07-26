@@ -15,7 +15,7 @@ import type { ComponentType } from 'react';
 export type BrandId = 'alphax' | 'brainlift';
 
 /**
- * Frontispiece-style caption rendered under the login plate. AlphaX renders
+ * Frontispiece-style caption rendered under the login plate. Keystone renders
  * "Plate I. - Builds at night"; Brainlift Central omits the caption entirely
  * (signalled by `loginPlateCaption: null` on the brand config).
  */
@@ -28,7 +28,7 @@ export interface LoginPlateCaption {
 
 export interface BrandConfig {
   id: BrandId;
-  /** Product name shown to users, e.g. "AlphaX Buddy" or "Brainlift Central". */
+  /** Product name shown to users, e.g. "Keystone Buddy" or "Brainlift Central". */
   productName: string;
   /** Hero-column tagline under the wordmark. */
   tagline: string;
@@ -36,7 +36,7 @@ export interface BrandConfig {
    * Optional italicised tail rendered after `tagline`. When present the hero
    * tagline reads "{tagline} {italic taglineEmphasis}" with a soft line break
    * between them on hero variants. Kept optional so brands without a split
-   * tagline (e.g. AlphaX) don't have to define it.
+   * tagline (e.g. Keystone) don't have to define it.
    */
   taglineEmphasis?: string;
   /** Small-caps strap above the login plate. */
@@ -71,8 +71,8 @@ export interface BrandConfig {
 
 /**
  * Onboarding-wizard persona shown atop the suggestion rail
- * (features/ux-redesign/onboarding-wizard, spec 04). AlphaX presents a named
- * character with a mascot image ("AlphaX Buddy"); Brainlift Central uses a
+ * (features/ux-redesign/onboarding-wizard, spec 04). Keystone presents a named
+ * character with a mascot image ("Keystone Buddy"); Brainlift Central uses a
  * plain label ("Brainlift Assistant") with no character (`Mascot` omitted).
  * The wizard's SuggestionSurface reads this slot — no brand conditionals live
  * inside wizard components.
@@ -121,7 +121,7 @@ export interface BrandModule {
   /**
    * Optional: builds a hardcoded synthetic ASSISTANT opener message
    * personalized with the student's first name. Brands that expose this
-   * (AlphaX) use the synthetic-assistant opener path in `OpenerTrigger`;
+   * (Keystone) use the synthetic-assistant opener path in `OpenerTrigger`;
    * brands that omit it (Brainlift Central) fall back to the LLM-driven
    * `[OPENER]` user-message path.
    *

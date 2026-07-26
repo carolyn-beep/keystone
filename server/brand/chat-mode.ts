@@ -3,15 +3,15 @@
  *
  * The research/authoring phase split was introduced by the Research-First
  * Pedagogy Pivot (see `features/pedagogy/research-first-pivot/FEATURE.md`)
- * and is scoped **AlphaX brand only** per that document:
+ * and is scoped **Keystone brand only** per that document:
  *
- *   > Scope: AlphaX brand only (Brainlift Central untouched)
+ *   > Scope: Keystone brand only (Brainlift Central untouched)
  *
  * Brainlift Central has no research phase. Its chat is always in "authoring"
  * posture — the BC system prompt (`server/brand/brainlift.ts`) assumes
  * curation tools are available, references `get_brainlift_assessment`,
  * `create_dok2`, `edit_dok_item`, etc. directly, and never branches on
- * `mode`. Treating BC like AlphaX (deriving mode from `brainlift?.phase`)
+ * `mode`. Treating BC like Keystone (deriving mode from `brainlift?.phase`)
  * is what produced the conv 658 cascade: lost binding → mode dropped to
  * 'research' → curation tools dropped from the registered surface →
  * model called `create_dok2` per the prompt → `AI_NoSuchToolError` →

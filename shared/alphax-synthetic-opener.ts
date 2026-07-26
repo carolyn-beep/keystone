@@ -23,13 +23,13 @@ export function buildKeystoneSyntheticOpenerText(firstName: string | null | unde
     : 'Hey there!';
 
   return [
-    `${greeting} I'm AlphaX Buddy.`,
+    `${greeting} I'm Keystone Buddy.`,
     '',
     ALPHAX_SYNTHETIC_OPENER_BODY,
   ].join('\n');
 }
 
-export function isSyntheticAlphaXAssistantOpener(message: {
+export function isSyntheticKeystoneAssistantOpener(message: {
   role?: unknown;
   parts?: ReadonlyArray<unknown>;
 } | undefined): boolean {
@@ -47,6 +47,6 @@ export function isSyntheticAlphaXAssistantOpener(message: {
     return false;
   }
 
-  const match = /^Hey (?:there|[^\n!]+)! I'm AlphaX Buddy\.\n\n([\s\S]+)$/.exec(textPart.text);
+  const match = /^Hey (?:there|[^\n!]+)! I'm Keystone Buddy\.\n\n([\s\S]+)$/.exec(textPart.text);
   return match?.[1] === ALPHAX_SYNTHETIC_OPENER_BODY;
 }

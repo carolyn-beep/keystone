@@ -38,7 +38,7 @@ function messageToText(message: StoredChatMessage): string {
  * the frontend to ask the agent to greet the user? Those messages are not
  * substantive student input and must be excluded from title decisions —
  * otherwise the title ends up reflecting the agent's identity greeting
- * (e.g. "AlphaX Buddy: Personalized Brainlift Guidance") instead of the
+ * (e.g. "Keystone: Personalized Guidance") instead of the
  * student's actual topic.
  */
 function isOpenerUserMessage(message: StoredChatMessage): boolean {
@@ -175,7 +175,7 @@ export function shouldGenerateChatTitle(input: {
   // Only title once the conversation has REAL content. The homepage OPENER
   // user message and the agent's identity-greeting reply do not count — if
   // we titled after that exchange, every chat would be named after the
-  // agent's persona ("AlphaX Buddy: Personalized Brainlift Guidance").
+  // agent's persona ("Keystone: Personalized Guidance").
   const real = stripOpenerExchange(input.messages);
   const hasUserMessage = real.some((message) => message.role === 'user');
   const hasAssistantMessage = real.some((message) => message.role === 'assistant');
@@ -202,7 +202,7 @@ export async function generateChatTitle(messages: StoredChatMessage[]): Promise<
         'RULES',
         '- 3 to 6 words. No more.',
         '- Title MUST describe the USER\'S subject or task, not the assistant\'s identity or greeting.',
-        '- Never include any of these words: "Keystone", "Keystone Central", "AlphaX", "AlphaX Buddy", "Brainlift Central", "Buddy",',
+        '- Never include any of these words: "Keystone", "Keystone Central", "Brainlift Central", "Buddy",',
         '  "Personalized", "Onboarding", "Assistant", "Available", "Awaits", "Guidance", "Chat",',
         '  "Conversation", "Help", "Welcome", "Hello", "Hi".',
         '- No agent self-references ("personal assistant", "your research helper", etc.).',

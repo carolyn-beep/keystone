@@ -1,5 +1,5 @@
 /**
- * Grade 5 reading-level tone directive for AlphaX brand.
+ * Grade 5 reading-level tone directive for Keystone brand.
  *
  * Injected by the unified AI client (`server/ai/client/index.ts`) when a
  * caller opts in via `userFacing: true` AND `brandId === 'alphax'`.

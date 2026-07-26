@@ -1,5 +1,5 @@
 /**
- * AlphaX brand barrel.
+ * Keystone brand barrel.
  *
  * Re-exports the active brand surface consumed by `client/src/brand/index.ts`.
  * Spec 01 only exercises this barrel via tests; consumers are wired in

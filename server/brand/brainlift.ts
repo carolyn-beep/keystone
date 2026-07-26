@@ -7,7 +7,7 @@
  * The grader (DOK1-4 scoring, copy-paste detection, multi-model consensus)
  * enforces engagement downstream; the chat agent does not.
  *
- * `buildBrainliftBrainliftHeuristics` mirrors the AlphaX 0/1/multiple
+ * `buildBrainliftBrainliftHeuristics` mirrors the Keystone 0/1/multiple
  * branching shape but with brand-appropriate bodies focused on refinement
  * from recent activity rather than sprint plans.
  *
