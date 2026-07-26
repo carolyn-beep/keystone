@@ -30,13 +30,13 @@ describe('FR9 chat-opener: brand-aware OPENER_PROMPT', () => {
     expect(bc.OPENER_PROMPT.startsWith('[OPENER] ')).toBe(true);
   });
 
-  it('AlphaX build contains AlphaX-specific phrasing', async () => {
+  it('Keystone build contains Keystone-specific phrasing', async () => {
     vi.stubEnv('VITE_BRAND', 'keystone');
     const mod = await import('../chat-opener');
-    expect(mod.OPENER_PROMPT).toMatch(/AlphaX/i);
+    expect(mod.OPENER_PROMPT).toMatch(/Keystone/i);
   });
 
-  it('Brainlift Central build contains BC-specific phrasing and zero AlphaX substring', async () => {
+  it('Brainlift Central build contains BC-specific phrasing and zero Keystone-student substring', async () => {
     vi.stubEnv('VITE_BRAND', 'brainlift');
     const mod = await import('../chat-opener');
     expect(mod.OPENER_PROMPT).not.toMatch(/AlphaX/);

@@ -71,7 +71,7 @@ describe('render.yaml — service inventory', () => {
 
   it('names the services brainlift-central and keystone-buddy', () => {
     const names = config.services.map((s) => s.name).sort();
-    expect(names).toEqual(['keystone-buddy', 'brainlift-central']);
+    expect(names).toEqual(['brainlift-central', 'keystone-buddy']);
   });
 });
 
@@ -98,8 +98,8 @@ describe('render.yaml — keystone-buddy brand env vars', () => {
     expect(findEnv(keystone, 'VITE_BRAND')?.value).toBe('keystone');
   });
 
-  it('sets VITE_BRAND_NAME=AlphaX Buddy', () => {
-    expect(findEnv(keystone, 'VITE_BRAND_NAME')?.value).toBe('AlphaX Buddy');
+  it('sets VITE_BRAND_NAME=Keystone', () => {
+    expect(findEnv(keystone, 'VITE_BRAND_NAME')?.value).toBe('Keystone');
   });
 });
 

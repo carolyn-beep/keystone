@@ -6,7 +6,7 @@
 #                        srv-d5fu0p4hg0os73e072ng), which was repurposed
 #                        for BC. AlphaX moved to its own service below.
 #
-#   keystone-buddy      -> serves AlphaX Buddy. New service to be created
+#   keystone-buddy      -> serves the Keystone student brand. New service to be created
 #                        on cutover.
 #
 # Custom domains are attached manually in the Render dashboard at deploy
@@ -56,7 +56,7 @@ services:
       - key: VITE_BRAND
         value: keystone
       - key: VITE_BRAND_NAME
-        value: AlphaX Buddy
+        value: Keystone
       - key: PORT
         value: 10000
     healthCheckPath: /api/brainlifts

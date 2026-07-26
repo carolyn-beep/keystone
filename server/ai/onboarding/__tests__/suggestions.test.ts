@@ -158,7 +158,7 @@ describe('FR1: prompt inputs per kind', () => {
     const stage1 = firstPrompt();
     expect(stage1.toLowerCase()).toContain('biology'); // exclude echoed
     expect(stage1).toContain('Real projects from students on this platform');
-    expect(stage1).toContain('AlphaX');
+    expect(stage1).toContain('Keystone');
   });
 
   it('topic stage 2 receives the stage-1 projects and the template', async () => {
