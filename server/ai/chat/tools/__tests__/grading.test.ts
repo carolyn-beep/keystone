@@ -30,7 +30,7 @@ vi.mock('../../../../services/internal-grading', () => ({
   processGradeRequest: vi.fn(),
 }));
 
-vi.mock('../../../../brand', () => ({ brandId: 'alphax' }));
+vi.mock('../../../../brand', () => ({ brandId: 'keystone' }));
 
 beforeEach(() => {
   vi.clearAllMocks();

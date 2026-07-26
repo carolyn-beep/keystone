@@ -7,15 +7,15 @@ afterEach(() => {
 
 describe('brand prompt dispatcher', () => {
   it('returns AlphaX research builders for AlphaX research mode and authoring builders for authoring mode', async () => {
-    vi.stubEnv('BRAND', 'alphax');
+    vi.stubEnv('BRAND', 'keystone');
 
     const brand = await import('../index');
-    const alphax = await import('../alphax');
-    const research = await import('../alphax-research');
+    const keystone = await import('../keystone');
+    const research = await import('../keystone-research');
 
-    expect(brand.getPromptBuilders('research')).toBe(research.alphaxResearchPromptBuilders);
-    expect(brand.getPromptBuilders('authoring')).toBe(alphax.promptBuilders);
-    expect(brand.promptBuilders).toBe(alphax.promptBuilders);
+    expect(brand.getPromptBuilders('research')).toBe(research.keystoneResearchPromptBuilders);
+    expect(brand.getPromptBuilders('authoring')).toBe(keystone.promptBuilders);
+    expect(brand.promptBuilders).toBe(keystone.promptBuilders);
   });
 
   it('keeps Brainlift Central on the Brainlift builder for both modes', async () => {

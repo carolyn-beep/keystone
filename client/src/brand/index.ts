@@ -6,7 +6,7 @@
  * switch (not a dynamic require, not a runtime lookup) so Vite's tree-shaker
  * eliminates the inactive brand's subtree from the production bundle.
  *
- * Fail-loud contract: any value other than the literals `'alphax'` or
+ * Fail-loud contract: any value other than the literals `'keystone'` or
  * `'brainlift'` (including `undefined`, the empty string, and wrong-case
  * variants) throws an `Error` at module top level whose message names the
  * env-var, lists both valid IDs, and includes the offending value via
@@ -17,20 +17,20 @@
  * `native-chat-thread-config.tsx`).
  */
 
-import * as alphax from './alphax';
+import * as keystone from './keystone';
 import * as brainlift from './brainlift';
 import type { BrandModule } from './types';
 
 const id = import.meta.env.VITE_BRAND as string | undefined;
 
-if (id !== 'alphax' && id !== 'brainlift') {
+if (id !== 'keystone' && id !== 'brainlift') {
   throw new Error(
-    `[brand] VITE_BRAND must be 'alphax' or 'brainlift'; got: ${JSON.stringify(id)}. `
+    `[brand] VITE_BRAND must be 'keystone' or 'brainlift'; got: ${JSON.stringify(id)}. `
       + 'Set VITE_BRAND in your .env / Render env vars.'
   );
 }
 
-const active: BrandModule = id === 'alphax' ? alphax : brainlift;
+const active: BrandModule = id === 'keystone' ? keystone : brainlift;
 
 /**
  * The active brand module. Consumers can either destructure the named

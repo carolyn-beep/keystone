@@ -26,7 +26,7 @@ import { brandId } from './index';
 import type { ChatMode, ConversationContext } from './types';
 
 export function resolveChatMode(conversation: ConversationContext): ChatMode {
-  if (brandId !== 'alphax') {
+  if (brandId !== 'keystone') {
     // Brainlift Central — pivot scope explicitly excludes BC from research mode.
     return 'authoring';
   }

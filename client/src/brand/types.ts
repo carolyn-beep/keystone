@@ -12,7 +12,7 @@
 
 import type { ComponentType } from 'react';
 
-export type BrandId = 'alphax' | 'brainlift';
+export type BrandId = 'keystone' | 'brainlift';
 
 /**
  * Frontispiece-style caption rendered under the login plate. Keystone renders

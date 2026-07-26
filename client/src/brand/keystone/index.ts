@@ -14,7 +14,7 @@ import keystoneMascot from './assets/keystone-mascot.png';
 // the bundle only when this barrel is reachable. With the `@/brand` alias
 // resolving directly to the active brand barrel at build time, the inactive
 // barrel is never imported and its CSS does not ship.
-import './alphax.css';
+import './keystone.css';
 
 import { config as baseConfig } from './config';
 import { Wordmark } from './Wordmark';

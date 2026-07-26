@@ -23,7 +23,7 @@
 import { readFile, readdir } from 'node:fs/promises';
 import { join } from 'node:path';
 
-export type BrandId = 'alphax' | 'brainlift';
+export type BrandId = 'keystone' | 'brainlift';
 
 /**
  * Per-brand forbidden-token list. These tokens uniquely identify the
@@ -31,7 +31,7 @@ export type BrandId = 'alphax' | 'brainlift';
  * selector or a consumer leaked it across the static-literal switch.
  */
 const FORBIDDEN: Record<BrandId, readonly string[]> = {
-  alphax: [
+  keystone: [
     'Brainlift Central',
     'brain-hero',
     'brainlift-nameplate',
@@ -44,8 +44,8 @@ const FORBIDDEN: Record<BrandId, readonly string[]> = {
     'Alpha X Buddy',
     'alpha-buddy',
     'owl-counsel',
-    'alphax-nameplate',
-    'alphax-wordmark',
+    'keystone-nameplate',
+    'keystone-wordmark',
     'Builds at night',
     'Plate I.',
   ],

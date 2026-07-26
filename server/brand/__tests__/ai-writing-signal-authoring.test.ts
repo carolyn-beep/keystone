@@ -18,8 +18,8 @@
 import { describe, expect, it } from 'vitest';
 import type { ChatUserContext } from '../../storage/base';
 import type { LearningStreamItem, Brainlift } from '../../storage/base';
-import { buildKeystoneSystemPrompt } from '../alphax';
-import { buildKeystoneResearchSystemPrompt } from '../alphax-research';
+import { buildKeystoneSystemPrompt } from '../keystone';
+import { buildKeystoneResearchSystemPrompt } from '../keystone-research';
 import { buildBrainliftSystemPrompt } from '../brainlift';
 import { buildDiscussionSystemPrompt } from '../../ai/discussion/system-prompt';
 import { AI_WRITING_SIGNAL_AUTHORING_NOTE } from '../shared/prompt-helpers';

@@ -8,7 +8,7 @@
 
 import fs from 'node:fs';
 import { describe, it, expect } from 'vitest';
-import { config as alphaxConfig } from '@/brand/alphax/config';
+import { config as keystoneConfig } from '@/brand/keystone/config';
 import { config as brainliftConfig } from '@/brand/brainlift/config';
 import {
   buildSuggestionRequest,
@@ -22,15 +22,15 @@ function readSource(relativePath: string): string {
 // ─── Persona brand slot ──────────────────────────────────────────────────────
 
 describe('FR3: wizardPersona brand slot', () => {
-  it('alphax config defines wizardPersona named "Keystone"', () => {
-    expect(alphaxConfig.wizardPersona).toBeDefined();
-    expect(alphaxConfig.wizardPersona.name).toBe('Keystone');
+  it('keystone config defines wizardPersona named "Keystone"', () => {
+    expect(keystoneConfig.wizardPersona).toBeDefined();
+    expect(keystoneConfig.wizardPersona.name).toBe('Keystone');
   });
 
-  it('alphax barrel wires a Mascot component onto the persona', () => {
+  it('keystone barrel wires a Mascot component onto the persona', () => {
     // The Mascot component lives on the barrel (it imports the asset), not the
     // plain config object. Verify the barrel source assembles it.
-    const barrel = readSource('../../../brand/alphax/index.ts');
+    const barrel = readSource('../../../brand/keystone/index.ts');
     expect(barrel).toMatch(/wizardPersona/);
     expect(barrel).toMatch(/Mascot/);
     expect(barrel).toMatch(/keystone-mascot/);
@@ -43,7 +43,7 @@ describe('FR3: wizardPersona brand slot', () => {
   });
 
   it('the mascot asset exists on disk and is non-empty', () => {
-    const url = new URL('../../../brand/alphax/assets/keystone-mascot.png', import.meta.url);
+    const url = new URL('../../../brand/keystone/assets/keystone-mascot.png', import.meta.url);
     expect(fs.statSync(url).size).toBeGreaterThan(0);
   });
 });

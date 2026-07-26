@@ -2,7 +2,7 @@
  * Dispatcher integration test for the brand-aware chat system prompt.
  *
  * The per-brand assertions live in:
- *   - server/brand/__tests__/alphax-system-prompt.test.ts
+ *   - server/brand/__tests__/keystone-system-prompt.test.ts
  *   - server/brand/__tests__/brainlift-system-prompt.test.ts
  *
  * This file confirms the dispatcher in `server/ai/chat/system-prompt.ts`
@@ -46,9 +46,9 @@ afterEach(() => {
   vi.resetModules();
 });
 
-describe('dispatcher: BRAND=alphax', () => {
+describe('dispatcher: BRAND=keystone', () => {
   it('routes buildChatSystemPrompt to the AlphaX builder', async () => {
-    vi.stubEnv('BRAND', 'alphax');
+    vi.stubEnv('BRAND', 'keystone');
     const mod = await import('../system-prompt');
     const prompt = mod.buildChatSystemPrompt({
       userContext: baseContext,
@@ -63,7 +63,7 @@ describe('dispatcher: BRAND=alphax', () => {
   });
 
   it('routes research mode to the AlphaX research builder', async () => {
-    vi.stubEnv('BRAND', 'alphax');
+    vi.stubEnv('BRAND', 'keystone');
     const mod = await import('../system-prompt');
     const prompt = mod.buildChatSystemPrompt({
       userContext: baseContext,
@@ -98,7 +98,7 @@ describe('dispatcher: BRAND=brainlift', () => {
 
 describe('buildChatSystemPromptFromRegistry', () => {
   it('builds the prompt from authorized skill summaries without loading bodies or references', async () => {
-    vi.stubEnv('BRAND', 'alphax');
+    vi.stubEnv('BRAND', 'keystone');
     const mod = await import('../system-prompt');
 
     const registry: SkillRegistry = {

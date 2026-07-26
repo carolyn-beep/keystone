@@ -4,7 +4,7 @@
  * reaches the provider. Captures the fetch request body and inspects its
  * `messages[0]` (the system message).
  *
- * Assumes BRAND=alphax in the test environment (set in .env, loaded by vitest).
+ * Assumes BRAND=keystone in the test environment (set in .env, loaded by vitest).
  */
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
@@ -52,9 +52,9 @@ afterEach(async () => {
 });
 
 describe('userFacing tone injection (AlphaX brand)', () => {
-  it('confirms BRAND is alphax in this test environment', async () => {
+  it('confirms BRAND is keystone in this test environment', async () => {
     const { brandId } = await import('../../../brand');
-    expect(brandId).toBe('alphax');
+    expect(brandId).toBe('keystone');
   });
 
   it('prepends the tone block AND appends the reminder when userFacing=true', async () => {

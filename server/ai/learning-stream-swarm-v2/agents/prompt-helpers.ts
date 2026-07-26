@@ -4,8 +4,8 @@ import { brandId } from '../../../brand';
 import { ALPHAX_GRADE5_TONE_BLOCK, ALPHAX_GRADE5_TONE_REMINDER } from '../../../brand/shared/tone-grade5';
 
 export function buildPromptBase(slot: Slot, ctx: SwarmContext, typeGuidance: string): string {
-  const toneBlock = brandId === 'alphax' ? `${ALPHAX_GRADE5_TONE_BLOCK}\n\n` : '';
-  const toneReminder = brandId === 'alphax' ? `\n\n${ALPHAX_GRADE5_TONE_REMINDER}` : '';
+  const toneBlock = brandId === 'keystone' ? `${ALPHAX_GRADE5_TONE_BLOCK}\n\n` : '';
+  const toneReminder = brandId === 'keystone' ? `\n\n${ALPHAX_GRADE5_TONE_REMINDER}` : '';
   return `${toneBlock}You are a learning resource researcher. Find ONE high-quality ${slot.type} resource and save it directly.
 
 ## Brainlift

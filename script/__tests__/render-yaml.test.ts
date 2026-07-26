@@ -48,17 +48,17 @@ function findEnv(service: RenderService, key: string): EnvVar | undefined {
 
 let config: RenderConfig;
 let bc: RenderService;
-let alphax: RenderService;
+let keystone: RenderService;
 
 beforeAll(async () => {
   const raw = await readFile(RENDER_YAML_PATH, 'utf-8');
   config = parse(raw) as RenderConfig;
   const bcCandidate = config.services.find((s) => s.name === 'brainlift-central');
-  const alphaxCandidate = config.services.find((s) => s.name === 'alphax-buddy');
+  const keystoneCandidate = config.services.find((s) => s.name === 'keystone-buddy');
   if (!bcCandidate) throw new Error('render.yaml missing brainlift-central service');
-  if (!alphaxCandidate) throw new Error('render.yaml missing alphax-buddy service');
+  if (!keystoneCandidate) throw new Error('render.yaml missing keystone-buddy service');
   bc = bcCandidate;
-  alphax = alphaxCandidate;
+  keystone = keystoneCandidate;
 });
 
 describe('render.yaml — service inventory', () => {
@@ -69,9 +69,9 @@ describe('render.yaml — service inventory', () => {
     }
   });
 
-  it('names the services brainlift-central and alphax-buddy', () => {
+  it('names the services brainlift-central and keystone-buddy', () => {
     const names = config.services.map((s) => s.name).sort();
-    expect(names).toEqual(['alphax-buddy', 'brainlift-central']);
+    expect(names).toEqual(['keystone-buddy', 'brainlift-central']);
   });
 });
 
@@ -89,17 +89,17 @@ describe('render.yaml — brainlift-central brand env vars', () => {
   });
 });
 
-describe('render.yaml — alphax-buddy brand env vars', () => {
-  it('sets BRAND=alphax', () => {
-    expect(findEnv(alphax, 'BRAND')?.value).toBe('alphax');
+describe('render.yaml — keystone-buddy brand env vars', () => {
+  it('sets BRAND=keystone', () => {
+    expect(findEnv(keystone, 'BRAND')?.value).toBe('keystone');
   });
 
-  it('sets VITE_BRAND=alphax', () => {
-    expect(findEnv(alphax, 'VITE_BRAND')?.value).toBe('alphax');
+  it('sets VITE_BRAND=keystone', () => {
+    expect(findEnv(keystone, 'VITE_BRAND')?.value).toBe('keystone');
   });
 
   it('sets VITE_BRAND_NAME=AlphaX Buddy', () => {
-    expect(findEnv(alphax, 'VITE_BRAND_NAME')?.value).toBe('AlphaX Buddy');
+    expect(findEnv(keystone, 'VITE_BRAND_NAME')?.value).toBe('AlphaX Buddy');
   });
 });
 
@@ -115,7 +115,7 @@ describe('render.yaml — shared infrastructure fields', () => {
 
   for (const field of sharedFields) {
     it(`both services share ${field}`, () => {
-      expect(bc[field]).toBe(alphax[field]);
+      expect(bc[field]).toBe(keystone[field]);
     });
   }
 
@@ -136,8 +136,8 @@ describe('render.yaml — shared secrets (sync: false)', () => {
       expect(env?.sync).toBe(false);
     });
 
-    it(`alphax-buddy declares ${key} with sync: false`, () => {
-      const env = findEnv(alphax, key);
+    it(`keystone-buddy declares ${key} with sync: false`, () => {
+      const env = findEnv(keystone, key);
       expect(env).toBeDefined();
       expect(env?.sync).toBe(false);
     });
@@ -147,6 +147,6 @@ describe('render.yaml — shared secrets (sync: false)', () => {
 describe('render.yaml — custom domains attached manually', () => {
   it('does not declare a domains block on either service (manual dashboard attach)', () => {
     expect(bc.domains === undefined || bc.domains.length === 0).toBe(true);
-    expect(alphax.domains === undefined || alphax.domains.length === 0).toBe(true);
+    expect(keystone.domains === undefined || keystone.domains.length === 0).toBe(true);
   });
 });

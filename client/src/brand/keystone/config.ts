@@ -2,13 +2,13 @@
  * Keystone (student) brand configuration.
  *
  * Consumers read these display strings from here instead of hardcoding them.
- * `id` remains the internal `alphax` selector pending the brand-selector rename.
+ * `id` remains the internal `keystone` selector pending the brand-selector rename.
  */
 
 import type { BrandConfig } from '../types';
 
 export const config: BrandConfig = {
-  id: 'alphax',
+  id: 'keystone',
   productName: 'Keystone',
   tagline: 'Bring the idea. Ship the business.',
   loginEyebrow: 'Your Keystone in-app coach',

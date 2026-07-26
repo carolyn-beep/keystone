@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { ChatUserContext } from '../../storage/base';
 import type { ConversationContext } from '../types';
-import { buildKeystoneResearchHeuristics } from '../alphax-research';
+import { buildKeystoneResearchHeuristics } from '../keystone-research';
 
 const brandNewUserContext: ChatUserContext = {
   userId: 'user-1',

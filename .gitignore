@@ -49,8 +49,8 @@ test-*.ts
 script/_tmp_*.ts
 
 # Notes / raw feedback / planning docs (local reference only)
-alphax-buddy.env
-alphax-prompt-changes.md
+keystone-buddy.env
+keystone-prompt-changes.md
 onboarding-pre-project-copy.md
 chloe-feedback-round-2-notes.md
 chloe-feedback-round-2-raw.md

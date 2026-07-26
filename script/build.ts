@@ -42,9 +42,9 @@ async function buildAll() {
   // clear and consistent regardless of how the var was provided.
   const env = loadEnv("production", path.resolve(process.cwd()), "");
   const brand = process.env.VITE_BRAND ?? env.VITE_BRAND;
-  if (brand !== "alphax" && brand !== "brainlift") {
+  if (brand !== "keystone" && brand !== "brainlift") {
     throw new Error(
-      `[build] VITE_BRAND must be 'alphax' or 'brainlift'; got: ${JSON.stringify(brand)}. `
+      `[build] VITE_BRAND must be 'keystone' or 'brainlift'; got: ${JSON.stringify(brand)}. `
         + "Set VITE_BRAND in your .env / Render env vars.",
     );
   }

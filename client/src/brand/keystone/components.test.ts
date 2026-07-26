@@ -20,19 +20,19 @@ describe('FR3 AlphaX Wordmark.tsx', () => {
   const source = readSource('./Wordmark.tsx');
 
   it('renders the Keystone wordmark', () => {
-    expect(source).toContain('alphax-nameplate-word');
+    expect(source).toContain('keystone-nameplate-word');
     expect(source).toContain('Keystone');
   });
 
   it('handles all three variants (hero, mobile, compact)', () => {
-    expect(source).toContain('alphax-wordmark-hero');
-    expect(source).toContain('alphax-wordmark-mobile');
+    expect(source).toContain('keystone-wordmark-hero');
+    expect(source).toContain('keystone-wordmark-mobile');
     // compact uses the base class with no suffix; verify the variant token is referenced
     expect(source).toContain("'compact'");
   });
 
-  it('keeps the alphax-nameplate-wordmark base class', () => {
-    expect(source).toContain('alphax-nameplate-wordmark');
+  it('keeps the keystone-nameplate-wordmark base class', () => {
+    expect(source).toContain('keystone-nameplate-wordmark');
   });
 });
 
@@ -50,10 +50,10 @@ describe('FR3 AlphaX Avatar.tsx', () => {
     expect(source).toContain('login-card-avatar-frame');
   });
 
-  it('renders the alphax-nameplate-avatar markup for the sidebar variant', () => {
-    expect(source).toContain('alphax-nameplate-avatar');
-    expect(source).toContain('alphax-nameplate-glow');
-    expect(source).toContain('alphax-nameplate-frame');
+  it('renders the keystone-nameplate-avatar markup for the sidebar variant', () => {
+    expect(source).toContain('keystone-nameplate-avatar');
+    expect(source).toContain('keystone-nameplate-glow');
+    expect(source).toContain('keystone-nameplate-frame');
   });
 
   it('handles all three variants (login, sidebar, chat)', () => {

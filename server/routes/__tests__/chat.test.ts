@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { buildKeystoneSyntheticOpenerText } from '@shared/alphax-synthetic-opener';
+import { buildKeystoneSyntheticOpenerText } from '@shared/keystone-synthetic-opener';
 import { DEFAULT_CHAT_MODEL_ID } from '@shared/chat-models';
 
 const {

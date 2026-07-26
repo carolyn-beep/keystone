@@ -62,36 +62,36 @@ beforeEach(() => {
 });
 
 describe('FR6 checkBrandBundle: throws on forbidden tokens', () => {
-  it('alphax build with brain-hero in a JS bundle throws', async () => {
+  it('keystone build with brain-hero in a JS bundle throws', async () => {
     await setupFs({
       'index-abc.js': 'function x(){return "/assets/brain-hero.png"}',
     });
     const { checkBrandBundle } = await import('../check-brand-bundle');
-    await expect(checkBrandBundle('alphax', 'dist/public')).rejects.toThrow(/brain-hero/);
+    await expect(checkBrandBundle('keystone', 'dist/public')).rejects.toThrow(/brain-hero/);
   });
 
-  it('alphax build with brainlift-avatar class throws', async () => {
+  it('keystone build with brainlift-avatar class throws', async () => {
     await setupFs({
       'styles.css': '.brainlift-avatar-login { width: 4.5rem; }',
     });
     const { checkBrandBundle } = await import('../check-brand-bundle');
-    await expect(checkBrandBundle('alphax', 'dist/public')).rejects.toThrow(/brainlift-avatar/);
+    await expect(checkBrandBundle('keystone', 'dist/public')).rejects.toThrow(/brainlift-avatar/);
   });
 
-  it('alphax build with brainlift-wordmark CSS class throws', async () => {
+  it('keystone build with brainlift-wordmark CSS class throws', async () => {
     await setupFs({
       'styles.css': '.brainlift-wordmark-hero { font-size: 64px; }',
     });
     const { checkBrandBundle } = await import('../check-brand-bundle');
-    await expect(checkBrandBundle('alphax', 'dist/public')).rejects.toThrow(/brainlift-wordmark/);
+    await expect(checkBrandBundle('keystone', 'dist/public')).rejects.toThrow(/brainlift-wordmark/);
   });
 
-  it('brainlift build with alphax-wordmark CSS class throws', async () => {
+  it('brainlift build with keystone-wordmark CSS class throws', async () => {
     await setupFs({
-      'styles.css': '.alphax-wordmark-hero { font-size: 64px; }',
+      'styles.css': '.keystone-wordmark-hero { font-size: 64px; }',
     });
     const { checkBrandBundle } = await import('../check-brand-bundle');
-    await expect(checkBrandBundle('brainlift', 'dist/public')).rejects.toThrow(/alphax-wordmark/);
+    await expect(checkBrandBundle('brainlift', 'dist/public')).rejects.toThrow(/keystone-wordmark/);
   });
 
   it('brainlift build with alpha-buddy asset reference throws', async () => {
@@ -120,13 +120,13 @@ describe('FR6 checkBrandBundle: throws on forbidden tokens', () => {
 });
 
 describe('FR6 checkBrandBundle: clean bundle resolves', () => {
-  it('alphax bundle with no forbidden tokens resolves', async () => {
+  it('keystone bundle with no forbidden tokens resolves', async () => {
     await setupFs({
       'main.js': 'console.log("AlphaX Buddy welcomes you");',
-      'styles.css': '.alphax-wordmark-hero{font-size:64px}',
+      'styles.css': '.keystone-wordmark-hero{font-size:64px}',
     });
     const { checkBrandBundle } = await import('../check-brand-bundle');
-    await expect(checkBrandBundle('alphax', 'dist/public')).resolves.toBeUndefined();
+    await expect(checkBrandBundle('keystone', 'dist/public')).resolves.toBeUndefined();
   });
 
   it('brainlift bundle with no forbidden tokens resolves', async () => {
@@ -160,7 +160,7 @@ describe('FR6 checkBrandBundle: error message names token + file', () => {
     const { checkBrandBundle } = await import('../check-brand-bundle');
     let err: unknown;
     try {
-      await checkBrandBundle('alphax', 'dist/public');
+      await checkBrandBundle('keystone', 'dist/public');
     } catch (e) {
       err = e;
     }

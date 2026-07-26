@@ -18,7 +18,7 @@ import {
   listStaleDokItems,
 } from '../../../services/brainlift-curation';
 
-const isKeystone = brandId === 'alphax';
+const isKeystone = brandId === 'keystone';
 
 /**
  * Warning sentence appended to the description of every write tool that

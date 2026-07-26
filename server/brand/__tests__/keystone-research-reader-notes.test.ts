@@ -10,7 +10,7 @@
 import { describe, expect, it } from 'vitest';
 import type { ChatUserContext } from '../../storage/base';
 import type { ConversationContext } from '../types';
-import { buildKeystoneResearchSystemPrompt } from '../alphax-research';
+import { buildKeystoneResearchSystemPrompt } from '../keystone-research';
 
 const baseUserContext: ChatUserContext = {
   userId: 'user-1',
@@ -33,7 +33,7 @@ const boundConversation: ConversationContext = {
   } as ConversationContext['brainlift'],
 };
 
-describe('alphax-research SECOND BRAIN MODEL — reader-originated notes heuristic (FR4)', () => {
+describe('keystone-research SECOND BRAIN MODEL — reader-originated notes heuristic (FR4)', () => {
   function renderPrompt(): string {
     return buildKeystoneResearchSystemPrompt({
       userContext: baseUserContext,

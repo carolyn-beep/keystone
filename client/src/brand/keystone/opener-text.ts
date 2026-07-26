@@ -8,7 +8,7 @@
  * full history (including this synthetic turn) is sent to the model.
  */
 
-import { buildKeystoneSyntheticOpenerText } from '@shared/alphax-synthetic-opener';
+import { buildKeystoneSyntheticOpenerText } from '@shared/keystone-synthetic-opener';
 
 export function buildKeystoneOpenerText(firstName: string | null | undefined): string {
   return buildKeystoneSyntheticOpenerText(firstName);

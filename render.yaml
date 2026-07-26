@@ -6,7 +6,7 @@
 #                        srv-d5fu0p4hg0os73e072ng), which was repurposed
 #                        for BC. AlphaX moved to its own service below.
 #
-#   alphax-buddy      -> serves AlphaX Buddy. New service to be created
+#   keystone-buddy      -> serves AlphaX Buddy. New service to be created
 #                        on cutover.
 #
 # Custom domains are attached manually in the Render dashboard at deploy
@@ -38,7 +38,7 @@ services:
     healthCheckPath: /api/brainlifts
 
   - type: web
-    name: alphax-buddy
+    name: keystone-buddy
     runtime: node
     region: oregon
     plan: free
@@ -52,9 +52,9 @@ services:
       - key: OPENROUTER_API_KEY
         sync: false  # Set manually in Render dashboard (same value as brainlift-central)
       - key: BRAND
-        value: alphax
+        value: keystone
       - key: VITE_BRAND
-        value: alphax
+        value: keystone
       - key: VITE_BRAND_NAME
         value: AlphaX Buddy
       - key: PORT

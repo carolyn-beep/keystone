@@ -2,7 +2,7 @@
  * Grade 5 reading-level tone directive for Keystone brand.
  *
  * Injected by the unified AI client (`server/ai/client/index.ts`) when a
- * caller opts in via `userFacing: true` AND `brandId === 'alphax'`.
+ * caller opts in via `userFacing: true` AND `brandId === 'keystone'`.
  * The block is prepended to `system`; the reminder is appended to `system`
  * so the directive bookends the rest of the prompt and survives long
  * multi-turn agentic loops.

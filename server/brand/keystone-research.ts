@@ -193,7 +193,7 @@ export function buildKeystoneResearchSystemPrompt(args: BuildSystemPromptArgs): 
   ].join('\n');
 }
 
-export const alphaxResearchPromptBuilders: BrandPromptBuilders = {
+export const keystoneResearchPromptBuilders: BrandPromptBuilders = {
   buildSystemPrompt: buildKeystoneResearchSystemPrompt,
   buildBrainliftHeuristics: buildKeystoneResearchHeuristics,
   formatUserContext: formatKeystoneResearchUserContext,

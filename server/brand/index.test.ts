@@ -19,11 +19,11 @@ afterEach(() => {
 });
 
 describe('FR5 server brand selector: happy paths', () => {
-  it('resolves AlphaX config when BRAND=alphax', async () => {
-    vi.stubEnv('BRAND', 'alphax');
+  it('resolves AlphaX config when BRAND=keystone', async () => {
+    vi.stubEnv('BRAND', 'keystone');
     const mod = await import('./index');
-    expect(mod.brandId).toBe('alphax');
-    expect(mod.config.id).toBe('alphax');
+    expect(mod.brandId).toBe('keystone');
+    expect(mod.config.id).toBe('keystone');
     expect(mod.config.productName).toBe('Keystone');
     // JLS-145: platformName no longer leaks the "Brainlift Central" brand
     // into the student product. Keystone identifies its platform as itself.
@@ -66,7 +66,7 @@ describe('FR5 server brand selector: fail-loud on invalid env', () => {
     }
     expect(err).toBeInstanceOf(Error);
     const message = (err as Error).message;
-    expect(message).toContain('alphax');
+    expect(message).toContain('keystone');
     expect(message).toContain('brainlift');
     expect(message).toContain('BRAND');
   });

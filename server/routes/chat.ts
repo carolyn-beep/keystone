@@ -8,7 +8,7 @@ import {
   streamText,
   type UIMessage,
 } from 'ai';
-import { isSyntheticKeystoneAssistantOpener } from '@shared/alphax-synthetic-opener';
+import { isSyntheticKeystoneAssistantOpener } from '@shared/keystone-synthetic-opener';
 import { DEFAULT_CHAT_MODEL_ID, isChatModelId } from '@shared/chat-models';
 import { requireAuth } from '../middleware/auth';
 import { asyncHandler, BadRequestError, NotFoundError } from '../middleware/error-handler';

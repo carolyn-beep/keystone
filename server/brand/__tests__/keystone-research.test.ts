@@ -2,11 +2,11 @@ import { describe, expect, it } from 'vitest';
 import type { ChatUserContext } from '../../storage/base';
 import type { ConversationContext } from '../types';
 import {
-  alphaxResearchPromptBuilders,
+  keystoneResearchPromptBuilders,
   buildKeystoneResearchHeuristics,
   buildKeystoneResearchSystemPrompt,
   formatKeystoneResearchUserContext,
-} from '../alphax-research';
+} from '../keystone-research';
 
 const baseUserContext: ChatUserContext = {
   userId: 'user-1',
@@ -121,7 +121,7 @@ describe('AlphaX research prompt', () => {
   });
 
   it('uses the research-mode user-context formatter (sprint-plan suppressed)', () => {
-    expect(alphaxResearchPromptBuilders.formatUserContext).toBe(formatKeystoneResearchUserContext);
+    expect(keystoneResearchPromptBuilders.formatUserContext).toBe(formatKeystoneResearchUserContext);
   });
 
   it('suppresses activePlans/sprint plan context in research mode', () => {

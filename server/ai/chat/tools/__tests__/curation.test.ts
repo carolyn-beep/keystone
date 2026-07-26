@@ -32,7 +32,7 @@ const fakeAuthContext = {
   isAdmin: false,
 } as const;
 
-async function loadToolsForBrand(brand: 'alphax' | 'brainlift') {
+async function loadToolsForBrand(brand: 'keystone' | 'brainlift') {
   vi.resetModules();
   vi.doMock('../../../../brand', () => ({ brandId: brand }));
   const { buildChatCurationTools, AI_WRITING_SIGNAL_TOOL_WARNING } = await import('../curation');
@@ -54,7 +54,7 @@ describe('FR1: AI_WRITING_SIGNAL_TOOL_WARNING constant', () => {
 });
 
 describe.each([
-  { brand: 'alphax' as const },
+  { brand: 'keystone' as const },
   { brand: 'brainlift' as const },
 ])('FR1: warning sentence on write tools (brand=$brand)', ({ brand }) => {
   let tools: Record<string, { description: string }>;

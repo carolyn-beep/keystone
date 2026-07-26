@@ -13,7 +13,7 @@ import type { SecondBrainSummary } from '../storage/second-brain';
 
 export type { SecondBrainSummary };
 
-export type BrandId = 'alphax' | 'brainlift';
+export type BrandId = 'keystone' | 'brainlift';
 
 export interface ServerBrandConfig {
   id: BrandId;

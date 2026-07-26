@@ -3,7 +3,7 @@
  *
  * Vitest runs in `node` environment without jsdom or @testing-library/react,
  * so we use file-source assertions (same pattern as
- * `client/src/brand/alphax/components.test.ts`). These assertions verify the
+ * `client/src/brand/keystone/components.test.ts`). These assertions verify the
  * structural and behavioral contract the spec requires: rendered text copy,
  * tokens used, props consumed, hooks wired, and error-code-driven branches.
  */

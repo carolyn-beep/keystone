@@ -5,11 +5,11 @@
  * the current `Login.tsx` (hero & mobile variants) and `AppSidebar.tsx`
  * (compact variant). Outer-class behaviour by variant:
  *
- *   - hero    -> `alphax-nameplate-wordmark alphax-wordmark-hero`
- *   - mobile  -> `alphax-nameplate-wordmark alphax-wordmark-mobile lg:hidden`
- *   - compact -> `alphax-nameplate-wordmark` (no suffix; sidebar nameplate)
+ *   - hero    -> `keystone-nameplate-wordmark keystone-wordmark-hero`
+ *   - mobile  -> `keystone-nameplate-wordmark keystone-wordmark-mobile lg:hidden`
+ *   - compact -> `keystone-nameplate-wordmark` (no suffix; sidebar nameplate)
  *
- * Inner spans (`alphax-nameplate-word`, `alphax-nameplate-x`) and the visible
+ * Inner spans (`keystone-nameplate-word`, `keystone-nameplate-x`) and the visible
  * text ("Alpha", "x", "Buddy") match the existing JSX exactly. The CSS
  * classes live in `client/src/index.css` and are untouched in spec 01.
  */
@@ -18,13 +18,13 @@ import type { WordmarkProps } from '../types';
 
 function variantClass(variant: WordmarkProps['variant']): string {
   if (variant === 'hero') {
-    return 'alphax-nameplate-wordmark alphax-wordmark-hero';
+    return 'keystone-nameplate-wordmark keystone-wordmark-hero';
   }
   if (variant === 'mobile') {
-    return 'alphax-nameplate-wordmark alphax-wordmark-mobile lg:hidden';
+    return 'keystone-nameplate-wordmark keystone-wordmark-mobile lg:hidden';
   }
   // 'compact' -- sidebar nameplate uses the base class only
-  return 'alphax-nameplate-wordmark';
+  return 'keystone-nameplate-wordmark';
 }
 
 export function Wordmark({ variant }: WordmarkProps) {
@@ -34,14 +34,14 @@ export function Wordmark({ variant }: WordmarkProps) {
   if (variant === 'compact') {
     return (
       <span className={variantClass(variant)}>
-        <span className="alphax-nameplate-word">Keystone</span>
+        <span className="keystone-nameplate-word">Keystone</span>
       </span>
     );
   }
 
   return (
     <h1 className={variantClass(variant)}>
-      <span className="alphax-nameplate-word">Keystone</span>
+      <span className="keystone-nameplate-word">Keystone</span>
     </h1>
   );
 }

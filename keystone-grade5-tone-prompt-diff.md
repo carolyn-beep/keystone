@@ -1,13 +1,13 @@
 # AlphaX Grade-5 Tone — Prompt Diff
 
-Branch: `feat/alphax-grade5-tone`
+Branch: `feat/keystone-grade5-tone`
 Scope: AlphaX brand only. Brainlift brand untouched.
 
 ## Architecture
 
 One central place defines the tone (`server/brand/shared/tone-grade5.ts`). Two injection points consume it:
 
-1. **Unified AI client** (`server/ai/client/index.ts`) — opt-in per call via `userFacing: true`. When true AND `brandId === 'alphax'`, the client prepends the tone block and appends the reminder to `system` before dispatching.
+1. **Unified AI client** (`server/ai/client/index.ts`) — opt-in per call via `userFacing: true`. When true AND `brandId === 'keystone'`, the client prepends the tone block and appends the reminder to `system` before dispatching.
 2. **Research-stream swarm helper** (`server/ai/learning-stream-swarm-v2/agents/prompt-helpers.ts`) — Vercel AI SDK path that does not use the unified client. Same bookend pattern, brand-gated.
 
 Bookending (start + end) is intentional: long agentic loops weaken top-of-prompt instructions by the time the model emits its final output, so the reminder sits next to the model's next-token attention.
@@ -63,7 +63,7 @@ JSON keys, schema, or structured values.
 +  /**
 +   * Marks the call as producing natural-language text the end user will read
 +   * (feedback, rationale, key insights, why-it-matters, etc.). When true AND
-+   * the active brand is `alphax`, the unified client prepends a Grade-5
++   * the active brand is `keystone`, the unified client prepends a Grade-5
 +   * reading-level tone block to `system` before dispatching to the provider.
 +   * Defaults to `false` — existing callers retain their current behavior.
 +   */
@@ -75,7 +75,7 @@ JSON keys, schema, or structured values.
 
 ```diff
 +function applyUserFacingTone(options: InternalCallModelOptions): InternalCallModelOptions {
-+  if (!options.userFacing || brandId !== 'alphax') {
++  if (!options.userFacing || brandId !== 'keystone') {
 +    return options;
 +  }
 +  const middle = options.system ? `\n\n${options.system}\n\n` : '\n\n';
@@ -120,8 +120,8 @@ Brand-gated bookend on the base prompt that ALL six source-type agents (web, aca
 
  export function buildPromptBase(slot: Slot, ctx: SwarmContext, typeGuidance: string): string {
 -  return `You are a learning resource researcher. Find ONE high-quality ${slot.type} resource and save it directly.
-+  const toneBlock = brandId === 'alphax' ? `${ALPHAX_GRADE5_TONE_BLOCK}\n\n` : '';
-+  const toneReminder = brandId === 'alphax' ? `\n\n${ALPHAX_GRADE5_TONE_REMINDER}` : '';
++  const toneBlock = brandId === 'keystone' ? `${ALPHAX_GRADE5_TONE_BLOCK}\n\n` : '';
++  const toneReminder = brandId === 'keystone' ? `\n\n${ALPHAX_GRADE5_TONE_REMINDER}` : '';
 +  return `${toneBlock}You are a learning resource researcher. Find ONE high-quality ${slot.type} resource and save it directly.
 
    ... (existing prompt body unchanged) ...
@@ -181,7 +181,7 @@ Rationale: dropped "2-3 sentences" (LLMs cannot count) and the negative ("do not
 
 `server/ai/client/__tests__/user-facing-tone.test.ts` — five passing tests:
 
-1. Confirms `brandId === 'alphax'` in test env.
+1. Confirms `brandId === 'keystone'` in test env.
 2. `userFacing: true` → tone block prepended AND reminder appended, with the original system sandwiched in the middle (asserts byte presence and ordering).
 3. `userFacing` unset → system untouched.
 4. `userFacing: false` explicit → system untouched.
@@ -192,7 +192,7 @@ These tests run against the real client + real (mocked) provider HTTP layer, so 
 ## What was deliberately NOT changed
 
 - **DOK2 grader prompts** — no explicit paragraph demands; `diagnosis` / `feedback` field hints are open-ended. Left alone.
-- **Chat system prompts** (`server/brand/alphax.ts`, `server/brand/alphax-research.ts`) — already brand-aware with their own TONE block. Out of scope this round.
+- **Chat system prompts** (`server/brand/keystone.ts`, `server/brand/keystone-research.ts`) — already brand-aware with their own TONE block. Out of scope this round.
 - **Tier 4** (chat titles, purpose suggestions, sprint task descriptions, quiz questions, image prompts) — explicitly skipped by user choice; some (sprint instructions) would suffer from Grade-5 simplification.
 - **DOK3 traceability / DOK4 divergence + traceability** — internal scoring calls, not user-visible prose.
 
@@ -201,7 +201,7 @@ These tests run against the real client + real (mocked) provider HTTP layer, so 
 ```
 NEW   server/brand/shared/tone-grade5.ts
 NEW   server/ai/client/__tests__/user-facing-tone.test.ts
-NEW   alphax-grade5-tone-prompt-diff.md   (this file)
+NEW   keystone-grade5-tone-prompt-diff.md   (this file)
 
 EDIT  server/ai/client/types.ts
 EDIT  server/ai/client/index.ts

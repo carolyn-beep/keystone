@@ -13,7 +13,7 @@ import { brandId } from '../../../brand';
  * See `shared/chat-ask-user.ts` for the full type contract.
  */
 
-const isKeystone = brandId === 'alphax';
+const isKeystone = brandId === 'keystone';
 
 const ASK_USER_QUESTION_DESCRIPTION = isKeystone
   ? "Ask the student a structured question (or batch of related questions) with optional preset choices and/or free-text. Prefer this over rendering markdown bullet questions when you need a clean, structured answer back. Pass one question for a single ask, or several to collect a related batch in one card.\n\n"

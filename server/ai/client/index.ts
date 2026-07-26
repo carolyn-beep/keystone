@@ -408,7 +408,7 @@ async function runProviderAttempts(input: {
  * Fireworks tier model.
  */
 function applyUserFacingTone(options: InternalCallModelOptions): InternalCallModelOptions {
-  if (!options.userFacing || brandId !== 'alphax') {
+  if (!options.userFacing || brandId !== 'keystone') {
     return options;
   }
   const middle = options.system ? `\n\n${options.system}\n\n` : '\n\n';

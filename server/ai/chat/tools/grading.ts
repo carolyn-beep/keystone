@@ -11,7 +11,7 @@ import {
   listBrainliftsForAuthContext,
 } from '../../../services/brainlift-grading-surface';
 
-const isKeystone = brandId === 'alphax';
+const isKeystone = brandId === 'keystone';
 
 const CREATE_BRAINLIFT_MARKDOWN_DESCRIPTION = isKeystone
   ? "Complete BrainLift in markdown format for a BRAND-NEW BrainLift. Use get_template first to see the required format. AUTHORSHIP RULE: every DOK2 summary, DOK3 insight, and DOK4 SPOV in this markdown MUST be the student's own words from this conversation — what THEY articulated when you asked. Do not generate DOK2/3/4 prose yourself and bundle it into this markdown. DOK1 facts may be extracted from sources you fetched with the student. If the student has not yet articulated their summaries/insights/SPOVs in conversation, DO NOT call this tool — ask the questions that surface them first, capture their words, then assemble the markdown from what they said. Do NOT pass markdown for a BrainLift that already exists — the backend will reject it."

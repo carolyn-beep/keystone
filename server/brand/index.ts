@@ -12,12 +12,12 @@
  */
 
 import {
-  config as alphaxConfig,
-  promptBuilders as alphaxPromptBuilders,
-} from './alphax';
+  config as keystoneConfig,
+  promptBuilders as keystonePromptBuilders,
+} from './keystone';
 import {
-  alphaxResearchPromptBuilders,
-} from './alphax-research';
+  keystoneResearchPromptBuilders,
+} from './keystone-research';
 import {
   config as brainliftConfig,
   promptBuilders as brainliftPromptBuilders,
@@ -26,23 +26,23 @@ import type { BrandId, BrandPromptBuilders, ChatMode, ServerBrandConfig } from '
 
 const id = process.env.BRAND;
 
-if (id !== 'alphax' && id !== 'brainlift') {
+if (id !== 'keystone' && id !== 'brainlift') {
   throw new Error(
-    `[brand] BRAND must be 'alphax' or 'brainlift'; got: ${JSON.stringify(id)}. `
+    `[brand] BRAND must be 'keystone' or 'brainlift'; got: ${JSON.stringify(id)}. `
       + 'Set BRAND in your .env / Render env vars.'
   );
 }
 
 export const brandId: BrandId = id;
 
-export const config: ServerBrandConfig = id === 'alphax' ? alphaxConfig : brainliftConfig;
+export const config: ServerBrandConfig = id === 'keystone' ? keystoneConfig : brainliftConfig;
 
 export const promptBuilders: BrandPromptBuilders =
-  id === 'alphax' ? alphaxPromptBuilders : brainliftPromptBuilders;
+  id === 'keystone' ? keystonePromptBuilders : brainliftPromptBuilders;
 
 export function getPromptBuilders(mode: ChatMode): BrandPromptBuilders {
-  if (id === 'alphax') {
-    return mode === 'research' ? alphaxResearchPromptBuilders : alphaxPromptBuilders;
+  if (id === 'keystone') {
+    return mode === 'research' ? keystoneResearchPromptBuilders : keystonePromptBuilders;
   }
 
   return brainliftPromptBuilders;

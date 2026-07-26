@@ -65,8 +65,8 @@ describe('FR1 Login.tsx brand consumption', () => {
   });
 
   it('drops the inline three-span Alpha/x/Buddy wordmark structure', () => {
-    expect(source).not.toMatch(/alphax-nameplate-x/);
-    expect(source).not.toMatch(/alphax-wordmark-hero/);
-    expect(source).not.toMatch(/alphax-wordmark-mobile/);
+    expect(source).not.toMatch(/keystone-nameplate-x/);
+    expect(source).not.toMatch(/keystone-wordmark-hero/);
+    expect(source).not.toMatch(/keystone-wordmark-mobile/);
   });
 });

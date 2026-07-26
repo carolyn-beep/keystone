@@ -14,9 +14,9 @@ export default defineConfig(({ mode }) => {
   // root `.env` reaches Vite's config phase regardless of `root: client/`.
   const env = loadEnv(mode, path.resolve(import.meta.dirname), "");
   const brand = env.VITE_BRAND ?? process.env.VITE_BRAND;
-  if (brand !== "alphax" && brand !== "brainlift") {
+  if (brand !== "keystone" && brand !== "brainlift") {
     throw new Error(
-      `[vite.config] VITE_BRAND must be 'alphax' or 'brainlift'; got: ${JSON.stringify(brand)}.`,
+      `[vite.config] VITE_BRAND must be 'keystone' or 'brainlift'; got: ${JSON.stringify(brand)}.`,
     );
   }
 

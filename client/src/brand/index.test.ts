@@ -3,7 +3,7 @@
  *
  * The selector at `client/src/brand/index.ts` resolves the active brand at
  * module-import time based on `import.meta.env.VITE_BRAND`. Valid values are
- * `'alphax'` and `'brainlift'`; anything else throws at top level.
+ * `'keystone'` and `'brainlift'`; anything else throws at top level.
  *
  * Each test stubs the env, resets module cache, then dynamically imports the
  * selector so the throw is observed fresh.
@@ -21,10 +21,10 @@ afterEach(() => {
 });
 
 describe('FR1 client brand selector: happy paths', () => {
-  it('resolves AlphaX config when VITE_BRAND=alphax', async () => {
-    vi.stubEnv('VITE_BRAND', 'alphax');
+  it('resolves AlphaX config when VITE_BRAND=keystone', async () => {
+    vi.stubEnv('VITE_BRAND', 'keystone');
     const mod = await import('./index');
-    expect(mod.config.id).toBe('alphax');
+    expect(mod.config.id).toBe('keystone');
     expect(mod.config.productName).toBe('Keystone');
   });
 
@@ -36,7 +36,7 @@ describe('FR1 client brand selector: happy paths', () => {
   });
 
   it('exports Wordmark, Avatar, LoginIllustration, and chatAvatar from the active brand', async () => {
-    vi.stubEnv('VITE_BRAND', 'alphax');
+    vi.stubEnv('VITE_BRAND', 'keystone');
     const mod = await import('./index');
     expect(typeof mod.Wordmark).toBe('function');
     expect(typeof mod.Avatar).toBe('function');
@@ -82,7 +82,7 @@ describe('FR1 client brand selector: fail-loud on invalid env', () => {
     }
     expect(err).toBeInstanceOf(Error);
     const message = (err as Error).message;
-    expect(message).toContain('alphax');
+    expect(message).toContain('keystone');
     expect(message).toContain('brainlift');
     expect(message).toContain('VITE_BRAND');
   });

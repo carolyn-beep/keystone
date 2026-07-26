@@ -2,7 +2,7 @@
  * Brand-aware chat system-prompt dispatcher.
  *
  * Spec 03 reduced this file to a thin dispatcher. Per-brand prompt prose
- * lives in `server/brand/{alphax,brainlift}.ts`; shared formatters and
+ * lives in `server/brand/{keystone,brainlift}.ts`; shared formatters and
  * transferable prose blocks live in `server/brand/shared/prompt-helpers.ts`.
  *
  * The exported function names (`buildChatSystemPrompt`,

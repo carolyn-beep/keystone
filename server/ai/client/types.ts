@@ -61,7 +61,7 @@ export interface CallModelOptions {
   /**
    * Marks the call as producing natural-language text the end user will read
    * (feedback, rationale, key insights, why-it-matters, etc.). When true AND
-   * the active brand is `alphax`, the unified client prepends a Grade-5
+   * the active brand is `keystone`, the unified client prepends a Grade-5
    * reading-level tone block to `system` before dispatching to the provider.
    * Defaults to `false` — existing callers retain their current behavior.
    */

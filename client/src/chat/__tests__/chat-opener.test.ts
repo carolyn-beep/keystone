@@ -20,9 +20,9 @@ afterEach(() => {
 
 describe('FR9 chat-opener: brand-aware OPENER_PROMPT', () => {
   it('OPENER_PROMPT starts with "[OPENER] " for both brands', async () => {
-    vi.stubEnv('VITE_BRAND', 'alphax');
-    const alphax = await import('../chat-opener');
-    expect(alphax.OPENER_PROMPT.startsWith('[OPENER] ')).toBe(true);
+    vi.stubEnv('VITE_BRAND', 'keystone');
+    const keystone = await import('../chat-opener');
+    expect(keystone.OPENER_PROMPT.startsWith('[OPENER] ')).toBe(true);
 
     vi.resetModules();
     vi.stubEnv('VITE_BRAND', 'brainlift');
@@ -31,7 +31,7 @@ describe('FR9 chat-opener: brand-aware OPENER_PROMPT', () => {
   });
 
   it('AlphaX build contains AlphaX-specific phrasing', async () => {
-    vi.stubEnv('VITE_BRAND', 'alphax');
+    vi.stubEnv('VITE_BRAND', 'keystone');
     const mod = await import('../chat-opener');
     expect(mod.OPENER_PROMPT).toMatch(/AlphaX/i);
   });
@@ -44,7 +44,7 @@ describe('FR9 chat-opener: brand-aware OPENER_PROMPT', () => {
   });
 
   it('isOpenerPromptMessage detects the [OPENER] prefix on AlphaX', async () => {
-    vi.stubEnv('VITE_BRAND', 'alphax');
+    vi.stubEnv('VITE_BRAND', 'keystone');
     const mod = await import('../chat-opener');
     expect(
       mod.isOpenerPromptMessage({
@@ -66,7 +66,7 @@ describe('FR9 chat-opener: brand-aware OPENER_PROMPT', () => {
   });
 
   it('isOpenerPromptMessage rejects non-opener user messages', async () => {
-    vi.stubEnv('VITE_BRAND', 'alphax');
+    vi.stubEnv('VITE_BRAND', 'keystone');
     const mod = await import('../chat-opener');
     expect(
       mod.isOpenerPromptMessage({

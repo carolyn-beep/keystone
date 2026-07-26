@@ -10,7 +10,7 @@ The result is knowledge a student can *defend*, because they built every layer o
 
 > **What's in this document.** A full technical walkthrough of the platform: the DOK methodology and the Socratic method that powers it, the grading pipelines (DOK1–4), the multi-agent research stream, the runtime skills library, and the architecture. Sections marked **🚧 Roadmap** describe designed-but-not-yet-shipped capabilities.
 
-> **A note on naming.** User-facing brands are **Keystone** (the student-facing platform) and **Keystone Central** (the professional edition). Two internal identifiers still lag these names in the codebase, pending a scheduled clean-break migration: `brainlift` is the internal entity name for a **Keystone Document** (database tables, API routes like `/api/brainlifts/:slug`, identifiers), and `alphax` is the internal brand selector for **Keystone** (e.g. `BRAND=alphax`, `server/brand/alphax.ts`, `alphax-*` assets and CSS). Code paths, filenames, and environment values cited throughout this document therefore still read `brainlift` / `alphax`; the user-facing names are always Keystone.
+> **A note on naming.** User-facing brands are **Keystone** (the student-facing platform) and **Keystone Central** (the professional edition). Two internal identifiers still lag these names in the codebase, pending a scheduled clean-break migration: `brainlift` is the internal entity name for a **Keystone Document** (database tables, API routes like `/api/brainlifts/:slug`, identifiers), and `keystone` is the internal brand selector for **Keystone** (e.g. `BRAND=keystone`, `server/brand/keystone.ts`, `keystone-*` assets and CSS). Code paths, filenames, and environment values cited throughout this document therefore still read `brainlift` / `keystone`; the user-facing names are always Keystone.
 
 ### The Keystone Document Methodology
 
@@ -51,13 +51,13 @@ By the end, the student hasn't collected AI-generated notes. They've built — a
 
 Keystone makes one pedagogical bet, and every student-facing surface is built to honor it: **the student must articulate the knowledge; the AI must not do it for them.** This isn't a tone preference — it is enforced in the system prompts, the tools, *and* the grading. It is what separates Keystone from a chatbot that simply hands over answers.
 
-The coaching agent's operating posture is declared in its own system prompt (`server/brand/alphax.ts`) under a header literally named **`MAIN OPERATIONAL POSTURE — SOCRATIC`**:
+The coaching agent's operating posture is declared in its own system prompt (`server/brand/keystone.ts`) under a header literally named **`MAIN OPERATIONAL POSTURE — SOCRATIC`**:
 
 > "The [Keystone Document] only works if the knowledge passes through the student's brain… your role above DOK1 is not to produce substantive content — it is to surface material from sources and pull the student's thinking out into the page through questions."
 
 That posture shows up everywhere a student touches the system:
 
-**1. The coaching chat scaffolds by DOK level — and refuses to author.** For each level the agent has an explicit rule (`server/brand/alphax.ts`): read the source *with* the student and quote passages back for their reaction (DOK1); ask the question that surfaces *their* summary instead of paraphrasing the source (DOK2); require the student to name cross-source patterns themselves — *"a missing insight is better than one you invented"* (DOK3); never propose a position or offer phrasings to pick from (DOK4). When a student says "just write it for me," the prompt is explicit that **the refusal is the work**: *"I can't write the SPOV for you — if I write it, you didn't take the position."* The friction is the cognitive load doing its job.
+**1. The coaching chat scaffolds by DOK level — and refuses to author.** For each level the agent has an explicit rule (`server/brand/keystone.ts`): read the source *with* the student and quote passages back for their reaction (DOK1); ask the question that surfaces *their* summary instead of paraphrasing the source (DOK2); require the student to name cross-source patterns themselves — *"a missing insight is better than one you invented"* (DOK3); never propose a position or offer phrasings to pick from (DOK4). When a student says "just write it for me," the prompt is explicit that **the refusal is the work**: *"I can't write the SPOV for you — if I write it, you didn't take the position."* The friction is the cognitive load doing its job.
 
 **2. The Discussion Agent reads alongside the student.** In the split-screen reader (`server/ai/discussion/system-prompt.ts`) it listens first, never lectures, and nudges synthesis with questions like *"How do these facts connect?"* — but it will not generate facts, summarize the article unprompted, or hand over a DOK2 example. It also enforces the learning order: a student who jumps to synthesis before establishing facts is redirected back to the evidence.
 
@@ -92,7 +92,7 @@ server/
       tools/      Domain-grouped chat tools (second-brain, project, research-stream, research, ask-user, …)
     learning-stream-swarm-v2/  Vercel AI SDK research orchestrator + per-type agents + cost tracking
     learning-stream-swarm/     Legacy Claude Agent SDK swarm (kept for rollback during v2 soak)
-  brand/          Per-brand system prompts (alphax authoring, alphax-research, brainlift) + dispatcher
+  brand/          Per-brand system prompts (keystone authoring, keystone-research, brainlift) + dispatcher
   jobs/           Graphile Worker background jobs (incl. refreshModelPrices, learningStreamResearch)
   events/         SSE event emitters (DOK4 grading progress)
   middleware/     Auth (Better Auth + Google OAuth + email/password), brainlift authorization, error handling
@@ -791,8 +791,8 @@ The scope the student sets is written onto the project (`brainlifts` scope colum
 
 The Keystone (student-brand) chat agent now runs in one of two modes per conversation, dispatched by `server/brand/index.ts` based on the bound project's phase:
 
-- **Research mode** (`server/brand/alphax-research.ts`) — the agent's mission is to make the student an expert in their domain. The prompt emphasizes aggressive note capture, terrain mapping, "today" date awareness, and the Research Stream as the default action when knowledge gaps appear. It branches on whether a project is bound (unbound conversations include new-user onboarding cues and a project-idea-generator skill nudge) and on the student's `brainliftCount`.
-- **Authoring mode** (`server/brand/alphax.ts`) — the existing brainlift-author prompt, lightly adjusted to align with the non-editable `propose_research_run` preview behavior.
+- **Research mode** (`server/brand/keystone-research.ts`) — the agent's mission is to make the student an expert in their domain. The prompt emphasizes aggressive note capture, terrain mapping, "today" date awareness, and the Research Stream as the default action when knowledge gaps appear. It branches on whether a project is bound (unbound conversations include new-user onboarding cues and a project-idea-generator skill nudge) and on the student's `brainliftCount`.
+- **Authoring mode** (`server/brand/keystone.ts`) — the existing brainlift-author prompt, lightly adjusted to align with the non-editable `propose_research_run` preview behavior.
 
 Keystone Central (`brand=brainlift`) is untouched.
 
@@ -810,7 +810,7 @@ Keystone Central (`brand=brainlift`) is untouched.
 
 ### Synthetic Opener
 
-The Keystone welcome message is a **hardcoded synthetic assistant turn** (`shared/alphax-synthetic-opener.ts`) injected at the top of an empty conversation. The detection helper keeps the synthetic turn invisible to downstream prompt construction so the LLM never sees it as a real exchange.
+The Keystone welcome message is a **hardcoded synthetic assistant turn** (`shared/keystone-synthetic-opener.ts`) injected at the top of an empty conversation. The detection helper keeps the synthetic turn invisible to downstream prompt construction so the LLM never sees it as a real exchange.
 
 ---
 
@@ -1146,7 +1146,7 @@ The same codebase ships as two distinct products — one for students, one for p
 
 One env var picks the brand at build time on the client (`VITE_BRAND`) and at boot on the server (`BRAND`). Two Render services share `DATABASE_URL` and the Google OAuth client; cookie scopes per domain mean separate sign-ins on each.
 
-> **Legacy deploy identifiers.** The student brand is **Keystone**, but at the code/deploy level it still selects with `BRAND=alphax` and currently ships under the legacy display name **"AlphaX Buddy"**. These deploy-level names are part of the scheduled clean-break migration and will move to Keystone naming. (The Keystone Central professional edition is defined but not yet deployed.)
+> **Legacy deploy identifiers.** The student brand is **Keystone**, but at the code/deploy level it still selects with `BRAND=keystone` and currently ships under the legacy display name **"AlphaX Buddy"**. These deploy-level names are part of the scheduled clean-break migration and will move to Keystone naming. (The Keystone Central professional edition is defined but not yet deployed.)
 
 ### Brand Module
 
@@ -1154,12 +1154,12 @@ One env var picks the brand at build time on the client (`VITE_BRAND`) and at bo
 client/src/brand/
   index.ts                 selector, throws on missing/unknown VITE_BRAND
   types.ts                 BrandConfig + component prop types
-  alphax/                  Keystone (student) wordmark, avatar, login illustration, CSS, assets
+  keystone/                  Keystone (student) wordmark, avatar, login illustration, CSS, assets
   brainlift/               Keystone Central wordmark, avatar, login illustration, CSS, assets
 
 server/brand/
   index.ts                 server selector, throws on missing/unknown BRAND
-  alphax.ts                buildKeystoneSystemPrompt + buildKeystoneBrainliftHeuristics
+  keystone.ts                buildKeystoneSystemPrompt + buildKeystoneBrainliftHeuristics
   brainlift.ts             buildBrainliftSystemPrompt + buildBrainliftBrainliftHeuristics
   shared/prompt-helpers.ts shared prose blocks (Tone helpers, Tools Protocol, formatters)
 ```
@@ -1168,7 +1168,7 @@ The `@/brand` Vite alias resolves directly to the active brand barrel at config 
 
 ### Frontend
 
-Each brand exposes the same surface (`config`, `Wordmark`, `Avatar`, `LoginIllustration`, `chatAvatar`, plus a side-effect CSS import). Consumers (`Login.tsx`, `AppSidebar.tsx`, `ChatComposer.tsx`, `native-chat-thread-config.tsx`) read from `@/brand` and never know which brand they are rendering. CSS classes use parallel namespaces (`alphax-*`, `brainlift-*`) plus a small set of brand-neutral chrome classes (`brand-nameplate-*`).
+Each brand exposes the same surface (`config`, `Wordmark`, `Avatar`, `LoginIllustration`, `chatAvatar`, plus a side-effect CSS import). Consumers (`Login.tsx`, `AppSidebar.tsx`, `ChatComposer.tsx`, `native-chat-thread-config.tsx`) read from `@/brand` and never know which brand they are rendering. CSS classes use parallel namespaces (`keystone-*`, `brainlift-*`) plus a small set of brand-neutral chrome classes (`brand-nameplate-*`).
 
 Brand-specific CSS lives in `client/src/brand/{brand}/{brand}.css`, imported as a side-effect from the brand barrel. The global `client/src/index.css` only carries shared tokens, brand-neutral chrome, and shared component overrides. The favicon is swapped at runtime on barrel load by setting `<link rel='icon'>.href`.
 
@@ -1184,8 +1184,8 @@ The brand-aware chat opener (`client/src/chat/chat-opener.ts`) emits the `[OPENE
 
 | Build | Forbidden tokens |
 |-------|------------------|
-| `BRAND=alphax` | `Keystone Central`, `brain-hero`, `brainlift-nameplate`, `brainlift-wordmark`, `brainlift-avatar`, `brainlift-login-plate` |
-| `BRAND=brainlift` | `AlphaX`, `Alpha X Buddy`, `alpha-buddy`, `owl-counsel`, `alphax-nameplate`, `alphax-wordmark`, `Builds at night`, `Plate I.` |
+| `BRAND=keystone` | `Keystone Central`, `brain-hero`, `brainlift-nameplate`, `brainlift-wordmark`, `brainlift-avatar`, `brainlift-login-plate` |
+| `BRAND=brainlift` | `AlphaX`, `Alpha X Buddy`, `alpha-buddy`, `owl-counsel`, `keystone-nameplate`, `keystone-wordmark`, `Builds at night`, `Plate I.` |
 
 This is the post-build proof that tree-shaking eliminated the inactive subtree.
 
@@ -1193,7 +1193,7 @@ This is the post-build proof that tree-shaking eliminated the inactive subtree.
 
 ```bash
 # Keystone student brand (legacy deploy name still "AlphaX Buddy" pending migration)
-BRAND=alphax VITE_BRAND=alphax VITE_BRAND_NAME="AlphaX Buddy" npm run build
+BRAND=keystone VITE_BRAND=keystone VITE_BRAND_NAME="AlphaX Buddy" npm run build
 
 # Keystone Central
 BRAND=brainlift VITE_BRAND=brainlift VITE_BRAND_NAME="Keystone Central" npm run build
@@ -1254,8 +1254,8 @@ docker exec -i wizardly_kalam psql -U postgres -d dok1grader_local < migrations/
 | `YOUTUBE_API_KEY` | YouTube Data API (video researcher agent) |
 | `SWARM_AGENT_COUNT` | Research agents per swarm (default: 5) |
 | `WORKER_CONCURRENCY` | Background job concurrency (default: 3) |
-| `BRAND` | Server brand selector. `alphax` or `brainlift`. Throws at boot if missing or unknown. |
-| `VITE_BRAND` | Client brand selector. `alphax` or `brainlift`. Read at Vite config time to alias `@/brand`. Must match `BRAND`. |
+| `BRAND` | Server brand selector. `keystone` or `brainlift`. Throws at boot if missing or unknown. |
+| `VITE_BRAND` | Client brand selector. `keystone` or `brainlift`. Read at Vite config time to alias `@/brand`. Must match `BRAND`. |
 | `VITE_BRAND_NAME` | Display name shown in the browser tab and HTML meta description (e.g. `AlphaX Buddy` or `Keystone Central`). |
 | `SWARM_VERBOSE_LOG` | Optional. `true` enables per-tool verbose file logging for both v1 and v2 research-stream runs. Default off. |
 | `VITE_ENABLE_DEV_LOGIN` | Optional build-time flag. `true` keeps the Login page's "Dev quick login" panel visible on production builds (for staging/demo accounts). Default off in production. |

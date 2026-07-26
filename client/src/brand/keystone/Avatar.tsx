@@ -40,9 +40,9 @@ export function Avatar({ variant }: AvatarProps) {
   if (variant === 'sidebar') {
     // Matches AppSidebar.tsx:78-89 byte-for-byte.
     return (
-      <span className="alphax-nameplate-avatar relative shrink-0">
-        <span className="alphax-nameplate-glow" aria-hidden="true" />
-        <span className="alphax-nameplate-frame">
+      <span className="keystone-nameplate-avatar relative shrink-0">
+        <span className="keystone-nameplate-glow" aria-hidden="true" />
+        <span className="keystone-nameplate-frame">
           <img
             src={keystoneAvatar}
             alt=""

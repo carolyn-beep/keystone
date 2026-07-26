@@ -9,7 +9,7 @@
 
 import { describe, expect, it } from 'vitest';
 import type { ChatUserContext } from '../../storage/base';
-import { buildKeystoneSystemPrompt } from '../alphax';
+import { buildKeystoneSystemPrompt } from '../keystone';
 
 const zeroBrainliftContext: ChatUserContext = {
   userId: 'user-0',

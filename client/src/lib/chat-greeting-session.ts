@@ -26,13 +26,13 @@ const STORAGE_KEY = 'chat-opener-last-fired-ms';
 const OPENER_COOLDOWN_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
 
 // One-time migration: an earlier iteration of this gate briefly wrote the
-// timestamp under `alphax-opener-last-fired-ms` before the brand-neutrality
+// timestamp under `keystone-opener-last-fired-ms` before the brand-neutrality
 // rules forced us to rename. Anyone who tested that build has the stale key
 // sitting in their localStorage; without this fallback they'd be greeted
 // again on first landing of the new build. Reads from the legacy key on
 // miss and promotes the value into the new key so the migration is a
 // one-shot per user.
-const LEGACY_STORAGE_KEY = 'alphax-opener-last-fired-ms';
+const LEGACY_STORAGE_KEY = 'keystone-opener-last-fired-ms';
 
 function readLastFiredMs(): number | null {
   try {

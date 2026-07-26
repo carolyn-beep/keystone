@@ -18,7 +18,7 @@ interface BuilderContext {
  *
  * Branches on `brainlift.phase`:
  * - 'research': capture-first prompt (Second Brain notes/sources, no DOK
- *   framework). Mirrors the alphax-research guidance used by the native chat
+ *   framework). Mirrors the keystone-research guidance used by the native chat
  *   agent in research mode.
  * - 'authoring': DOK pyramid prompt (existing behavior) plus a short Second
  *   Brain section since SB tools are now available in both phases.
@@ -162,7 +162,7 @@ Second Brain saves are secondary to DOK work in this mode — use them when the 
 
 /**
  * Research-phase discussion prompt. Drops DOK framework, leads with capture
- * reflex (sources + notes), mirrors the principles in alphax-research.ts so
+ * reflex (sources + notes), mirrors the principles in keystone-research.ts so
  * the discussion agent behaves consistently with native chat when the
  * brainlift is in research mode.
  */

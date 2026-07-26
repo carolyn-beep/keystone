@@ -1165,7 +1165,7 @@
 /* ===== Shared brand-nameplate chrome (sidebar) =====
    Brand-neutral wrapper / button / focus styles for the sidebar BrandHeader.
    Brand-specific avatar / wordmark visuals live in each brand's own
-   stylesheet (`client/src/brand/{alphax,brainlift}/*.css`) so the inactive
+   stylesheet (`client/src/brand/{keystone,brainlift}/*.css`) so the inactive
    brand's CSS is tree-shaken from the active build. */
 
 .brand-nameplate {

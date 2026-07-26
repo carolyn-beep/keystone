@@ -12,8 +12,8 @@ import { describe, expect, it } from 'vitest';
  * The total addition per file is tight (token-budget sensitive).
  */
 
-const RESEARCH_PATH = new URL('../alphax-research.ts', import.meta.url);
-const AUTHORING_PATH = new URL('../alphax.ts', import.meta.url);
+const RESEARCH_PATH = new URL('../keystone-research.ts', import.meta.url);
+const AUTHORING_PATH = new URL('../keystone.ts', import.meta.url);
 
 const researchSource = fs.readFileSync(RESEARCH_PATH, 'utf8');
 const authoringSource = fs.readFileSync(AUTHORING_PATH, 'utf8');
@@ -26,7 +26,7 @@ function sliceBetween(source: string, startMarker: string, endMarker: string): s
 }
 
 describe('FR3 brand prompt additions for propose_research_run', () => {
-  describe('alphax-research.ts (research mode)', () => {
+  describe('keystone-research.ts (research mode)', () => {
     it('mentions propose_research_run inside the operational-posture region', () => {
       const posture = sliceBetween(
         researchSource,
@@ -52,7 +52,7 @@ describe('FR3 brand prompt additions for propose_research_run', () => {
     });
   });
 
-  describe('alphax.ts (authoring mode)', () => {
+  describe('keystone.ts (authoring mode)', () => {
     it('mentions propose_research_run inside the operational-posture region', () => {
       const posture = sliceBetween(
         authoringSource,
@@ -63,7 +63,7 @@ describe('FR3 brand prompt additions for propose_research_run', () => {
     });
 
     it('mentions propose_research_run in a tools-available-style entry', () => {
-      // alphax.ts does not have a literal "TOOLS AVAILABLE" section header,
+      // keystone.ts does not have a literal "TOOLS AVAILABLE" section header,
       // but it does include a tools-protocol block + tool mentions in the
       // posture body. Assert the tool appears either in posture (one-line
       // entry) or otherwise somewhere outside imports.
@@ -83,13 +83,13 @@ describe('FR3 brand prompt additions for propose_research_run', () => {
     // Soft check: count occurrences of the literal `propose_research_run`. Each
     // file should mention it at most a handful of times; if someone bloats the
     // prompt with paragraphs of guidance, this fires.
-    it('alphax-research.ts mentions propose_research_run no more than 4 times', () => {
+    it('keystone-research.ts mentions propose_research_run no more than 4 times', () => {
       const mentions = researchSource.match(/propose_research_run/g) ?? [];
       expect(mentions.length).toBeGreaterThanOrEqual(2);
       expect(mentions.length).toBeLessThanOrEqual(4);
     });
 
-    it('alphax.ts mentions propose_research_run no more than 4 times', () => {
+    it('keystone.ts mentions propose_research_run no more than 4 times', () => {
       const mentions = authoringSource.match(/propose_research_run/g) ?? [];
       expect(mentions.length).toBeGreaterThanOrEqual(2);
       expect(mentions.length).toBeLessThanOrEqual(4);

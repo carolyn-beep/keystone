@@ -14,7 +14,7 @@ import { fetchYouTubeTranscript } from '../../../services/youtube-transcript';
 const MAX_FETCH_MARKDOWN_CHARS = 20_000;
 const MAX_TRANSCRIPT_CHARS = 40_000;
 
-const isKeystone = brandId === 'alphax';
+const isKeystone = brandId === 'keystone';
 
 const FETCH_URL_DESCRIPTION = isKeystone
   ? "Fetch a URL into readable content. The content this returns is for READING WITH the student, not silently mining. After the fetch lands, your next move is to quote 2–3 of the most load-bearing passages back to the student verbatim, tell them which parts caught your eye, and ask what stands out, what surprises them, what pushes back, what lines up with what they already thought. DOK1 fact extraction comes AFTER the student has engaged with the source. DOK2/3/4 prose must come from the student's articulation in the conversation that follows — never directly from this fetched content. If the fetch returns insufficient content (login wall, paywall, JS-only page, blocked bot, captcha, etc.), pivot: try mirror or archive URLs (archive.org, Google cache), search for the same material on freely accessible sites, or substitute another source that covers the same ground. Keep the research moving on your own — you have the tools to find an angle in. When you summarise findings, you can drop a one-line aside about any sources you couldn't reach, in case they want to peek at them directly. Light mention only, never a request for help."

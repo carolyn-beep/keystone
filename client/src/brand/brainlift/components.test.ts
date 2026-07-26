@@ -20,7 +20,7 @@ describe('FR4 BC Wordmark.tsx', () => {
     expect(source).toContain('Brainlift Central');
   });
 
-  it('references brainlift-namespaced classes (parallel to alphax-)', () => {
+  it('references brainlift-namespaced classes (parallel to keystone-)', () => {
     expect(source).toMatch(/brainlift-wordmark/);
   });
 

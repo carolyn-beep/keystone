@@ -17,8 +17,8 @@ const repoRoot = path.resolve(__dirname, '../../..');
 const clientSrc = path.join(repoRoot, 'client/src');
 
 describe('FR7 brand-specific CSS lives in per-brand stylesheets (tree-shakable)', () => {
-  const alphaxCss = fs.readFileSync(
-    path.join(clientSrc, 'brand/alphax/alphax.css'),
+  const keystoneCss = fs.readFileSync(
+    path.join(clientSrc, 'brand/keystone/keystone.css'),
     'utf8',
   );
   const brainliftCss = fs.readFileSync(
@@ -27,17 +27,17 @@ describe('FR7 brand-specific CSS lives in per-brand stylesheets (tree-shakable)'
   );
   const indexCss = fs.readFileSync(path.join(clientSrc, 'index.css'), 'utf8');
 
-  it('AlphaX-namespaced visual classes live in alphax.css', () => {
-    expect(alphaxCss).toMatch(/\.alphax-nameplate-wordmark\b/);
-    expect(alphaxCss).toMatch(/\.alphax-nameplate-x\b/);
-    expect(alphaxCss).toMatch(/\.alphax-wordmark-hero\b/);
-    expect(alphaxCss).toMatch(/\.alphax-wordmark-mobile\b/);
-    expect(alphaxCss).toMatch(/\.alphax-nameplate-avatar\b/);
+  it('AlphaX-namespaced visual classes live in keystone.css', () => {
+    expect(keystoneCss).toMatch(/\.keystone-nameplate-wordmark\b/);
+    expect(keystoneCss).toMatch(/\.keystone-nameplate-x\b/);
+    expect(keystoneCss).toMatch(/\.keystone-wordmark-hero\b/);
+    expect(keystoneCss).toMatch(/\.keystone-wordmark-mobile\b/);
+    expect(keystoneCss).toMatch(/\.keystone-nameplate-avatar\b/);
   });
 
-  it('AlphaX login-hero-plate / login-card-avatar classes live in alphax.css', () => {
-    expect(alphaxCss).toMatch(/\.login-hero-plate\b/);
-    expect(alphaxCss).toMatch(/\.login-card-avatar\b/);
+  it('AlphaX login-hero-plate / login-card-avatar classes live in keystone.css', () => {
+    expect(keystoneCss).toMatch(/\.login-hero-plate\b/);
+    expect(keystoneCss).toMatch(/\.login-card-avatar\b/);
   });
 
   it('Brainlift-namespaced classes live in brainlift.css', () => {
@@ -53,23 +53,23 @@ describe('FR7 brand-specific CSS lives in per-brand stylesheets (tree-shakable)'
     expect(indexCss).toMatch(/\.brand-nameplate--compact|\.brand-nameplate\b/);
   });
 
-  it('global index.css does NOT contain alphax-* or brainlift-* visuals (tree-shake guarantee)', () => {
-    expect(indexCss).not.toMatch(/\.alphax-nameplate\b/);
-    expect(indexCss).not.toMatch(/\.alphax-wordmark/);
+  it('global index.css does NOT contain keystone-* or brainlift-* visuals (tree-shake guarantee)', () => {
+    expect(indexCss).not.toMatch(/\.keystone-nameplate\b/);
+    expect(indexCss).not.toMatch(/\.keystone-wordmark/);
     expect(indexCss).not.toMatch(/\.brainlift-nameplate/);
     expect(indexCss).not.toMatch(/\.brainlift-wordmark/);
   });
 
-  it('alphax.css and brainlift.css are imported as side-effects from their barrels', () => {
-    const alphaxBarrel = fs.readFileSync(
-      path.join(clientSrc, 'brand/alphax/index.ts'),
+  it('keystone.css and brainlift.css are imported as side-effects from their barrels', () => {
+    const keystoneBarrel = fs.readFileSync(
+      path.join(clientSrc, 'brand/keystone/index.ts'),
       'utf8',
     );
     const brainliftBarrel = fs.readFileSync(
       path.join(clientSrc, 'brand/brainlift/index.ts'),
       'utf8',
     );
-    expect(alphaxBarrel).toMatch(/import\s+['"]\.\/alphax\.css['"]/);
+    expect(keystoneBarrel).toMatch(/import\s+['"]\.\/keystone\.css['"]/);
     expect(brainliftBarrel).toMatch(/import\s+['"]\.\/brainlift\.css['"]/);
   });
 });
@@ -138,12 +138,12 @@ describe('FR11 duplicated assets are deleted', () => {
     expect(fs.existsSync(p)).toBe(false);
   });
 
-  it('Keystone brand assets remain present under client/src/brand/alphax/assets/', () => {
+  it('Keystone brand assets remain present under client/src/brand/keystone/assets/', () => {
     expect(
-      fs.existsSync(path.join(clientSrc, 'brand/alphax/assets/keystone-avatar.png')),
+      fs.existsSync(path.join(clientSrc, 'brand/keystone/assets/keystone-avatar.png')),
     ).toBe(true);
     expect(
-      fs.existsSync(path.join(clientSrc, 'brand/alphax/assets/keystone-login.png')),
+      fs.existsSync(path.join(clientSrc, 'brand/keystone/assets/keystone-login.png')),
     ).toBe(true);
   });
 });

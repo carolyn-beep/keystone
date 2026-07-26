@@ -31,7 +31,7 @@ import {
 import type { BrandPromptBuilders, BuildSystemPromptArgs, ServerBrandConfig } from './types';
 
 export const config: ServerBrandConfig = {
-  id: 'alphax',
+  id: 'keystone',
   productName: 'Keystone',
   platformName: 'Keystone',
 };
