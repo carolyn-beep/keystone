@@ -1,25 +1,73 @@
-# Brainlift Platform
+# Keystone
 
-A knowledge verification and learning platform built around the Depth of Knowledge (DOK) framework. Students build structured knowledge artifacts called BrainLifts — curated collections of facts, summaries, insights, and spiky points of view — and the platform evaluates the quality of that knowledge at every level.
+**An AI learning platform that turns students into genuine experts — by making them do the thinking.**
 
-The system spans the full learning lifecycle: importing structured documents, grading factual accuracy and synthesis quality, surfacing relevant sources through multi-agent research, guiding students through AI-assisted discussion, stress-testing expertise through adversarial debate, and building a persistent learner profile that ties it all together.
+Keystone is built on one uncompromising principle: *knowledge only counts when it passes through the student's own mind.* Most AI tools do the thinking **for** the learner — they summarize, they draft, they answer. Keystone deliberately refuses to. It acts as a Socratic guide: it surfaces the raw material, asks the questions that force students to articulate their own understanding, and then rigorously grades the depth of what they produced.
 
-### The BrainLift Methodology
+Each student builds a **Keystone Document** — a personal, source-grounded body of knowledge organized by the four levels of *Depth of Knowledge (DOK)*: verifiable **facts**, their own **synthesis**, cross-source **insight**, and finally a defensible **point of view** on questions where even experts disagree. Along the way the platform surfaces relevant sources through multi-agent research, verifies facts against evidence, grades synthesis quality, and coaches the student — always through questions, never by handing over answers — from raw curiosity to earned expertise.
 
-A BrainLift is a personal knowledge structure organized by Depth of Knowledge. The DOK framework defines four levels, and the platform enforces a critical bright line between them:
+The result is knowledge a student can *defend*, because they built every layer of it themselves.
+
+> **What's in this document.** A full technical walkthrough of the platform: the DOK methodology and the Socratic method that powers it, the grading pipelines (DOK1–4), the multi-agent research stream, the runtime skills library, and the architecture. Sections marked **🚧 Roadmap** describe designed-but-not-yet-shipped capabilities.
+
+### The Keystone Document Methodology
+
+A Keystone Document is a personal knowledge structure organized by Depth of Knowledge. The DOK framework defines four levels, and the platform enforces a critical bright line between them:
 
 | Level | What It Is | Who Creates It | Platform Role |
 |-------|-----------|----------------|---------------|
 | **DOK1 — Facts** | Objective, verifiable claims extracted from sources. Same for anyone who reads the material. | User extracts, AI assists | Verification, scoring, evidence fetching |
-| **DOK2 — Summaries** | The user's own synthesis of DOK1 facts — reorganized through their interpretive lens and connected to their BrainLift's purpose. | User writes, no AI generation | Grading (did the reorganization happen?), source verification |
-| **DOK3 — Insights** | Surprising, contrarian patterns that transcend multiple sources. Subjective, supported by DOK1-2. | User only | Developed through guided discussion, graded through the full pipeline (Honcho learner profile + Adversary Defense performance) |
-| **DOK4 — Spiky POVs** | Clear positions on topics where experts disagree. New knowledge that AI doesn't already have. | User only | Stress-tested through Adversary Defense, tracked longitudinally through Honcho |
+| **DOK2 — Summaries** | The user's own synthesis of DOK1 facts — reorganized through their interpretive lens and connected to their Keystone Document's purpose. | User writes, no AI generation | Grading (did the reorganization happen?), source verification |
+| **DOK3 — Insights** | Surprising, contrarian patterns that transcend multiple sources. Subjective, supported by DOK1-2. | User only | Developed through guided Socratic discussion, graded through the full pipeline *(deepened on the roadmap by the Honcho learner profile + Adversary Defense)* |
+| **DOK4 — Spiky POVs** | Clear positions on topics where experts disagree. New knowledge that AI doesn't already have. | User only | Graded for divergence from a baseline LLM *(stress-testing via Adversary Defense + Honcho longitudinal tracking are roadmap)* |
 
 The bright line: **DOK1-2 are based on the external world. DOK3-4 are based on the owner's expertise.** The platform's job is to surface the external world (Learning Stream), help the user extract and verify DOK1 facts, grade their DOK2 synthesis, and develop and stress-test their DOK3-4 positions — but never to generate the knowledge itself. The user must articulate it. This is the core design constraint that drives every AI interaction in the system.
 
-DOK3 grading is built as a full pipeline, not a standalone rubric — because DOK3 thinking can't be evaluated in isolation. It has to be developed and then stress-tested. The Discussion Agent trains the critical thinking muscle every session. Honcho tracks the full trail of how a student arrives at an insight — which sources they engaged with, where their thinking was challenged, whether their reasoning held up. The Adversary Defense proves they own it under pressure. When it comes time to evaluate a DOK3 insight, the system isn't scoring text in a vacuum — it has the learner's entire journey as context. That's what makes DOK3 grading meaningful instead of superficial.
+DOK3 grading is built as a full pipeline, not a standalone rubric — because DOK3 thinking can't be evaluated in isolation. It has to be developed and then stress-tested. The **Discussion Agent** trains the critical-thinking muscle every session, and the grading pipeline scores an insight against the reasoning the student actually articulated rather than judging text in a vacuum. Two further layers are designed to deepen this — the **Honcho** learner profile (a longitudinal memory of *how* a student arrived at an insight) and the **AI Adversary Defense** (proving they own it under pressure). Both are documented in full below and marked **🚧 Roadmap** — the design is complete; the code isn't shipped in this build.
 
-Below the BrainLift sits the **Learning Stream** — the automated discovery layer. The Learning Stream research swarm, content extraction, and discussion agents all serve the same purpose: they expose the user to the flow of relevant information so the user can curate their BrainLift. 
+Below the Keystone Document sits the **Learning Stream** — the automated discovery layer. The Learning Stream research swarm, content extraction, and discussion agents all serve the same purpose: they expose the user to the flow of relevant information so the user can curate their Keystone Document. 
+
+---
+
+## How a Student Uses Keystone
+
+A single arc, start to finish:
+
+1. **Start with a question.** A student names something they want to become expert in — a market, a thesis, a domain problem — and the agent helps them frame a *purpose* for their Keystone Document. No blank-page overwhelm.
+2. **Gather the raw material.** The Learning Stream's multi-agent research swarm fans out and surfaces real sources — articles, papers, transcripts — tailored to that purpose. Nothing is summarized for them yet.
+3. **Extract verified facts (DOK1).** Reading a source in the split-screen reader, the student pulls out specific, checkable facts. Each is verified against evidence in the background and scored.
+4. **Synthesize in their own words (DOK2).** The Discussion Agent asks how the facts connect. The student writes the synthesis; the grader checks whether real reorganization happened — not just compression.
+5. **Find the insight (DOK3).** Across sources, the student names a non-obvious pattern. The agent refuses to name it for them — a missing insight beats an invented one.
+6. **Take a position (DOK4).** The student commits to a defensible point of view on a contested question, graded for whether it actually *diverges* from what a generic AI would say.
+7. **Defend it. 🚧** In the roadmap Adversary Defense, the student defends that position against an escalating AI opponent across 12 rounds — the final proof of ownership.
+
+By the end, the student hasn't collected AI-generated notes. They've built — and can defend — a body of expertise that is unmistakably their own.
+
+---
+
+## The Socratic Method — Keystone's Through-Line
+
+Keystone makes one pedagogical bet, and every student-facing surface is built to honor it: **the student must articulate the knowledge; the AI must not do it for them.** This isn't a tone preference — it is enforced in the system prompts, the tools, *and* the grading. It is what separates Keystone from a chatbot that simply hands over answers.
+
+The coaching agent's operating posture is declared in its own system prompt (`server/brand/alphax.ts`) under a header literally named **`MAIN OPERATIONAL POSTURE — SOCRATIC`**:
+
+> "The [Keystone Document] only works if the knowledge passes through the student's brain… your role above DOK1 is not to produce substantive content — it is to surface material from sources and pull the student's thinking out into the page through questions."
+
+That posture shows up everywhere a student touches the system:
+
+**1. The coaching chat scaffolds by DOK level — and refuses to author.** For each level the agent has an explicit rule (`server/brand/alphax.ts`): read the source *with* the student and quote passages back for their reaction (DOK1); ask the question that surfaces *their* summary instead of paraphrasing the source (DOK2); require the student to name cross-source patterns themselves — *"a missing insight is better than one you invented"* (DOK3); never propose a position or offer phrasings to pick from (DOK4). When a student says "just write it for me," the prompt is explicit that **the refusal is the work**: *"I can't write the SPOV for you — if I write it, you didn't take the position."* The friction is the cognitive load doing its job.
+
+**2. The Discussion Agent reads alongside the student.** In the split-screen reader (`server/ai/discussion/system-prompt.ts`) it listens first, never lectures, and nudges synthesis with questions like *"How do these facts connect?"* — but it will not generate facts, summarize the article unprompted, or hand over a DOK2 example. It also enforces the learning order: a student who jumps to synthesis before establishing facts is redirected back to the evidence.
+
+**3. Even the grader stays Socratic.** DOK2–4 feedback (`server/prompts/`) names the gap and the exact evidence that would close it — then stops, leaving the student to find the words: *"point to what to fix and the fact that fixes it, and let them find the words themselves."* It never rewrites the student's work, and it judges form and grounding, never whether the position is "right."
+
+**4. The rule is enforced in the tools, not just the tone.** The tool that commits a Keystone Document (`server/ai/chat/tools/grading.ts`) carries the platform's strictest rule: if the agent passes markdown it wrote itself, *"the student has not built a [Keystone Document] — you have, and they signed it."* And the structured-question tool (`ask-user.ts`) is explicitly barred from smuggling answers in as multiple-choice options — *"the radio-option UI is not a back door for hand-drafting."* The two obvious ways to short-circuit the Socratic method are closed off in code.
+
+**5. The skills coach; they don't ghost-write.** The seeded skills (`build-a-brainlift`, `onboarding`, `sprint-execution`) repeat the same discipline: *"a coaching loop, not a ghost-writing service… ask, scaffold, push back; the student does the substantive work."*
+
+**One deliberate exception, one deliberate opposite.** DOK1 fact-extraction is mechanical, so the agent may pull facts directly from a source — but only after reading it *with* the student, never silently. And Keystone runs a second, intentionally **non-Socratic** mode for adult professionals (Keystone Central), which *will* draft and analyze on request; there, engagement is enforced downstream by the grader instead. The Socratic gate is applied precisely where it builds expertise — with learners — and lifted where the user is already an expert.
+
+The payoff is the platform's whole thesis: because the student articulated every layer themselves, the knowledge is *theirs* — and knowledge you built yourself is knowledge you can defend.
 
 ---
 
@@ -106,7 +154,7 @@ A provider abstraction (`AIProvider` interface) now ships with both OpenRouter a
 
 ### Native Chat Runtime
 
-The app shell now opens into the native chat experience at `/`; the existing BrainLift library remains available at `/library`. Native chat is not a separate MCP process. It is an in-process AI SDK runtime wired through `server/routes/chat.ts`, `server/ai/chat/`, and the shared `storage` facade.
+The app shell now opens into the native chat experience at `/`; the existing Keystone Document library remains available at `/library`. Native chat is not a separate MCP process. It is an in-process AI SDK runtime wired through `server/routes/chat.ts`, `server/ai/chat/`, and the shared `storage` facade.
 
 Conversation state is persisted in PostgreSQL through `chat_conversations` and `chat_messages` (`migrations/0029_add_chat_tables.sql`). The storage layer owns user-scoped CRUD, pagination, message syncing, legacy message ID backfill, and title updates. The route layer streams through AI SDK `streamText`, then syncs the finalized UI messages back to the database when the turn completes.
 
@@ -114,7 +162,7 @@ The chat model adapter in `server/ai/chat/provider.ts` implements `LanguageModel
 
 Tools are loaded from `buildNativeChatTools()` and grouped by domain:
 
-- **Grading tools** inspect or create BrainLift grading state (`get_template`, `grade_brainlift`, `list_brainlifts`, `get_brainlift_assessment`).
+- **Grading tools** inspect or create Keystone Document grading state (`get_template`, `grade_brainlift`, `list_brainlifts`, `get_brainlift_assessment`).
 - **Skill tools** expose runtime skills from the database (see [Runtime Skills Library](#runtime-skills-library) below). The prompt lists summaries and `load_skill` loads one body on demand; reference files are loaded individually via `load_skill_reference`. Admins additionally see `create_skill`, `update_skill`, `add_skill_reference`, `update_skill_reference`, `delete_skill_reference`, and `delete_skill`.
 - **Research tools** port the Learning Stream source-discovery surface into chat: Exa search (`web_search_exa`), URL extraction through the existing content extractor (`fetch_url_content`), and YouTube transcript retrieval (`get_youtube_transcript`).
 - **Curation and expert tools** create/edit/delete/link DOK items, handle stale flags, and manage experts through `server/services/brainlift-curation.ts`.
@@ -125,40 +173,40 @@ Tools are loaded from `buildNativeChatTools()` and grouped by domain:
 
 When the student lands on the homepage (`/` with no `?c=`), `ChatHome` creates a fresh empty conversation. `NativeChatThread`'s `OpenerTrigger` sends the priming user message only when that conversation is empty and the user's localStorage opener timestamp is more than 48 hours old. The timestamp key is scoped by user id, so two users on the same browser do not suppress each other. The prompt itself is the directive: the LLM follows it and streams a contextual welcome shaped by the brainlift-count heuristic and active sprint plans. The priming message is hidden from the visible thread by a custom `UserMessage` component that filters on `isOpenerPromptMessage`. Manual "New chat" clicks, sidebar selection, direct `/?c=ID` navigation, and `send=` autosend flows do not trigger the opener.
 
-The system prompt (`server/ai/chat/system-prompt.ts`) is generated per user. It includes recent BrainLifts, recent conversations, active sprint plans, available skill summaries, and strict operating rules that keep the agent coaching from the student's BrainLift instead of guessing hidden state.
+The system prompt (`server/ai/chat/system-prompt.ts`) is generated per user. It includes recent Keystone Documents, recent conversations, active sprint plans, available skill summaries, and strict operating rules that keep the agent coaching from the student's Keystone Document instead of guessing hidden state.
 
 Chat title generation runs after a completed user+assistant exchange when the conversation is still titled `New chat`. It uses a cheap fast Gemini Flash call through the unified AI client (`caller: 'chat.title'`) and falls back to a deterministic local title if the provider call fails. The database update is guarded so an automatic title cannot overwrite a user-renamed conversation.
 
 ### Runtime Skills Library
 
-The Skills Library is what turns the chat agent from a helpful assistant into a **founder's operating system**. Each skill is a self-contained expert procedure — a pricing strategist, a pitch-deck architect, an adversarial debate partner, a TAM auditor, a customer-discovery designer — that the agent invokes on demand, mid-conversation, without the student ever leaving the chat. **Forty-seven skills ship across six domains**, and every one of them reasons over the student's own brainlift: their verified DOK facts, their Spiky Points of View, their followed experts, their sources. These are not generic business templates. A pricing skill prices *this* company against *this* market; a rebuttal skill argues from *this* student's cited evidence; a gap analyzer knows exactly which categories of *this* body of work are thin. Deliverables are written straight back into the brainlift and the Document Hub, already scored.
+The Skills Library is what turns the chat agent from a helpful assistant into a **founder's operating system**. Each skill is a self-contained expert procedure — a pricing strategist, a pitch-deck architect, an adversarial debate partner, a TAM auditor, a customer-discovery designer — that the agent invokes on demand, mid-conversation, without the student ever leaving the chat. **Forty-seven skills ship across six domains**, and every one of them reasons over the student's own Keystone Document: their verified DOK facts, their Spiky Points of View, their followed experts, their sources. These are not generic business templates. A pricing skill prices *this* company against *this* market; a rebuttal skill argues from *this* student's cited evidence; a gap analyzer knows exactly which categories of *this* body of work are thin. Deliverables are written straight back into the Keystone Document and the Document Hub, already scored.
 
 Skills are **first-class, governed objects** — permissioned, versioned, soft-deletable, shareable, and fully authorable from chat by admins. They live in Postgres and load through a three-level progressive-disclosure protocol, so the entire catalogue costs almost nothing in context until a skill actually fires, and every skill competes for the model's attention purely on the strength of a single trigger description.
 
-**Two kinds, three tiers.** A skill is either **Generative** — it produces a deliverable in one pass (a plan, a brief, a scored evaluation) — or **Interactive** — it walks the student through guided checkpoints and *refuses to do the thinking for them*, enforcing the BrainLift bright line that knowledge only counts when it passes through the student's own brain. Each generative skill runs at a cost/quality **tier** — `Fast` for cheap high-volume work, `Standard` for everyday generation, `Quality` for high-stakes reasoning — mapped to the model registry so spend tracks stakes. Any skill that writes a document emits a named **asset** under a locked naming convention (`{document_type}__{title-slug}__{YYYY-MM-DD}.gdoc`), which lets downstream evaluators route each deliverable to the right rubric dimension automatically.
+**Two kinds, three tiers.** A skill is either **Generative** — it produces a deliverable in one pass (a plan, a brief, a scored evaluation) — or **Interactive** — it walks the student through guided checkpoints and *refuses to do the thinking for them*, enforcing the Keystone Document bright line that knowledge only counts when it passes through the student's own brain. Each generative skill runs at a cost/quality **tier** — `Fast` for cheap high-volume work, `Standard` for everyday generation, `Quality` for high-stakes reasoning — mapped to the model registry so spend tracks stakes. Any skill that writes a document emits a named **asset** under a locked naming convention (`{document_type}__{title-slug}__{YYYY-MM-DD}.gdoc`), which lets downstream evaluators route each deliverable to the right rubric dimension automatically.
 
 #### The library — 47 skills across 6 domains
 
-**Content** — turn a brainlift into a published presence.
+**Content** — turn a Keystone Document into a published presence.
 
 | Skill | What it does | Tier · Kind |
 |-------|--------------|-------------|
-| `daily-content-brief` | Generate a daily content brief from brainlift context | Fast · Generative |
+| `daily-content-brief` | Generate a daily content brief from Keystone Document context | Fast · Generative |
 | `30-day-social-plan` | Build a full 30-day social media plan | Quality · Generative |
 
 **Defense** — make a point of view survive contact with an adversary.
 
 | Skill | What it does | Tier · Kind |
 |-------|--------------|-------------|
-| `fact-check-draft` | Fact-check a provided draft against the brainlift's DOK items | Standard · Generative |
+| `fact-check-draft` | Fact-check a provided draft against the Keystone Document's DOK items | Standard · Generative |
 | `investor-qa-prep` | Prepare investor Q&A responses from SPOVs and facts | Quality · Generative |
 | `x-argument-prep` | Generate an X-ready position with counter-replies and rebuttals | Quality · Generative |
 | `stress-test-my-spov` | Pressure-test a SPOV through guided checkpoints | Interactive |
 | `rewrite-your-weakest` | Identify and rewrite the weakest DOK item, behind a quality gate | Interactive |
 | `adversarial-challenges` | Generate the 3 strongest opposing POVs against a stance, sourced from evidence, peers, and X discourse | Quality · Generative |
 | `gap-analyzer` | "What am I missing?" pass over the body of work — flags thin categories, unsupported claims, weak evidence chains, and produces a punch list | Quality · Generative |
-| `compose-from-stance` | Compose an X-ready post from a brainlift stance, with cited evidence | Standard · Generative |
-| `draft-rebuttal-with-evidence` | Draft a rebuttal to a specific X reply, grounded in brainlift facts | Standard · Generative |
+| `compose-from-stance` | Compose an X-ready post from a Keystone Document stance, with cited evidence | Standard · Generative |
+| `draft-rebuttal-with-evidence` | Draft a rebuttal to a specific X reply, grounded in Keystone Document facts | Standard · Generative |
 
 **Strategy** — decide what to build and where to plant the flag.
 
@@ -190,11 +238,11 @@ Skills are **first-class, governed objects** — permissioned, versioned, soft-d
 
 | Skill | What it does | Tier · Kind |
 |-------|--------------|-------------|
-| `idea-validator` | Evaluate a new idea against brainlift context | Standard · Generative |
+| `idea-validator` | Evaluate a new idea against Keystone Document context | Standard · Generative |
 | `research-briefing` | Produce a research briefing on a topic | Standard · Generative |
 | `audience-expertise-audit` | Audit audience expertise gaps | Quality · Generative |
 | `adjacent-industries` | Identify adjacent industries, audience expansions, and benchmarks | Standard · Generative |
-| `cross-domain-synthesis` | Find non-obvious combinations across brainlifts | Quality · Generative |
+| `cross-domain-synthesis` | Find non-obvious combinations across Keystone Documents | Quality · Generative |
 | `teach-back` | Student explains a DOK3 insight back, validated for understanding | Interactive |
 | `validate-experiential-claim` | Cross-check a "learned-by-doing" claim against sourced material and published literature; flag if uncorroborated | Standard · Generative |
 | `bad-idea-learning` | Extract structured lessons from an abandoned idea — what survives, what muscle was built, what to carry forward | Interactive |
@@ -245,13 +293,13 @@ Every list, load, and reference-load is **authentication-aware**: unauthorized, 
 
 ---
 
-## BrainLift Import & Extraction
+## Keystone Document Import & Extraction
 
-Users import BrainLifts from WorkFlowy, HTML exports, or Google Docs. The import pipeline parses the document structure, evaluates whether it needs structural reformatting, and then extracts facts organized by category, identifies DOK2 summaries with their related DOK1 facts, detects DOK3 insights and DOK4 Spiky Points of View, detects contradiction clusters between facts, and extracts expert mentions — all streamed back to the client as SSE progress events so the UI updates in real time as each phase completes.
+Users import Keystone Documents from WorkFlowy, HTML exports, or Google Docs. The import pipeline parses the document structure, evaluates whether it needs structural reformatting, and then extracts facts organized by category, identifies DOK2 summaries with their related DOK1 facts, detects DOK3 insights and DOK4 Spiky Points of View, detects contradiction clusters between facts, and extracts expert mentions — all streamed back to the client as SSE progress events so the UI updates in real time as each phase completes.
 
 ### Structural Evaluation
 
-Before extraction begins, the system evaluates the BrainLift's structural quality via a single Opus 4.6 LLM call. The evaluator receives both the serialized hierarchy and extraction diagnostics (fact counts, marker presence, source attribution rates) and returns a ternary decision:
+Before extraction begins, the system evaluates the Keystone Document's structural quality via a single Opus 4.6 LLM call. The evaluator receives both the serialized hierarchy and extraction diagnostics (fact counts, marker presence, source attribution rates) and returns a ternary decision:
 
 - **`no_formatting_needed`** — the extractor can handle the structure as-is. Proceeds directly to extraction.
 - **`needs_formatting`** — the document has research content but poor structure (no DOK markers, flat layout, misplaced sections, insights buried in the Knowledge Tree). The user sees a decision modal with the evaluator's justification and can accept formatting, reject it (use raw), or cancel.
@@ -264,7 +312,7 @@ For documents that need formatting, the system also measures content size and sh
 
 ### Automated Pre-Formatting Pipeline
 
-When the user accepts formatting, the import pipeline runs the preformat service before extraction. The pipeline splits the hierarchy into semantic chunks (by section and Knowledge Tree category), sends each to Haiku for restructuring into canonical BrainLift format, then merges, validates, and reassembles the results.
+When the user accepts formatting, the import pipeline runs the preformat service before extraction. The pipeline splits the hierarchy into semantic chunks (by section and Knowledge Tree category), sends each to Haiku for restructuring into canonical Keystone Document format, then merges, validates, and reassembles the results.
 
 **Chunking** — Fuzzy section identification splits the document into Owner, Purpose, Experts, DOK4, DOK3, Knowledge Tree categories, and unknown sections. A recursive splitting algorithm breaks oversized chunks (>15K chars) by drilling into children, with single-child unwrapping to handle wrapper nodes. The scratchpad section bypasses LLM processing entirely and is copied verbatim to the output.
 
@@ -295,13 +343,13 @@ After extraction (from either the preformatted or original hierarchy), the pipel
 
 **Manual mode** — the pipeline stops after DOK2 grading. The user manually links DOK3→DOK2 and DOK4→DOK3 through dedicated linking UIs in the import modal. The DOK3 linking UI presents insights alongside all available DOK2 summaries for the user to select connections. The DOK4 linking UI does the same for SPOVs and DOK3 insights. Grading fires per-link via background jobs as the user submits each connection.
 
-In both modes, by the time the user reviews their BrainLift, everything from fact verification to DOK4 evaluation is either complete or in progress.
+In both modes, by the time the user reviews their Keystone Document, everything from fact verification to DOK4 evaluation is either complete or in progress.
 
 ---
 
 ## DOK1 Grading — Fact Verification
 
-Every fact in a BrainLift is verified through a single logical verifier chain managed by the unified AI client.
+Every fact in a Keystone Document is verified through a single logical verifier chain managed by the unified AI client.
 
 ### Evidence Fetching (Two-Tier)
 
@@ -355,13 +403,13 @@ DOK1 verification runs at 60 concurrent fact verifications (`p-limit`), with ret
 
 DOK2 grading evaluates whether a student's summaries reflect genuine learning or are just reformatted facts.
 
-The core question: **did the reorganization happen?** A DOK2 summary should synthesize multiple DOK1 facts through the owner's unique interpretive lens, connected to the BrainLift's broader purpose. Copy-paste compression scores a 1. Generic summarization that anyone could write scores a 2. Genuine synthesis with a unique worldview and clear purpose relevance scores 4--5.
+The core question: **did the reorganization happen?** A DOK2 summary should synthesize multiple DOK1 facts through the owner's unique interpretive lens, connected to the Keystone Document's broader purpose. Copy-paste compression scores a 1. Generic summarization that anyone could write scores a 2. Genuine synthesis with a unique worldview and clear purpose relevance scores 4--5.
 
 ### Evaluation Criteria
 
 The grading model evaluates six dimensions:
 - **Accuracy** — factually faithful to underlying DOK1s and source material
-- **Relevance** — connected to the BrainLift's purpose, not generic
+- **Relevance** — connected to the Keystone Document's purpose, not generic
 - **Articulation** — expressed in the owner's words, not copied
 - **Synthesis** — DOK1 facts integrated into a coherent interpretation, not listed sequentially
 - **Concision** — no redundancy or filler
@@ -371,7 +419,7 @@ The grading model evaluates six dimensions:
 
 Four conditions trigger an automatic score of 1:
 - **Copy-paste** — DOK1 facts moved to paragraph form with only formatting changes
-- **No purpose relation** — content disconnected from the BrainLift's domain
+- **No purpose relation** — content disconnected from the Keystone Document's domain
 - **Factual misrepresentation** — distorts or contradicts the underlying facts
 - **Fact manipulation** — facts twisted to fit a narrative rather than honestly represented
 
@@ -381,7 +429,7 @@ Summaries without a source URL cannot score 5 and receive a 1-point downgrade at
 
 ### Combined Scoring
 
-The BrainLift's overall score adapts to how much of the DOK hierarchy has been graded:
+The Keystone Document's overall score adapts to how much of the DOK hierarchy has been graded:
 
 | Graded Levels | Formula |
 |---------------|---------|
@@ -389,7 +437,7 @@ The BrainLift's overall score adapts to how much of the DOK hierarchy has been g
 | DOK1 + DOK2 + DOK3 | `DOK1 × 0.33 + DOK2 × 0.33 + DOK3 × 0.34` |
 | DOK1 + DOK2 + DOK3 + DOK4 | `DOK1 × 0.25 + DOK2 × 0.25 + DOK3 × 0.25 + DOK4 × 0.25` |
 
-Each level carries equal weight. As the student builds higher-order knowledge, the score captures the full depth of their BrainLift rather than just factual accuracy and synthesis.
+Each level carries equal weight. As the student builds higher-order knowledge, the score captures the full depth of their Keystone Document rather than just factual accuracy and synthesis.
 
 ---
 
@@ -420,7 +468,7 @@ Each DOK3 insight must be linked to the DOK2 summaries it synthesizes before gra
 **Framework Visibility** — Can you see the framework?
 - **V1** — Can you identify and name the conceptual framework the insight implies?
 - **V2** — Is the framework distinguishable from frameworks the student's sources already use?
-- **V3** — Is the framework specific to the student's domain and BrainLift purpose?
+- **V3** — Is the framework specific to the student's domain and Keystone Document purpose?
 
 **Framework Coherence** — Does the evidence support it?
 - **C1** — The linked DOK2 summaries logically support the insight. Traceable, not a leap of faith.
@@ -428,7 +476,7 @@ Each DOK3 insight must be linked to the DOK2 summaries it synthesizes before gra
 
 **Framework Productivity** — Does it generate meaning?
 - **P1** — The insight adds explanatory power beyond what individual sources provide alone.
-- **P2** — The insight connects to the BrainLift's purpose and advances domain understanding.
+- **P2** — The insight connects to the Keystone Document's purpose and advances domain understanding.
 
 ### Quality Levels
 
@@ -503,7 +551,7 @@ Like DOK3, linking can be automatic (semantic + explicit reference parsing) or m
 
 ### LLM Divergence Check
 
-One of the most interesting pieces of feedback for students. The system converts their SPOV into a neutral question, sends it to an LLM with zero BrainLift context, and shows the student both positions side by side. If the LLM arrives at the same conclusion independently, the student's position isn't as spiky as they think. The frontend surfaces this as a comparison card: the derived question, the vanilla LLM's answer, and the evaluator's assessment of how far the two positions diverge.
+One of the most interesting pieces of feedback for students. The system converts their SPOV into a neutral question, sends it to an LLM with zero Keystone Document context, and shows the student both positions side by side. If the LLM arrives at the same conclusion independently, the student's position isn't as spiky as they think. The frontend surfaces this as a comparison card: the derived question, the vanilla LLM's answer, and the evaluator's assessment of how far the two positions diverge.
 
 ### Antimemetic Assessment
 
@@ -536,9 +584,9 @@ Both paths POST to `/api/brainlifts/:slug/learning-stream/launch`. The endpoint 
 
 `server/ai/learning-stream-swarm-v2/orchestrator.ts` runs Opus 4.7 (with Sonnet fallback) on **every** launch. It receives a freshly-built context from `context-builder.ts` that blends:
 
-- BrainLift title, purpose, top-ranked facts, followed experts.
-- **Second Brain sources and notes** — the orchestrator now sees the research the student has actually accumulated, not just the brainlift.
-- **Phase-aware emphasis** — in `research` phase the Second Brain is the dominant substrate; in `authoring` phase brainlift facts dominate, with the Second Brain as a complementary signal.
+- Keystone Document title, purpose, top-ranked facts, followed experts.
+- **Second Brain sources and notes** — the orchestrator now sees the research the student has actually accumulated, not just the Keystone Document.
+- **Phase-aware emphasis** — in `research` phase the Second Brain is the dominant substrate; in `authoring` phase Keystone Document facts dominate, with the Second Brain as a complementary signal.
 - Existing learning-stream topics to avoid overlap.
 - The student's `RunRequest` (possibly empty) as input, never as a bypass.
 
@@ -581,7 +629,7 @@ The dashboard (`MissionDashboard`, `AgentCard`, `ActivityLog`) was preserved unt
 The orchestrator, agents, content extraction, and discussion agent form a self-reinforcing loop:
 
 1. **Run launched** from chat or dashboard with a `RunRequest`.
-2. **Orchestrator** reads brainlift + Second Brain + experts, produces a fan-out plan.
+2. **Orchestrator** reads Keystone Document + Second Brain + experts, produces a fan-out plan.
 3. **Agents** retrieve resources in parallel; each verifies URLs before saving.
 4. **Content extraction** makes each resource viewable inline (articles, embeds, transcripts).
 5. **Student opens a resource** → split-panel view with discussion agent.
@@ -626,7 +674,7 @@ A uniform accessor — `getItemTextContent(item)` — provides consistent text a
 
 ## Second Brain — The Research-Phase Surface
 
-The Second Brain is where research lives before the BrainLift exists. It is the durable artifact of the **research-first pedagogy pivot** (`features/pedagogy/research-first-pivot/`, AlphaX brand only): students enter a project in `phase='research'` and accumulate Sources, Notes, and Categories before any DOK creation is unlocked. Imports and pre-existing projects stay in `phase='authoring'` and behave exactly as before.
+The Second Brain is where research lives before the Keystone Document exists. It is the durable artifact of the **research-first pedagogy pivot** (`features/pedagogy/research-first-pivot/`, AlphaX brand only): students enter a project in `phase='research'` and accumulate Sources, Notes, and Categories before any DOK creation is unlocked. Imports and pre-existing projects stay in `phase='authoring'` and behave exactly as before.
 
 ### Schema and Phase Gating
 
@@ -664,7 +712,7 @@ The AlphaX brand chat agent now runs in one of two modes per conversation, dispa
 - **Research mode** (`server/brand/alphax-research.ts`) — the agent's mission is to make the student an expert in their domain. The prompt emphasizes aggressive note capture, terrain mapping, "today" date awareness, and the Research Stream as the default action when knowledge gaps appear. It branches on whether a project is bound (unbound conversations include new-user onboarding cues and a project-idea-generator skill nudge) and on the student's `brainliftCount`.
 - **Authoring mode** (`server/brand/alphax.ts`) — the existing brainlift-author prompt, lightly adjusted to align with the non-editable `propose_research_run` preview behavior.
 
-Brainlift Central (`brand=brainlift`) is untouched.
+Keystone Central (`brand=brainlift`) is untouched.
 
 ### Mode-Aware Tool Registry
 
@@ -684,48 +732,48 @@ The AlphaX welcome message is a **hardcoded synthetic assistant turn** (`shared/
 
 ---
 
-## Discussion Agent — The Bridge Between Learning Stream and the BrainLift
+## Discussion Agent — The Bridge Between Learning Stream and the Keystone Document
 
-The Discussion Agent is the most pedagogically important component in the system. It sits at the exact boundary where automated discovery (Learning Stream) meets human knowledge curation (the BrainLift). Without it, the learning stream is just a reading list. With it, every resource becomes an opportunity to extract verified facts and graded syntheses directly into the student's BrainLift.
+The Discussion Agent is the most pedagogically important component in the system. It sits at the exact boundary where automated discovery (Learning Stream) meets human knowledge curation (the Keystone Document). Without it, the learning stream is just a reading list. With it, every resource becomes an opportunity to extract verified facts and graded syntheses directly into the student's Keystone Document.
 
 When a student opens a learning stream item, they get a split-panel view: the resource content on the left, an AI study partner on the right.
 
 ### Why This Matters
 
-The BrainLift methodology has a hard rule: **the user must write their own DOK2-4. No AI generation, no copy-paste.** Knowledge must pass through the user's brain to count. But "read this article and write your own summary" is a weak prompt that produces surface-level engagement. The discussion agent solves this by making knowledge extraction a conversation — the student articulates, the agent sharpens, and the result is captured as verified BrainLift content.
+The Keystone Document methodology has a hard rule: **the user must write their own DOK2-4. No AI generation, no copy-paste.** Knowledge must pass through the user's brain to count. But "read this article and write your own summary" is a weak prompt that produces surface-level engagement. The discussion agent solves this by making knowledge extraction a conversation — the student articulates, the agent sharpens, and the result is captured as verified Keystone Document content.
 
 The agent (Claude Sonnet 4.5, streamed via Vercel AI SDK) is designed around this constraint: it does not summarize, extract, or produce knowledge for the student. It asks probing questions, challenges shallow readings, and guides the student to articulate their own understanding. The DOK framework is embedded in the system prompt — the agent understands the distinction between recalling facts (DOK1) and synthesizing them into a unique interpretation (DOK2), and it enforces the bright line between them.
 
 ### DOK Pyramid Enforcement
 
-The agent enforces the learning progression that the BrainLift methodology requires:
+The agent enforces the learning progression that the Keystone Document methodology requires:
 
 1. **DOK1 first.** If the student jumps to writing DOK2 summaries before establishing DOK1 facts, the agent redirects: "Let's first nail down some specific facts from this source before synthesizing." The rationale: DOK2 summaries without supporting DOK1 facts are baseless claims, not synthesis.
 
-2. **DOK1 → DOK2 bridge.** After enough DOK1 facts are established (typically 3--5), the agent nudges toward synthesis: "How do these facts connect?" or "What pattern do you see here?" This mirrors the BrainLift structure where every DOK2 summary must be supported by DOK1 facts from the same source.
+2. **DOK1 → DOK2 bridge.** After enough DOK1 facts are established (typically 3--5), the agent nudges toward synthesis: "How do these facts connect?" or "What pattern do you see here?" This mirrors the Keystone Document structure where every DOK2 summary must be supported by DOK1 facts from the same source.
 
-3. **Purpose connection.** The agent constantly ties the discussion back to the BrainLift's purpose. A fact about edge computing is only useful if the student can connect it to their BrainLift on "CloudFlare as an AI platform." The agent asks for that connection explicitly.
+3. **Purpose connection.** The agent constantly ties the discussion back to the Keystone Document's purpose. A fact about edge computing is only useful if the student can connect it to their Keystone Document on "CloudFlare as an AI platform." The agent asks for that connection explicitly.
 
 4. **Quality feedback.** When the student proposes a DOK2 summary, the agent evaluates it against the same rubric the grading system uses: Did the reorganization happen? Is this just compression, or genuine synthesis through a unique lens? Generic summarization gets pushed back. The DOK2 quality criteria (1--5 scale) are built into the system prompt.
 
 ### The Learning Capture Loop
 
-This is where the design gets elegant. The discussion agent doesn't just talk — it has tools that connect directly to the BrainLift's data layer:
+This is where the design gets elegant. The discussion agent doesn't just talk — it has tools that connect directly to the Keystone Document's data layer:
 
 | Tool | Purpose | What Happens Behind the Scenes |
 |------|---------|-------------------------------|
 | `save_dok1_fact` | Save a fact the student articulated | Inserts to DB with auto-sequenced ID, queues a background verification job via the same multi-model pipeline |
 | `save_dok2_summary` | Save a synthesis the student wrote | Inserts with related DOK1 fact IDs, queues a background DOK2 grading job |
-| `get_brainlift_context` | Cross-reference existing BrainLift knowledge | Returns top-scoring facts, followed experts, existing topics — so the agent can say "you already have a fact about X, how does this new one relate?" |
+| `get_brainlift_context` | Cross-reference existing Keystone Document knowledge | Returns top-scoring facts, followed experts, existing topics — so the agent can say "you already have a fact about X, how does this new one relate?" |
 | `read_article_section` | Read the extracted content of the source | Returns markdown (capped at 3000 words), triggers on-demand extraction if pending |
 
-The result: a student reads a learning stream article, discusses it with the agent, and walks away with verified DOK1 facts and graded DOK2 summaries already in their BrainLift — without ever leaving the split-panel view. The facts are being verified and summaries being graded *in the background* while the conversation continues. By the time the student returns to their BrainLift dashboard, everything is scored.
+The result: a student reads a learning stream article, discusses it with the agent, and walks away with verified DOK1 facts and graded DOK2 summaries already in their Keystone Document — without ever leaving the split-panel view. The facts are being verified and summaries being graded *in the background* while the conversation continues. By the time the student returns to their Keystone Document dashboard, everything is scored.
 
 The `save_dok1_fact` tool auto-sequences fact IDs by computing `MAX(integer_prefix) + session_sequence`, so facts from discussions interleave cleanly with imported facts. Nothing requires manual reconciliation.
 
 ### Context Loading on First Response
 
-The agent's first action is to call both `get_brainlift_context` and `read_article_section` before engaging the user. This loads its working memory — the agent needs to know what the student already knows (existing facts, experts, topics) and what the source contains before it can help effectively. Without this, it would be a generic chatbot. With it, it can say "your BrainLift already has 3 facts about Durable Objects — this article adds a new angle on WebSocket persistence that you don't have yet."
+The agent's first action is to call both `get_brainlift_context` and `read_article_section` before engaging the user. This loads its working memory — the agent needs to know what the student already knows (existing facts, experts, topics) and what the source contains before it can help effectively. Without this, it would be a generic chatbot. With it, it can say "your Keystone Document already has 3 facts about Durable Objects — this article adds a new angle on WebSocket persistence that you don't have yet."
 
 ### Design Constraints
 
@@ -740,7 +788,7 @@ The agent's first action is to call both `get_brainlift_context` and `read_artic
 Each resource gets three AI-generated discussion suggestions (via Haiku for speed), scaffolded by DOK level:
 1. **DOK1 prompt** — extract a specific fact from the resource ("What specific metric does the author cite for...?")
 2. **DOK1→DOK2 bridge** — explore a connection or pattern ("How does this relate to the pattern you noticed in...?")
-3. **DOK2 prompt** — connect the resource back to the BrainLift's purpose ("Given your BrainLift's focus on X, what does this change about how you think about Y?")
+3. **DOK2 prompt** — connect the resource back to the Keystone Document's purpose ("Given your Keystone Document's focus on X, what does this change about how you think about Y?")
 
 ---
 
@@ -789,6 +837,8 @@ Quiz results (answers, score) are persisted as JSONB in the database, tied to th
 ---
 
 ## AI Adversary Defense — Expertise Verification
+
+> 🚧 **Roadmap — designed, not yet shipped.** The design below is complete and specified, but no implementing code ships in the current build. It is included because it is core to how DOK3–4 ownership is *meant* to be proven.
 
 The AI Adversary Defense is a structured adversarial test where students defend a Spiky Point of View against an AI opponent across 12 rounds, then receive an evaluation from a separate AI instance. The core design principle: if you can't defend it under fire, you don't own it.
 
@@ -867,7 +917,9 @@ Guides see a leaderboard of all student defenses with drill-down into per-level 
 
 ## Honcho — Persistent Learning Companion
 
-Every feature described above produces learning signals: grading results, discussion transcripts, adversary defense outcomes, BrainLift edits, bookmarked resources, time spent reading. Honcho is the memory layer that reasons about these signals over time and builds a continuous learner profile.
+> 🚧 **Roadmap — designed, not yet shipped.** The persistent learner-profile layer described here is a design spec; there is no Honcho integration in the current build. It is documented because it is how the platform intends to tie every learning signal into one continuous profile.
+
+Every feature described above produces learning signals: grading results, discussion transcripts, adversary defense outcomes, Keystone Document edits, bookmarked resources, time spent reading. Honcho is the memory layer that reasons about these signals over time and builds a continuous learner profile.
 
 ### How It Works
 
@@ -877,7 +929,7 @@ Honcho's peer system tracks both the learner and the learning companion agent as
 
 | Type | Purpose |
 |------|---------|
-| `learning-chat` | Open-ended conversation about their BrainLift, feedback, questions |
+| `learning-chat` | Open-ended conversation about their Keystone Document, feedback, questions |
 | `resource-discussion` | Focused chat about a specific learning stream resource |
 | `dok-feedback` | Agent walks through grading results, suggests improvements |
 | `activity-log` | Silent session — platform events flow in, no chat UI |
@@ -887,7 +939,7 @@ Honcho's peer system tracks both the learner and the learning companion agent as
 - **DOK grading results** — "scored 7/10 on DOK1 facts, missed facts about X and Y"
 - **Discussion exchanges** — what questions the student asked, what they articulated, where they struggled
 - **Adversary defense transcripts** — where they held up, where they broke down, which axes scored low
-- **BrainLift edits** — "added 3 new experts in education technology this week"
+- **Keystone Document edits** — "added 3 new experts in education technology this week"
 - **Learning stream interactions** — what they bookmarked, what they discarded, how long they spent reading
 - **DOK progression events** — "first DOK2 summary graded, strong on fact extraction but struggled with synthesis"
 
@@ -905,16 +957,16 @@ The learner profile is queryable, feeding into personalized features:
 
 ## Sharing & Access Control
 
-BrainLifts support a multi-permission sharing model:
+Keystone Documents support a multi-permission sharing model:
 
 | Role | Capabilities |
 |------|-------------|
 | Owner | Full access — modify, delete, manage shares, export |
 | Editor | Modify content, run verifications — cannot delete or manage shares |
 | Viewer | Read-only access |
-| Admin | Implicit access to all BrainLifts |
+| Admin | Implicit access to all Keystone Documents |
 
-Sharing works through both direct user grants and token-based links. All child resources (experts, facts, verifications, learning stream items) inherit access from the parent BrainLift through middleware that loads and authorizes in a single step.
+Sharing works through both direct user grants and token-based links. All child resources (experts, facts, verifications, learning stream items) inherit access from the parent Keystone Document through middleware that loads and authorizes in a single step.
 
 ---
 
@@ -970,7 +1022,7 @@ The same codebase ships as two distinct products on two domains, off one Neon da
 | Brand | Domain | Audience | Posture |
 |-------|--------|----------|---------|
 | **AlphaX Buddy** | existing AlphaX deploy | high-school students in the AlphaX program | pedagogical gatekeeping, refuses to draft substantive content, pulls passive students back in |
-| **Brainlift Central** | `brainliftcentral.com` | adult researchers, analysts, professionals | permissive peer-researcher posture, drafting and analysis are fair game, engagement enforced downstream by the grader |
+| **Keystone Central** | `brainliftcentral.com` | adult researchers, analysts, professionals | permissive peer-researcher posture, drafting and analysis are fair game, engagement enforced downstream by the grader |
 
 One env var picks the brand at build time on the client (`VITE_BRAND`) and at boot on the server (`BRAND`). Two Render services share `DATABASE_URL` and the Google OAuth client; cookie scopes per domain mean separate sign-ins on each.
 
@@ -981,7 +1033,7 @@ client/src/brand/
   index.ts                 selector, throws on missing/unknown VITE_BRAND
   types.ts                 BrandConfig + component prop types
   alphax/                  AlphaX wordmark, avatar, login illustration, CSS, assets
-  brainlift/               Brainlift Central wordmark, avatar, login illustration, CSS, assets
+  brainlift/               Keystone Central wordmark, avatar, login illustration, CSS, assets
 
 server/brand/
   index.ts                 server selector, throws on missing/unknown BRAND
@@ -1000,9 +1052,9 @@ Brand-specific CSS lives in `client/src/brand/{brand}/{brand}.css`, imported as 
 
 ### Backend Prompts
 
-Two prompt builders, not one templated builder. `buildAlphaXSystemPrompt` is byte-identical to the original AlphaX prompt; `buildBrainliftSystemPrompt` is a permissive peer-researcher prompt with a `MAIN OPERATIONAL POSTURE`, a `PROACTIVE RESEARCH OFFER` section that mandates one brainlift-grounded `web_search_exa` suggestion per session, and a Brainlift Central variant of the operating-protocols block (no AlphaX language, no "student"). Shared transferable blocks (Tone helpers, Tools Protocol, formatters) live in `server/brand/shared/prompt-helpers.ts`. The dispatcher at `server/ai/chat/system-prompt.ts` reads `BRAND` once at boot and delegates to the matching builder.
+Two prompt builders, not one templated builder. `buildAlphaXSystemPrompt` is byte-identical to the original AlphaX prompt; `buildBrainliftSystemPrompt` is a permissive peer-researcher prompt with a `MAIN OPERATIONAL POSTURE`, a `PROACTIVE RESEARCH OFFER` section that mandates one brainlift-grounded `web_search_exa` suggestion per session, and a Keystone Central variant of the operating-protocols block (no AlphaX language, no "student"). Shared transferable blocks (Tone helpers, Tools Protocol, formatters) live in `server/brand/shared/prompt-helpers.ts`. The dispatcher at `server/ai/chat/system-prompt.ts` reads `BRAND` once at boot and delegates to the matching builder.
 
-The brand-aware chat opener (`client/src/chat/chat-opener.ts`) emits the `[OPENER]` priming message; the body comes from `brand.config.chatOpenerInstruction`, which for Brainlift Central directs the agent to land the proactive `web_search_exa` offer in the opener itself.
+The brand-aware chat opener (`client/src/chat/chat-opener.ts`) emits the `[OPENER]` priming message; the body comes from `brand.config.chatOpenerInstruction`, which for Keystone Central directs the agent to land the proactive `web_search_exa` offer in the opener itself.
 
 ### Build-Step Bundle Grep
 
@@ -1010,7 +1062,7 @@ The brand-aware chat opener (`client/src/chat/chat-opener.ts`) emits the `[OPENE
 
 | Build | Forbidden tokens |
 |-------|------------------|
-| `BRAND=alphax` | `Brainlift Central`, `brain-hero`, `brainlift-nameplate`, `brainlift-wordmark`, `brainlift-avatar`, `brainlift-login-plate` |
+| `BRAND=alphax` | `Keystone Central`, `brain-hero`, `brainlift-nameplate`, `brainlift-wordmark`, `brainlift-avatar`, `brainlift-login-plate` |
 | `BRAND=brainlift` | `AlphaX`, `Alpha X Buddy`, `alpha-buddy`, `owl-counsel`, `alphax-nameplate`, `alphax-wordmark`, `Builds at night`, `Plate I.` |
 
 This is the post-build proof that tree-shaking eliminated the inactive subtree.
@@ -1021,15 +1073,15 @@ This is the post-build proof that tree-shaking eliminated the inactive subtree.
 # AlphaX Buddy (existing deploy)
 BRAND=alphax VITE_BRAND=alphax VITE_BRAND_NAME="AlphaX Buddy" npm run build
 
-# Brainlift Central
-BRAND=brainlift VITE_BRAND=brainlift VITE_BRAND_NAME="Brainlift Central" npm run build
+# Keystone Central
+BRAND=brainlift VITE_BRAND=brainlift VITE_BRAND_NAME="Keystone Central" npm run build
 ```
 
 Both builds emit clean bundle-grep results and produce the same application code with different brand surfaces.
 
 ### Render Blueprint
 
-`render.yaml` declares both services with shared infra (region, plan, runtime, health-check path, build/start commands) and brand-specific env vars. The Brainlift Central service binds the `brainliftcentral.com` and `www.brainliftcentral.com` custom domains. `DATABASE_URL` and `OPENROUTER_API_KEY` use `sync: false` so each service holds the same secret values without Blueprint coupling. See `features/branding/dual-brand-deployment/specs/04-second-deploy/CUTOVER.md` for the operator checklist (env var ordering, OAuth callback URLs, DNS, smoke tests).
+`render.yaml` declares both services with shared infra (region, plan, runtime, health-check path, build/start commands) and brand-specific env vars. The Keystone Central service binds the `brainliftcentral.com` and `www.brainliftcentral.com` custom domains. `DATABASE_URL` and `OPENROUTER_API_KEY` use `sync: false` so each service holds the same secret values without Blueprint coupling. See `features/branding/dual-brand-deployment/specs/04-second-deploy/CUTOVER.md` for the operator checklist (env var ordering, OAuth callback URLs, DNS, smoke tests).
 
 ---
 
@@ -1065,6 +1117,6 @@ docker exec -i wizardly_kalam psql -U postgres -d dok1grader_local < migrations/
 | `WORKER_CONCURRENCY` | Background job concurrency (default: 3) |
 | `BRAND` | Server brand selector. `alphax` or `brainlift`. Throws at boot if missing or unknown. |
 | `VITE_BRAND` | Client brand selector. `alphax` or `brainlift`. Read at Vite config time to alias `@/brand`. Must match `BRAND`. |
-| `VITE_BRAND_NAME` | Display name shown in the browser tab and HTML meta description (e.g. `AlphaX Buddy` or `Brainlift Central`). |
+| `VITE_BRAND_NAME` | Display name shown in the browser tab and HTML meta description (e.g. `AlphaX Buddy` or `Keystone Central`). |
 | `SWARM_VERBOSE_LOG` | Optional. `true` enables per-tool verbose file logging for both v1 and v2 research-stream runs. Default off. |
 | `VITE_ENABLE_DEV_LOGIN` | Optional build-time flag. `true` keeps the Login page's "Dev quick login" panel visible on production builds (for staging/demo accounts). Default off in production. |
