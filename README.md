@@ -2,7 +2,7 @@
 
 **An AI learning platform that turns students into genuine experts by making them do the thinking.**
 
-Keystone is built on one uncompromising principle: knowledge only counts when it passes through the student's own mind. Most AI tools do the thinking for the learner — they summarize, they draft, they answer. Keystone deliberately refuses to. It acts as a Socratic guide: it surfaces the raw material, asks the questions that force students to articulate their own understanding, and then rigorously grades the depth of what they produced.
+Keystone is built on one uncompromising principle: knowledge only counts when it passes through the student's own mind. Most AI tools do the thinking for the learner : they summarize, they draft, they answer. Keystone deliberately refuses to. It acts as a Socratic guide: it surfaces the raw material, asks the questions that force students to articulate their own understanding, and then rigorously grades the depth of what they produced.
 
 Each student builds a Keystone Document, a personal, source-grounded body of knowledge organized by the four levels of Depth of Knowledge (DOK): verifiable facts, their own synthesis, cross-source insight, and finally a defensible point of view on questions where even experts disagree. Along the way, the platform surfaces relevant sources through multi-agent research, verifies facts against evidence, grades synthesis quality, and coaches the student always through questions, never by handing over answers from raw curiosity to earned expertise.
 
