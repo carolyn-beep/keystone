@@ -3,7 +3,7 @@
  *
  * `buildBrainliftSystemPrompt` produces the BC chat prompt: a permissive
  * peer-researcher posture for adult researchers and professionals. No
- * pedagogical gatekeeping, no AlphaX Journey, no `activePlans` rendering.
+ * pedagogical gatekeeping, no Keystone Journey, no `activePlans` rendering.
  * The grader (DOK1-4 scoring, copy-paste detection, multi-model consensus)
  * enforces engagement downstream; the chat agent does not.
  *

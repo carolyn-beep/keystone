@@ -2,7 +2,7 @@
  * Brainlift Central prompt suite.
  *
  * Asserts the BC prompt has the permissive peer-researcher posture, the
- * BRAINLIFT LOOP section (replacing AlphaX Journey), and that AlphaX-only
+ * BRAINLIFT LOOP section (replacing Keystone Journey), and that AlphaX-only
  * gatekeeping language and `activePlans` rendering are absent.
  *
  * Calls `buildBrainliftSystemPrompt` directly. The dispatcher is exercised
@@ -210,14 +210,14 @@ describe('buildBrainliftSystemPrompt: brainlift loop', () => {
     expect(prompt).toContain('6. Iterate');
   });
 
-  it('does not contain the AlphaX Journey heading', () => {
+  it('does not contain the Keystone Journey heading', () => {
     const prompt = buildBrainliftSystemPrompt({
       userContext: zeroBrainliftContext,
       skills: [],
     });
 
-    expect(prompt).not.toContain('## The AlphaX Journey');
-    expect(prompt).not.toContain('=== START OF THE ALPHAX JOURNEY ===');
+    expect(prompt).not.toContain('## The Keystone Journey');
+    expect(prompt).not.toContain('=== START OF THE KEYSTONE JOURNEY ===');
   });
 });
 
@@ -295,7 +295,7 @@ describe('buildBrainliftSystemPrompt: heuristics', () => {
     expect(prompt).toContain('DOK pyramid');
     expect(prompt).toContain('WorkFlowy');
     expect(prompt).toContain('Discussion Agent');
-    expect(prompt).not.toContain('AlphaX Journey');
+    expect(prompt).not.toContain('Keystone Journey');
   });
 
   it('single-brainlift branch locks the slug and leads on refinement', () => {

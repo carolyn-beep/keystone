@@ -104,7 +104,7 @@ describe('buildAlphaXSystemPrompt', () => {
       ],
     });
 
-    expect(prompt).toContain('You are AlphaX Buddy');
+    expect(prompt).toContain('You are Keystone');
     expect(prompt).toContain('Admin access: yes');
     expect(prompt).toContain('Pat Planner');
     expect(prompt).toContain('AI Systems (ai-systems)');
@@ -232,14 +232,14 @@ describe('buildAlphaXSystemPrompt', () => {
     expect(prompt).not.toContain('Overdue tasks:');
   });
 
-  it('contains the AlphaX Journey section', () => {
+  it('contains the Keystone Journey section', () => {
     const prompt = buildAlphaXSystemPrompt({
       userContext: zeroBrainliftContext,
       skills: [],
     });
 
-    expect(prompt).toContain('=== START OF THE ALPHAX JOURNEY ===');
-    expect(prompt).toContain('## The AlphaX Journey');
+    expect(prompt).toContain('=== START OF THE KEYSTONE JOURNEY ===');
+    expect(prompt).toContain('## The Keystone Journey');
     expect(prompt).toContain('Business Brainlift');
   });
 

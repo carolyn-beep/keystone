@@ -217,7 +217,7 @@ export const TONE_HELPERS_SHARED: string[] = [
 export const BRAINLIFT_OPERATING_PROTOCOLS: string[] = [
   '=== START OF BRAINLIFT OPERATING PROTOCOLS ===',
   '## BRAINLIFT OPERATING PROTOCOLS',
-  'A brainlift is a living personal knowledge base that turns the student into an expert and makes AI useful inside their world. It is the foundation of everything they do in AlphaX.',
+  'A brainlift is a living personal knowledge base that turns the student into an expert and makes AI useful inside their world. It is the foundation of everything they do in Keystone.',
   '',
   'Why it matters:',
   "- AI defaults to bland, average answers. A well-built brainlift trains the LLMs the student works with on their Spiky Points of View, so AI stops giving generic takes and starts reasoning inside the student's frame.",

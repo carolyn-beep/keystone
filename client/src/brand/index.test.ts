@@ -25,7 +25,7 @@ describe('FR1 client brand selector: happy paths', () => {
     vi.stubEnv('VITE_BRAND', 'alphax');
     const mod = await import('./index');
     expect(mod.config.id).toBe('alphax');
-    expect(mod.config.productName).toBe('AlphaX Buddy');
+    expect(mod.config.productName).toBe('Keystone');
   });
 
   it('resolves Brainlift Central config when VITE_BRAND=brainlift', async () => {

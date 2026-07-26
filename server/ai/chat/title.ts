@@ -202,7 +202,7 @@ export async function generateChatTitle(messages: StoredChatMessage[]): Promise<
         'RULES',
         '- 3 to 6 words. No more.',
         '- Title MUST describe the USER\'S subject or task, not the assistant\'s identity or greeting.',
-        '- Never include any of these words: "AlphaX", "AlphaX Buddy", "Brainlift Central", "Buddy",',
+        '- Never include any of these words: "Keystone", "Keystone Central", "AlphaX", "AlphaX Buddy", "Brainlift Central", "Buddy",',
         '  "Personalized", "Onboarding", "Assistant", "Available", "Awaits", "Guidance", "Chat",',
         '  "Conversation", "Help", "Welcome", "Hello", "Hi".',
         '- No agent self-references ("personal assistant", "your research helper", etc.).',

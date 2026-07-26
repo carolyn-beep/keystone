@@ -57,8 +57,8 @@ describe('dispatcher: BRAND=alphax', () => {
       conversation,
     });
 
-    expect(prompt).toContain('You are AlphaX Buddy');
-    expect(prompt).toContain('=== START OF THE ALPHAX JOURNEY ===');
+    expect(prompt).toContain('You are Keystone');
+    expect(prompt).toContain('=== START OF THE KEYSTONE JOURNEY ===');
     expect(prompt).not.toContain('=== START OF THE BRAINLIFT LOOP ===');
   });
 
@@ -72,9 +72,9 @@ describe('dispatcher: BRAND=alphax', () => {
       conversation,
     });
 
-    expect(prompt).toContain('AlphaX Buddy in research mode');
+    expect(prompt).toContain('Keystone in research mode');
     expect(prompt).toContain('=== START OF SECOND BRAIN MODEL ===');
-    expect(prompt).not.toContain('=== START OF THE ALPHAX JOURNEY ===');
+    expect(prompt).not.toContain('=== START OF THE KEYSTONE JOURNEY ===');
   });
 });
 
@@ -91,8 +91,8 @@ describe('dispatcher: BRAND=brainlift', () => {
 
     expect(prompt).toContain('Brainlift Central');
     expect(prompt).toContain('=== START OF THE BRAINLIFT LOOP ===');
-    expect(prompt).not.toContain('You are AlphaX Buddy');
-    expect(prompt).not.toContain('=== START OF THE ALPHAX JOURNEY ===');
+    expect(prompt).not.toContain('You are Keystone,');
+    expect(prompt).not.toContain('=== START OF THE KEYSTONE JOURNEY ===');
   });
 });
 
