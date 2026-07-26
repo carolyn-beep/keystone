@@ -385,7 +385,7 @@ The four sections below document each pipeline in full technical detail.
 
 ## DOK1 Grading — Fact Verification
 
-Every fact in a Keystone Document is verified through a single logical verifier chain managed by the unified AI client.
+The core question: **is this actually true?** A DOK1 fact is an objective, checkable claim — the same for anyone who reads the source — so it isn't graded on interpretation but on whether real evidence supports it. Every fact in a Keystone Document is verified through a single logical verifier chain managed by the unified AI client.
 
 ### Evidence Fetching (Two-Tier)
 
