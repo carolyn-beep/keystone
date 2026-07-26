@@ -1192,7 +1192,7 @@ This is the post-build proof that tree-shaking eliminated the inactive subtree.
 ### Building Each Brand
 
 ```bash
-# AlphaX Buddy (existing deploy)
+# Keystone student brand (legacy deploy name still "AlphaX Buddy" pending migration)
 BRAND=alphax VITE_BRAND=alphax VITE_BRAND_NAME="AlphaX Buddy" npm run build
 
 # Keystone Central
