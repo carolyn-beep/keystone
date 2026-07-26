@@ -347,6 +347,27 @@ In both modes, by the time the user reviews their Keystone Document, everything 
 
 ---
 
+## How Keystone Grades — Depth, Not Just Correctness
+
+Most automated grading checks whether an answer is *right*. Keystone grades something harder and more meaningful: **how deeply the student actually understands.** Each of the four DOK levels has its own pipeline, its own rubric, and its own core question — and every one is built so a student can't fake depth by pattern-matching or pasting in AI output.
+
+| Level | The question it grades | How |
+|-------|------------------------|-----|
+| **DOK1 — Facts** | *Is this actually true?* | Each fact is checked against real fetched evidence — the cited source first, a web search as fallback — and scored 1–5 by a multi-model verifier chain with automatic provider failover. |
+| **DOK2 — Synthesis** | *Did real reorganization happen?* | Graded on whether the summary synthesizes multiple facts through the student's own lens versus merely compressing them. Copy-paste scores a 1; generic summary a 2; genuine synthesis 4–5. |
+| **DOK3 — Insight** | *Can you see the framework?* | The insight must link to ≥2 summaries from ≥2 different sources, then is graded on whether it reveals a conceptual lens the student built *across* sources — not one borrowed from any single reading. |
+| **DOK4 — Point of View** | *Is it yours, and spiky enough to matter?* | The pipeline tests two failure modes at once: borrowed spikiness (restating a source's stance) and non-spikiness (a position a baseline LLM would confidently produce). A view only scores high if it **diverges** from what generic AI already says. |
+
+Three principles run through all four pipelines:
+
+- **Evidence over assertion.** Nothing is graded in a vacuum — DOK1 against fetched sources, DOK2–4 against the linked layers beneath them. The pyramid is load-bearing: a weak foundation caps the score of everything built on it.
+- **Grading depth, never opinion.** The graders judge *form and grounding* — was the synthesis real, is the position defensible and genuinely divergent — never whether a stance is "correct." A student is free to be contrarian, as long as they earned it.
+- **Feedback that keeps the student thinking.** Every grader points at the specific gap and the evidence that would close it, then stops — *"let them find the words themselves."* The score is never the end of the learning; it's the next question.
+
+The four sections below document each pipeline in full technical detail.
+
+---
+
 ## DOK1 Grading — Fact Verification
 
 Every fact in a Keystone Document is verified through a single logical verifier chain managed by the unified AI client.
