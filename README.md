@@ -131,23 +131,117 @@ Chat title generation runs after a completed user+assistant exchange when the co
 
 ### Runtime Skills Library
 
-Skills moved from filesystem `skills/*/SKILL.md` files into Postgres tables (`skills`, `skill_resources`, `skill_shares`, `skill_user_disabled` — see `migrations/0031_runtime_skills_library.sql`). Authentication-aware: every list, load, and reference-load enforces the same authorization boundary so private skill names cannot be enumerated. Unauthorized, disabled, deleted, and unknown skills all collapse to the same not-found-shaped error.
+The Skills Library is what turns the chat agent from a helpful assistant into a **founder's operating system**. Each skill is a self-contained expert procedure — a pricing strategist, a pitch-deck architect, an adversarial debate partner, a TAM auditor, a customer-discovery designer — that the agent invokes on demand, mid-conversation, without the student ever leaving the chat. **Forty-seven skills ship across six domains**, and every one of them reasons over the student's own brainlift: their verified DOK facts, their Spiky Points of View, their followed experts, their sources. These are not generic business templates. A pricing skill prices *this* company against *this* market; a rebuttal skill argues from *this* student's cited evidence; a gap analyzer knows exactly which categories of *this* body of work are thin. Deliverables are written straight back into the brainlift and the Document Hub, already scored.
 
-**Progressive disclosure**, three levels:
+Skills are **first-class, governed objects** — permissioned, versioned, soft-deletable, shareable, and fully authorable from chat by admins. They live in Postgres and load through a three-level progressive-disclosure protocol, so the entire catalogue costs almost nothing in context until a skill actually fires, and every skill competes for the model's attention purely on the strength of a single trigger description.
 
-1. **Catalogue** (`name` + `description`) is always in the system prompt. Description is the single signal that decides whether the model triggers the skill, so it is written as a list of concrete user-vocabulary triggers, not a topic blurb.
-2. **Body** loads into context only when the model calls `load_skill`. The response is the body plus a manifest of reference *paths*, never the contents.
-3. **References** load one at a time only when the model calls `load_skill_reference`. They are never inlined eagerly.
+**Two kinds, three tiers.** A skill is either **Generative** — it produces a deliverable in one pass (a plan, a brief, a scored evaluation) — or **Interactive** — it walks the student through guided checkpoints and *refuses to do the thinking for them*, enforcing the BrainLift bright line that knowledge only counts when it passes through the student's own brain. Each generative skill runs at a cost/quality **tier** — `Fast` for cheap high-volume work, `Standard` for everyday generation, `Quality` for high-stakes reasoning — mapped to the model registry so spend tracks stakes. Any skill that writes a document emits a named **asset** under a locked naming convention (`{document_type}__{title-slug}__{YYYY-MM-DD}.gdoc`), which lets downstream evaluators route each deliverable to the right rubric dimension automatically.
 
-**Authorization model.** Public skills are visible to all authenticated users. Private skills are visible to admins, the creator, and users in `skill_shares`. Every viewer can disable a skill they are authorized to see (`skill_user_disabled`); disabled skills drop out of the prompt and out of `load_skill`. Admins always see every non-deleted skill regardless of visibility or shares.
+#### The library — 47 skills across 6 domains
 
-**Soft delete with 30-day Trash.** `delete_skill` (admin only, UI or chat) sets `deletedAt`; deleted skills disappear from runtime surfaces but remain restorable from the admin Trash tab. `server/jobs/purgeDeletedSkillsJob.ts` runs daily at 03:30 (`server/jobs/crontab`) and hard-deletes rows whose `deletedAt` is older than 30 days.
+**Content** — turn a brainlift into a published presence.
 
-**`/skills` page** (`client/src/pages/Skills.tsx`, hook `client/src/hooks/useSkills.ts`) is the user catalogue and admin management surface. Users browse authorized skills, toggle enabled state, filter to skills they created, and click "Try it out" to start a new chat with `Use the {skill-name} skill.` pre-filled in the composer. Admin mode adds creation, editing, share grant/revoke, soft delete, restore, and the Trash tab. The same atomic save path validates name regex, body and description size, reference path and size limits, and visibility in `server/storage/skills.ts`.
+| Skill | What it does | Tier · Kind |
+|-------|--------------|-------------|
+| `daily-content-brief` | Generate a daily content brief from brainlift context | Fast · Generative |
+| `30-day-social-plan` | Build a full 30-day social media plan | Quality · Generative |
 
-**Admin chat tools** (`create_skill`, `update_skill`, `add_skill_reference`, `update_skill_reference`, `delete_skill_reference`, `delete_skill`) are gated by `AuthContext.isAdmin` in `server/ai/chat/tools/index.ts` and let admins create or maintain skills from chat. `create_skill` requires `visibility` to be set explicitly — there is no default — so the model has to confirm public vs private with the admin before saving.
+**Defense** — make a point of view survive contact with an adversary.
 
-**First-boot seed.** `seedRuntimeSkillsIfEmpty()` in `server/runtimeSkillsSeed.ts` runs on boot and seeds existing skills (plus the `create-skill` admin bootstrap and `gap-analyzer` references) when the `skills` table is empty. It reads `INSERT` statements directly from `migrations/0031_runtime_skills_library.sql` so the migration file is the single source of truth for seeded content. The seeded `create-skill` skill is auto-shared with every admin user on seed, walks the model through draft → review → save, and links to three references (`tool-catalogue.md`, `skill-template.md`, `description-patterns.md`) that ground new skills in real tool names instead of hallucinated ones.
+| Skill | What it does | Tier · Kind |
+|-------|--------------|-------------|
+| `fact-check-draft` | Fact-check a provided draft against the brainlift's DOK items | Standard · Generative |
+| `investor-qa-prep` | Prepare investor Q&A responses from SPOVs and facts | Quality · Generative |
+| `x-argument-prep` | Generate an X-ready position with counter-replies and rebuttals | Quality · Generative |
+| `stress-test-my-spov` | Pressure-test a SPOV through guided checkpoints | Interactive |
+| `rewrite-your-weakest` | Identify and rewrite the weakest DOK item, behind a quality gate | Interactive |
+| `adversarial-challenges` | Generate the 3 strongest opposing POVs against a stance, sourced from evidence, peers, and X discourse | Quality · Generative |
+| `gap-analyzer` | "What am I missing?" pass over the body of work — flags thin categories, unsupported claims, weak evidence chains, and produces a punch list | Quality · Generative |
+| `compose-from-stance` | Compose an X-ready post from a brainlift stance, with cited evidence | Standard · Generative |
+| `draft-rebuttal-with-evidence` | Draft a rebuttal to a specific X reply, grounded in brainlift facts | Standard · Generative |
+
+**Strategy** — decide what to build and where to plant the flag.
+
+| Skill | What it does | Tier · Kind |
+|-------|--------------|-------------|
+| `pitch-deck-outline` | Produce a 10-slide pitch deck outline | Quality · Generative |
+| `elevator-pitch` | Draft an elevator pitch at a specified length | Standard · Generative |
+| `gtm-30-day` | Create a 30-day go-to-market plan | Quality · Generative |
+| `pick-your-hill` | Choose which SPOV to defend most strongly | Interactive |
+| `mission-sharpening` | Socratic probes that sharpen the mission statement, behind a quality gate | Interactive |
+| `build-30-day-blueprint` | Generate a 1-day / 1-week / 1-month / 30-day sprint plan with testable deliverables; reserves one task per horizon for cross-domain work | Quality · Generative |
+| `compose-business-plan` | Synthesize the full portfolio (deck, GTM, pricing, pro forma) into a complete business plan — the primary input to the Business Evaluator | Quality · Generative |
+| `monetization-path` | Recommend a monetization path (B2B enterprise vs. B2C audience-first vs. marketplace) with reasoning for why the others don't fit | Quality · Interactive |
+
+**Ops** — the financial, legal, and executional plumbing.
+
+| Skill | What it does | Tier · Kind |
+|-------|--------------|-------------|
+| `pro-forma` | Generate a pro forma financial projection | Quality · Generative |
+| `patent-formation-brief` | Draft a patent formation brief | Quality · Generative |
+| `next-action` | Suggest the single most impactful next action | Fast · Generative |
+| `plan-debate` | When a student wants to deviate from a Scope Breaker plan, push back with a reasoned argument before accepting the change | Interactive |
+| `unit-economics-validator` | Validate unit economics against contribution margin, gross margin, CAC payback, and burn-multiple thresholds; flags the AI-native exception | Quality · Generative |
+| `direct-instruction-provisional-patent` | Teach what a provisional patent is, the public-information misconception, and how to file | Standard · Generative |
+| `direct-instruction-pricing-101` | Teach pricing fundamentals — why free is the enemy, value vs. cost-plus, premium as a quality signal | Standard · Generative |
+| `direct-instruction-tam` | Teach TAM / SAM / SOM, market-sizing methodology, and common errors | Standard · Generative |
+
+**Discovery** — find the idea, the audience, and the adjacent white space.
+
+| Skill | What it does | Tier · Kind |
+|-------|--------------|-------------|
+| `idea-validator` | Evaluate a new idea against brainlift context | Standard · Generative |
+| `research-briefing` | Produce a research briefing on a topic | Standard · Generative |
+| `audience-expertise-audit` | Audit audience expertise gaps | Quality · Generative |
+| `adjacent-industries` | Identify adjacent industries, audience expansions, and benchmarks | Standard · Generative |
+| `cross-domain-synthesis` | Find non-obvious combinations across brainlifts | Quality · Generative |
+| `teach-back` | Student explains a DOK3 insight back, validated for understanding | Interactive |
+| `validate-experiential-claim` | Cross-check a "learned-by-doing" claim against sourced material and published literature; flag if uncorroborated | Standard · Generative |
+| `bad-idea-learning` | Extract structured lessons from an abandoned idea — what survives, what muscle was built, what to carry forward | Interactive |
+| `customer-discovery-designer` | Design 5 customer-discovery experiments against the riskiest assumptions, specifying what evidence would falsify each | Quality · Generative |
+| `competitive-landscape-scan` | "Who else is doing this and why will you win?" — scans competitors and articulates the win condition | Quality · Generative |
+
+**Founder's Desk** — blunt, experienced commercial judgment.
+
+| Skill | What it does | Tier · Kind |
+|-------|--------------|-------------|
+| `business-stress-test` | Stress-test an idea through 7 pre-investment filters — clarity, demand vs. supply, revenue-capability loop, ROIC, talent, moat, earned media | Generative |
+| `gtm-evaluator` | Evaluate and redesign a go-to-market strategy on an earned-media-first, direct-to-customer framework | Generative |
+| `one-sentence-pitch` | Compress a business into one sentence that triggers an emotional reaction and earns the next conversation | Generative |
+| `pricing-advisor` | Analyze pricing and deliver blunt recommendations (principles: charge highest, free is the enemy, tier architecture) | Generative |
+| `product-tier-architect` | Design a multi-tier product architecture — brand anchor, core, scale, and entry products | Generative |
+| `talent-magnet-job-spec` | Write job specs that attract exceptional talent and repel the wrong candidates | Generative |
+| `risk-premortem` | "What kills this business in 18 months?" — post-commitment failure-mode surfacing | Generative |
+| `pricing-strategy-comparison` | Compare the 3 most plausible pricing strategies, recommend one, and explain why the others don't fit | Generative |
+| `one-liner-memo-evaluator` | Score an existing one-liner against the one-liner criteria (emotional trigger, obvious, earns the next conversation) and suggest revisions | Generative |
+| `tam-checker` | Sanity-check market-sizing claims against the market-sizing framework (small markets with high prices beat big markets with low prices) | Generative |
+| `founder-readiness-assessment` | "Can these people execute?" — self-assessment against named benchmarks: founder-market fit, hiring discipline, iteration speed, capital readiness | Interactive |
+
+#### Authoring skills from chat — the library writes itself
+
+New skills are created the same way they are used: **in conversation.** An admin says *"make a skill that…"* and the seeded `create-skill` skill drives a disciplined **draft → review → save** loop, treating every new skill with the rigor a senior engineer applies to a public API — because each skill takes a permanent slice of the catalogue's context budget and competes with every other skill to trigger. Sloppy skills don't just fail to help; they crowd out the ones that would.
+
+The authoring toolset (`create_skill`, `update_skill`, `add_skill_reference`, `update_skill_reference`, `delete_skill_reference`, `delete_skill`) is gated by `AuthContext.isAdmin` in `server/ai/chat/tools/index.ts`. The server enforces hard invariants on every write: `name` must be lowercase kebab-case and **globally unique including names sitting in Trash**, `description` ≤ 500 characters, `body` ≤ 100 KB, and up to **20 reference files** per skill (each `references/*.md`, ≤ 50 KB, no path traversal). `create_skill` refuses to default `visibility` — the model must confirm public vs. private with the admin before anything is saved.
+
+Three seeded references keep authored skills grounded in reality rather than hallucination: **`tool-catalogue.md`** (the real tool names a skill may drive), **`skill-template.md`** (the canonical body skeleton — Voice, Prerequisites, "What this is NOT", Procedure, Output Format, Anti-patterns), and **`description-patterns.md`** (worked examples of trigger-first descriptions plus a pre-save checklist). The guiding discipline: a description is a **list of concrete user-vocabulary triggers, not a topic blurb** — it is the single signal the model uses to pick the skill out of the catalogue, so it names the user's likely phrasing, the output produced, and the primary tools driven.
+
+#### How skills load — progressive disclosure
+
+Skills live in Postgres tables (`skills`, `skill_resources`, `skill_shares`, `skill_user_disabled` — see `migrations/0031_runtime_skills_library.sql`), replacing the old filesystem `skills/*/SKILL.md` layout. Loading happens in three levels, so context is spent only where it earns its place:
+
+1. **Catalogue** (`name` + `description`) is always in the system prompt. The description alone decides whether the model triggers the skill.
+2. **Body** loads into context only when the model calls `load_skill`. The response is the body plus a manifest of reference *paths*, never their contents.
+3. **References** load one at a time, only when the model calls `load_skill_reference`. They are never inlined eagerly.
+
+Every list, load, and reference-load is **authentication-aware**: unauthorized, disabled, deleted, and unknown skills all collapse to the same not-found-shaped error, so private skill names can't be enumerated.
+
+**Authorization model.** Public skills are visible to all authenticated users; private skills are visible to admins, the creator, and users in `skill_shares`. Any viewer can disable a skill they can see (`skill_user_disabled`) — disabled skills drop out of both the prompt and `load_skill`. Admins always see every non-deleted skill regardless of visibility or shares.
+
+**Soft delete with 30-day Trash.** `delete_skill` (admin only, UI or chat) sets `deletedAt`; deleted skills vanish from runtime surfaces but stay restorable from the admin Trash tab. `server/jobs/purgeDeletedSkillsJob.ts` runs daily at 03:30 (`server/jobs/crontab`) and hard-deletes rows older than 30 days.
+
+**`/skills` page** (`client/src/pages/Skills.tsx`, hook `client/src/hooks/useSkills.ts`) is the browse-and-manage surface. Users browse authorized skills, toggle enabled state, filter to skills they created, and click "Try it out" to open a new chat with `Use the {skill-name} skill.` pre-filled. Admin mode adds creation, editing, share grant/revoke, soft delete, restore, and the Trash tab — all through the same atomic save path in `server/storage/skills.ts` that validates name regex, body/description size, reference limits, and visibility.
+
+**First-boot seed.** `seedRuntimeSkillsIfEmpty()` in `server/runtimeSkillsSeed.ts` runs on boot and seeds the library (plus the `create-skill` admin bootstrap and `gap-analyzer` references) when the `skills` table is empty, reading `INSERT` statements directly from `migrations/0031_runtime_skills_library.sql` so the migration file is the single source of truth. The seeded `create-skill` skill is auto-shared with every admin on seed — so the moment the platform boots, admins can already grow the library from chat.
 
 ---
 

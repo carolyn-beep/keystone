@@ -72,20 +72,20 @@ Every skill that writes to Drive uses this format. The Business Evaluator parses
 | **customer-discovery-designer** | Design 5 customer-discovery experiments to validate the riskiest assumptions in a business idea; specify what evidence would falsify each | Quality | discovery-plan | Generative | June |
 | **competitive-landscape-scan** | "Who else is doing this and why will you win?" — distinct from adjacent-industries; specifically scans competitors and articulates the win condition | Quality | competitive_analysis | Generative | July |
 
-## **Joe's Corner**
+## **Founder's Desk**
 
 | Skill | Description | Tier | Asset | Kind | Ship |
 | :---- | :---- | :---- | :---- | :---- | :---- |
 | **business-stress-test** | Stress-test a business idea through 7 critical filters before investing time or capital — one-sentence clarity, demand vs supply, revenue-capability loop, ROIC, talent, moat, earned media | — | stress-test-record | Generative | Shipped |
 | **gtm-evaluator** | Evaluate and redesign a go-to-market strategy using an earned-media-first, direct-to-customer framework | — | — | Generative | Shipped |
 | **one-sentence-pitch** | Compress a business into one sentence that triggers an emotional reaction and earns the next conversation | — | one_sentence_pitch | Generative | Shipped |
-| **pricing-advisor** | Analyze pricing strategy and deliver blunt, actionable recommendations (Joe-aligned: charge highest, free is enemy, tier architecture) | — | pricing_strategy | Generative | Shipped |
+| **pricing-advisor** | Analyze pricing strategy and deliver blunt, actionable recommendations (principles: charge highest, free is enemy, tier architecture) | — | pricing_strategy | Generative | Shipped |
 | **product-tier-architect** | Design a multi-tier product architecture — brand anchor, core, scale, and entry products | — | tier_architecture | Generative | Shipped |
 | **talent-magnet-job-spec** | Write job specs that attract exceptional talent and repel the wrong candidates | — | team_plan | Generative | Shipped |
 | **risk-premortem** | "What kills this business in 18 months?" — distinct from business-stress-test (which is a 7-filter pre-investment check). This is post-commitment failure-mode surfacing | — | risk-premortem | Generative | June |
 | **pricing-strategy-comparison** | Compare the 3 most plausible pricing strategies for the business, recommend one, explain why the others don't fit (sub-skill orbiting pricing-advisor) | — | pricing-comparison | Generative | June |
-| **one-liner-memo-evaluator** | Evaluator counterpart to one-sentence-pitch. Scores an existing one-liner against Joe's criteria (emotional trigger, obvious, earns next conversation) and suggests revisions | — | one-liner-evaluation | Generative | June |
-| **tam-checker** | Sanity-check market sizing claims against Joe's framework (small markets with high prices > big markets with low prices for most categories; 20-100 customer enterprise plays valid) | — | tam-check | Generative | June |
+| **one-liner-memo-evaluator** | Evaluator counterpart to one-sentence-pitch. Scores an existing one-liner against the one-liner criteria (emotional trigger, obvious, earns next conversation) and suggests revisions | — | one-liner-evaluation | Generative | June |
+| **tam-checker** | Sanity-check market sizing claims against the market-sizing framework (small markets with high prices > big markets with low prices for most categories; 20-100 customer enterprise plays valid) | — | tam-check | Generative | June |
 | **founder-readiness-assessment** | "Can these people execute?" Self-assessment for student founders against named benchmarks (founder-market fit, hiring discipline, speed of iteration, capital readiness) | — | founder-readiness | Interactive | July |
 
 ---
@@ -108,7 +108,7 @@ Every skill that writes to Drive uses this format. The Business Evaluator parses
 | Strategy | 8 |
 | Ops | 8 |
 | Discovery | 10 |
-| Joe's Corner | 11 |
+| Founder's Desk | 11 |
 | **Total** | **48** |
 
 (48 in category breakdown vs. 47 in ship table because `teach-back` is being absorbed into the Knowledge Check feature on May 10 but remains callable as a skill — count once.)
