@@ -10,7 +10,7 @@ The result is knowledge a student can *defend*, because they built every layer o
 
 > **What's in this document.** A full technical walkthrough of the platform: the DOK methodology and the Socratic method that powers it, the grading pipelines (DOK1–4), the multi-agent research stream, the runtime skills library, and the architecture. Sections marked **🚧 Roadmap** describe designed-but-not-yet-shipped capabilities.
 
-> **A note on naming.** User-facing surfaces read **Keystone** and **Keystone Document**. In the codebase, `brainlift` persists as the internal entity name — database tables, API routes (`/api/brainlifts/:slug`), and identifiers — pending a scheduled schema-and-API migration. Code paths cited throughout this document therefore still read `brainlift`; the two names refer to the same entity.
+> **A note on naming.** User-facing brands are **Keystone** (the student-facing platform) and **Keystone Central** (the professional edition). Two internal identifiers still lag these names in the codebase, pending a scheduled clean-break migration: `brainlift` is the internal entity name for a **Keystone Document** (database tables, API routes like `/api/brainlifts/:slug`, identifiers), and `alphax` is the internal brand selector for **Keystone** (e.g. `BRAND=alphax`, `server/brand/alphax.ts`, `alphax-*` assets and CSS). Code paths, filenames, and environment values cited throughout this document therefore still read `brainlift` / `alphax`; the user-facing names are always Keystone.
 
 ### The Keystone Document Methodology
 
@@ -642,7 +642,7 @@ The effect for a learner: instead of drowning in tabs or settling for the first 
 
 Every run, regardless of who launched it, submits the same `RunRequest` shape (declared in `shared/research-stream.ts` and validated with Zod):
 
-- **Chat agent path.** The AlphaX research-mode agent calls the `propose_research_run` tool. The student sees a `ProposeResearchRunCard` (`client/src/components/chat/ProposeResearchRunCard.tsx`) that previews the proposal — topic, angles, slot mix, focuses — and hands off to the Mission Control launcher to confirm and launch. The card moves through `streaming → editable-preview → blocked / launched / stale` states.
+- **Chat agent path.** The Keystone research-mode agent calls the `propose_research_run` tool. The student sees a `ProposeResearchRunCard` (`client/src/components/chat/ProposeResearchRunCard.tsx`) that previews the proposal — topic, angles, slot mix, focuses — and hands off to the Mission Control launcher to confirm and launch. The card moves through `streaming → editable-preview → blocked / launched / stale` states.
 - **UI path.** The dashboard's pre-launch idle state renders `MissionControlLauncher` (`client/src/components/research-stream/MissionControlLauncher.tsx`), where the student edits topic, slot count, per-slot retrieval type, and per-slot focus directly, then launches the same `RunRequest` against the same endpoint.
 
 Both paths POST to `/api/brainlifts/:slug/learning-stream/launch`. The endpoint returns typed `409 already-running` and `429 rate-limit` errors that the UI surfaces inline. The client-side `/refresh` path was removed: refilling is now an explicit launch action.
@@ -741,7 +741,7 @@ A uniform accessor — `getItemTextContent(item)` — provides consistent text a
 
 ## Second Brain — The Research-Phase Surface
 
-The Second Brain is where research lives before the Keystone Document exists. It is the durable artifact of the **research-first pedagogy pivot** (`features/pedagogy/research-first-pivot/`, AlphaX brand only): students enter a project in `phase='research'` and accumulate Sources, Notes, and Categories before any DOK creation is unlocked. Imports and pre-existing projects stay in `phase='authoring'` and behave exactly as before.
+The Second Brain is where research lives before the Keystone Document exists. It is the durable artifact of the **research-first pedagogy pivot** (`features/pedagogy/research-first-pivot/`, Keystone student-brand only): students enter a project in `phase='research'` and accumulate Sources, Notes, and Categories before any DOK creation is unlocked. Imports and pre-existing projects stay in `phase='authoring'` and behave exactly as before.
 
 ### Schema and Phase Gating
 
@@ -787,9 +787,9 @@ The scope the student sets is written onto the project (`brainlifts` scope colum
 
 ---
 
-## Research-Mode Chat Agent — AlphaX
+## Research-Mode Chat Agent — Keystone
 
-The AlphaX brand chat agent now runs in one of two modes per conversation, dispatched by `server/brand/index.ts` based on the bound project's phase:
+The Keystone (student-brand) chat agent now runs in one of two modes per conversation, dispatched by `server/brand/index.ts` based on the bound project's phase:
 
 - **Research mode** (`server/brand/alphax-research.ts`) — the agent's mission is to make the student an expert in their domain. The prompt emphasizes aggressive note capture, terrain mapping, "today" date awareness, and the Research Stream as the default action when knowledge gaps appear. It branches on whether a project is bound (unbound conversations include new-user onboarding cues and a project-idea-generator skill nudge) and on the student's `brainliftCount`.
 - **Authoring mode** (`server/brand/alphax.ts`) — the existing brainlift-author prompt, lightly adjusted to align with the non-editable `propose_research_run` preview behavior.
@@ -798,7 +798,7 @@ Keystone Central (`brand=brainlift`) is untouched.
 
 ### Mode-Aware Tool Registry
 
-`buildNativeChatTools(authContext, mode)` returns a mode-aware tool set. Beyond the existing grading/skill/research tools, AlphaX gains:
+`buildNativeChatTools(authContext, mode)` returns a mode-aware tool set. Beyond the existing grading/skill/research tools, Keystone gains:
 
 - **Project tools** (`server/ai/chat/tools/project.ts`) — `create_blank_project` (atomic brainlift insert that also binds the conversation FK) and `change_conversation_project` (rebind the conversation to an existing brainlift).
 - **Second Brain tools** (`server/ai/chat/tools/second-brain.ts`) — `save_source`, `save_note`, `create_category`, plus edit/delete variants. These tools are now also available in the discussion agent (`server/ai/discussion/tools.ts`) so a student can capture into the Second Brain mid-discussion. All callsites invalidate the relevant TanStack Query keys when they fire.
@@ -810,7 +810,7 @@ Keystone Central (`brand=brainlift`) is untouched.
 
 ### Synthetic Opener
 
-The AlphaX welcome message is a **hardcoded synthetic assistant turn** (`shared/alphax-synthetic-opener.ts`) injected at the top of an empty conversation. The detection helper keeps the synthetic turn invisible to downstream prompt construction so the LLM never sees it as a real exchange.
+The Keystone welcome message is a **hardcoded synthetic assistant turn** (`shared/alphax-synthetic-opener.ts`) injected at the top of an empty conversation. The detection helper keeps the synthetic turn invisible to downstream prompt construction so the LLM never sees it as a real exchange.
 
 ---
 
@@ -1141,10 +1141,12 @@ The same codebase ships as two distinct products on two domains, off one Neon da
 
 | Brand | Domain | Audience | Posture |
 |-------|--------|----------|---------|
-| **AlphaX Buddy** | existing AlphaX deploy | high-school students in the AlphaX program | pedagogical gatekeeping, refuses to draft substantive content, pulls passive students back in |
+| **Keystone** | student deploy | high-school students | pedagogical gatekeeping, refuses to draft substantive content, pulls passive students back in |
 | **Keystone Central** | `brainliftcentral.com` | adult researchers, analysts, professionals | permissive peer-researcher posture, drafting and analysis are fair game, engagement enforced downstream by the grader |
 
 One env var picks the brand at build time on the client (`VITE_BRAND`) and at boot on the server (`BRAND`). Two Render services share `DATABASE_URL` and the Google OAuth client; cookie scopes per domain mean separate sign-ins on each.
+
+> **Legacy deploy identifiers.** The student brand is **Keystone**, but at the code/deploy level it still selects with `BRAND=alphax` and currently ships under the legacy display name **"AlphaX Buddy"**; the professional brand's domain is still `brainliftcentral.com`. These deploy-level names are part of the scheduled clean-break migration and will move to Keystone naming.
 
 ### Brand Module
 
@@ -1152,7 +1154,7 @@ One env var picks the brand at build time on the client (`VITE_BRAND`) and at bo
 client/src/brand/
   index.ts                 selector, throws on missing/unknown VITE_BRAND
   types.ts                 BrandConfig + component prop types
-  alphax/                  AlphaX wordmark, avatar, login illustration, CSS, assets
+  alphax/                  Keystone (student) wordmark, avatar, login illustration, CSS, assets
   brainlift/               Keystone Central wordmark, avatar, login illustration, CSS, assets
 
 server/brand/
@@ -1172,7 +1174,7 @@ Brand-specific CSS lives in `client/src/brand/{brand}/{brand}.css`, imported as 
 
 ### Backend Prompts
 
-Two prompt builders, not one templated builder. `buildAlphaXSystemPrompt` is byte-identical to the original AlphaX prompt; `buildBrainliftSystemPrompt` is a permissive peer-researcher prompt with a `MAIN OPERATIONAL POSTURE`, a `PROACTIVE RESEARCH OFFER` section that mandates one brainlift-grounded `web_search_exa` suggestion per session, and a Keystone Central variant of the operating-protocols block (no AlphaX language, no "student"). Shared transferable blocks (Tone helpers, Tools Protocol, formatters) live in `server/brand/shared/prompt-helpers.ts`. The dispatcher at `server/ai/chat/system-prompt.ts` reads `BRAND` once at boot and delegates to the matching builder.
+Two prompt builders, not one templated builder. `buildAlphaXSystemPrompt` is byte-identical to the original student-brand prompt; `buildBrainliftSystemPrompt` is a permissive peer-researcher prompt with a `MAIN OPERATIONAL POSTURE`, a `PROACTIVE RESEARCH OFFER` section that mandates one brainlift-grounded `web_search_exa` suggestion per session, and a Keystone Central variant of the operating-protocols block (no student-brand language, no "student"). Shared transferable blocks (Tone helpers, Tools Protocol, formatters) live in `server/brand/shared/prompt-helpers.ts`. The dispatcher at `server/ai/chat/system-prompt.ts` reads `BRAND` once at boot and delegates to the matching builder.
 
 The brand-aware chat opener (`client/src/chat/chat-opener.ts`) emits the `[OPENER]` priming message; the body comes from `brand.config.chatOpenerInstruction`, which for Keystone Central directs the agent to land the proactive `web_search_exa` offer in the opener itself.
 
