@@ -347,6 +347,19 @@ In both modes, by the time the user reviews their Keystone Document, everything 
 
 ---
 
+## Experts — Extraction, Profiling & Ranking
+
+A Keystone Document tracks not just facts and positions but the **people** who shape a domain. The expert subsystem (`server/ai/experts/`) extracts, profiles, and ranks the experts relevant to a student's work.
+
+- **Structured extraction** (`extractors.ts`, `parsers.ts`) — during import and research, experts are pulled from source material and parsed into structured fields — *who* they are, *why* they matter, their *focus*, and *where* to find them — rather than collapsed into a single blurb.
+- **Profiling & ranking** (`profiler.ts`, `ranker.ts`) — an AI ranker orders experts by relevance to the project so the most useful voices surface first (with `NULLS LAST` ordering so unranked experts don't crowd the top).
+- **Suggestion & re-ranking** — `server/jobs/brainliftSuggestExpertsJob.ts` proposes experts for a project, and `rerankExpertsJob.ts` (task `experts:rerank`) re-scores the list in place whenever the student adds, edits, or removes one, so the ordering stays honest as the Keystone Document evolves.
+- **Diagnostics** (`diagnostics.ts`) — keeps the ranking inspectable rather than a black box.
+
+Experts feed the Research Stream orchestrator (as context for what to look for) and DOK grading (as one signal of whether a position engages the real voices in a field). Routes live in `server/routes/experts.ts` and `server/routes/builder-experts.ts`.
+
+---
+
 ## How Keystone Grades — Depth, Not Just Correctness
 
 Most automated grading checks whether an answer is *right*. Keystone grades something harder and more meaningful: **how deeply the student actually understands.** Each of the four DOK levels has its own pipeline, its own rubric, and its own core question — and every one is built so a student can't fake depth by pattern-matching or pasting in AI output.
@@ -588,6 +601,27 @@ The assessment includes a concrete strategy for making the SPOV more transmissib
 
 ---
 
+## AI Writing Signal — Authorship Integrity
+
+Because the whole platform rests on the student doing their own thinking, it needs a way to notice when they haven't. The **AI Writing Signal** (internally powered by the third-party **Pangram** API) analyzes student-authored DOK2–4 text for signs that it was AI-generated rather than written by the student.
+
+- **How it runs.** Analysis is a background job (`server/jobs/pangramAnalyzeJob.ts`, task `pangram:analyze`) enqueued automatically from the DOK2/3/4 grade and regrade jobs. Results are stored in the `pangram_assessments` table (`server/storage/pangramAssessments.ts`) and attached to each graded item.
+- **A signal, not a verdict.** It never auto-penalizes a score or blocks a submission — it surfaces as an "AI Writing Signal" chip (`client/src/components/AiWritingSignal/AiWritingSignalChip.tsx`) so a guide can see at a glance where a student's own authorship is in question and follow up. The Socratic method is the primary defense; this is the backstop.
+- **Configuration.** The Pangram client (`server/ai/pangram/client.ts`) is gated on `PANGRAM_API_KEY`; without the key, the signal is simply absent.
+
+It closes the loop on the platform's core promise: it isn't enough to *ask* students to do their own thinking — Keystone also checks.
+
+---
+
+## Contradiction, Redundancy & Stale-Item Detection
+
+Two background analyses keep a growing Keystone Document internally honest and current.
+
+- **Contradiction & redundancy analysis** (`server/ai/redundancyAnalyzer.ts`, `server/routes/redundancy.ts`) detects clusters of facts that contradict each other or restate the same point, surfaced in a dedicated Contradictions view (`ContradictionsTab.tsx`). Contradictions aren't errors to hide — they're exactly the tension a sharp point of view has to resolve, so the platform makes them visible rather than silently reconciling them.
+- **Stale-item detection** (`server/storage/stale.ts`) flags DOK items as **stale** when an underlying source or supporting fact changes, so the student knows to re-examine them. The chat agent's curation tools (`server/ai/chat/tools/curation.ts`) raise, inspect, and clear these flags — and the student can dismiss a flag they disagree with, which forces them to articulate *why* it isn't warranted. That moment is itself part of the learning.
+
+---
+
 ## Research Stream — a Team of AI Research Agents Working for the Student
 
 Expertise starts with reading the right things. The Research Stream is Keystone's discovery engine: on demand, it dispatches a **team of specialized AI agents** that fan out across the internet — academic papers, news, podcasts, YouTube, Twitter/X, and the open web — and return a curated feed of high-quality sources aligned to exactly what the student is working on. The student never has to know where to look or how to search.
@@ -736,6 +770,21 @@ When a Research Stream item is bookmarked into a category, it mirrors into `sour
 
 ---
 
+## Onboarding — The First-Run Experience
+
+A student with zero projects never lands on an empty dashboard — they're routed into a guided **Onboarding Wizard** (`client/src/pages/OnboardingWizard.tsx`, `server/routes/onboarding.ts`) that carries them from "I don't know where to start" to a scoped, ready-to-research project.
+
+The wizard is a multi-step flow — name the topic, define the project's **scope** (what's in and out of bounds), choose focus categories — with an AI **suggestion surface** at each step. The engine behind it (`server/ai/onboarding/`) does real work:
+
+- **Topic anchors & suggestions** (`suggestions.ts`, `topic-anchors.ts`) — proposes concrete angles from the student's stated interest, so the blank page is never truly blank.
+- **Scope filter** (`scope-filter.ts`) — captures what the project is *not* about, which later keeps the Research Stream on-target instead of drifting into adjacent noise.
+- **Expert discovery** (`expert-discovery.ts`) — surfaces relevant domain experts up front, so the student starts with a map of who shapes the field.
+- **Starter pack** (`starter-pack.ts`) — assembles an initial set of material so the first session has something real to work with.
+
+The scope the student sets is written onto the project (`brainlifts` scope columns) and injected into the chat agent's system prompt, so every downstream interaction — research fan-out, discussion, grading — knows the project's boundaries from the very first message.
+
+---
+
 ## Research-Mode Chat Agent — AlphaX
 
 The AlphaX brand chat agent now runs in one of two modes per conversation, dispatched by `server/brand/index.ts` based on the bound project's phase:
@@ -867,6 +916,20 @@ Quiz results (answers, score) are persisted as JSONB in the database, tied to th
 
 ---
 
+## Sprint Execution & the Document Hub
+
+Grading a Keystone Document to DOK4 produces *knowledge*; the **Scope Breaker sprint** turns that knowledge into *action*. It converts a graded project into a **30-day execution sprint** with real, dated deliverables (`server/routes/sprints.ts`, `server/services/sprint.ts`, `server/ai/sprintGenerator.ts`).
+
+- **Plan generation.** `sprintGenerator.ts` builds one active 30-day plan per Keystone Document from its current context — purpose, facts, insights, positions — via a swappable prompt with strict JSON validation, and `server/lib/sprintSchedule.ts` lays the tasks across the calendar (multiple tasks per day). Generation runs as a background job (`server/jobs/sprintGenerateJob.ts`).
+- **Execution surface.** Students do the actual work through their chat agent — the `sprint-execution` skill keeps it in coach-not-doer mode — and in Google Docs. The dashboard is the visual control plane: the full 30-day schedule on a calendar, today's tasks plus overdue ones, and progress at a glance.
+- **Deliverables are Google Docs.** Each task maps to one Google Doc deliverable, created and owned through the Drive integration (`server/services/googleDrive.ts`), with Google as the single source of truth and stable Doc URLs.
+
+### The Document Hub
+
+The **Document Hub** is where every deliverable a student produces lands. Originally task-bound, it was decoupled so the chat agent and other callers can save a Google Doc into a Keystone Document's hub **by slug alone**, with or without a sprint task attached (`taskId` optional). Hub documents are created directly in the project's root Drive folder, and the dashboard's Document Hub tab lists both task-bound deliverables and free-standing hub documents with search, sort, and paging.
+
+---
+
 ## AI Adversary Defense — Expertise Verification
 
 > 🚧 **Roadmap — designed, not yet shipped.** The design below is complete and specified, but no implementing code ships in the current build. It is included because it is core to how DOK3–4 ownership is *meant* to be proven.
@@ -983,6 +1046,18 @@ The learner profile is queryable, feeding into personalized features:
 - **Contextual grading feedback** — aware of where this specific learner consistently struggles
 - **Targeted nudges** — "your DOK3 insights on X need more DOK1 support" instead of generic reminders
 - **Adversary defense preparation** — identify which axes need strengthening before the next attempt
+
+---
+
+## Analytics & Grader Monitoring
+
+An admin-only **Analytics dashboard** (`client/src/pages/Analytics.tsx`, `server/routes/analytics.ts`) gives the team visibility into how the platform — and especially its AI graders — are actually performing. Each view is backed by a purpose-built query in `server/storage/analytics-dashboard.ts`:
+
+- **Grading quality** — model accuracy, human-verification agreement, score distribution, SPOV distribution, the "DOK cliff", and score-improvement over time.
+- **Vanilla comparison** — how student DOK4 positions score against a baseline LLM's answer (the divergence test, in aggregate).
+- **Readability & leaderboard** — grading-feedback readability plus a student leaderboard.
+
+The most consequential piece is **grader-trust monitoring**. A frozen five-Keystone-Document "monitoring corpus" (`server/services/freeze-monitoring-corpus.ts`, `server/storage/grader-monitoring.ts`) is re-graded on a **weekly dual-pass consistency run** (`server/jobs/run-weekly-grader-consistency.ts`) to measure how stable the graders are, and a **model-drift** view tracks week-over-week movement — so if a model swap or provider change quietly shifts grading behavior, the team sees it. Score events are appended at every import and pipeline checkpoint (`server/services/analytics-score-events.ts`), so trends are built on real history rather than snapshots.
 
 ---
 
@@ -1127,6 +1202,10 @@ npm run dev
 
 # Type check
 npm run build
+
+# Run tests (Vitest)
+npm test            # one-shot (vitest run)
+npm run test:watch  # watch mode
 
 # Database migrations
 npx drizzle-kit generate
