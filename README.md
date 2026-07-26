@@ -1159,7 +1159,7 @@ client/src/brand/
 
 server/brand/
   index.ts                 server selector, throws on missing/unknown BRAND
-  alphax.ts                buildAlphaXSystemPrompt + buildAlphaXBrainliftHeuristics
+  alphax.ts                buildKeystoneSystemPrompt + buildKeystoneBrainliftHeuristics
   brainlift.ts             buildBrainliftSystemPrompt + buildBrainliftBrainliftHeuristics
   shared/prompt-helpers.ts shared prose blocks (Tone helpers, Tools Protocol, formatters)
 ```
@@ -1174,7 +1174,7 @@ Brand-specific CSS lives in `client/src/brand/{brand}/{brand}.css`, imported as 
 
 ### Backend Prompts
 
-Two prompt builders, not one templated builder. `buildAlphaXSystemPrompt` is byte-identical to the original student-brand prompt; `buildBrainliftSystemPrompt` is a permissive peer-researcher prompt with a `MAIN OPERATIONAL POSTURE`, a `PROACTIVE RESEARCH OFFER` section that mandates one brainlift-grounded `web_search_exa` suggestion per session, and a Keystone Central variant of the operating-protocols block (no student-brand language, no "student"). Shared transferable blocks (Tone helpers, Tools Protocol, formatters) live in `server/brand/shared/prompt-helpers.ts`. The dispatcher at `server/ai/chat/system-prompt.ts` reads `BRAND` once at boot and delegates to the matching builder.
+Two prompt builders, not one templated builder. `buildKeystoneSystemPrompt` is byte-identical to the original student-brand prompt; `buildBrainliftSystemPrompt` is a permissive peer-researcher prompt with a `MAIN OPERATIONAL POSTURE`, a `PROACTIVE RESEARCH OFFER` section that mandates one brainlift-grounded `web_search_exa` suggestion per session, and a Keystone Central variant of the operating-protocols block (no student-brand language, no "student"). Shared transferable blocks (Tone helpers, Tools Protocol, formatters) live in `server/brand/shared/prompt-helpers.ts`. The dispatcher at `server/ai/chat/system-prompt.ts` reads `BRAND` once at boot and delegates to the matching builder.
 
 The brand-aware chat opener (`client/src/chat/chat-opener.ts`) emits the `[OPENER]` priming message; the body comes from `brand.config.chatOpenerInstruction`, which for Keystone Central directs the agent to land the proactive `web_search_exa` offer in the opener itself.
 
