@@ -10,6 +10,8 @@ The result is knowledge a student can *defend*, because they built every layer o
 
 > **What's in this document.** A full technical walkthrough of the platform: the DOK methodology and the Socratic method that powers it, the grading pipelines (DOK1–4), the multi-agent research stream, the runtime skills library, and the architecture. Sections marked **🚧 Roadmap** describe designed-but-not-yet-shipped capabilities.
 
+> **A note on naming.** User-facing surfaces read **Keystone** and **Keystone Document**. In the codebase, `brainlift` persists as the internal entity name — database tables, API routes (`/api/brainlifts/:slug`), and identifiers — pending a scheduled schema-and-API migration. Code paths cited throughout this document therefore still read `brainlift`; the two names refer to the same entity.
+
 ### The Keystone Document Methodology
 
 A Keystone Document is a personal knowledge structure organized by Depth of Knowledge. The DOK framework defines four levels, and the platform enforces a critical bright line between them:
@@ -1200,6 +1202,19 @@ Both builds emit clean bundle-grep results and produce the same application code
 ### Render Blueprint
 
 `render.yaml` declares both services with shared infra (region, plan, runtime, health-check path, build/start commands) and brand-specific env vars. The Keystone Central service binds the `brainliftcentral.com` and `www.brainliftcentral.com` custom domains. `DATABASE_URL` and `OPENROUTER_API_KEY` use `sync: false` so each service holds the same secret values without Blueprint coupling. See `features/branding/dual-brand-deployment/specs/04-second-deploy/CUTOVER.md` for the operator checklist (env var ordering, OAuth callback URLs, DNS, smoke tests).
+
+---
+
+## Roadmap
+
+Keystone's shipped core covers research, knowledge-building, and depth-based grading. Several capabilities are designed and planned but not yet built — flagged **🚧 Roadmap** throughout this document and gathered here:
+
+- **AI Adversary Defense** — a structured 12-round adversarial defense of a Spiky Point of View: the intended *final proof* that a student owns a position under pressure. (Full design in the section above.)
+- **Honcho — persistent learner profile** — a longitudinal memory that reasons over every learning signal to track *how* a student's thinking develops over time, feeding richer DOK3–4 evaluation.
+- **Classroom & instructor tooling** — Keystone today is built around the individual learner. Running it for a class needs an instructor layer: a **teacher / cohort dashboard** (every student's progress at a glance), **class-wide progress and mastery views**, **curriculum & standards alignment** (mapping Keystone Documents to a syllabus or learning standards), and **differentiation by age and level** (the current model assumes a capable, self-directed learner; younger cohorts need adjusted scaffolding). In short, the answer to *"how does one instructor run this for 30 students?"*
+- **Localization** — multilingual UI and grading, so the platform can serve students beyond English-first contexts.
+
+An honest roadmap is more useful to a partner than a feature list that blurs shipped and planned — so this section states plainly what is still ahead.
 
 ---
 
