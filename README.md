@@ -10,7 +10,7 @@ The result is knowledge a student can *defend*, because they built every layer o
 
 > **What's in this document.** A full technical walkthrough of the platform: the DOK methodology and the Socratic method that powers it, the grading pipelines (DOK1–4), the multi-agent research stream, the runtime skills library, and the architecture. Sections marked **🚧 Roadmap** describe designed-but-not-yet-shipped capabilities.
 
-> **A note on naming.** User-facing brands are **Keystone** (the student-facing platform) and **Keystone Central** (the professional edition). Two internal identifiers still lag these names in the codebase, pending a scheduled clean-break migration: `brainlift` is the internal entity name for a **Keystone Document** (database tables, API routes like `/api/brainlifts/:slug`, identifiers), and `keystone` is the internal brand selector for **Keystone** (e.g. `BRAND=keystone`, `server/brand/keystone.ts`, `keystone-*` assets and CSS). Code paths, filenames, and environment values cited throughout this document therefore still read `brainlift` / `keystone`; the user-facing names are always Keystone.
+> **A note on naming.** User-facing brands are **Keystone** (student) and **Keystone Central** (professional). The student brand is now fully `keystone` in code. One internal identifier still lags, pending a scheduled migration: **`brainlift`** — it is both the internal name for a **Keystone Document** (database tables, API routes like `/api/brainlifts/:slug`, identifiers) and the selector for the professional brand (`BRAND=brainlift`). Code paths and environment values that read `brainlift` therefore still appear in this document; the user-facing name is always Keystone.
 
 ### The Keystone Document Methodology
 
@@ -1059,7 +1059,7 @@ An admin-only **Analytics dashboard** (`client/src/pages/Analytics.tsx`, `server
 - **Vanilla comparison** — how student DOK4 positions score against a baseline LLM's answer (the divergence test, in aggregate).
 - **Readability & leaderboard** — grading-feedback readability plus a student leaderboard.
 
-The most consequential piece is **grader-trust monitoring**. A frozen five-Keystone-Document "monitoring corpus" (`server/services/freeze-monitoring-corpus.ts`, `server/storage/grader-monitoring.ts`) is re-graded on a **weekly dual-pass consistency run** (`server/jobs/run-weekly-grader-consistency.ts`) to measure how stable the graders are, and a **model-drift** view tracks week-over-week movement — so if a model swap or provider change quietly shifts grading behavior, the team sees it. Score events are appended at every import and pipeline checkpoint (`server/services/analytics-score-events.ts`), so trends are built on real history rather than snapshots.
+The most consequential piece is **grader-trust monitoring**. A frozen five-Keystone-Document "monitoring corpus" (`server/services/freeze-grader-monitoring-set.ts`, `server/storage/grader-monitoring.ts`) is re-graded on a **weekly dual-pass consistency run** (`server/jobs/run-weekly-grader-consistency.ts`) to measure how stable the graders are, and a **model-drift** view tracks week-over-week movement — so if a model swap or provider change quietly shifts grading behavior, the team sees it. Score events are appended at every import and pipeline checkpoint (`server/services/analytics-score-events.ts`), so trends are built on real history rather than snapshots.
 
 ---
 
@@ -1146,7 +1146,7 @@ The same codebase ships as two distinct products — one for students, one for p
 
 One env var picks the brand at build time on the client (`VITE_BRAND`) and at boot on the server (`BRAND`). Two Render services share `DATABASE_URL` and the Google OAuth client; cookie scopes per domain mean separate sign-ins on each.
 
-> **Legacy deploy identifiers.** The student brand is **Keystone**, but at the code/deploy level it still selects with `BRAND=keystone` and currently ships under the legacy display name **"AlphaX Buddy"**. These deploy-level names are part of the scheduled clean-break migration and will move to Keystone naming. (The Keystone Central professional edition is defined but not yet deployed.)
+> **Naming status.** The student brand is fully **Keystone** — selector `BRAND=keystone`, display name "Keystone". The professional brand still selects `BRAND=brainlift` and displays "Brainlift Central" pending its rename to Keystone Central (it is defined but not yet deployed).
 
 ### Brand Module
 
@@ -1192,8 +1192,8 @@ This is the post-build proof that tree-shaking eliminated the inactive subtree.
 ### Building Each Brand
 
 ```bash
-# Keystone student brand (legacy deploy name still "AlphaX Buddy" pending migration)
-BRAND=keystone VITE_BRAND=keystone VITE_BRAND_NAME="AlphaX Buddy" npm run build
+# Keystone student brand
+BRAND=keystone VITE_BRAND=keystone VITE_BRAND_NAME="Keystone" npm run build
 
 # Keystone Central
 BRAND=brainlift VITE_BRAND=brainlift VITE_BRAND_NAME="Keystone Central" npm run build
@@ -1256,6 +1256,6 @@ docker exec -i wizardly_kalam psql -U postgres -d dok1grader_local < migrations/
 | `WORKER_CONCURRENCY` | Background job concurrency (default: 3) |
 | `BRAND` | Server brand selector. `keystone` or `brainlift`. Throws at boot if missing or unknown. |
 | `VITE_BRAND` | Client brand selector. `keystone` or `brainlift`. Read at Vite config time to alias `@/brand`. Must match `BRAND`. |
-| `VITE_BRAND_NAME` | Display name shown in the browser tab and HTML meta description (e.g. `AlphaX Buddy` or `Keystone Central`). |
+| `VITE_BRAND_NAME` | Display name shown in the browser tab and HTML meta description (e.g. `Keystone` or `Keystone Central`). |
 | `SWARM_VERBOSE_LOG` | Optional. `true` enables per-tool verbose file logging for both v1 and v2 research-stream runs. Default off. |
 | `VITE_ENABLE_DEV_LOGIN` | Optional build-time flag. `true` keeps the Login page's "Dev quick login" panel visible on production builds (for staging/demo accounts). Default off in production. |
