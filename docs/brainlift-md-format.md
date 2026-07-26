@@ -1,4 +1,4 @@
-# Brainlift Markdown Format Specification
+# Keystone Document Markdown Format Specification
 
 A standalone `.md` format that replaces Workflowy dependency while remaining fully compatible with the existing grading pipeline. Zero changes to existing extraction, grading, or linking code.
 
@@ -15,13 +15,13 @@ The .md file parses deterministically into `HierarchyNode[]` -- the same tree st
 ## Template
 
 ```markdown
-# [Brainlift Title]
+# [Keystone Document Title]
 
 - Owner
   - [Author Name]
 
 - Purpose
-  - [What this Brainlift is about and why it matters]
+  - [What this Keystone Document is about and why it matters]
 
 - Knowledge Tree
   - Category: [Category Name]

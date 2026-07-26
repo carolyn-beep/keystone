@@ -1,8 +1,8 @@
-# Brainlift Markdown Template
+# Keystone Document Markdown Template
 
-A Brainlift is a structured knowledge document that organizes research into four levels of depth (DOK1-DOK4), progressing from raw facts to original thinking.
+A Keystone Document is a structured knowledge document that organizes research into four levels of depth (DOK1-DOK4), progressing from raw facts to original thinking.
 
-This template defines a **standalone, tool-agnostic format** for authoring Brainlifts as plain `.md` files. No Workflowy account, no proprietary tools -- just a text editor. It was designed primarily for LLM-driven generation, where an AI can reliably produce a complete, well-structured Brainlift in a single pass by following these rules. A human can absolutely use it too, though the rigid structure and precise formatting make it better suited as a machine-writable format -- if you're building a Brainlift yourself, the platform's native builder is a better experience, letting you focus on your thinking rather than template mechanics. The indented bullet structure maps directly to the Brainlift platform's import pipeline, and because it uses standard markdown indentation, it can also be pasted directly into Workflowy and the outline hierarchy will be preserved correctly.
+This template defines a **standalone, tool-agnostic format** for authoring Keystone Documents as plain `.md` files. No Workflowy account, no proprietary tools -- just a text editor. It was designed primarily for LLM-driven generation, where an AI can reliably produce a complete, well-structured Keystone Document in a single pass by following these rules. A human can absolutely use it too, though the rigid structure and precise formatting make it better suited as a machine-writable format -- if you're building a Keystone Document yourself, the platform's native builder is a better experience, letting you focus on your thinking rather than template mechanics. The indented bullet structure maps directly to the Keystone Document platform's import pipeline, and because it uses standard markdown indentation, it can also be pasted directly into Workflowy and the outline hierarchy will be preserved correctly.
 
 **The entire document is built from indented bullet lists.** Every piece of content is a `- ` prefixed line, and the parent-child hierarchy is determined entirely by indentation (2 spaces per level). Think of it like an outliner: each indent level nests content one layer deeper. The parser uses this tree structure to automatically detect sources, categorize facts, link insights across sources, and wire up the full grading pipeline -- all from indentation alone.
 
@@ -13,13 +13,13 @@ This template defines a **standalone, tool-agnostic format** for authoring Brain
 ## Template
 
 ```markdown
-# [Brainlift Title]
+# [Keystone Document Title]
 
 - Owner
   - [Author Name]
 
 - Purpose
-  - [What this Brainlift is about and why it matters]
+  - [What this Keystone Document is about and why it matters]
 
 - Knowledge Tree
   - Category: [Category Name]

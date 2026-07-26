@@ -42,7 +42,7 @@ All API endpoints (except `/api/auth/*`) require authentication via Better Auth 
 
 ---
 
-## Brainlifts (`server/routes/brainlifts.ts`)
+## Keystone Documents (`server/routes/brainlifts.ts`)
 
 | Method | Endpoint | Auth | Description |
 |--------|----------|------|-------------|
@@ -191,7 +191,7 @@ Non-http(s) / invalid URL → `400`; foreign slug → `404`; unauthenticated →
 
 ---
 
-## Native Brainlifts (`server/routes/native-brainlifts.ts`)
+## Native Keystone Documents (`server/routes/native-brainlifts.ts`)
 
 Endpoints for creating and managing native (Builder) brainlifts.
 
@@ -388,18 +388,18 @@ All routes nested under `/api/brainlifts/:slug/learning-stream` for authorizatio
 
 ## Internal API (`server/routes/internal.ts`)
 
-> **Note:** Service-to-service only — requires `X-Service-Key` header (validated via `requireServiceAuth` middleware). Used by the Brainlift MCP server.
+> **Note:** Service-to-service only — requires `X-Service-Key` header (validated via `requireServiceAuth` middleware). Used by the Keystone MCP server.
 
-Service authentication also requires `X-User-Email`, which is trusted as the caller-asserted end user for downstream BrainLift access checks. API key scopes restrict which internal endpoints a service key can reach, but they do not constrain which user email a partner can assert. Restricted partner keys should be issued only to trusted operators.
+Service authentication also requires `X-User-Email`, which is trusted as the caller-asserted end user for downstream Keystone Document access checks. API key scopes restrict which internal endpoints a service key can reach, but they do not constrain which user email a partner can assert. Restricted partner keys should be issued only to trusted operators.
 
 **User auto-provisioning depends on key scope.** Wildcard (`*`) keys — the first-party MCP — create unknown users on first contact. Scoped keys (e.g. `brainlifts:read`) return `404 Unknown user` for emails that don't already exist on the platform; they cannot insert into the `user` table. This prevents partner integrations from polluting the user table by iterating workspace identities.
 
 | Method | Endpoint | Auth | Description |
 |--------|----------|------|-------------|
-| `GET` | `/api/internal/template` | Service Key | Returns the Brainlift markdown template |
+| `GET` | `/api/internal/template` | Service Key | Returns the Keystone Document markdown template |
 | `POST` | `/api/internal/grade` | Service Key | Submit markdown for grading, returns slug |
 | `GET` | `/api/internal/brainlifts` | Service Key + `brainlifts:list` | Paginated list of user's brainlifts |
-| `GET` | `/api/internal/brainlifts/:slug` | Service Key + `brainlifts:read` | Canonical normalized BrainLift detail contract |
+| `GET` | `/api/internal/brainlifts/:slug` | Service Key + `brainlifts:read` | Canonical normalized Keystone Document detail contract |
 | `GET` | `/api/internal/brainlifts/:slug/status` | Service Key | Grading progress with per-DOK counts |
 | `GET` | `/api/internal/brainlifts/:slug/assessment` | Service Key | Paginated assessment results by DOK level |
 | `GET` | `/api/internal/brainlifts/:slug/experts` | Service Key | List imported experts for one owned brainlift |
@@ -419,20 +419,20 @@ Service authentication also requires `X-User-Email`, which is trusted as the cal
 
 ### GET /api/internal/brainlifts/:slug
 
-Canonical read-only BrainLift detail response for partner integrations. Returns current normalized state only; it does not include original imported content, classification, summary, or contradiction clusters.
+Canonical read-only Keystone Document detail response for partner integrations. Returns current normalized state only; it does not include original imported content, classification, summary, or contradiction clusters.
 
-- **Headers:** `X-Service-Key` is required. `X-User-Email` identifies the asserted user for BrainLift access checks.
+- **Headers:** `X-Service-Key` is required. `X-User-Email` identifies the asserted user for Keystone Document access checks.
 - **Query:** `include` optional comma-separated allowlist. Supported value: `grading`.
 - **Freshness:** no freshness signal is provided in this release. Clients should fetch on a cadence appropriate to their use case.
 - **Trust model:** service auth trusts `X-User-Email` as the caller-asserted user. API key scopes limit endpoint access when scopes are enabled, but do not prevent asserted-user impersonation by a trusted service key.
-- **Errors:** 400 for unknown include values, 401 for invalid service key, 404 for unknown slug or inaccessible BrainLift.
+- **Errors:** 400 for unknown include values, 401 for invalid service key, 404 for unknown slug or inaccessible Keystone Document.
 
 **Response (200):**
 ```json
 {
   "id": 123,
   "slug": "example-brainlift",
-  "title": "Example BrainLift",
+  "title": "Example Keystone Document",
   "purpose": "Short purpose, or description fallback",
   "author": "Author Name",
   "createdAt": "2026-01-01T00:00:00.000Z",

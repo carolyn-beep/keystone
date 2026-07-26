@@ -1,12 +1,12 @@
-# Brainlift Template for AI Agents
+# Keystone Document Template for AI Agents
 
-You are about to create a Brainlift -- a structured knowledge artifact that will be graded by an automated pipeline across four depth levels (DOK1-DOK4). Read this entire document before writing anything. The quality guidance comes first because it determines whether your Brainlift scores well. The format specification follows.
+You are about to create a Keystone Document -- a structured knowledge artifact that will be graded by an automated pipeline across four depth levels (DOK1-DOK4). Read this entire document before writing anything. The quality guidance comes first because it determines whether your Keystone Document scores well. The format specification follows.
 
 ---
 
 ## Quality Philosophy: Less Is More
 
-**A Brainlift is a curated knowledge artifact, not a research dump.** The grading system rewards depth and precision, not volume. Before adding any item, ask: "Does this earn its place?"
+**A Keystone Document is a curated knowledge artifact, not a research dump.** The grading system rewards depth and precision, not volume. Before adding any item, ask: "Does this earn its place?"
 
 ### Principles
 
@@ -20,20 +20,20 @@ You are about to create a Brainlift -- a structured knowledge artifact that will
 
 ### Recommended Scale
 
-These are guidelines for creating new Brainlifts, not hard limits. Following them will produce tighter, more effective Brainlifts that grade faster:
+These are guidelines for creating new Keystone Documents, not hard limits. Following them will produce tighter, more effective Keystone Documents that grade faster:
 
-- A Brainlift needs multiple sources -- you can't do cross-source synthesis with just one. Beyond that, let the research dictate the count.
+- A Keystone Document needs multiple sources -- you can't do cross-source synthesis with just one. Beyond that, let the research dictate the count.
 - Fewer sharp facts beat many vague ones. Every DOK1 fact gets verified -- padding drags your average down.
 - DOK2 summaries should synthesize, not exhaustively list. If it reads like a transcript, it's too long.
 - DOK3 insights and DOK4 SPOVs are your highest-value items. A few strong ones beat many weak ones.
 
-If working with an existing Brainlift, do not aggressively trim to fit these guidelines. The user values that content. Do light curation: remove redundancies, drop padding, flag weak insights, note stale sources -- but preserve substantive content. Losing important material will upset the user.
+If working with an existing Keystone Document, do not aggressively trim to fit these guidelines. The user values that content. Do light curation: remove redundancies, drop padding, flag weak insights, note stale sources -- but preserve substantive content. Losing important material will upset the user.
 
-When explaining curation to the user, never reference these guidelines, token counts, or ideal numbers. Instead explain in terms of quality: "this fact overlaps with #3", "this source seems outdated", "this insight restates the summary above." Also explain the tradeoff: a larger Brainlift takes longer to grade.
+When explaining curation to the user, never reference these guidelines, token counts, or ideal numbers. Instead explain in terms of quality: "this fact overlaps with #3", "this source seems outdated", "this insight restates the summary above." Also explain the tradeoff: a larger Keystone Document takes longer to grade.
 
 ### Total Size
 
-A Brainlift isn't just graded -- it's *used*. After grading, it steers an LLM away from generic responses and toward the author's perspective. Tighter Brainlifts steer more effectively, and grade faster. But there is no hard size ceiling -- a larger Brainlift is a tradeoff (slower grading, potentially weaker steering), not a failure.
+A Keystone Document isn't just graded -- it's *used*. After grading, it steers an LLM away from generic responses and toward the author's perspective. Tighter Keystone Documents steer more effectively, and grade faster. But there is no hard size ceiling -- a larger Keystone Document is a tradeoff (slower grading, potentially weaker steering), not a failure.
 
 ### What the Grader Penalizes
 
@@ -63,13 +63,13 @@ Everything below this line defines the exact structure the parser expects. Follo
 ## Template
 
 ```markdown
-# [Brainlift Title]
+# [Keystone Document Title]
 
 - Owner
   - [Author Name]
 
 - Purpose
-  - [What this Brainlift is about and why it matters]
+  - [What this Keystone Document is about and why it matters]
 
 ## Experts
 
@@ -220,7 +220,7 @@ Each DOK4 SPOV must have a `Links` child listing which DOK3 insights it builds o
 
 ### Content Requirements
 
-- Experts: include at least 3 real public figures when creating a new Brainlift. Each expert needs `Who` and `Why follow`; `Focus` and `Where` are optional but encouraged.
+- Experts: include at least 3 real public figures when creating a new Keystone Document. Each expert needs `Who` and `Why follow`; `Focus` and `Where` are optional but encouraged.
 - Facts (DOK1): at least 10 characters each
 - Summary points (DOK2): at least 10 characters each
 - SPOVs (DOK4): at least 10 characters each

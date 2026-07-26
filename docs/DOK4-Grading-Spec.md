@@ -23,7 +23,7 @@ The pipeline has 6 sequential steps:
 >
 > **Adversary Defense removed.** Deferred feature. All hooks and integration points stripped from this spec.
 >
-> **Antimemetic Conversion replaced with Antimemetic Assessment.** The original asked the student to submit a "converted form" of their SPOV, but never specified when the student would be prompted, what the UX flow looked like, or how this fit into the existing BrainLift workflow. V1 drops the student submission loop entirely. Instead, the system evaluates the SPOV's viral potential automatically and generates a concrete "want to make this spread? try this" suggestion the student can act on.
+> **Antimemetic Conversion replaced with Antimemetic Assessment.** The original asked the student to submit a "converted form" of their SPOV, but never specified when the student would be prompted, what the UX flow looked like, or how this fit into the existing Keystone Document workflow. V1 drops the student submission loop entirely. Instead, the system evaluates the SPOV's viral potential automatically and generates a concrete "want to make this spread? try this" suggestion the student can act on.
 
 ### Foundation Integrity Index
 
@@ -95,7 +95,7 @@ Mid-tier (Gemini Flash primary, Sonnet fallback). Target latency < 3 seconds. Te
 The classifier receives:
 - **DOK4 text** — the student's submission (primary input)
 - **Primary DOK3 text** — for detecting DOK3 misclassification
-- **BrainLift purpose** — for context
+- **Keystone Document purpose** — for context
 
 ### Rejection Categories
 
@@ -141,7 +141,7 @@ On accept, `rejection_reason` and `rejection_category` are null.
 - Very short claims (brevity is not a rejection criterion)
 - Text that mixes insight and claim — if ANY claim is embedded, accept
 - Hedging language ("I think...", "I believe...")
-- Tangential relation to BrainLift purpose (the full pipeline evaluates purpose alignment)
+- Tangential relation to Keystone Document purpose (the full pipeline evaluates purpose alignment)
 
 **Always reject:**
 - Bullet-point source summaries with no position
@@ -165,7 +165,7 @@ A mid-tier LLM call that produces a baseline for the S2 (LLM Divergence) criteri
 
 **Process:**
 1. Convert the student's SPOV into a neutral question (e.g., "Schools should replace standardized testing with longitudinal skill-stack assessments" → "What is the best approach to measuring educational outcomes?")
-2. Send that question to a vanilla mid-tier LLM with zero BrainLift context — just the question, no student evidence, no DOK chain. The LLM is instructed to commit to a clear position in 2-3 sentences, mirroring the format of a SPOV. This makes the comparison fair: two concise stances side by side, not a student's one-liner against a long balanced essay.
+2. Send that question to a vanilla mid-tier LLM with zero Keystone Document context — just the question, no student evidence, no DOK chain. The LLM is instructed to commit to a clear position in 2-3 sentences, mirroring the format of a SPOV. This makes the comparison fair: two concise stances side by side, not a student's one-liner against a long balanced essay.
 3. Store the generated question and the vanilla response.
 
 **Output passed to Quality Evaluation:**
@@ -185,7 +185,7 @@ The core grading step. A single quality-tier LLM call that evaluates the SPOV ac
 ### Input Context
 
 The evaluator receives everything:
-- BrainLift purpose
+- Keystone Document purpose
 - DOK4 SPOV text
 - Primary DOK3 insight (text, score, framework name/description)
 - Additional linked DOK3 insights (as supporting context)
@@ -292,7 +292,7 @@ The assessment classifies the SPOV's antimemetic resistance into one of three ty
 
 The strategy describes *what to do*, not a rewritten SPOV. The student does the conversion work themselves — that's the learning.
 
-> **Changelog:** The original spec defines an Antimemetic Conversion as a student-driven submission flow: the student diagnoses barriers, writes a converted form, and the system scores the conversion attempt (1-5). The UX for this was never specified — no user flow for when the student would be prompted, how they'd submit, or where it lived in the BrainLift interface. V1 replaces this with an automated assessment that runs post-grading. No student submission, no conversion score, no separate evaluation pipeline. The system diagnoses the barrier and provides a strategy. If the student acts on it, they rewrite their SPOV — which triggers re-grading through the existing pipeline. This is simpler, fits the current architecture, and can be extended into a full conversion flow later if needed.
+> **Changelog:** The original spec defines an Antimemetic Conversion as a student-driven submission flow: the student diagnoses barriers, writes a converted form, and the system scores the conversion attempt (1-5). The UX for this was never specified — no user flow for when the student would be prompted, how they'd submit, or where it lived in the Keystone Document interface. V1 replaces this with an automated assessment that runs post-grading. No student submission, no conversion score, no separate evaluation pipeline. The system diagnoses the barrier and provides a strategy. If the student acts on it, they rewrite their SPOV — which triggers re-grading through the existing pipeline. This is simpler, fits the current architecture, and can be extended into a full conversion flow later if needed.
 
 **Model:** Quality-tier (Opus 4.6 primary, Sonnet 4.5 fallback). Temperature 0.3 (slightly higher for more creative strategy suggestions).
 
