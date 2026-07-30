@@ -19,13 +19,13 @@ A Keystone Document is a personal knowledge structure organized by Depth of Know
 | **DOK1 — Facts** | Objective, verifiable claims extracted from sources. Same for anyone who reads the material. | User extracts, AI assists | Verification, scoring, evidence fetching |
 | **DOK2 — Summaries** | The user's own synthesis of DOK1 facts — reorganized through their interpretive lens and connected to their Keystone Document's purpose. | User writes, no AI generation | Grading (did the reorganization happen?), source verification |
 | **DOK3 — Insights** | Surprising, contrarian patterns that transcend multiple sources. Subjective, supported by DOK1-2. | User only | Developed through guided Socratic discussion, graded through the full pipeline *(deepened on the roadmap by the Honcho learner profile + Adversary Defense)* |
-| **DOK4 — Spiky POVs** | Clear positions on topics where experts disagree. New knowledge that AI doesn't already have. | User only | Graded for divergence from a baseline LLM *(stress-testing via Adversary Defense + Honcho longitudinal tracking are roadmap)* |
+| **DOK4 — Convictions** | Clear positions on topics where experts disagree. New knowledge that AI doesn't already have. | User only | Graded for divergence from a baseline LLM *(stress-testing via Adversary Defense + Honcho longitudinal tracking are roadmap)* |
 
 The bright line: **DOK1-2 are based on the external world. DOK3-4 are based on the owner's expertise.** The platform's job is to surface the external world (Learning Stream), help the user extract and verify DOK1 facts, grade their DOK2 synthesis, and develop and stress-test their DOK3-4 positions — but never to generate the knowledge itself. The user must articulate it. This is the core design constraint that drives every AI interaction in the system.
 
 DOK3 grading is built as a full pipeline, not a standalone rubric — because DOK3 thinking can't be evaluated in isolation. It has to be developed and then stress-tested. The **Discussion Agent** trains the critical-thinking muscle every session, and the grading pipeline scores an insight against the reasoning the student actually articulated rather than judging text in a vacuum. Two further layers are designed to deepen this — the **Honcho** learner profile (a longitudinal memory of *how* a student arrived at an insight) and the **AI Adversary Defense** (proving they own it under pressure). Both are documented in full below and marked
 
-DOK4 sits at the top of the pyramid, and its grading asks a question no rubric elsewhere does: **is this position genuinely the student's own, and is it spiky enough to matter?** A Spiky Point of View is a clear, defensible stance on a question where informed people disagree, and the pipeline tests it two ways at once. It catches *borrowed spikiness* — a POV that merely restates a source's contrarian take was never the student's — and it runs a **divergence test**: the same question is posed to a baseline LLM with no context, and if that vanilla model reaches the student's conclusion with confidence, the position isn't spiky, it's conventional wisdom the AI already holds. A DOK4 scores high only when it commits where the baseline hedges. This is the platform's sharpest idea — it grades a student's thinking against what a machine would say, rewarding precisely the original, defensible judgment that AI can't manufacture.
+DOK4 sits at the top of the pyramid, and its grading asks a question no rubric elsewhere does: **is this position genuinely the student's own, and is it divergent enough to matter?** A Conviction is a clear, defensible stance on a question where informed people disagree, and the pipeline tests it two ways at once. It catches *borrowed divergence* — a position that merely restates a source's contrarian take was never the student's — and it runs a **divergence test**: the same question is posed to a baseline LLM with no context, and if that vanilla model reaches the student's conclusion with confidence, the position isn't divergent, it's conventional wisdom the AI already holds. A DOK4 scores high only when it commits where the baseline hedges. This is the platform's sharpest idea — it grades a student's thinking against what a machine would say, rewarding precisely the original, defensible judgment that AI can't manufacture.
 
 Below the Keystone Document sits the **Learning Stream** — the automated discovery layer. The Learning Stream research swarm, content extraction, and discussion agents all serve the same purpose: they expose the user to the flow of relevant information so the user can curate their Keystone Document. 
 
@@ -57,7 +57,7 @@ The coaching agent's operating posture is declared in its own system prompt (`se
 
 That posture shows up everywhere a student touches the system:
 
-**1. The coaching chat scaffolds by DOK level — and refuses to author.** For each level the agent has an explicit rule (`server/brand/keystone.ts`): read the source *with* the student and quote passages back for their reaction (DOK1); ask the question that surfaces *their* summary instead of paraphrasing the source (DOK2); require the student to name cross-source patterns themselves — *"a missing insight is better than one you invented"* (DOK3); never propose a position or offer phrasings to pick from (DOK4). When a student says "just write it for me," the prompt is explicit that **the refusal is the work**: *"I can't write the SPOV for you — if I write it, you didn't take the position."* The friction is the cognitive load doing its job.
+**1. The coaching chat scaffolds by DOK level — and refuses to author.** For each level the agent has an explicit rule (`server/brand/keystone.ts`): read the source *with* the student and quote passages back for their reaction (DOK1); ask the question that surfaces *their* summary instead of paraphrasing the source (DOK2); require the student to name cross-source patterns themselves — *"a missing insight is better than one you invented"* (DOK3); never propose a position or offer phrasings to pick from (DOK4). When a student says "just write it for me," the prompt is explicit that **the refusal is the work**: *"I can't write the Conviction for you — if I write it, you didn't take the position."* The friction is the cognitive load doing its job.
 
 **2. The Discussion Agent reads alongside the student.** In the split-screen reader (`server/ai/discussion/system-prompt.ts`) it listens first, never lectures, and nudges synthesis with questions like *"How do these facts connect?"* — but it will not generate facts, summarize the article unprompted, or hand over a DOK2 example. It also enforces the learning order: a student who jumps to synthesis before establishing facts is redirected back to the evidence.
 
@@ -181,7 +181,7 @@ Chat title generation runs after a completed user+assistant exchange when the co
 
 ### Runtime Skills Library
 
-The Skills Library is what turns the chat agent from a helpful assistant into a **founder's operating system**. Each skill is a self-contained expert procedure — a pricing strategist, a pitch-deck architect, an adversarial debate partner, a TAM auditor, a customer-discovery designer — that the agent invokes on demand, mid-conversation, without the student ever leaving the chat. **Forty-seven skills ship across six domains**, and every one of them reasons over the student's own Keystone Document: their verified DOK facts, their Spiky Points of View, their followed experts, their sources. These are not generic business templates. A pricing skill prices *this* company against *this* market; a rebuttal skill argues from *this* student's cited evidence; a gap analyzer knows exactly which categories of *this* body of work are thin. Deliverables are written straight back into the Keystone Document and the Document Hub, already scored.
+The Skills Library is what turns the chat agent from a helpful assistant into a **founder's operating system**. Each skill is a self-contained expert procedure — a pricing strategist, a pitch-deck architect, an adversarial debate partner, a TAM auditor, a customer-discovery designer — that the agent invokes on demand, mid-conversation, without the student ever leaving the chat. **Forty-seven skills ship across six domains**, and every one of them reasons over the student's own Keystone Document: their verified DOK facts, their Convictions, their followed experts, their sources. These are not generic business templates. A pricing skill prices *this* company against *this* market; a rebuttal skill argues from *this* student's cited evidence; a gap analyzer knows exactly which categories of *this* body of work are thin. Deliverables are written straight back into the Keystone Document and the Document Hub, already scored.
 
 Skills are **first-class, governed objects** — permissioned, versioned, soft-deletable, shareable, and fully authorable from chat by admins. They live in Postgres and load through a three-level progressive-disclosure protocol, so the entire catalogue costs almost nothing in context until a skill actually fires, and every skill competes for the model's attention purely on the strength of a single trigger description.
 
@@ -201,9 +201,9 @@ Skills are **first-class, governed objects** — permissioned, versioned, soft-d
 | Skill | What it does | Tier · Kind |
 |-------|--------------|-------------|
 | `fact-check-draft` | Fact-check a provided draft against the Keystone Document's DOK items | Standard · Generative |
-| `investor-qa-prep` | Prepare investor Q&A responses from SPOVs and facts | Quality · Generative |
+| `investor-qa-prep` | Prepare investor Q&A responses from Convictions and facts | Quality · Generative |
 | `x-argument-prep` | Generate an X-ready position with counter-replies and rebuttals | Quality · Generative |
-| `stress-test-my-spov` | Pressure-test a SPOV through guided checkpoints | Interactive |
+| `stress-test-my-spov` | Pressure-test a Conviction through guided checkpoints | Interactive |
 | `rewrite-your-weakest` | Identify and rewrite the weakest DOK item, behind a quality gate | Interactive |
 | `adversarial-challenges` | Generate the 3 strongest opposing POVs against a stance, sourced from evidence, peers, and X discourse | Quality · Generative |
 | `gap-analyzer` | "What am I missing?" pass over the body of work — flags thin categories, unsupported claims, weak evidence chains, and produces a punch list | Quality · Generative |
@@ -217,7 +217,7 @@ Skills are **first-class, governed objects** — permissioned, versioned, soft-d
 | `pitch-deck-outline` | Produce a 10-slide pitch deck outline | Quality · Generative |
 | `elevator-pitch` | Draft an elevator pitch at a specified length | Standard · Generative |
 | `gtm-30-day` | Create a 30-day go-to-market plan | Quality · Generative |
-| `pick-your-hill` | Choose which SPOV to defend most strongly | Interactive |
+| `pick-your-hill` | Choose which Conviction to defend most strongly | Interactive |
 | `mission-sharpening` | Socratic probes that sharpen the mission statement, behind a quality gate | Interactive |
 | `build-30-day-blueprint` | Generate a 1-day / 1-week / 1-month / 30-day sprint plan with testable deliverables; reserves one task per horizon for cross-domain work | Quality · Generative |
 | `compose-business-plan` | Synthesize the full portfolio (deck, GTM, pricing, pro forma) into a complete business plan — the primary input to the Business Evaluator | Quality · Generative |
@@ -297,7 +297,7 @@ Every list, load, and reference-load is **authentication-aware**: unauthorized, 
 
 ## Keystone Document Import & Extraction
 
-Users import Keystone Documents from WorkFlowy, HTML exports, or Google Docs. The import pipeline parses the document structure, evaluates whether it needs structural reformatting, and then extracts facts organized by category, identifies DOK2 summaries with their related DOK1 facts, detects DOK3 insights and DOK4 Spiky Points of View, detects contradiction clusters between facts, and extracts expert mentions — all streamed back to the client as SSE progress events so the UI updates in real time as each phase completes.
+Users import Keystone Documents from WorkFlowy, HTML exports, or Google Docs. The import pipeline parses the document structure, evaluates whether it needs structural reformatting, and then extracts facts organized by category, identifies DOK2 summaries with their related DOK1 facts, detects DOK3 insights and DOK4 Convictions, detects contradiction clusters between facts, and extracts expert mentions — all streamed back to the client as SSE progress events so the UI updates in real time as each phase completes.
 
 ### Structural Evaluation
 
@@ -320,7 +320,7 @@ When the user accepts formatting, the import pipeline runs the preformat service
 
 **Parallel LLM calls** — Each chunk gets a section-specific prompt that instructs the LLM to reorganize content into canonical markdown format while copying all text verbatim. Owner stays as JSON (single field). All other sections output `sectionMarkdown` — a free-form indented bullet list following the canonical structure for that section type. The markdown parser reconstructs `HierarchyNode[]` from the output. Chunks run at 15 concurrency via OpenRouter, with retry logic for 429/500/502/503 errors.
 
-**Candidate promotion** — The Knowledge Tree category prompts also extract `candidateInsights` and `candidateSpovs` — DOK3/DOK4 content that the student buried inside categories instead of placing in its own section. The merger deduplicates these against existing top-level insights/SPOVs and promotes them to the DOK3/DOK4 sections so the extractor can find them.
+**Candidate promotion** — The Knowledge Tree category prompts also extract `candidateInsights` and `candidateSpovs` — DOK3/DOK4 content that the student buried inside categories instead of placing in its own section. The merger deduplicates these against existing top-level insights/Convictions and promotes them to the DOK3/DOK4 sections so the extractor can find them.
 
 **Integrity validation** — For documents under 200K chars, a programmatic validation step checks for content loss (every meaningful original text must appear in the output), hallucinations (every output text must match an original), and duplicates. For larger documents, validation is skipped to avoid the O(n²) cost of pairwise Jaccard similarity. Unplaced content is appended to the Scratchpad section so nothing is silently lost.
 
@@ -337,13 +337,13 @@ After extraction (from either the preformatted or original hierarchy), the pipel
 2. **DOK2 grading** — synthesis evaluation (10 concurrent)
 3. **DOK3 auto-linking** — LLM semantic matching of insights to DOK2 summaries. The auto-linker scores every DOK2 summary against each insight, selects top matches satisfying a multi-source constraint (≥2 DOK2s from ≥2 different sources), and creates links automatically. When the constraint can't be met, it links the best available matches and flags the insight for review.
 4. **DOK3 grading** — conceptual coherence evaluation (5 concurrent)
-5. **DOK4 auto-linking** — semantic + explicit reference parsing of SPOVs to DOK3 insights. Each SPOV links to a primary DOK3 insight (the conceptual framework it depends on) plus supporting DOK2 summaries from multiple sources.
+5. **DOK4 auto-linking** — semantic + explicit reference parsing of Convictions to DOK3 insights. Each Conviction links to a primary DOK3 insight (the conceptual framework it depends on) plus supporting DOK2 summaries from multiple sources.
 6. **DOK4 grading** — 6-step evaluation pipeline (5 concurrent)
 7. **Expert extraction and ranking** — identifies subject-matter experts, computes impact scores
 8. **Redundancy analysis** — clusters semantically similar facts, flags duplicates
 9. **Learning Stream research** — queues a multi-agent research swarm
 
-**Manual mode** — the pipeline stops after DOK2 grading. The user manually links DOK3→DOK2 and DOK4→DOK3 through dedicated linking UIs in the import modal. The DOK3 linking UI presents insights alongside all available DOK2 summaries for the user to select connections. The DOK4 linking UI does the same for SPOVs and DOK3 insights. Grading fires per-link via background jobs as the user submits each connection.
+**Manual mode** — the pipeline stops after DOK2 grading. The user manually links DOK3→DOK2 and DOK4→DOK3 through dedicated linking UIs in the import modal. The DOK3 linking UI presents insights alongside all available DOK2 summaries for the user to select connections. The DOK4 linking UI does the same for Convictions and DOK3 insights. Grading fires per-link via background jobs as the user submits each connection.
 
 In both modes, by the time the user reviews their Keystone Document, everything from fact verification to DOK4 evaluation is either complete or in progress.
 
@@ -371,7 +371,7 @@ Most automated grading checks whether an answer is *right*. Keystone grades some
 | **DOK1 — Facts** | *Is this actually true?* | Each fact is checked against real fetched evidence — the cited source first, a web search as fallback — and scored 1–5 by a multi-model verifier chain with automatic provider failover. |
 | **DOK2 — Synthesis** | *Did real reorganization happen?* | Graded on whether the summary synthesizes multiple facts through the student's own lens versus merely compressing them. Copy-paste scores a 1; generic summary a 2; genuine synthesis 4–5. |
 | **DOK3 — Insight** | *Can you see the framework?* | The insight must link to ≥2 summaries from ≥2 different sources, then is graded on whether it reveals a conceptual lens the student built *across* sources — not one borrowed from any single reading. |
-| **DOK4 — Point of View** | *Is it yours, and spiky enough to matter?* | The pipeline tests two failure modes at once: borrowed spikiness (restating a source's stance) and non-spikiness (a position a baseline LLM would confidently produce). A view only scores high if it **diverges** from what generic AI already says. |
+| **DOK4 — Conviction** | *Is it yours, and divergent enough to matter?* | The pipeline tests two failure modes at once: borrowed divergence (restating a source's stance) and non-divergence (a position a baseline LLM would confidently produce). A view only scores high if it **diverges** from what generic AI already says. |
 
 Three principles run through all four pipelines:
 
@@ -539,15 +539,15 @@ A brilliant insight built on a weak factual foundation gets penalized. This enfo
 
 ---
 
-## DOK4 Grading — Spiky Point of View Evaluation
+## DOK4 Grading — Conviction Evaluation
 
-DOK4 grading evaluates Spiky Points of View (SPOVs) — clear, defensible positions on topics where informed people disagree. A DOK4 is where the student stops observing patterns (DOK3) and starts committing to a stance they're willing to defend.
+DOK4 grading evaluates Convictions (Convictions) — clear, defensible positions on topics where informed people disagree. A DOK4 is where the student stops observing patterns (DOK3) and starts committing to a stance they're willing to defend.
 
-The core question: **is this the student's own thinking, and is it spiky enough to matter?** An SPOV that restates a source's contrarian position is borrowed spikiness. An SPOV that an LLM would produce with high confidence isn't spiky at all. The pipeline tests both.
+The core question: **is this the student's own thinking, and is it divergent enough to matter?** An Conviction that restates a source's contrarian position is borrowed divergence. An Conviction that an LLM would produce with high confidence isn't divergent at all. The pipeline tests both.
 
 ### Prerequisite: DOK4→DOK3 Linking
 
-Each DOK4 SPOV must link to at least one DOK3 insight (designated as primary — the conceptual framework the POV depends on) and at least two DOK2 summaries from different sources. DOK1 facts are inherited transitively through DOK2 links at grading time.
+Each DOK4 Conviction must link to at least one DOK3 insight (designated as primary — the conceptual framework the position depends on) and at least two DOK2 summaries from different sources. DOK1 facts are inherited transitively through DOK2 links at grading time.
 
 Like DOK3, linking can be automatic (semantic + explicit reference parsing) or manual (two-panel UI).
 
@@ -555,14 +555,14 @@ Like DOK3, linking can be automatic (semantic + explicit reference parsing) or m
 
 | Step | Type | What It Does |
 |------|------|-------------|
-| 1. POV Validation | LLM classifier (mid-tier) | Gate. Rejects structurally ungradable submissions (not a claim, DOK3 misclassification, opinion without evidence). Generates actionable rejection feedback. |
+| 1. position Validation | LLM classifier (mid-tier) | Gate. Rejects structurally ungradable submissions (not a claim, DOK3 misclassification, opinion without evidence). Generates actionable rejection feedback. |
 | 2. Foundation Integrity | Math (no LLM) | `DOK1_mean × 0.25 + DOK2_mean × 0.35 + primary_DOK3_score × 0.40`. Sets ceiling via same tier system as DOK3. |
-| 3. Source Traceability | LLM check (mid-tier) | Per-source parallel checks. Detects if the SPOV restates a single source's position. |
-| 4. LLM Divergence Check | LLM call (mid-tier) | Converts the SPOV into a neutral question, sends it to a vanilla LLM with zero context. Stores the response for comparison. |
-| 5. Quality Evaluation | LLM evaluation (quality-tier) | Core grading. 7 criteria across 2 dimensions (Spikiness + Ownership), score 1-5. Final = min(raw, ceiling). |
-| 6. Antimemetic Assessment | LLM evaluation (quality-tier) | Gated behind score ≥ 3. Diagnoses why the SPOV resists spreading. Qualitative only — no score. |
+| 3. Source Traceability | LLM check (mid-tier) | Per-source parallel checks. Detects if the Conviction restates a single source's position. |
+| 4. LLM Divergence Check | LLM call (mid-tier) | Converts the Conviction into a neutral question, sends it to a vanilla LLM with zero context. Stores the response for comparison. |
+| 5. Quality Evaluation | LLM evaluation (quality-tier) | Core grading. 7 criteria across 2 dimensions (Divergence + Ownership), score 1-5. Final = min(raw, ceiling). |
+| 6. Antimemetic Assessment | LLM evaluation (quality-tier) | Gated behind score ≥ 3. Diagnoses why the Conviction resists spreading. Qualitative only — no score. |
 
-### Spikiness Criteria (S1-S5)
+### Divergence Criteria (S1-S5)
 
 - **S1 — Contested** — Would knowledgeable practitioners push back on this position?
 - **S2 — LLM Divergence** — Does this position diverge from what a vanilla LLM produces when asked the same question?
@@ -579,19 +579,19 @@ Like DOK3, linking can be automatic (semantic + explicit reference parsing) or m
 
 | Score | Label | Description |
 |-------|-------|-------------|
-| 5 | Field-Advancing POV | Reframes a domain question, predicts outcomes, or reveals a previously invisible trade-off. Rare. |
-| 4 | Well-Grounded Spiky POV | Original, well-grounded, complete evidence trail. Demonstrates causal reasoning and distinct voice. |
+| 5 | Field-Advancing position | Reframes a domain question, predicts outcomes, or reveals a previously invisible trade-off. Rare. |
+| 4 | Well-Grounded Conviction | Original, well-grounded, complete evidence trail. Demonstrates causal reasoning and distinct voice. |
 | 3 | Original, Shallow Reasoning | Genuine divergent position, but reasoning has gaps or the evidence trail is incomplete. |
-| 2 | Borrowed Spikiness | Restates a contrarian view from one of the student's sources rather than constructing an original stance. |
-| 1 | Not Spiky | Consensus position, disconnected from evidence, or not a real position. An LLM would produce this. |
+| 2 | Borrowed Divergence | Restates a contrarian view from one of the student's sources rather than constructing an original stance. |
+| 1 | Not Divergent | Consensus position, disconnected from evidence, or not a real position. An LLM would produce this. |
 
 ### LLM Divergence Check
 
-One of the most interesting pieces of feedback for students. The system converts their SPOV into a neutral question, sends it to an LLM with zero Keystone Document context, and shows the student both positions side by side. If the LLM arrives at the same conclusion independently, the student's position isn't as spiky as they think. The frontend surfaces this as a comparison card: the derived question, the vanilla LLM's answer, and the evaluator's assessment of how far the two positions diverge.
+One of the most interesting pieces of feedback for students. The system converts their Conviction into a neutral question, sends it to an LLM with zero Keystone Document context, and shows the student both positions side by side. If the LLM arrives at the same conclusion independently, the student's position isn't as divergent as they think. The frontend surfaces this as a comparison card: the derived question, the vanilla LLM's answer, and the evaluator's assessment of how far the two positions diverge.
 
 ### Antimemetic Assessment
 
-The best DOK4 thinking is inherently antimemetic — too nuanced, too contextual, too spiky to survive compression into shareable formats. For SPOVs scoring 3+, the system diagnoses the specific transmission barrier:
+The best DOK4 thinking is inherently antimemetic — too nuanced, too contextual, too divergent to survive compression into shareable formats. For Convictions scoring 3+, the system diagnoses the specific transmission barrier:
 
 | Barrier | What It Means |
 |---------|--------------|
@@ -599,7 +599,7 @@ The best DOK4 thinking is inherently antimemetic — too nuanced, too contextual
 | Low Transmission | The idea doesn't stick or spread — forgettable, not shareable, lacks a hook |
 | High Drag | The idea requires too much context to understand — can't survive compression |
 
-The assessment includes a concrete strategy for making the SPOV more transmissible. The student does the conversion work themselves — that's the learning.
+The assessment includes a concrete strategy for making the Conviction more transmissible. The student does the conversion work themselves — that's the learning.
 
 ---
 
@@ -936,14 +936,14 @@ The **Document Hub** is where every deliverable a student produces lands. Origin
 
 > 🚧 **Roadmap — designed, not yet shipped.** The design below is complete and specified, but no implementing code ships in the current build. It is included because it is core to how DOK3–4 ownership is *meant* to be proven.
 
-The AI Adversary Defense is a structured adversarial test where students defend a Spiky Point of View against an AI opponent across 12 rounds, then receive an evaluation from a separate AI instance. The core design principle: if you can't defend it under fire, you don't own it.
+The AI Adversary Defense is a structured adversarial test where students defend a Conviction against an AI opponent across 12 rounds, then receive an evaluation from a separate AI instance. The core design principle: if you can't defend it under fire, you don't own it.
 
 ### Evidence Submission
 
 Students submit their evidence package through a guided wizard:
-- A **Spiky POV statement** — a clear, defensible position in 2--3 sentences (not a topic, a stance)
+- A **Conviction statement** — a clear, defensible position in 2--3 sentences (not a topic, a stance)
 - **8--10 evidence items** — each with a specific data point, source attribution, and one sentence on relevance
-- **2 counter-evidence items** (mandatory) — genuine challenges to their own POV
+- **2 counter-evidence items** (mandatory) — genuine challenges to their own position
 - **Source documents** — PDFs and articles for Level 3, processed through the existing content extraction pipeline
 
 ### Automated Review Pipeline
@@ -951,11 +951,11 @@ Students submit their evidence package through a guided wizard:
 After submission, the system runs an automated review with no human intervention required:
 
 1. **Source vetting** — evaluates each source for plausibility. Fabricated or significantly misquoted sources block the submission with a specific, AI-generated reason per flagged item.
-2. **Counter-evidence validation** — checks that the two counter-evidence items genuinely challenge the POV rather than presenting strawmen.
-3. **POV validation** — confirms the POV is a defensible stance, not a vague topic statement.
+2. **Counter-evidence validation** — checks that the two counter-evidence items genuinely challenge the position rather than presenting strawmen.
+3. **position validation** — confirms the position is a defensible stance, not a vague topic statement.
 4. **Counterargument generation** — produces 2--3 additional counterarguments the student did not include, injected into the adversary prompt for rounds 6--8. The student never sees these.
 5. **Surprise pivot generation** — pre-generates 2--3 adjacent topics for the Round 9 pivot, testing systemic understanding rather than rehearsed talking points.
-6. **Field inference** — identifies the academic/professional field from the POV for the Level 2 adversary persona.
+6. **Field inference** — identifies the academic/professional field from the position for the Level 2 adversary persona.
 
 These calls are parallelized for near-instant review turnaround.
 
@@ -975,7 +975,7 @@ Each round serves a specific purpose, managed through server-side round tracking
 
 | Round | Type | What Happens |
 |-------|------|-------------|
-| 1 | Opening Challenge | Acknowledges the POV, attacks the weakest element |
+| 1 | Opening Challenge | Acknowledges the position, attacks the weakest element |
 | 2--4 | Core Defense | Direct challenges to evidence, logic, and claims |
 | 5 | Steelman | Student must articulate the single strongest argument against their own position |
 | 6--8 | Deep Probing | System-injected counterarguments the student didn't prepare for |
@@ -1055,7 +1055,7 @@ The learner profile is queryable, feeding into personalized features:
 
 An admin-only **Analytics dashboard** (`client/src/pages/Analytics.tsx`, `server/routes/analytics.ts`) gives the team visibility into how the platform — and especially its AI graders — are actually performing. Each view is backed by a purpose-built query in `server/storage/analytics-dashboard.ts`:
 
-- **Grading quality** — model accuracy, human-verification agreement, score distribution, SPOV distribution, the "DOK cliff", and score-improvement over time.
+- **Grading quality** — model accuracy, human-verification agreement, score distribution, Conviction distribution, the "DOK cliff", and score-improvement over time.
 - **Vanilla comparison** — how student DOK4 positions score against a baseline LLM's answer (the divergence test, in aggregate).
 - **Readability & leaderboard** — grading-feedback readability plus a student leaderboard.
 
@@ -1211,7 +1211,7 @@ Both builds emit clean bundle-grep results and produce the same application code
 
 Keystone's shipped core covers research, knowledge-building, and depth-based grading. Several capabilities are designed and planned but not yet built — flagged **🚧 Roadmap** throughout this document and gathered here:
 
-- **AI Adversary Defense** — a structured 12-round adversarial defense of a Spiky Point of View: the intended *final proof* that a student owns a position under pressure. (Full design in the section above.)
+- **AI Adversary Defense** — a structured 12-round adversarial defense of a Conviction: the intended *final proof* that a student owns a position under pressure. (Full design in the section above.)
 - **Honcho — persistent learner profile** — a longitudinal memory that reasons over every learning signal to track *how* a student's thinking develops over time, feeding richer DOK3–4 evaluation.
 - **Classroom & instructor tooling** — Keystone today is built around the individual learner. Running it for a class needs an instructor layer: a **teacher / cohort dashboard** (every student's progress at a glance), **class-wide progress and mastery views**, **curriculum & standards alignment** (mapping Keystone Documents to a syllabus or learning standards), and **differentiation by age and level** (the current model assumes a capable, self-directed learner; younger cohorts need adjusted scaffolding). In short, the answer to *"how does one instructor run this for 30 students?"*
 - **Localization** — multilingual UI and grading, so the platform can serve students beyond English-first contexts.
