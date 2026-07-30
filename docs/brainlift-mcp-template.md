@@ -15,7 +15,7 @@ You are about to create a Keystone Document -- a structured knowledge artifact t
 - **No redundant facts.** If two facts say essentially the same thing from the same source, keep the stronger one. The grading system will flag redundancy, and it will cost you.
 - **DOK2 summaries are not copy-paste.** The grader checks whether you actually reorganized and interpreted the source. Copying the source's own language will get flagged as `copy_paste` and auto-fail.
 - **DOK3 insights must be genuine cross-source synthesis.** Restating a single source's argument with a citation to a second source is not synthesis. The grader evaluates whether the insight actually connects ideas that live in different sources.
-- **DOK4 SPOVs must be positions, not observations.** "NIL is changing college athletics" is an observation. "Amateurism, not NIL, is the NCAA's death sentence" is a position. A SPOV should read like a quotable line someone could take a side against, not a paragraph. The DOK1-2-3 chain is where you justify it; the SPOV itself is the claim. The grader will reject observations, tautologies, and statements no informed reader would disagree with.
+- **DOK4 Convictions must be positions, not observations.** "NIL is changing college athletics" is an observation. "Amateurism, not NIL, is the NCAA's death sentence" is a position. A Conviction should read like a quotable line someone could take a side against, not a paragraph. The DOK1-2-3 chain is where you justify it; the Conviction itself is the claim. The grader will reject observations, tautologies, and statements no informed reader would disagree with.
 - **Quality of sources matters.** Primary sources (court rulings, published research, official reports) grade higher than secondary commentary. The URL you provide is fetched and read -- the grader knows the difference.
 
 ### Recommended Scale
@@ -25,7 +25,7 @@ These are guidelines for creating new Keystone Documents, not hard limits. Follo
 - A Keystone Document needs multiple sources -- you can't do cross-source synthesis with just one. Beyond that, let the research dictate the count.
 - Fewer sharp facts beat many vague ones. Every DOK1 fact gets verified -- padding drags your average down.
 - DOK2 summaries should synthesize, not exhaustively list. If it reads like a transcript, it's too long.
-- DOK3 insights and DOK4 SPOVs are your highest-value items. A few strong ones beat many weak ones.
+- DOK3 insights and DOK4 Convictions are your highest-value items. A few strong ones beat many weak ones.
 
 If working with an existing Keystone Document, do not aggressively trim to fit these guidelines. The user values that content. Do light curation: remove redundancies, drop padding, flag weak insights, note stale sources -- but preserve substantive content. Losing important material will upset the user.
 
@@ -43,9 +43,9 @@ A Keystone Document isn't just graded -- it's *used*. After grading, it steers a
 | Facts unrelated to the brainlift's Purpose | DOK2 | Low score: `no_purpose_relation` flag |
 | DOK3 insight citing only one source | DOK3 | Flagged, lower score (multi-source is the point) |
 | DOK3 insight with weak causal connection to cited sources | DOK3 | Traceability flag, lower V1-V3 criteria scores |
-| DOK4 SPOV that's not a real claim | DOK4 | Rejected outright (not graded) |
-| DOK4 SPOV that no expert would disagree with | DOK4 | Low divergence score -- it's not "spiky" enough |
-| DOK4 SPOV that buries its claim in jargon, hedging, or paragraph-length explanation | DOK4 | Low Punchiness (P1) score -- a SPOV should read like a quotable line, not a memo |
+| DOK4 Conviction that's not a real claim | DOK4 | Rejected outright (not graded) |
+| DOK4 Conviction that no expert would disagree with | DOK4 | Low divergence score -- it's not "divergent" enough |
+| DOK4 Conviction that buries its claim in jargon, hedging, or paragraph-length explanation | DOK4 | Low Punchiness (P1) score -- a Conviction should read like a quotable line, not a memo |
 | Missing source URLs | DOK1, DOK2 | Lower-confidence verification, grading penalties |
 
 ---
@@ -121,11 +121,11 @@ Where: [Optional handle or URL]
       - Source 3
 
 - DOK4
-  - [Spiky, contrarian point of view the author holds]
+  - [Divergent, contrarian point of view the author holds]
     - Links
       - Insight 1
       - Insight 2
-  - [Another SPOV]
+  - [Another Conviction]
     - Links
       - Insight 1
 ```
@@ -139,9 +139,9 @@ Where: [Optional handle or URL]
 | DOK1 | Facts | Atomic, verifiable claims extracted from a single source | Must be tied to a specific source. "The Supreme Court ruled unanimously in Alston v. NCAA (2021)..." |
 | DOK2 | Summaries | Your synthesis/reorganization of what a single source says | One DOK2 section per source. Not copy-paste -- your interpretation of the source's argument. |
 | DOK3 | Insights | Cross-source analytical claims that connect ideas from 2+ sources | Must draw from at least 2 different sources. "Alston's legal precedent combined with state NIL laws is accelerating..." |
-| DOK4 | SPOVs | Spiky Points of View -- a single quotable line that takes a side; the DOK1-2-3 chain is the justification | Must be grounded in your DOK3 insights. This is where your unique thinking lives. |
+| DOK4 | Convictions | Convictions -- a single quotable line that takes a side; the DOK1-2-3 chain is the justification | Must be grounded in your DOK3 insights. This is where your unique thinking lives. |
 
-The levels build on each other: DOK1 facts support DOK2 summaries, DOK2 summaries from different sources feed DOK3 insights, and DOK3 insights ground DOK4 SPOVs.
+The levels build on each other: DOK1 facts support DOK2 summaries, DOK2 summaries from different sources feed DOK3 insights, and DOK3 insights ground DOK4 Convictions.
 
 ---
 
@@ -176,9 +176,9 @@ These keywords are detected by exact patterns. Use them exactly as shown:
 | DOK1 | `- DOK1` | Children are individual facts |
 | DOK2 | `- DOK2` | Children are summary points |
 | DOK3 | `- DOK3` | Children are individual insights |
-| DOK4 | `- DOK4` | Children are individual SPOVs |
+| DOK4 | `- DOK4` | Children are individual Convictions |
 | Sources | `- Sources` (under a DOK3 insight) | Lists which sources this insight draws from |
-| Links | `- Links` (under a DOK4 SPOV) | Lists which DOK3 insights this SPOV builds on |
+| Links | `- Links` (under a DOK4 Conviction) | Lists which DOK3 insights this Conviction builds on |
 
 ### Sources
 
@@ -206,11 +206,11 @@ These references tell the system which DOK2 summaries your insight connects. A D
 
 ### DOK4 Back-references
 
-Each DOK4 SPOV must have a `Links` child listing which DOK3 insights it builds on, using document order (1-indexed):
+Each DOK4 Conviction must have a `Links` child listing which DOK3 insights it builds on, using document order (1-indexed):
 
 ```markdown
 - DOK4
-  - [Your SPOV text]
+  - [Your Conviction text]
     - Links
       - Insight 1
       - Insight 2
@@ -223,7 +223,7 @@ Each DOK4 SPOV must have a `Links` child listing which DOK3 insights it builds o
 - Experts: include at least 3 real public figures when creating a new Keystone Document. Each expert needs `Who` and `Why follow`; `Focus` and `Where` are optional but encouraged.
 - Facts (DOK1): at least 10 characters each
 - Summary points (DOK2): at least 10 characters each
-- SPOVs (DOK4): at least 10 characters each
+- Convictions (DOK4): at least 10 characters each
 - You need at least 2 sources from at least 2 different categories for meaningful cross-source analysis
 
 ---
@@ -311,7 +311,7 @@ Focus: Athletic department strategy and regulation
 
 ## AI Writing Signal
 
-Every DOK2 summary, DOK3 insight, and DOK4 SPOV is analyzed for an
+Every DOK2 summary, DOK3 insight, and DOK4 Conviction is analyzed for an
 **AI Writing Signal** -- a categorical label of *Human*, *AI-Assisted*,
 *Mixed*, or *AI* -- computed automatically after grading completes.
 

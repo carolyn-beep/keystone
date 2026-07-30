@@ -2,7 +2,7 @@
 
 ## Section 1 — Pipeline Overview
 
-DOK4 grading evaluates Spiky Points of View (SPOVs) — clear, defensible positions on topics where informed people disagree. A DOK4 is where the student stops observing patterns (DOK3) and starts committing to a stance they're willing to defend.
+DOK4 grading evaluates Convictions (Convictions) — clear, defensible positions on topics where informed people disagree. A DOK4 is where the student stops observing patterns (DOK3) and starts committing to a stance they're willing to defend.
 
 The pipeline has 6 sequential steps:
 
@@ -10,20 +10,20 @@ The pipeline has 6 sequential steps:
 |------|------|-------------|
 | 1. POV Validation | LLM classifier (mid-tier) | Gate. Rejects structurally ungradable submissions before the pipeline spends tokens. Produces student-facing feedback explaining why. |
 | 2. Foundation Integrity | Math (no LLM) | Computes a weighted index from linked DOK1/DOK2/DOK3 scores. Sets a ceiling on the maximum achievable DOK4 score. |
-| 3. Source Traceability | LLM check (mid-tier) | Detects if the SPOV restates a single source's position. Borrowed spikiness is not the student's own. |
-| 4. LLM Divergence Check | LLM call (mid-tier) | Converts the SPOV into a question, sends it to a vanilla LLM with no context, stores the response for the Quality Evaluator to compare against. |
-| 5. Quality Evaluation | LLM evaluation (quality-tier) | The core grading step. Evaluates spikiness and cognitive ownership in a single call. Receives traceability + divergence results. Produces a 1-5 score. |
-| 6. Antimemetic Assessment | LLM evaluation (quality-tier) | Gated behind Quality Score >= 3. Diagnoses why the SPOV resists spreading and provides an actionable strategy for transmission. No score — qualitative only. |
+| 3. Source Traceability | LLM check (mid-tier) | Detects if the Conviction restates a single source's position. Borrowed divergence is not the student's own. |
+| 4. LLM Divergence Check | LLM call (mid-tier) | Converts the Conviction into a question, sends it to a vanilla LLM with no context, stores the response for the Quality Evaluator to compare against. |
+| 5. Quality Evaluation | LLM evaluation (quality-tier) | The core grading step. Evaluates divergence and cognitive ownership in a single call. Receives traceability + divergence results. Produces a 1-5 score. |
+| 6. Antimemetic Assessment | LLM evaluation (quality-tier) | Gated behind Quality Score >= 3. Diagnoses why the Conviction resists spreading and provides an actionable strategy for transmission. No score — qualitative only. |
 
 ### Changelog from Original Spec (v6.0)
 
-> **COE merged into Quality Evaluation.** The original spec runs a separate Cognitive Ownership Evaluation — 3 quality-tier models from different families, 19 binary criteria, 4 axes — all to produce a +/-1 adjustment to the Quality Score. Three expensive LLM calls to move a score by one point. Most of those 19 criteria already overlap with what the Quality Evaluation checks (grounding, traceability, evidence chain quality). Evaluating them separately forces two LLM calls to reason about the same evidence independently, producing disjointed assessments. V1 folds the essential ownership signals into the Quality Evaluation as a second dimension, so the model reasons about spikiness and ownership together in one pass — producing a more coherent score from a unified view of the artifact.
+> **COE merged into Quality Evaluation.** The original spec runs a separate Cognitive Ownership Evaluation — 3 quality-tier models from different families, 19 binary criteria, 4 axes — all to produce a +/-1 adjustment to the Quality Score. Three expensive LLM calls to move a score by one point. Most of those 19 criteria already overlap with what the Quality Evaluation checks (grounding, traceability, evidence chain quality). Evaluating them separately forces two LLM calls to reason about the same evidence independently, producing disjointed assessments. V1 folds the essential ownership signals into the Quality Evaluation as a second dimension, so the model reasons about divergence and ownership together in one pass — producing a more coherent score from a unified view of the artifact.
 >
 > **AI Detection (Pangram) removed.** Not in the DOK1-3 pipeline, not shipping in V1.
 >
 > **Adversary Defense removed.** Deferred feature. All hooks and integration points stripped from this spec.
 >
-> **Antimemetic Conversion replaced with Antimemetic Assessment.** The original asked the student to submit a "converted form" of their SPOV, but never specified when the student would be prompted, what the UX flow looked like, or how this fit into the existing Keystone Document workflow. V1 drops the student submission loop entirely. Instead, the system evaluates the SPOV's viral potential automatically and generates a concrete "want to make this spread? try this" suggestion the student can act on.
+> **Antimemetic Conversion replaced with Antimemetic Assessment.** The original asked the student to submit a "converted form" of their Conviction, but never specified when the student would be prompted, what the UX flow looked like, or how this fit into the existing Keystone Document workflow. V1 drops the student submission loop entirely. Instead, the system evaluates the Conviction's viral potential automatically and generates a concrete "want to make this spread? try this" suggestion the student can act on.
 
 ### Foundation Integrity Index
 
@@ -56,16 +56,16 @@ See Section 2 for full linking requirements. Grading does not begin until all li
 
 ## Section 2 — Linking and Primary DOK3 Designation
 
-A DOK4 SPOV must link to:
+A DOK4 Conviction must link to:
 - **At least one DOK3 insight**, designated as primary — the cross-domain framework the POV is built within
 - **At least two DOK2 summaries** from different sources
 - **DOK1 facts** are inherited automatically through DOK2 links
 
 ### Primary DOK3
 
-Exactly one linked DOK3 must be the **primary**. This is the framework the SPOV depends on — the cross-domain conceptual lens within which the student takes their position.
+Exactly one linked DOK3 must be the **primary**. This is the framework the Conviction depends on — the cross-domain conceptual lens within which the student takes their position.
 
-The agent designates the primary DOK3 automatically based on semantic analysis of the SPOV text and linked DOK3 insights. The student does not choose during submission.
+The agent designates the primary DOK3 automatically based on semantic analysis of the Conviction text and linked DOK3 insights. The student does not choose during submission.
 
 **Why primary designation matters:**
 - The primary DOK3's score feeds the Foundation Integrity Index at 40% weight — not the highest score among all linked DOK3s
@@ -74,7 +74,7 @@ The agent designates the primary DOK3 automatically based on semantic analysis o
 
 ### Re-linking
 
-After grading, the student can claim different DOK3 links or change the primary designation. Any link change triggers re-grading of that specific SPOV — Foundation Integrity is recomputed, ceiling recalculated, and Quality Evaluation re-runs with the updated evidence chain.
+After grading, the student can claim different DOK3 links or change the primary designation. Any link change triggers re-grading of that specific Conviction — Foundation Integrity is recomputed, ceiling recalculated, and Quality Evaluation re-runs with the updated evidence chain.
 
 > **Changelog:** The original spec had a smart agent that proposes primary designation and collaborates with the student when linking is ambiguous. V1 simplifies: the agent picks automatically, the student can override post-grading, and overrides trigger re-grading. No interactive collaboration step during submission.
 
@@ -82,7 +82,7 @@ After grading, the student can claim different DOK3 links or change the primary 
 
 ## Section 3 — POV Validation Classifier
 
-A lightweight gate that runs before the pipeline spends tokens on grading. Its only job: determine whether the submission is a gradable SPOV. It does not evaluate quality — a terrible SPOV that takes a clear position passes. A beautifully written definition does not.
+A lightweight gate that runs before the pipeline spends tokens on grading. Its only job: determine whether the submission is a gradable Conviction. It does not evaluate quality — a terrible Conviction that takes a clear position passes. A beautifully written definition does not.
 
 **Principle:** When in doubt, accept. The full pipeline is robust enough to score weak submissions appropriately. This gate only catches the clearly ungradable.
 
@@ -118,7 +118,7 @@ On rejection, the classifier generates a custom 1-2 sentence feedback message as
 - Never be condescending
 
 Examples of the tone:
-- *"Your text describes how educational metrics undervalue compound skills — that's a pattern you've noticed (DOK3). To make it a Spiky POV, commit to a position: what should change because of this pattern, and why?"*
+- *"Your text describes how educational metrics undervalue compound skills — that's a pattern you've noticed (DOK3). To make it a Conviction, commit to a position: what should change because of this pattern, and why?"*
 - *"This reads as a definition of design thinking. What do you believe about design thinking that practitioners in your field would push back on?"*
 
 ### Output
@@ -153,9 +153,9 @@ On accept, `rejection_reason` and `rejection_category` are null.
 
 ## Section 4 — Source Traceability
 
-Same pattern as DOK3 (see `server/ai/dok3Grader.ts`, `checkSourceTraceability`). Per-source parallel LLM calls on a mid-tier model asking: "Does this single source, on its own, already state or directly imply the student's SPOV?"
+Same pattern as DOK3 (see `server/ai/dok3Grader.ts`, `checkSourceTraceability`). Per-source parallel LLM calls on a mid-tier model asking: "Does this single source, on its own, already state or directly imply the student's Conviction?"
 
-If any source is flagged, the traceability result is passed to the Quality Evaluation (Section 6). The grader sees the flag and weighs it into its score — borrowed spikiness cannot score well. No separate score cap or auto-fail mechanism; the Quality Evaluator handles it holistically, as it has been proved to work with DOK3 very well.
+If any source is flagged, the traceability result is passed to the Quality Evaluation (Section 6). The grader sees the flag and weighs it into its score — borrowed divergence cannot score well. No separate score cap or auto-fail mechanism; the Quality Evaluator handles it holistically, as it has been proved to work with DOK3 very well.
 
 ---
 
@@ -164,8 +164,8 @@ If any source is flagged, the traceability result is passed to the Quality Evalu
 A mid-tier LLM call that produces a baseline for the S2 (LLM Divergence) criterion. Runs before Quality Evaluation so the grader has concrete data to compare against.
 
 **Process:**
-1. Convert the student's SPOV into a neutral question (e.g., "Schools should replace standardized testing with longitudinal skill-stack assessments" → "What is the best approach to measuring educational outcomes?")
-2. Send that question to a vanilla mid-tier LLM with zero Keystone Document context — just the question, no student evidence, no DOK chain. The LLM is instructed to commit to a clear position in 2-3 sentences, mirroring the format of a SPOV. This makes the comparison fair: two concise stances side by side, not a student's one-liner against a long balanced essay.
+1. Convert the student's Conviction into a neutral question (e.g., "Schools should replace standardized testing with longitudinal skill-stack assessments" → "What is the best approach to measuring educational outcomes?")
+2. Send that question to a vanilla mid-tier LLM with zero Keystone Document context — just the question, no student evidence, no DOK chain. The LLM is instructed to commit to a clear position in 2-3 sentences, mirroring the format of a Conviction. This makes the comparison fair: two concise stances side by side, not a student's one-liner against a long balanced essay.
 3. Store the generated question and the vanilla response.
 
 **Output passed to Quality Evaluation:**
@@ -180,13 +180,13 @@ The Quality Evaluator receives both and judges divergence itself in context of t
 
 ## Section 6 — Quality Evaluation
 
-The core grading step. A single quality-tier LLM call that evaluates the SPOV across 2 dimensions and 7 criteria, producing a 1-5 score.
+The core grading step. A single quality-tier LLM call that evaluates the Conviction across 2 dimensions and 7 criteria, producing a 1-5 score.
 
 ### Input Context
 
 The evaluator receives everything:
 - Keystone Document purpose
-- DOK4 SPOV text
+- DOK4 Conviction text
 - Primary DOK3 insight (text, score, framework name/description)
 - Additional linked DOK3 insights (as supporting context)
 - Linked DOK2 summaries with their DOK1 facts
@@ -196,7 +196,7 @@ The evaluator receives everything:
 
 ### Evaluation Criteria
 
-**Dimension 1 — Spikiness** (Is this a real SPOV?)
+**Dimension 1 — Divergence** (Is this a real Conviction?)
 
 | Criterion | What It Checks |
 |-----------|---------------|
@@ -213,18 +213,18 @@ The evaluator receives everything:
 | O1 — Causal Reasoning | Does the student explain *why* something works, not just *that* it works? Pattern-matching with correct citations is not the same as understanding the mechanism. |
 | O2 — Distinct Voice | Is the student's voice distinguishable from their sources? Does the writing sound like the student thinking, or like reassembled source language? |
 
-> **Changelog:** The original spec evaluates ownership via a separate Cognitive Ownership Evaluation — a 3-model jury (19 criteria, 4 axes) that runs after the Quality Score and produces a +/-1 adjustment. V1 reduces this to 2 criteria (O1, O2) folded directly into the Quality Evaluation. Ownership is now *more* influential than before — it's a first-class dimension that shapes the score from the start, not an afterthought adjustment of +/-1 applied post-hoc. The model reasons about ownership alongside spikiness, so ownership gaps directly pull the score down rather than being a separate pass that nudges it by one point. Of the original 17 COE criteria not carried forward: 10 were redundant with S1-S5, 5 belonged to the dropped epistemic honesty axis, and 2 were edge cases absorbed by O1. No auto-fail conditions — the original had 3 (AI detection, borrowed+not-divergent, no evidence). All removed; the grader scores holistically and will naturally score a 1 when warranted.
+> **Changelog:** The original spec evaluates ownership via a separate Cognitive Ownership Evaluation — a 3-model jury (19 criteria, 4 axes) that runs after the Quality Score and produces a +/-1 adjustment. V1 reduces this to 2 criteria (O1, O2) folded directly into the Quality Evaluation. Ownership is now *more* influential than before — it's a first-class dimension that shapes the score from the start, not an afterthought adjustment of +/-1 applied post-hoc. The model reasons about ownership alongside divergence, so ownership gaps directly pull the score down rather than being a separate pass that nudges it by one point. Of the original 17 COE criteria not carried forward: 10 were redundant with S1-S5, 5 belonged to the dropped epistemic honesty axis, and 2 were edge cases absorbed by O1. No auto-fail conditions — the original had 3 (AI detection, borrowed+not-divergent, no evidence). All removed; the grader scores holistically and will naturally score a 1 when warranted.
 >
-> **Defensibility (D1) deferred to Competitive Stack.** The original spec included a Defensibility dimension (D1 — Substantive Counterarguments) asking whether the student anticipated real objections. This is the wrong place to evaluate it. Counterargument development happens during the BrainMaxxing curation process — the Socratic interrogation loop where students stress-test their SPOVs against AI challenges. The grading pipeline evaluates the SPOV as submitted; the Competitive Stack evaluates how well the student defends it under pressure. Folding both into one score conflates the artifact with the process.
+> **Defensibility (D1) deferred to Competitive Stack.** The original spec included a Defensibility dimension (D1 — Substantive Counterarguments) asking whether the student anticipated real objections. This is the wrong place to evaluate it. Counterargument development happens during the BrainMaxxing curation process — the Socratic interrogation loop where students stress-test their Convictions against AI challenges. The grading pipeline evaluates the Conviction as submitted; the Competitive Stack evaluates how well the student defends it under pressure. Folding both into one score conflates the artifact with the process.
 
 ### Quality Levels (1-5)
 
 | Score | Label | Description |
 |-------|-------|-------------|
-| 1 | Not Spiky | The position is consensus, disconnected from evidence, or not a real position. An LLM would produce this with high confidence. |
-| 2 | Borrowed Spikiness | The position restates a contrarian view from one of the student's sources rather than constructing an original stance. |
+| 1 | Not Divergent | The position is consensus, disconnected from evidence, or not a real position. An LLM would produce this with high confidence. |
+| 2 | Borrowed Divergence | The position restates a contrarian view from one of the student's sources rather than constructing an original stance. |
 | 3 | Original, Shallow Reasoning | Genuine position that diverges from consensus, but reasoning has gaps. Evidence trail is incomplete or the student asserts without explaining the causal mechanism. |
-| 4 | Well-Grounded Spiky POV | Original, well-grounded, evidence trail is complete and traceable. Student demonstrates causal reasoning — explains *why*, not just *what* — and writes in a distinct voice. |
+| 4 | Well-Grounded Conviction | Original, well-grounded, evidence trail is complete and traceable. Student demonstrates causal reasoning — explains *why*, not just *what* — and writes in a distinct voice. |
 | 5 | Field-Advancing POV | Everything in 4, plus generates implications beyond the immediate claim. Reframes a domain question, predicts outcomes, or reveals a previously invisible trade-off. Rare. |
 
 ### Output
@@ -256,7 +256,7 @@ Each criterion is assessed as `strong`, `partial`, or `weak` with one sentence o
 
 ## Section 7 — Antimemetic Assessment
 
-The best DOK4 thinking is inherently antimemetic — too nuanced, too contextual, too spiky to survive compression into shareable formats. This step diagnoses *why* a SPOV resists spreading and tells the student what to do about it.
+The best DOK4 thinking is inherently antimemetic — too nuanced, too contextual, too divergent to survive compression into shareable formats. This step diagnoses *why* a Conviction resists spreading and tells the student what to do about it.
 
 ### Gate
 
@@ -272,7 +272,7 @@ No score is produced. This is qualitative — an assessment and a recommendation
 
 ### Barrier Types
 
-The assessment classifies the SPOV's antimemetic resistance into one of three types:
+The assessment classifies the Conviction's antimemetic resistance into one of three types:
 
 | Barrier | What It Means | Example |
 |---------|--------------|---------|
@@ -285,14 +285,14 @@ The assessment classifies the SPOV's antimemetic resistance into one of three ty
 ```
 {
   barrier_type: "immunity" | "low_transmission" | "high_drag",
-  barrier_diagnosis: string,        // 2-3 sentences: why this specific SPOV resists spreading
+  barrier_diagnosis: string,        // 2-3 sentences: why this specific Conviction resists spreading
   strategy: string                  // actionable recommendation for making it more transmissible
 }
 ```
 
-The strategy describes *what to do*, not a rewritten SPOV. The student does the conversion work themselves — that's the learning.
+The strategy describes *what to do*, not a rewritten Conviction. The student does the conversion work themselves — that's the learning.
 
-> **Changelog:** The original spec defines an Antimemetic Conversion as a student-driven submission flow: the student diagnoses barriers, writes a converted form, and the system scores the conversion attempt (1-5). The UX for this was never specified — no user flow for when the student would be prompted, how they'd submit, or where it lived in the Keystone Document interface. V1 replaces this with an automated assessment that runs post-grading. No student submission, no conversion score, no separate evaluation pipeline. The system diagnoses the barrier and provides a strategy. If the student acts on it, they rewrite their SPOV — which triggers re-grading through the existing pipeline. This is simpler, fits the current architecture, and can be extended into a full conversion flow later if needed.
+> **Changelog:** The original spec defines an Antimemetic Conversion as a student-driven submission flow: the student diagnoses barriers, writes a converted form, and the system scores the conversion attempt (1-5). The UX for this was never specified — no user flow for when the student would be prompted, how they'd submit, or where it lived in the Keystone Document interface. V1 replaces this with an automated assessment that runs post-grading. No student submission, no conversion score, no separate evaluation pipeline. The system diagnoses the barrier and provides a strategy. If the student acts on it, they rewrite their Conviction — which triggers re-grading through the existing pipeline. This is simpler, fits the current architecture, and can be extended into a full conversion flow later if needed.
 
 **Model:** Quality-tier (Opus 4.6 primary, Sonnet 4.5 fallback). Temperature 0.3 (slightly higher for more creative strategy suggestions).
 
@@ -302,14 +302,14 @@ The strategy describes *what to do*, not a rewritten SPOV. The student does the 
 
 DOK4 UI follows the same patterns as DOK3 (see `client/src/components/` DOK3 components). Three pieces need special treatment:
 
-### Rejected SPOVs
+### Rejected Convictions
 
-SPOVs that fail the POV Validation Classifier get a distinct card type — visually different from graded DOK4s so it's immediately clear this was rejected, not scored. The card surfaces the rejection reason and feedback prominently. The student should understand what went wrong and what to do next without having to dig.
+Convictions that fail the POV Validation Classifier get a distinct card type — visually different from graded DOK4s so it's immediately clear this was rejected, not scored. The card surfaces the rejection reason and feedback prominently. The student should understand what went wrong and what to do next without having to dig.
 
 ### LLM Divergence Comparison
 
 The S2 criterion needs a dedicated UI element that makes the divergence check transparent to the student. It should show:
-- The question that was derived from their SPOV
+- The question that was derived from their Conviction
 - What the vanilla LLM answered
 - How the Quality Evaluator assessed the divergence
 
@@ -317,6 +317,6 @@ This is not a hidden internal signal — it's one of the most interesting pieces
 
 ### Re-linking DOK3s
 
-A UI for students to dispute or change DOK3 links post-grading, triggering re-grading of the affected SPOV.
+A UI for students to dispute or change DOK3 links post-grading, triggering re-grading of the affected Conviction.
 
 **Deferred.** Build this only if we see complaints about incorrect auto-linking. The agent-designated links may be good enough that this never gets used. No point building a re-linking interface preemptively.

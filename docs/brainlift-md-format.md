@@ -59,11 +59,11 @@ The .md file parses deterministically into `HierarchyNode[]` -- the same tree st
       - Source 3
 
 - DOK4
-  - [Spiky, contrarian point of view the author holds]
+  - [Divergent, contrarian point of view the author holds]
     - Links
       - Insight 1
       - Insight 2
-  - [Another SPOV]
+  - [Another Conviction]
     - Links
       - Insight 1
 ```
@@ -74,7 +74,7 @@ The .md file parses deterministically into `HierarchyNode[]` -- the same tree st
 
 **DOK3 insights have explicit `Sources` sub-nodes** referencing source numbers. This is structural metadata baked into the template for future use. In v1, the semantic auto-linker handles DOK3 linking and these sub-nodes are ignored. In v2, a deterministic linker can resolve `Source 1` -> the DOK2 summary under `Source 1` without any LLM call.
 
-**DOK4 SPOVs have `Links` sub-nodes** referencing DOK3 insights by document order (1-indexed). This already works today via `parseExplicitLinkRefs()`.
+**DOK4 Convictions have `Links` sub-nodes** referencing DOK3 insights by document order (1-indexed). This already works today via `parseExplicitLinkRefs()`.
 
 ---
 
@@ -134,7 +134,7 @@ These regexes are applied during `HierarchyNode` construction to set boolean fla
 4. **DOK3 items are top-level** (not nested under sources). Each has a `Sources` sub-node listing the source numbers it draws from. In v1, the semantic auto-linker handles linking and these are ignored. The sub-nodes are structural metadata for future deterministic linking.
 5. **DOK4 items are top-level.** `Links > Insight N` references are 1-indexed, matching DOK3 document order. Already handled by existing `parseExplicitLinkRefs()`.
 6. **At least 2 sources from different categories** for meaningful DOK3 grading (multi-source constraint).
-7. **Minimum content lengths:** Facts 10+ chars, DOK2 points 10+ chars, DOK4 SPOVs 10+ chars.
+7. **Minimum content lengths:** Facts 10+ chars, DOK2 points 10+ chars, DOK4 Convictions 10+ chars.
 
 ---
 

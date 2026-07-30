@@ -484,7 +484,7 @@ Canonical read-only Keystone Document detail response for partner integrations. 
   "dok4": [
     {
       "id": 40,
-      "text": "SPOV text",
+      "text": "Conviction text",
       "status": "graded",
       "linkedDok3Ids": [30],
       "primaryDok3Id": 30,
@@ -501,7 +501,7 @@ When `?include=grading` is present, every DOK item includes a `grading` key. Ite
   "dok1": [{ "id": 10, "text": "Fact text", "grading": { "score": 5, "status": "graded" } }],
   "dok2": [{ "id": 20, "points": [], "linkedDok1Ids": [10], "grading": { "grade": 4, "feedback": "Good synthesis", "status": "graded" } }],
   "dok3": [{ "id": 30, "text": "Insight", "status": "graded", "linkedDok2Ids": [20], "grading": { "score": 4, "rationale": "Reason", "feedback": "Feedback", "criteriaBreakdown": null } }],
-  "dok4": [{ "id": 40, "text": "SPOV", "status": "rejected", "linkedDok3Ids": [30], "primaryDok3Id": 30, "positionSummary": null, "grading": { "score": null, "rationale": null, "feedback": null, "criteriaBreakdown": null, "rejectionReason": "Reason", "rejectionCategory": "not_spiky" } }]
+  "dok4": [{ "id": 40, "text": "Conviction", "status": "rejected", "linkedDok3Ids": [30], "primaryDok3Id": 30, "positionSummary": null, "grading": { "score": null, "rationale": null, "feedback": null, "criteriaBreakdown": null, "rejectionReason": "Reason", "rejectionCategory": "not_spiky" } }]
 }
 ```
 

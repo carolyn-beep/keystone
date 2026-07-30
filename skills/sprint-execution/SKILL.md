@@ -34,7 +34,7 @@ Any specific claim that lands in a deliverable must come from a source you can p
 5. Anchor the task to a concrete output the student can ship or publish. Break vague "look into this" prompts into work that changes the state of the project.
 6. Before any drafting that would include specific external facts, run the searches you need. Verify, then write.
 7. Surface dependencies and scope risk early. Hidden blockers waste a day.
-8. Tie the task back to named brainlift content (experts, sources, insights, SPOVs) so the student engages with their own verified material.
+8. Tie the task back to named brainlift content (experts, sources, insights, Convictions) so the student engages with their own verified material.
 
 ## Guardrails
 

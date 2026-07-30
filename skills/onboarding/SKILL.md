@@ -12,7 +12,7 @@ Walk the student through the Keystone journey from wherever they currently are. 
 Before talking about next steps, run a state check:
 
 1. Call `list_brainlifts` to see how many brainlifts they have.
-2. If exactly one brainlift, load it with `get_brainlift_assessment` for ALL FOUR DOK LEVELS (1, 2, 3, AND 4 — every single one). Never load a single level in isolation: facts, summaries, insights, and SPOVs only make sense together. If multiple brainlifts, ask the student which one this conversation is about, then load that one across all four DOK levels. If zero, skip to Branch A.
+2. If exactly one brainlift, load it with `get_brainlift_assessment` for ALL FOUR DOK LEVELS (1, 2, 3, AND 4 — every single one). Never load a single level in isolation: facts, summaries, insights, and Convictions only make sense together. If multiple brainlifts, ask the student which one this conversation is about, then load that one across all four DOK levels. If zero, skip to Branch A.
 3. For the active brainlift, call `get_plan`. If a plan exists, also call `list_tasks` with `includePastDue=true` and the student's `localDate` so you have today's and overdue work in hand.
 
 Then branch on what you found. Do not branch on guesses.

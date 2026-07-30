@@ -229,7 +229,7 @@ Deploying code that expects schema changes before the DB has them = broken prod.
 - Staging: `srv-d6jkespaae7s7397cp30` (Brainlift-Platform-Staging)
 - Prod: `srv-d5fu0p4hg0os73e072ng` (DOK1GraderV3)
 
-**Flow:** Always query Neon first to get entity IDs (insight/SPOV IDs) for a brainlift slug, then search Render logs by those IDs. Slugs only appear in HTTP request logs — pipeline logs use entity IDs (e.g. `insight 1289`, `SPOV 364`).
+**Flow:** Always query Neon first to get entity IDs (insight/Conviction IDs) for a brainlift slug, then search Render logs by those IDs. Slugs only appear in HTTP request logs — pipeline logs use entity IDs (e.g. `insight 1289`, `SPOV 364`).
 
 ### Authentication & Authorization
 

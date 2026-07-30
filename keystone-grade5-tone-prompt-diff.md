@@ -30,7 +30,7 @@ explanatory text at roughly a 5th-grade reading level. This means:
 - Active voice.
 - Concrete over abstract. Name the specific thing, not the category.
 - No hedging stacks. Say it directly.
-- The only domain terms allowed are DOK1, DOK2, DOK3, DOK4, SPOV,
+- The only domain terms allowed are DOK1, DOK2, DOK3, DOK4, Conviction,
   brainlift, and expert. Those are the student's vocabulary. Use
   everyday words for everything else.
 
@@ -159,12 +159,12 @@ Rationale: dropped "paragraph" demand and negative phrasing ("Do not argue with 
 
 ```diff
  DIAGNOSIS:
--Write 2-3 sentences explaining WHY this specific SPOV faces this barrier. Reference the student's actual text and position — do not give generic advice.
-+Briefly explain why this specific SPOV faces this barrier, referencing the student's actual text and position.
+-Write 2-3 sentences explaining WHY this specific Conviction faces this barrier. Reference the student's actual text and position — do not give generic advice.
++Briefly explain why this specific Conviction faces this barrier, referencing the student's actual text and position.
 
  STRATEGY:
--Write an actionable recommendation for making the SPOV more transmissible. The strategy describes WHAT TO DO, not a rewritten SPOV. The student does the conversion work themselves — that is the learning.
-+Recommend an action the student can take to make the SPOV more transmissible. The strategy describes WHAT TO DO. The student does the conversion work themselves — that is the learning.
+-Write an actionable recommendation for making the Conviction more transmissible. The strategy describes WHAT TO DO, not a rewritten Conviction. The student does the conversion work themselves — that is the learning.
++Recommend an action the student can take to make the Conviction more transmissible. The strategy describes WHAT TO DO. The student does the conversion work themselves — that is the learning.
 
  Respond ONLY with this JSON. No markdown. No backticks. No preamble.
  {
@@ -175,7 +175,7 @@ Rationale: dropped "paragraph" demand and negative phrasing ("Do not argue with 
  }
 ```
 
-Rationale: dropped "2-3 sentences" (LLMs cannot count) and the negative ("do not give generic advice", "not a rewritten SPOV") in favor of positive framing.
+Rationale: dropped "2-3 sentences" (LLMs cannot count) and the negative ("do not give generic advice", "not a rewritten Conviction") in favor of positive framing.
 
 ## 6. Test (proof injection reaches the wire)
 

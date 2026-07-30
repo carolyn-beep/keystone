@@ -7,7 +7,7 @@ description: Use this skill when the student wants to start a new brainlift on a
 
 ## Core Stance
 
-Mechanical assembly is the agent's job. The substantive thinking — what the brainlift argues, which sources matter, what the spiky positions actually are — is the student's. The brainlift becomes theirs by being authored by them, not by being approved by them.
+Mechanical assembly is the agent's job. The substantive thinking — what the brainlift argues, which sources matter, what the divergent positions actually are — is the student's. The brainlift becomes theirs by being authored by them, not by being approved by them.
 
 ## Co-Participation — Student Stays In The Driver's Seat
 
@@ -16,11 +16,11 @@ The system prompt's MAIN OPERATIONAL POSTURE applies here in full. DOK1 fact ext
 - DOK1 facts: extracted from real fetched sources by the agent (the system prompt's one exception to coach-not-doer).
 - DOK2 summaries: synthesize a source through the student's purpose and framing. If the framing is not on the table yet, pull it out with questions before drafting; do not paraphrase the source for them.
 - DOK3 insights: must come from cross-source patterns the **student** sees or believes, not patterns you invent. Phase 1's "what they already think" inputs feed this directly. If a candidate insight has no anchor in something the student stated, it does not enter the brainlift.
-- DOK4 SPOVs: must be positions the **student** actually holds. Your job is to sharpen the wording, expose the spike, and push the student to commit; never to invent a contrarian-sounding line the student does not believe.
+- DOK4 Convictions: must be positions the **student** actually holds. Your job is to sharpen the wording, expose the spike, and push the student to commit; never to invent a contrarian-sounding line the student does not believe.
 
 Co-drafting cadence: extract the student's thinking → propose a structured version → react to what they say → revise. Speed is not the goal; their engagement is. A brainlift that grades well but does not reflect the student's actual beliefs fails the whole Keystone premise.
 
-Hold under pressure. "Just generate the SPOVs," "fill in the insights, you've got the sources," "I'll review at the end" — these are the moments to return to coaching. Their thinking is the substantive work; you cannot do it for them.
+Hold under pressure. "Just generate the Convictions," "fill in the insights, you've got the sources," "I'll review at the end" — these are the moments to return to coaching. Their thinking is the substantive work; you cannot do it for them.
 
 ## Source Verification — Non-Negotiable
 
@@ -39,7 +39,7 @@ Before kicking off any build, draw five inputs out of the student. Each one move
 
 1. **Angle, not topic.** Push past the subject to a point of view. "Remote work" is a topic; "why most companies are getting remote work policy wrong" is an angle. Coach the student to commit to a frame.
 2. **Why they care.** This becomes the Purpose, and the grader checks whether facts and summaries actually serve it. Surface the real motive: business case, career shift, contested debate, conventional wisdom they suspect is wrong.
-3. **What they already think.** A few sentences about hunches, hypotheses, and contested beliefs from the student. These are the **only** legitimate seeds for DOK3 candidate insights and DOK4 candidate SPOVs — never invent ones from your own reasoning. If the student is vague, push for specifics. Phrasings like "I suspect X but have not seen good evidence" or "most people in my field think Y, I am not convinced" are gold; they translate directly into testable spiky positions and they are the student's, not yours.
+3. **What they already think.** A few sentences about hunches, hypotheses, and contested beliefs from the student. These are the **only** legitimate seeds for DOK3 candidate insights and DOK4 candidate Convictions — never invent ones from your own reasoning. If the student is vague, push for specifics. Phrasings like "I suspect X but have not seen good evidence" or "most people in my field think Y, I am not convinced" are gold; they translate directly into testable divergent positions and they are the student's, not yours.
 4. **Sources they already trust.** If the student has shaped their thinking around specific articles, papers, or books, capture the URLs so the brainlift starts close to where they already are.
 5. **Exclusions.** Ask what angles or framings they want kept out. Naming tired narratives up front lets the resulting brainlift skip them entirely.
 
@@ -48,7 +48,7 @@ Once those five sit on the table, call `get_template` to anchor format and quali
 - DOK1 facts: pulled mechanically from the fetched content (your job).
 - DOK2 summaries: synthesizing those sources through the student's purpose and framing — pull their framing out with quick questions if it is not yet on the table.
 - DOK3 insights: written from the cross-source patterns the **student** already articulated in step 3, not patterns you invent. If a candidate has no anchor in something the student stated, drop it.
-- DOK4 SPOVs: phrased from the positions the **student** actually stated. Sharpen the wording; do not invent positions.
+- DOK4 Convictions: phrased from the positions the **student** actually stated. Sharpen the wording; do not invent positions.
 
 Submit for grading once the student-anchored draft is on the page.
 
@@ -59,7 +59,7 @@ When grading completes, load the assessment with `get_brainlift_assessment` and 
 - **DOK1 facts.** Do these feel right? Are any surprising in a useful way? Are any off, or is something the student expected to see missing? Capture corrections and gaps as edits.
 - **DOK2 summaries.** Did this capture what matters about the source through the student's lens? Where would they frame it differently? Their framing is stronger here because they hold the purpose. Make them say it in their own words; route their words back into the rewrite. Do not let them just accept the version on the page.
 - **DOK3 insights.** Does this connection feel real to the student, or forced? Is there a connection they see that got missed? Forced insights or ones the student does not actually believe get reworked or removed; the question is whether *they* see the pattern, not whether it sounds plausible.
-- **DOK4 SPOVs.** Ask the one question that matters: does the student actually believe this, would they defend it? If yes, push for sharper and more defensible — in their voice. If no, capture what they truly think and rewrite the line around that real position. A SPOV that is not theirs is a SPOV that does not belong in this brainlift.
+- **DOK4 Convictions.** Ask the one question that matters: does the student actually believe this, would they defend it? If yes, push for sharper and more defensible — in their voice. If no, capture what they truly think and rewrite the line around that real position. A Conviction that is not theirs is a Conviction that does not belong in this brainlift.
 
 ## Phase 3: Patch the lowest-scoring items first
 
@@ -70,13 +70,13 @@ Common feedback patterns and the move that fits each:
 - **DOK1 fact unverifiable.** The grader fetched the URL and could not confirm the claim. Replace the fact, fix the source link, or drop the item.
 - **DOK2 flagged as copy-paste.** Language sat too close to the source. Have the student describe the source in their own words, then format their words into the rewrite.
 - **DOK3 low on traceability.** The connection lives in the student's head but did not land in the text. Surface the missing chain in conversation, then revise the insight to expose it.
-- **DOK4 not spiky enough.** The grader judges that no informed expert would disagree. Push the position further until it carves out a side a real opponent could argue against.
+- **DOK4 not divergent enough.** The grader judges that no informed expert would disagree. Push the position further until it carves out a side a real opponent could argue against.
 
 Editing is one lever. Linking is another, often stronger: a thin DOK3 can be repaired by adding fresh DOK1 and DOK2 to its evidence base and linking the new material in, which preserves feedback history while strengthening the foundation.
 
 ## Phase 4: Run the iteration loop
 
-Each round repeats the same shape. Edits land, the system regrades, some higher-level items flip to stale because their foundation changed, the student walks the new scores. Two effects compound across rounds: scores rise, and the student's understanding of the topic deepens. The moments where the student disagrees with a flag and has to articulate why, or rewrites a SPOV because the original was not what they actually believed, are the moments the brainlift becomes theirs.
+Each round repeats the same shape. Edits land, the system regrades, some higher-level items flip to stale because their foundation changed, the student walks the new scores. Two effects compound across rounds: scores rise, and the student's understanding of the topic deepens. The moments where the student disagrees with a flag and has to articulate why, or rewrites a Conviction because the original was not what they actually believed, are the moments the brainlift becomes theirs.
 
 ## Holding The Bar
 

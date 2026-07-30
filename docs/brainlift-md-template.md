@@ -57,11 +57,11 @@ This template defines a **standalone, tool-agnostic format** for authoring Keyst
       - Source 3
 
 - DOK4
-  - [Spiky, contrarian point of view the author holds]
+  - [Divergent, contrarian point of view the author holds]
     - Links
       - Insight 1
       - Insight 2
-  - [Another SPOV]
+  - [Another Conviction]
     - Links
       - Insight 1
 ```
@@ -75,9 +75,9 @@ This template defines a **standalone, tool-agnostic format** for authoring Keyst
 | DOK1 | Facts | Atomic, verifiable claims extracted from a single source | Must be tied to a specific source. "The Supreme Court ruled unanimously in Alston v. NCAA (2021)..." |
 | DOK2 | Summaries | Your synthesis/reorganization of what a single source says | One DOK2 section per source. Not copy-paste -- your interpretation of the source's argument. |
 | DOK3 | Insights | Cross-source analytical claims that connect ideas from 2+ sources | Must draw from at least 2 different sources. "Alston's legal precedent combined with state NIL laws is accelerating..." |
-| DOK4 | SPOVs | Spiky Points of View -- your original, defensible, possibly contrarian positions | Must be grounded in your DOK3 insights. This is where your unique thinking lives. |
+| DOK4 | Convictions | Convictions -- your original, defensible, possibly contrarian positions | Must be grounded in your DOK3 insights. This is where your unique thinking lives. |
 
-The levels build on each other: DOK1 facts support DOK2 summaries, DOK2 summaries from different sources feed DOK3 insights, and DOK3 insights ground DOK4 SPOVs.
+The levels build on each other: DOK1 facts support DOK2 summaries, DOK2 summaries from different sources feed DOK3 insights, and DOK3 insights ground DOK4 Convictions.
 
 ---
 
@@ -111,9 +111,9 @@ These keywords are detected by exact patterns. Use them exactly as shown:
 | DOK1 | `- DOK1` | Children are individual facts |
 | DOK2 | `- DOK2` | Children are summary points |
 | DOK3 | `- DOK3` | Children are individual insights |
-| DOK4 | `- DOK4` | Children are individual SPOVs |
+| DOK4 | `- DOK4` | Children are individual Convictions |
 | Sources | `- Sources` (under a DOK3 insight) | Lists which sources this insight draws from |
-| Links | `- Links` (under a DOK4 SPOV) | Lists which DOK3 insights this SPOV builds on |
+| Links | `- Links` (under a DOK4 Conviction) | Lists which DOK3 insights this Conviction builds on |
 
 ### Sources
 
@@ -141,11 +141,11 @@ These references tell the system which DOK2 summaries your insight connects. A D
 
 ### DOK4 Back-references
 
-Each DOK4 SPOV must have a `Links` child listing which DOK3 insights it builds on, using document order (1-indexed):
+Each DOK4 Conviction must have a `Links` child listing which DOK3 insights it builds on, using document order (1-indexed):
 
 ```markdown
 - DOK4
-  - [Your SPOV text]
+  - [Your Conviction text]
     - Links
       - Insight 1
       - Insight 2
@@ -157,7 +157,7 @@ Each DOK4 SPOV must have a `Links` child listing which DOK3 insights it builds o
 
 - Facts (DOK1): at least 10 characters each
 - Summary points (DOK2): at least 10 characters each
-- SPOVs (DOK4): at least 10 characters each
+- Convictions (DOK4): at least 10 characters each
 - You need at least 2 sources from at least 2 different categories for meaningful cross-source analysis
 
 ---

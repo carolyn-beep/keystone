@@ -45,7 +45,7 @@ Why it works:
 
 **Good.**
 
-> Run when the user asks to find sources for a claim, asks "is there evidence that...", says a source is missing or weak, or needs DOK1-grade citations for a SPOV. Drives `web_search_exa`, then `fetch_url_content`, then proposes DOK1 facts via `create_dok1`. Use whenever the user says "find sources", "back this up", or "what does the research say about...".
+> Run when the user asks to find sources for a claim, asks "is there evidence that...", says a source is missing or weak, or needs DOK1-grade citations for a Conviction. Drives `web_search_exa`, then `fetch_url_content`, then proposes DOK1 facts via `create_dok1`. Use whenever the user says "find sources", "back this up", or "what does the research say about...".
 
 ### Example 3: an admin skill
 

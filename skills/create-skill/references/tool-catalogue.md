@@ -20,13 +20,13 @@ Authoritative list of tools available to the chat agent in this runtime. Referen
 | `create_dok1` | Add a DOK1 fact. Triggers verification grading. |
 | `create_dok2` | Add a DOK2 summary. One summary point per line. Triggers DOK2 grading. |
 | `create_dok3` | Add a DOK3 insight. Must link at least 2 DOK2 summaries from at least 2 different sources. |
-| `create_dok4` | Add a DOK4 SPOV. Must link DOK3 insights with one designated as primary. |
+| `create_dok4` | Add a DOK4 Conviction. Must link DOK3 insights with one designated as primary. |
 | `edit_dok_item` | Edit a DOK item's text and trigger regrading. |
 | `delete_dok_item` | Delete a DOK item. Preview impact first; call again with `confirm=true`. |
 | `get_stale_items` | List items flagged stale after upstream edits. |
 | `dismiss_stale` | Dismiss the stale flag after reviewing the item. |
 | `link_dok3` | Attach more DOK2 summaries to a DOK3 insight. |
-| `link_dok4` | Attach more DOK3 insights to a DOK4 SPOV; optionally update the primary link. |
+| `link_dok4` | Attach more DOK3 insights to a DOK4 Conviction; optionally update the primary link. |
 | `list_experts` | List experts for a brainlift, including ranking. |
 | `create_expert` | Add one or more experts. Ranking refresh runs asynchronously. |
 | `delete_expert` | Delete one expert. Ranking refresh runs asynchronously. |

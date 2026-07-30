@@ -22,9 +22,9 @@ Every skill that writes to Drive uses this format. The Business Evaluator parses
 | Skill | Description | Tier | Asset | Kind | Ship |
 | :---- | :---- | :---- | :---- | :---- | :---- |
 | **fact-check-draft** | Fact-check a provided draft against brainlift DOK items | Standard | — | Generative | Shipped |
-| **investor-qa-prep** | Prepare investor Q&A responses from SPOVs and facts | Quality | — | Generative | Shipped |
+| **investor-qa-prep** | Prepare investor Q&A responses from Convictions and facts | Quality | — | Generative | Shipped |
 | **x-argument-prep** | Generate an X-ready position with counter-replies and rebuttals | Quality | — | Generative | Shipped |
-| **stress-test-my-spov** | Pressure-test a SPOV through guided checkpoints | — | — | Interactive | Shipped |
+| **stress-test-my-spov** | Pressure-test a Conviction through guided checkpoints | — | — | Interactive | Shipped |
 | **rewrite-your-weakest** | Identify and rewrite the weakest DOK item, with quality gate | — | rewrite-record | Interactive | Shipped |
 | **adversarial-challenges** | One-shot generation of the 3 strongest opposing POVs against a stance, sourced from evidence + peers + X discourse | Quality | adversarial-record | Generative | **May 10** |
 | **gap-analyzer** | "What am I missing?" pass over body of work — flags thin categories, unsupported claims, weak evidence chains. v0.5 returns gap list; resolution-workflow shipped later | Quality | gap-report | Generative | **May 10** |
@@ -38,7 +38,7 @@ Every skill that writes to Drive uses this format. The Business Evaluator parses
 | **pitch-deck-outline** | Produce a 10-slide pitch deck outline | Quality | pitch_deck | Generative | Shipped |
 | **elevator-pitch** | Draft an elevator pitch at a specified length | Standard | — | Generative | Shipped |
 | **gtm-30-day** | Create a 30-day go-to-market plan | Quality | gtm_plan | Generative | Shipped |
-| **pick-your-hill** | Choose which SPOV to defend most strongly | — | — | Interactive | Shipped |
+| **pick-your-hill** | Choose which Conviction to defend most strongly | — | — | Interactive | Shipped |
 | **mission-sharpening** | Socratic probes that sharpen the mission statement, with quality gate | — | mission-revision | Interactive | Shipped |
 | **build-30-day-blueprint** | Generate 1-day / 1-week / 1-month / 30-day sprint plan with testable deliverables. Reserves one task per horizon for cross-domain work when adjacent-industry context is supplied | Quality | sprint_blueprint | Generative | **May 10** |
 | **compose-business-plan** | Synthesize the brainlift's portfolio (pitch deck, GTM, pricing, pro forma, etc.) into a complete business plan document — the primary input for the Business Evaluator | Quality | business_plan | Generative | **May 10** |
