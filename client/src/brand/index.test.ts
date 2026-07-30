@@ -28,11 +28,11 @@ describe('FR1 client brand selector: happy paths', () => {
     expect(mod.config.productName).toBe('Keystone');
   });
 
-  it('resolves Brainlift Central config when VITE_BRAND=brainlift', async () => {
+  it('resolves Keystone Central config when VITE_BRAND=brainlift', async () => {
     vi.stubEnv('VITE_BRAND', 'brainlift');
     const mod = await import('./index');
     expect(mod.config.id).toBe('brainlift');
-    expect(mod.config.productName).toBe('Brainlift Central');
+    expect(mod.config.productName).toBe('Keystone Central');
   });
 
   it('exports Wordmark, Avatar, LoginIllustration, and chatAvatar from the active brand', async () => {

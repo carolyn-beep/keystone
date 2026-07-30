@@ -17,7 +17,7 @@ export type BrandId = 'keystone' | 'brainlift';
 
 export interface ServerBrandConfig {
   id: BrandId;
-  /** Product name (e.g. "Keystone Buddy" or "Brainlift Central"). */
+  /** Product name (e.g. "Keystone Buddy" or "Keystone Central"). */
   productName: string;
   /** Platform name -- identical for both brands today. */
   platformName: string;

@@ -119,7 +119,7 @@ describe('FR4 buildNativeChatTools includes propose_research_run when bound to a
     expect(tools).not.toHaveProperty('propose_research_run');
   });
 
-  it('does NOT expose propose_research_run under the Brainlift Central brand (FEATURE.md D13)', async () => {
+  it('does NOT expose propose_research_run under the Keystone Central brand (FEATURE.md D13)', async () => {
     vi.resetModules();
     vi.doMock('../../../../brand', () => ({ brandId: 'brainlift' }));
     const { buildNativeChatTools } = await import('../index');

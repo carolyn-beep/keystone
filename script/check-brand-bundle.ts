@@ -9,9 +9,9 @@
  *
  * Forbidden tokens are the inactive brand's identifying strings:
  *
- *   - For an AlphaX build, anything that names Brainlift Central or its
+ *   - For an AlphaX build, anything that names Keystone Central or its
  *     assets / namespaced classes must NOT appear.
- *   - For a Brainlift Central build, anything that names AlphaX, the AlphaX
+ *   - For a Keystone Central build, anything that names AlphaX, the AlphaX
  *     buddy, the owl-counsel illustration, the AlphaX-namespaced classes, or
  *     AlphaX-flavoured copy ("Builds at night", "Plate I.") must NOT appear.
  *
@@ -32,7 +32,7 @@ export type BrandId = 'keystone' | 'brainlift';
  */
 const FORBIDDEN: Record<BrandId, readonly string[]> = {
   keystone: [
-    'Brainlift Central',
+    'Keystone Central',
     'brain-hero',
     'brainlift-nameplate',
     'brainlift-wordmark',

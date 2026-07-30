@@ -25,18 +25,18 @@ describe('FR5 server brand selector: happy paths', () => {
     expect(mod.brandId).toBe('keystone');
     expect(mod.config.id).toBe('keystone');
     expect(mod.config.productName).toBe('Keystone');
-    // JLS-145: platformName no longer leaks the "Brainlift Central" brand
+    // JLS-145: platformName no longer leaks the "Keystone Central" brand
     // into the student product. Keystone identifies its platform as itself.
     expect(mod.config.platformName).toBe('Keystone');
   });
 
-  it('resolves Brainlift Central config when BRAND=brainlift', async () => {
+  it('resolves Keystone Central config when BRAND=brainlift', async () => {
     vi.stubEnv('BRAND', 'brainlift');
     const mod = await import('./index');
     expect(mod.brandId).toBe('brainlift');
     expect(mod.config.id).toBe('brainlift');
-    expect(mod.config.productName).toBe('Brainlift Central');
-    expect(mod.config.platformName).toBe('Brainlift Central');
+    expect(mod.config.productName).toBe('Keystone Central');
+    expect(mod.config.platformName).toBe('Keystone Central');
   });
 });
 

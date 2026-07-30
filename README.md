@@ -1146,7 +1146,7 @@ The same codebase ships as two distinct products — one for students, one for p
 
 One env var picks the brand at build time on the client (`VITE_BRAND`) and at boot on the server (`BRAND`). Two Render services share `DATABASE_URL` and the Google OAuth client; cookie scopes per domain mean separate sign-ins on each.
 
-> **Naming status.** The student brand is fully **Keystone** — selector `BRAND=keystone`, display name "Keystone". The professional brand still selects `BRAND=brainlift` and displays "Brainlift Central" pending its rename to Keystone Central (it is defined but not yet deployed).
+> **Naming status.** Both brands now display their Keystone names: the student brand is **Keystone** (`BRAND=keystone`) and the professional brand is **Keystone Central** (`VITE_BRAND_NAME="Keystone Central"`). The professional brand's internal *selector* is still `BRAND=brainlift` — a lower-level identifier renamed alongside the `brainlift` entity in a later migration step; it is not surfaced to users. (Keystone Central is defined but not yet deployed.)
 
 ### Brand Module
 

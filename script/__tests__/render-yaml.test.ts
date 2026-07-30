@@ -84,8 +84,8 @@ describe('render.yaml — brainlift-central brand env vars', () => {
     expect(findEnv(bc, 'VITE_BRAND')?.value).toBe('brainlift');
   });
 
-  it('sets VITE_BRAND_NAME=Brainlift Central', () => {
-    expect(findEnv(bc, 'VITE_BRAND_NAME')?.value).toBe('Brainlift Central');
+  it('sets VITE_BRAND_NAME=Keystone Central', () => {
+    expect(findEnv(bc, 'VITE_BRAND_NAME')?.value).toBe('Keystone Central');
   });
 });
 

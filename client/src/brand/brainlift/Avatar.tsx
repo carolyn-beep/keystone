@@ -1,7 +1,7 @@
 /**
- * Brainlift Central avatar.
+ * Keystone Central avatar.
  *
- * Renders the Brainlift Central mark (the gold brain-with-arrow logo).
+ * Renders the Keystone Central mark (the gold brain-with-arrow logo).
  * Mirrors the Keystone avatar treatment: glow + circular frame + image
  * triplet on the login card and sidebar; bare img for runtime chat avatars.
  *
@@ -52,7 +52,7 @@ export function Avatar({ variant }: AvatarProps) {
   return (
     <img
       src={logoMark}
-      alt="Brainlift Central"
+      alt="Keystone Central"
       draggable={false}
       className="brainlift-avatar-mark"
     />

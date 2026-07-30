@@ -288,13 +288,13 @@ export const TOOLS_PROTOCOL: string[] = [
 
 /**
  * Brand-agnostic Second Brain capture posture. Included verbatim by both
- * Keystone authoring and Brainlift Central authoring prompts so the agent
+ * Keystone authoring and Keystone Central authoring prompts so the agent
  * captures user signal as notes aggressively in any project context.
  * Research mode has its own, longer capture instructions inline.
  */
 /**
  * Authoring-mode note about the AI Writing Signal. Inserted into the three
- * authoring system prompts (Keystone, Brainlift Central, Discussion authoring
+ * authoring system prompts (Keystone, Keystone Central, Discussion authoring
  * branch) between MAIN OPERATIONAL POSTURE and SECOND BRAIN CAPTURE. Research
  * prompts intentionally omit this section because no DOK2/3/4 authoring
  * happens in research mode. See features/integrity/pangram-ai-detection
@@ -335,17 +335,17 @@ export const SECOND_BRAIN_CAPTURE: string[] = [
 ];
 
 /**
- * Brainlift Central variant of BRAINLIFT OPERATING PROTOCOLS. Same structure
+ * Keystone Central variant of BRAINLIFT OPERATING PROTOCOLS. Same structure
  * and behaviour as the Keystone original, rewritten for an adult peer-research
  * audience: "the user" / "researcher" replaces "the student", references to
- * "Keystone" become "Brainlift Central", and the downstream-deliverables
+ * "Keystone" become "Keystone Central", and the downstream-deliverables
  * paragraph drops the Keystone-only artifacts (sprint plans, market plans,
  * patents) that BC does not surface.
  */
 export const BRAINLIFT_OPERATING_PROTOCOLS_BC: string[] = [
   '=== START OF BRAINLIFT OPERATING PROTOCOLS ===',
   '## BRAINLIFT OPERATING PROTOCOLS',
-  'A brainlift is a living personal knowledge base that turns the user into a domain expert and makes AI useful inside their world. It is the foundation of everything they do in Brainlift Central.',
+  'A brainlift is a living personal knowledge base that turns the user into a domain expert and makes AI useful inside their world. It is the foundation of everything they do in Keystone Central.',
   '',
   'Why it matters:',
   "- AI defaults to bland, average answers. A well-built brainlift trains the LLMs the user works with on their Spiky Points of View, so AI stops giving generic takes and starts reasoning inside the user's frame.",

@@ -79,7 +79,7 @@ describe('dispatcher: BRAND=keystone', () => {
 });
 
 describe('dispatcher: BRAND=brainlift', () => {
-  it('routes buildChatSystemPrompt to the Brainlift Central builder', async () => {
+  it('routes buildChatSystemPrompt to the Keystone Central builder', async () => {
     vi.stubEnv('BRAND', 'brainlift');
     const mod = await import('../system-prompt');
     const prompt = mod.buildChatSystemPrompt({
@@ -89,7 +89,7 @@ describe('dispatcher: BRAND=brainlift', () => {
       conversation,
     });
 
-    expect(prompt).toContain('Brainlift Central');
+    expect(prompt).toContain('Keystone Central');
     expect(prompt).toContain('=== START OF THE BRAINLIFT LOOP ===');
     expect(prompt).not.toContain('You are Keystone,');
     expect(prompt).not.toContain('=== START OF THE KEYSTONE JOURNEY ===');

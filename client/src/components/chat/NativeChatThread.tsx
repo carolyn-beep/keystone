@@ -54,7 +54,7 @@ const firedAskForConversation = new Set<number>();
  *     calling a model — so no extra paragraph follows. The synthetic stays
  *     in `chatHelpers.messages` so the student's next reply ships with it
  *     in the request payload.
- *   - Brainlift Central: appends an invisible USER message (`[OPENER]`) which
+ *   - Keystone Central: appends an invisible USER message (`[OPENER]`) which
  *     the model responds to per its system prompt's journey-stage heuristics.
  *     `FilteringUserMessage` hides the user message from the visible thread.
  *

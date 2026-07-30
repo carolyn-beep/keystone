@@ -18,7 +18,7 @@ describe('brand prompt dispatcher', () => {
     expect(brand.promptBuilders).toBe(keystone.promptBuilders);
   });
 
-  it('keeps Brainlift Central on the Brainlift builder for both modes', async () => {
+  it('keeps Keystone Central on the Brainlift builder for both modes', async () => {
     vi.stubEnv('BRAND', 'brainlift');
 
     const brand = await import('../index');

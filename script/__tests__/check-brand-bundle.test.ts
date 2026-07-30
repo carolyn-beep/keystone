@@ -131,7 +131,7 @@ describe('FR6 checkBrandBundle: clean bundle resolves', () => {
 
   it('brainlift bundle with no forbidden tokens resolves', async () => {
     await setupFs({
-      'main.js': 'console.log("Brainlift Central welcomes you");',
+      'main.js': 'console.log("Keystone Central welcomes you");',
       'styles.css': '.brainlift-wordmark-hero{font-size:48px}',
     });
     const { checkBrandBundle } = await import('../check-brand-bundle');

@@ -2,7 +2,7 @@
  * Tests for Spec 03 FR5 + FR6: AI Writing Signal authoring-mode paragraph.
  *
  * FR5: The canonical paragraph appears in each of the three authoring
- *      prompts (AlphaX, Brainlift Central, Discussion authoring branch) and
+ *      prompts (AlphaX, Keystone Central, Discussion authoring branch) and
  *      preserves the "no grade impact" + "own voice" framing from
  *      decisions.md §11.
  *
@@ -113,7 +113,7 @@ describe('FR5: AlphaX authoring prompt contains the paragraph', () => {
   });
 });
 
-describe('FR5: Brainlift Central authoring prompt contains the paragraph', () => {
+describe('FR5: Keystone Central authoring prompt contains the paragraph', () => {
   it('renders the canonical paragraph exactly once', () => {
     const prompt = buildBrainliftSystemPrompt({ userContext: baseContext, skills: [] });
     expect(countOccurrences(prompt, CANONICAL_PARAGRAPH)).toBe(1);

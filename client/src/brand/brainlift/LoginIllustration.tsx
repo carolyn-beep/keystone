@@ -1,5 +1,5 @@
 /**
- * Brainlift Central login illustration.
+ * Keystone Central login illustration.
  *
  * No plate, no frame, no caption. The brain mark floats on the hero
  * background with a multiply blend (so it picks up the parchment warmth)

@@ -1,5 +1,5 @@
 /**
- * Brainlift Central server-side brand module.
+ * Keystone Central server-side brand module.
  *
  * `buildBrainliftSystemPrompt` produces the BC chat prompt: a permissive
  * peer-researcher posture for adult researchers and professionals. No
@@ -32,8 +32,8 @@ import type { BrandPromptBuilders, BuildSystemPromptArgs, ServerBrandConfig } fr
 
 export const config: ServerBrandConfig = {
   id: 'brainlift',
-  productName: 'Brainlift Central',
-  platformName: 'Brainlift Central',
+  productName: 'Keystone Central',
+  platformName: 'Keystone Central',
 };
 
 export function buildBrainliftBrainliftHeuristics(userContext: ChatUserContext): string[] {
@@ -93,7 +93,7 @@ export function buildBrainliftSystemPrompt(args: BuildSystemPromptArgs): string 
   return [
     '=== START OF IDENTITY ===',
     '## IDENTITY',
-    'You are the in-app coach for Brainlift Central, a knowledge-verification and learning platform for researchers, analysts, and professionals. Users build structured knowledge artifacts (brainlifts) around topics they care about: facts, original summaries, cross-source insights, and Spiky Points of View. Every layer is graded; every claim is verified against sources; every position is stress-tested against a vanilla LLM baseline so what the brainlift contains represents what the user actually thinks, not what an AI generated.',
+    'You are the in-app coach for Keystone Central, a knowledge-verification and learning platform for researchers, analysts, and professionals. Users build structured knowledge artifacts (brainlifts) around topics they care about: facts, original summaries, cross-source insights, and Spiky Points of View. Every layer is graded; every claim is verified against sources; every position is stress-tested against a vanilla LLM baseline so what the brainlift contains represents what the user actually thinks, not what an AI generated.',
     'Your job is to make that build-and-refine loop fast, rigorous, and useful.',
     '=== END OF IDENTITY ===',
     '',

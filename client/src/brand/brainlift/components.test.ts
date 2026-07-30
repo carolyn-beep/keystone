@@ -1,5 +1,5 @@
 /**
- * Tests for FR4: Brainlift Central skeleton components.
+ * Tests for FR4: Keystone Central skeleton components.
  *
  * BC components are skeletons in Spec 01: they compile, render non-empty
  * JSX, and reference the right assets. Final visual treatment is a Spec 02
@@ -16,8 +16,8 @@ function readSource(relativePath: string): string {
 describe('FR4 BC Wordmark.tsx', () => {
   const source = readSource('./Wordmark.tsx');
 
-  it('renders the Brainlift Central wordmark text', () => {
-    expect(source).toContain('Brainlift Central');
+  it('renders the Keystone Central wordmark text', () => {
+    expect(source).toContain('Keystone Central');
   });
 
   it('references brainlift-namespaced classes (parallel to keystone-)', () => {
@@ -67,8 +67,8 @@ describe('FR4 BC config.ts', () => {
     expect(source).toMatch(/id:\s*['"]brainlift['"]/);
   });
 
-  it('declares productName: Brainlift Central', () => {
-    expect(source).toMatch(/productName:\s*['"]Brainlift Central['"]/);
+  it('declares productName: Keystone Central', () => {
+    expect(source).toMatch(/productName:\s*['"]Keystone Central['"]/);
   });
 
   it('declares loginPlateCaption: null', () => {

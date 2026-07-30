@@ -220,7 +220,7 @@ describe('buildSwarmContext authoring phase', () => {
     expect(context.renderedDigest).not.toContain('### SPOV Excerpts');
   });
 
-  it('FR3 defaults unset phase to authoring for Brainlift Central style records', async () => {
+  it('FR3 defaults unset phase to authoring for Keystone Central style records', async () => {
     storageMock.getBrainliftById.mockResolvedValue({ id: 1, phase: null });
     storageMock.getSourcesByBrainlift.mockResolvedValue([]);
     storageMock.getNotesByBrainlift.mockResolvedValue([]);

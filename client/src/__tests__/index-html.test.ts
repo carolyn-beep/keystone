@@ -18,8 +18,8 @@ describe('FR5 client/index.html brand-aware title', () => {
     expect(html).toMatch(/<title>\s*%VITE_BRAND_NAME%\s*<\/title>/);
   });
 
-  it('does NOT hardcode "Brainlift Central" or "AlphaX Buddy" in <title>', () => {
-    expect(html).not.toMatch(/<title>\s*Brainlift Central\s*<\/title>/);
+  it('does NOT hardcode "Keystone Central" or "AlphaX Buddy" in <title>', () => {
+    expect(html).not.toMatch(/<title>\s*Keystone Central\s*<\/title>/);
     expect(html).not.toMatch(/<title>\s*AlphaX Buddy\s*<\/title>/);
   });
 });

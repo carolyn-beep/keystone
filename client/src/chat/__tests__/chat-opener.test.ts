@@ -36,11 +36,11 @@ describe('FR9 chat-opener: brand-aware OPENER_PROMPT', () => {
     expect(mod.OPENER_PROMPT).toMatch(/Keystone/i);
   });
 
-  it('Brainlift Central build contains BC-specific phrasing and zero Keystone-student substring', async () => {
+  it('Keystone Central build contains BC-specific phrasing and zero Keystone-student substring', async () => {
     vi.stubEnv('VITE_BRAND', 'brainlift');
     const mod = await import('../chat-opener');
     expect(mod.OPENER_PROMPT).not.toMatch(/AlphaX/);
-    expect(mod.OPENER_PROMPT).toMatch(/Brainlift Central|peer-research/i);
+    expect(mod.OPENER_PROMPT).toMatch(/Keystone Central|peer-research/i);
   });
 
   it('isOpenerPromptMessage detects the [OPENER] prefix on AlphaX', async () => {
@@ -54,7 +54,7 @@ describe('FR9 chat-opener: brand-aware OPENER_PROMPT', () => {
     ).toBe(true);
   });
 
-  it('isOpenerPromptMessage detects the [OPENER] prefix on Brainlift Central', async () => {
+  it('isOpenerPromptMessage detects the [OPENER] prefix on Keystone Central', async () => {
     vi.stubEnv('VITE_BRAND', 'brainlift');
     const mod = await import('../chat-opener');
     expect(

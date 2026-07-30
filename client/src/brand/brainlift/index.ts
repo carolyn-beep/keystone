@@ -1,5 +1,5 @@
 /**
- * Brainlift Central brand barrel.
+ * Keystone Central brand barrel.
  *
  * Side-effects:
  *   - Imports the brainlift CSS bundle.
@@ -27,7 +27,7 @@ export { config, Wordmark, Avatar, LoginIllustration };
 
 export const chatAvatar: ChatAvatarConfig = {
   src: logoMark,
-  alt: 'Brainlift Central',
+  alt: 'Keystone Central',
   fallback: 'BC',
 };
 

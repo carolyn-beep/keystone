@@ -1,5 +1,5 @@
 /**
- * Brainlift Central prompt suite.
+ * Keystone Central prompt suite.
  *
  * Asserts the BC prompt has the permissive peer-researcher posture, the
  * BRAINLIFT LOOP section (replacing Keystone Journey), and that AlphaX-only
@@ -97,13 +97,13 @@ const crossBrandContext: ChatUserContext = {
 };
 
 describe('buildBrainliftSystemPrompt: identity', () => {
-  it('describes Brainlift Central and a knowledge-verification platform', () => {
+  it('describes Keystone Central and a knowledge-verification platform', () => {
     const prompt = buildBrainliftSystemPrompt({
       userContext: zeroBrainliftContext,
       skills: [],
     });
 
-    expect(prompt).toContain('Brainlift Central');
+    expect(prompt).toContain('Keystone Central');
     expect(prompt).toContain('knowledge-verification');
   });
 

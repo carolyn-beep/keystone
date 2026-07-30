@@ -5,9 +5,9 @@
  * Pedagogy Pivot (see `features/pedagogy/research-first-pivot/FEATURE.md`)
  * and is scoped **Keystone brand only** per that document:
  *
- *   > Scope: Keystone brand only (Brainlift Central untouched)
+ *   > Scope: Keystone brand only (Keystone Central untouched)
  *
- * Brainlift Central has no research phase. Its chat is always in "authoring"
+ * Keystone Central has no research phase. Its chat is always in "authoring"
  * posture — the BC system prompt (`server/brand/brainlift.ts`) assumes
  * curation tools are available, references `get_brainlift_assessment`,
  * `create_dok2`, `edit_dok_item`, etc. directly, and never branches on
@@ -27,7 +27,7 @@ import type { ChatMode, ConversationContext } from './types';
 
 export function resolveChatMode(conversation: ConversationContext): ChatMode {
   if (brandId !== 'keystone') {
-    // Brainlift Central — pivot scope explicitly excludes BC from research mode.
+    // Keystone Central — pivot scope explicitly excludes BC from research mode.
     return 'authoring';
   }
   return conversation.brainlift?.phase === 'authoring' ? 'authoring' : 'research';

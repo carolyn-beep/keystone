@@ -53,7 +53,7 @@ describe('ChatConversationSidebar (reduced) source', () => {
   it('does not render the AlphaX Buddy nameplate', () => {
     expect(source).not.toMatch(/keystone-nameplate/);
     expect(source).not.toMatch(/AlphaX Buddy/i);
-    expect(source).not.toMatch(/Brainlift Central/i);
+    expect(source).not.toMatch(/Keystone Central/i);
   });
 
   it('does not render the nav-links footer (Projects / Analytics / Providers)', () => {
