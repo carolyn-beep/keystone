@@ -9,7 +9,7 @@ on:
 jobs:
   # Builds the client for both brands. The `build` script runs
   # `script/check-brand-bundle.ts` after Vite emits, which fails if the
-  # inactive brand's identifying strings (e.g. "AlphaX", "Brainlift Central",
+  # inactive brand's identifying strings (e.g. "Keystone", "Brainlift Central",
   # branded CSS class prefixes) leak into the active bundle.
   #
   # This is the gate that should have caught the leaks fixed alongside this
@@ -20,7 +20,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        brand: [alphax, brainlift]
+        brand: [Keystone, brainlift]
     env:
       VITE_BRAND: ${{ matrix.brand }}
     steps:
