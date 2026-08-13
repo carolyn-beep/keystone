@@ -1,14 +1,10 @@
 # Keystone
 
-**An AI learning platform that turns students into genuine experts by making them do the thinking.**
+An AI learning platform that turns students into experts by making them do the thinking.
 
-Keystone is built on one uncompromising principle: knowledge only counts when it passes through the student's own mind. Most AI tools do the thinking for the learner: they summarize, they draft, they answer. Keystone deliberately refuses to. It acts as a Socratic guide: it surfaces the raw material, asks the questions that force students to articulate their own understanding, and then rigorously grades the depth of what they produced.
+Keystone is built on the principle that knowledge only counts when it passes through the student's own mind. Most AI tools do the thinking for the learner. Keystone deliberately refuses to. It acts as a Socratic guide: it surfaces the raw material, asks questions that force students to articulate their own understanding, and then rigorously grades the depth of what they produce.
 
-Each student builds a Keystone Document, a personal, source-grounded body of knowledge organized by the four levels of Depth of Knowledge (DOK): verifiable facts, their own synthesis, cross-source insight, and finally a defensible point of view on questions where even experts disagree. Along the way, the platform surfaces relevant sources through multi-agent research, verifies facts against evidence, grades synthesis quality, and coaches the student always through questions, never by handing over answers from raw curiosity to earned expertise.
-
-The result is knowledge a student can defend, because they built every layer of it themselves.
-
-What's in this document. A full technical walkthrough of the platform: the DOK methodology and the Socratic method that powers it, the grading pipelines (DOK1–4), the multi-agent research stream, the runtime skills library, and the architecture. Sections marked 🚧 Roadmap describe designed-but-not-yet-shipped capabilities.
+Each student builds a Keystone Document, a personal, source-grounded body of knowledge organized into the four levels of Depth of Knowledge (DOK): verifiable facts, their own synthesis, cross-source insight, and, finally, a defensible point of view on questions where even experts disagree. Along the way, the platform surfaces relevant sources through multi-agent research, verifies facts against evidence, grades synthesis quality, and coaches the student always through questions, never by handing over answers from raw curiosity to earned expertise.
 
 ### The Keystone Document Methodology
 
