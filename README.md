@@ -2,6 +2,44 @@
 
 An AI learning platform that turns students into experts by making them do the thinking.
 
+## ▶ If you're evaluating my agent / AI-infrastructure work, start here
+
+This README is comprehensive; the strongest engineering is deep inside it. These are the fastest paths to the parts worth your five minutes:
+
+- **Multi-agent research swarm** — orchestrator, per-agent cost tracking, streamed events: [`server/ai/learning-stream-swarm-v2/`](server/ai/learning-stream-swarm-v2)
+- **Unified AI client** — provider-agnostic model calls with a **circuit breaker** and **automatic failover**: [`server/ai/client/`](server/ai/client) · [`circuit-breaker.ts`](server/ai/client/circuit-breaker.ts) · [`registry.ts`](server/ai/client/registry.ts)
+- **MCP server** — programmatic access to the platform for external agents: [`server/ai/learning-stream-swarm/mcp-server.ts`](server/ai/learning-stream-swarm/mcp-server.ts)
+- **Type-safe background job system** — the DOK1–DOK4 grading pipelines and research jobs: [`server/jobs/`](server/jobs)
+- **Skills & tool registry** — runtime-loadable skills exposed to the chat agent: [`server/ai/chat/skills.ts`](server/ai/chat/skills.ts) · [`server/ai/chat/tools/`](server/ai/chat/tools)
+
+**System at a glance:**
+
+```mermaid
+flowchart TB
+  UI["Client · React SPA"]
+  API["Express API · server/routes"]
+  MCP["MCP Server · programmatic access"]
+  JOBS["Type-safe Job System · server/jobs"]
+  GRADE["DOK1–DOK4 Grading Pipelines"]
+  SWARM["Research Swarm · learning-stream-swarm-v2"]
+  AIC["Unified AI Client<br/>circuit breaker · failover"]
+  PROV["LLM Providers · Fireworks · OpenRouter"]
+  DB[("Postgres · Drizzle ORM")]
+
+  UI --> API
+  MCP --> API
+  API --> JOBS
+  API --> DB
+  JOBS --> GRADE
+  JOBS --> SWARM
+  GRADE --> AIC
+  SWARM --> AIC
+  AIC --> PROV
+  JOBS --> DB
+```
+
+---
+
 Keystone is built on the principle that knowledge only counts when it passes through the student's own mind. Most AI tools do the thinking for the learner. Keystone deliberately refuses to. It acts as a Socratic guide: it surfaces the raw material, asks questions that force students to articulate their own understanding, and then rigorously grades the depth of what they produce.
 
 Each student builds a Keystone Document, a personal, source-grounded body of knowledge organized into the four levels of Depth of Knowledge (DOK): verifiable facts, their own synthesis, cross-source insight, and, finally, a defensible point of view on questions where even experts disagree. Along the way, the platform surfaces relevant sources through multi-agent research, verifies facts against evidence, grades synthesis quality, and coaches the student always through questions, never by handing over answers from raw curiosity to earned expertise.
