@@ -9,8 +9,8 @@
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import {
-  ALPHAX_GRADE5_TONE_BLOCK,
-  ALPHAX_GRADE5_TONE_REMINDER,
+  KEYSTONE_GRADE5_TONE_BLOCK,
+  KEYSTONE_GRADE5_TONE_REMINDER,
 } from '../../../brand/shared/tone-grade5';
 
 const ORIGINAL_SYSTEM = 'You are the grader. Be rigorous.';
@@ -76,13 +76,13 @@ describe('userFacing tone injection (AlphaX brand)', () => {
 
     const systemContent: string = systemMessage.content;
 
-    expect(systemContent.startsWith(ALPHAX_GRADE5_TONE_BLOCK)).toBe(true);
-    expect(systemContent.endsWith(ALPHAX_GRADE5_TONE_REMINDER)).toBe(true);
+    expect(systemContent.startsWith(KEYSTONE_GRADE5_TONE_BLOCK)).toBe(true);
+    expect(systemContent.endsWith(KEYSTONE_GRADE5_TONE_REMINDER)).toBe(true);
     expect(systemContent).toContain(ORIGINAL_SYSTEM);
 
-    const blockIdx = systemContent.indexOf(ALPHAX_GRADE5_TONE_BLOCK);
+    const blockIdx = systemContent.indexOf(KEYSTONE_GRADE5_TONE_BLOCK);
     const originalIdx = systemContent.indexOf(ORIGINAL_SYSTEM);
-    const reminderIdx = systemContent.indexOf(ALPHAX_GRADE5_TONE_REMINDER);
+    const reminderIdx = systemContent.indexOf(KEYSTONE_GRADE5_TONE_REMINDER);
     expect(blockIdx).toBeLessThan(originalIdx);
     expect(originalIdx).toBeLessThan(reminderIdx);
   });
@@ -101,8 +101,8 @@ describe('userFacing tone injection (AlphaX brand)', () => {
 
     const systemMessage = captured.body.messages[0];
     expect(systemMessage.content).toBe(ORIGINAL_SYSTEM);
-    expect(systemMessage.content).not.toContain(ALPHAX_GRADE5_TONE_BLOCK);
-    expect(systemMessage.content).not.toContain(ALPHAX_GRADE5_TONE_REMINDER);
+    expect(systemMessage.content).not.toContain(KEYSTONE_GRADE5_TONE_BLOCK);
+    expect(systemMessage.content).not.toContain(KEYSTONE_GRADE5_TONE_REMINDER);
   });
 
   it('leaves system untouched when userFacing=false explicitly', async () => {
@@ -135,7 +135,7 @@ describe('userFacing tone injection (AlphaX brand)', () => {
     });
 
     const systemMessage = captured.body.messages[0];
-    expect(systemMessage.content.startsWith(ALPHAX_GRADE5_TONE_BLOCK)).toBe(true);
-    expect(systemMessage.content.endsWith(ALPHAX_GRADE5_TONE_REMINDER)).toBe(true);
+    expect(systemMessage.content.startsWith(KEYSTONE_GRADE5_TONE_BLOCK)).toBe(true);
+    expect(systemMessage.content.endsWith(KEYSTONE_GRADE5_TONE_REMINDER)).toBe(true);
   });
 });

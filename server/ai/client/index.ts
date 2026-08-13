@@ -22,7 +22,7 @@ import { OpenRouterProvider } from './providers/openrouter';
 import { getProviderBreaker } from './circuit-breaker';
 import { recordFailoverEvent } from './provider-events';
 import { brandId } from '../../brand';
-import { ALPHAX_GRADE5_TONE_BLOCK, ALPHAX_GRADE5_TONE_REMINDER } from '../../brand/shared/tone-grade5';
+import { KEYSTONE_GRADE5_TONE_BLOCK, KEYSTONE_GRADE5_TONE_REMINDER } from '../../brand/shared/tone-grade5';
 import {
   AllModelsFailed,
   NonRetryableError,
@@ -412,7 +412,7 @@ function applyUserFacingTone(options: InternalCallModelOptions): InternalCallMod
     return options;
   }
   const middle = options.system ? `\n\n${options.system}\n\n` : '\n\n';
-  const augmentedSystem = `${ALPHAX_GRADE5_TONE_BLOCK}${middle}${ALPHAX_GRADE5_TONE_REMINDER}`;
+  const augmentedSystem = `${KEYSTONE_GRADE5_TONE_BLOCK}${middle}${KEYSTONE_GRADE5_TONE_REMINDER}`;
   return { ...options, system: augmentedSystem };
 }
 

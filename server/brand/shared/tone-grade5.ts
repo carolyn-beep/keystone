@@ -11,7 +11,7 @@
  * JSON structure, schema keys, code, or numeric/boolean fields.
  */
 
-export const ALPHAX_GRADE5_TONE_BLOCK = [
+export const KEYSTONE_GRADE5_TONE_BLOCK = [
   '=== START OF AUDIENCE & READING-LEVEL DIRECTIVE ===',
   '## AUDIENCE & READING LEVEL',
   'You are writing for a 5th grade student. Write any natural-language',
@@ -39,7 +39,7 @@ export const ALPHAX_GRADE5_TONE_BLOCK = [
  * Sits closest to the model's next token, so it carries the most attention
  * weight at generation time — even after a long agentic loop.
  */
-export const ALPHAX_GRADE5_TONE_REMINDER = [
+export const KEYSTONE_GRADE5_TONE_REMINDER = [
   '=== AUDIENCE & READING-LEVEL REMINDER ===',
   'Before you write anything the student will read:',
   'be concise, use plain everyday words, no jargon, 5th-grade reading level.',

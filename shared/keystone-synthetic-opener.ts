@@ -1,4 +1,4 @@
-export const ALPHAX_SYNTHETIC_OPENER_BODY = [
+export const KEYSTONE_SYNTHETIC_OPENER_BODY = [
   "Welcome to the starting line. This is the beginning of your journey to becoming a real expert in the field your project lives in. Not reading around a topic. The bar is holding your own against people who've spent years in it.",
   '',
   "You get there through the research and learning stream: a focused, ongoing dive into your domain. Every session goes deeper. Every source builds on the last. Over time, this becomes the backbone of the brainlift you'll write, your knowledge artifact, in your voice, backing every claim you make about your project. The stream is where mastery happens. The brainlift is where you shape it into something curated and defensible.",
@@ -25,7 +25,7 @@ export function buildKeystoneSyntheticOpenerText(firstName: string | null | unde
   return [
     `${greeting} I'm Keystone Buddy.`,
     '',
-    ALPHAX_SYNTHETIC_OPENER_BODY,
+    KEYSTONE_SYNTHETIC_OPENER_BODY,
   ].join('\n');
 }
 
@@ -48,5 +48,5 @@ export function isSyntheticKeystoneAssistantOpener(message: {
   }
 
   const match = /^Hey (?:there|[^\n!]+)! I'm Keystone Buddy\.\n\n([\s\S]+)$/.exec(textPart.text);
-  return match?.[1] === ALPHAX_SYNTHETIC_OPENER_BODY;
+  return match?.[1] === KEYSTONE_SYNTHETIC_OPENER_BODY;
 }

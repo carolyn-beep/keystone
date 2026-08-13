@@ -1,11 +1,11 @@
 import type { Slot } from '@shared/research-stream';
 import type { SwarmContext } from '../context-builder';
 import { brandId } from '../../../brand';
-import { ALPHAX_GRADE5_TONE_BLOCK, ALPHAX_GRADE5_TONE_REMINDER } from '../../../brand/shared/tone-grade5';
+import { KEYSTONE_GRADE5_TONE_BLOCK, KEYSTONE_GRADE5_TONE_REMINDER } from '../../../brand/shared/tone-grade5';
 
 export function buildPromptBase(slot: Slot, ctx: SwarmContext, typeGuidance: string): string {
-  const toneBlock = brandId === 'keystone' ? `${ALPHAX_GRADE5_TONE_BLOCK}\n\n` : '';
-  const toneReminder = brandId === 'keystone' ? `\n\n${ALPHAX_GRADE5_TONE_REMINDER}` : '';
+  const toneBlock = brandId === 'keystone' ? `${KEYSTONE_GRADE5_TONE_BLOCK}\n\n` : '';
+  const toneReminder = brandId === 'keystone' ? `\n\n${KEYSTONE_GRADE5_TONE_REMINDER}` : '';
   return `${toneBlock}You are a learning resource researcher. Find ONE high-quality ${slot.type} resource and save it directly.
 
 ## Brainlift
