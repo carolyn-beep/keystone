@@ -934,7 +934,7 @@ The **Document Hub** is where every deliverable a student produces lands. Origin
 
 ## AI Adversary Defense — Expertise Verification
 
-> 🚧 **Roadmap — designed, not yet shipped.** The design below is complete and specified, but no implementing code ships in the current build. It is included because it is core to how DOK3–4 ownership is *meant* to be proven.
+> The design below is complete and specified, but no implementing code ships in the current build. It is included because it is core to how DOK3–4 ownership is *meant* to be proven.
 
 The AI Adversary Defense is a structured adversarial test where students defend a Conviction against an AI opponent across 12 rounds, then receive an evaluation from a separate AI instance. The core design principle: if you can't defend it under fire, you don't own it.
 
@@ -1013,7 +1013,7 @@ Guides see a leaderboard of all student defenses with drill-down into per-level 
 
 ## Honcho — Persistent Learning Companion
 
-> 🚧 **Roadmap — designed, not yet shipped.** The persistent learner-profile layer described here is a design spec; there is no Honcho integration in the current build. It is documented because it is how the platform intends to tie every learning signal into one continuous profile.
+> The persistent learner-profile layer described here is a design spec; there is no Honcho integration in the current build. It is documented because it is how the platform intends to tie every learning signal into one continuous profile.
 
 Every feature described above produces learning signals: grading results, discussion transcripts, adversary defense outcomes, Keystone Document edits, bookmarked resources, time spent reading. Honcho is the memory layer that reasons about these signals over time and builds a continuous learner profile.
 
@@ -1204,19 +1204,6 @@ Both builds emit clean bundle-grep results and produce the same application code
 ### Render Blueprint
 
 `render.yaml` declares both services with shared infra (region, plan, runtime, health-check path, build/start commands) and brand-specific env vars. The Keystone Central service is defined but **not yet deployed**; a custom domain would be attached in the Render dashboard at cutover (nothing is declared in `render.yaml`). `DATABASE_URL` and `OPENROUTER_API_KEY` use `sync: false` so each service holds the same secret values without Blueprint coupling. See `features/branding/dual-brand-deployment/specs/04-second-deploy/CUTOVER.md` for the operator checklist (env var ordering, OAuth callback URLs, DNS, smoke tests).
-
----
-
-## Roadmap
-
-Keystone's shipped core covers research, knowledge-building, and depth-based grading. Several capabilities are designed and planned but not yet built — flagged **🚧 Roadmap** throughout this document and gathered here:
-
-- **AI Adversary Defense** — a structured 12-round adversarial defense of a Conviction: the intended *final proof* that a student owns a position under pressure. (Full design in the section above.)
-- **Honcho — persistent learner profile** — a longitudinal memory that reasons over every learning signal to track *how* a student's thinking develops over time, feeding richer DOK3–4 evaluation.
-- **Classroom & instructor tooling** — Keystone today is built around the individual learner. Running it for a class needs an instructor layer: a **teacher / cohort dashboard** (every student's progress at a glance), **class-wide progress and mastery views**, **curriculum & standards alignment** (mapping Keystone Documents to a syllabus or learning standards), and **differentiation by age and level** (the current model assumes a capable, self-directed learner; younger cohorts need adjusted scaffolding). In short, the answer to *"how does one instructor run this for 30 students?"*
-- **Localization** — multilingual UI and grading, so the platform can serve students beyond English-first contexts.
-
-An honest roadmap is more useful to a partner than a feature list that blurs shipped and planned — so this section states plainly what is still ahead.
 
 ---
 
