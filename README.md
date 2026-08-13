@@ -11,6 +11,7 @@ This README is comprehensive; the strongest engineering is deep inside it. These
 - **MCP server** — programmatic access to the platform for external agents: [`server/ai/learning-stream-swarm/mcp-server.ts`](server/ai/learning-stream-swarm/mcp-server.ts)
 - **Type-safe background job system** — the DOK1–DOK4 grading pipelines and research jobs: [`server/jobs/`](server/jobs)
 - **Skills & tool registry** — runtime-loadable skills exposed to the chat agent: [`server/ai/chat/skills.ts`](server/ai/chat/skills.ts) · [`server/ai/chat/tools/`](server/ai/chat/tools)
+- **Grader evaluation & monitoring** — how I keep the LLM graders honest (frozen corpus, weekly consistency, drift tracking): [How I Know the Graders Work](#how-i-know-the-graders-work)
 
 **System at a glance:**
 
@@ -37,6 +38,21 @@ flowchart TB
   AIC --> PROV
   JOBS --> DB
 ```
+
+---
+
+## How I Know the Graders Work
+
+Grading students with an LLM is only trustworthy if the grader itself is measured. These mechanisms are in the codebase to keep the graders honest:
+
+- **Frozen monitoring corpus (5 documents)** — a fixed set of five brainlifts is snapshotted and re-graded against an unchanging baseline: [`freeze-grader-monitoring-set.ts`](server/services/freeze-grader-monitoring-set.ts)
+- **Weekly dual-pass consistency run** — the frozen set is graded twice and the passes compared with a Pearson correlation per DOK level; a direct grader-stability metric, scheduled in the [`crontab`](server/jobs/crontab): [`run-weekly-grader-consistency.ts`](server/jobs/run-weekly-grader-consistency.ts)
+- **Week-over-week model-drift tracking** — each run is diffed against the prior week's, so a model/provider swap that shifts grading gets caught (`/api/analytics/model-drift`)
+- **Human-override recording** — human verification outcomes logged against LLM grades with a stability baseline for calibration: [`analytics-dashboard.ts`](server/storage/analytics-dashboard.ts)
+- **Append-only score-event history** — score events recorded with their triggers across pipeline checkpoints: [`analytics-score-events.ts`](server/services/analytics-score-events.ts)
+- **LLM divergence check** — DOK4 positions graded against a baseline model's output; an eval technique in itself: [`dok4Grader.ts`](server/ai/dok4Grader.ts)
+- **Import-pipeline integrity** — every extraction validated for content loss and hallucinations against hard thresholds before acceptance: [`preformat/validator.ts`](server/ai/preformat/validator.ts)
+- **313 test files** (Vitest): [`vitest.config.ts`](vitest.config.ts)
 
 ---
 
