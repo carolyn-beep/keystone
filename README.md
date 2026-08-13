@@ -575,9 +575,9 @@ A brilliant insight built on a weak factual foundation gets penalized. This enfo
 
 ## DOK4 Grading — Conviction Evaluation
 
-DOK4 grading evaluates Convictions (Convictions) — clear, defensible positions on topics where informed people disagree. A DOK4 is where the student stops observing patterns (DOK3) and starts committing to a stance they're willing to defend.
+DOK4 grading evaluates Convictions — clear, defensible positions on topics where informed people disagree. A DOK4 is where the student stops observing patterns (DOK3) and starts committing to a stance they're willing to defend.
 
-The core question: **is this the student's own thinking, and is it divergent enough to matter?** An Conviction that restates a source's contrarian position is borrowed divergence. An Conviction that an LLM would produce with high confidence isn't divergent at all. The pipeline tests both.
+The core question: **is this the student's own thinking, and is it divergent enough to matter?** A Conviction that restates a source's contrarian position is borrowed divergence. A Conviction that an LLM would produce with high confidence isn't divergent at all. The pipeline tests both.
 
 ### Prerequisite: DOK4→DOK3 Linking
 
