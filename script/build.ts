@@ -41,12 +41,11 @@ async function buildAll() {
   // process.env or `.env`; we mirror that resolution here so the error is
   // clear and consistent regardless of how the var was provided.
   const env = loadEnv("production", path.resolve(process.cwd()), "");
-  // Back-compat: the CI matrix still passes the retired brand id "alphax"
-  // (its workflow file requires an OAuth scope this token can't use to edit).
-  // Treat "alphax" as its successor "keystone" so the build succeeds, and
-  // mirror the normalized value into process.env so Vite resolves the same
-  // brand downstream.
-  const rawBrand = process.env.VITE_BRAND ?? env.VITE_BRAND;
+  // Normalize the brand id before validating. We accept any capitalization
+  // (e.g. "Keystone") and treat the retired id "alphax" as its successor
+  // "keystone", then mirror the normalized value into process.env so Vite
+  // resolves the exact same brand downstream.
+  const rawBrand = (process.env.VITE_BRAND ?? env.VITE_BRAND ?? "").toLowerCase();
   const brand = rawBrand === "alphax" ? "keystone" : rawBrand;
   process.env.VITE_BRAND = brand;
   if (brand !== "keystone" && brand !== "brainlift") {
