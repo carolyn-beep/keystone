@@ -1,6 +1,7 @@
 # Keystone
 
 An AI learning platform that turns students into experts by making them do the thinking.
+Shared publicly with Alpha School's permission as a portfolio reference
 
 ## ▶ If you're evaluating my agent / AI-infrastructure work, start here
 
