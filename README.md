@@ -78,6 +78,19 @@ Under the learning product sits the layer that decides what the agents can actua
 
 Each of these is documented in full in the [deep dive](docs/DEEP-DIVE.md).
 
+## Platform decisions & tradeoffs
+
+The mechanisms above are the *what*; these are the product calls behind them and how I'd measure whether they're working.
+
+- **Tool-development velocity vs. production reliability.** The core tension: teams need to ship new agent capabilities fast, but production agents need those tools to be dependable. The resolution is to make the *safe* path the *fast* path — a skill ships from chat in a draft→review→save loop, but only through a save path that enforces hard invariants (unique name, size caps, reference limits, explicit visibility), and every tool has test coverage as its deploy gate. Fast to add, hard to destabilize.
+- **Context budget is a first-class constraint, not an afterthought.** Loading every capability into the prompt doesn't scale — it burns the orchestrating model's attention and degrades tool selection. Three-level progressive disclosure (catalogue → body → references) keeps the whole registry nearly free until a capability fires, so the catalogue can grow without taxing every turn. The cost of a capability is designed, not incidental.
+- **Reliable before optimal.** LLM providers fail, rate-limit, and drift. Rather than chase a perfect single call, the platform assumes failure: a typed error taxonomy drives retry/failover, a circuit breaker sheds load from a failing provider, jobs are non-throwing, and unauthorized/unknown collapse to one safe error shape. The bet is that predictable degradation beats fragile perfection for production agents.
+- **Governance as an enabler, not a gate.** Capabilities are permissioned, versioned, and soft-deletable so teams can move without fear — a bad skill is reversible, a private one can't be enumerated, and the catalogue's quality is protected because a sloppy capability crowds out good ones. Governance here buys *velocity*, not just safety.
+- **One capability, many surfaces.** Building a capability once and exposing it through both native function calling and MCP (rather than a bespoke integration per client) is the composability bet — it's why an external agent and the in-app agent invoke the same tool, and why new clients are cheap to add.
+- **Production-ready vs. research curiosity.** Not everything designed is shipped: the Adversary Defense and Honcho layers are specified but marked roadmap, on purpose — deciding what's ready to run in production versus what stays a documented design is itself part of owning the platform.
+
+**How success is measured:** time from capability idea to agent-invocable (velocity); tool-invocation failure rate surfaced via `CallRecord` and chat telemetry; week-over-week grader drift on a frozen corpus; and test coverage as the reliability floor. See [Adding a Capability](docs/ADDING-A-CAPABILITY.md) for the developer-facing version of these decisions.
+
 ## How a student uses Keystone
 
 1. **Start with a question.** The student names something they want to master, and the agent helps frame a *purpose* for their Keystone Document.
