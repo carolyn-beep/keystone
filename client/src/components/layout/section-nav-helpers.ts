@@ -80,14 +80,15 @@ export function resolveSectionNavActive(pathname: string): SectionNavSection | n
  * Order: Projects -> Skills -> Analytics (admin) -> Providers (allow-list) -> Chat.
  * Chat is intentionally last so admin-only sections sit between the always-visible
  * sections and Chat for the audiences that see them. The Providers allow-list
- * check is delegated to `getChatHomeNavLinks` so `PROVIDERS_ALLOWED_EMAIL` stays
- * module-private to `chat-home-helpers.ts`.
+ * check is delegated to `getChatHomeNavLinks`, which matches the viewer's email
+ * against the configured `providersAllowlist` (sourced from an env var).
  */
 export function getSectionNavItems(opts: {
   isAdmin: boolean;
   email?: string | null;
+  providersAllowlist?: string | null;
 }): SectionNavItem[] {
-  const { isAdmin, email = null } = opts;
+  const { isAdmin, email = null, providersAllowlist = null } = opts;
 
   const items: SectionNavItem[] = [
     {
@@ -131,7 +132,7 @@ export function getSectionNavItems(opts: {
 
   // Delegate the allow-list email check to getChatHomeNavLinks. If it returns
   // a Providers link, the current viewer is allow-listed.
-  const chatHomeLinks = getChatHomeNavLinks({ isAdmin, email });
+  const chatHomeLinks = getChatHomeNavLinks({ isAdmin, email, providersAllowlist });
   if (chatHomeLinks.some((link) => link.href === PROVIDERS_HREF)) {
     items.push({
       section: 'providers',

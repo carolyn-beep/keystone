@@ -117,9 +117,8 @@ function isChildActive(child: SectionNavChild, location: string, search: string)
  * Cross-section nav rows rendered at the top of the unified `<AppSidebar />`.
  *
  * Always shows Chat and Library. Adds Analytics for admins. Adds Providers for
- * allow-listed emails (delegated to `getChatHomeNavLinks` via
- * `getSectionNavItems` so the email constant remains module-private to
- * `chat-home-helpers.ts`).
+ * emails in the `VITE_PROVIDERS_ADMIN_ALLOWLIST` allow-list (delegated to
+ * `getChatHomeNavLinks` via `getSectionNavItems`).
  *
  * Items with `children` (e.g. Skills > Create Skill, Trash) render their
  * children inline with L-bracket connectors, mirroring the DokNavTree pattern.
@@ -138,7 +137,8 @@ export function SectionNav({ activeSection, isCollapsed = false }: SectionNavPro
   // wouter Link triggering a re-render via setLocation.
   const search = typeof window !== 'undefined' ? window.location.search.replace(/^\?/, '') : '';
 
-  const items: SectionNavItemData[] = getSectionNavItems({ isAdmin, email });
+  const providersAllowlist = import.meta.env.VITE_PROVIDERS_ADMIN_ALLOWLIST as string | undefined;
+  const items: SectionNavItemData[] = getSectionNavItems({ isAdmin, email, providersAllowlist });
 
   return (
     <nav

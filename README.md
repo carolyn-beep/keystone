@@ -1298,6 +1298,7 @@ docker exec -i wizardly_kalam psql -U postgres -d dok1grader_local < migrations/
 | `VITE_BRAND_NAME` | Display name shown in the browser tab and HTML meta description (e.g. `Keystone` or `Keystone Central`). |
 | `SWARM_VERBOSE_LOG` | Optional. `true` enables per-tool verbose file logging for both v1 and v2 research-stream runs. Default off. |
 | `VITE_ENABLE_DEV_LOGIN` | Optional build-time flag. `true` keeps the Login page's "Dev quick login" panel visible on production builds (for staging/demo accounts). Default off in production. |
+| `VITE_PROVIDERS_ADMIN_ALLOWLIST` | Optional. Comma-separated emails that see the "Providers" admin nav link in the client. Server routes stay protected by `requireAdmin` regardless. Default: none. |
 
 ## License
 
