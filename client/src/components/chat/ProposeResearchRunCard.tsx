@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useRef } from 'react';
 import { useMessage, useThread, type ToolCallMessagePartProps } from '@assistant-ui/react';
+import type { MessageState, ThreadState } from '@assistant-ui/core';
 import { AlertCircle, ExternalLink, Loader2, Radar, Rocket } from 'lucide-react';
 import { useConversationBrainlift } from '@/hooks/useConversationBrainlift';
 import {
@@ -70,12 +71,12 @@ export function ProposeResearchRunCard(props: Props): JSX.Element {
   // both hooks safe in tests that mount without a runtime provider.
   const myMessageId = useMessage({
     optional: true,
-    selector: (m) => m.id,
+    selector: (m: MessageState) => m.id,
   });
   const isStale =
     useThread({
       optional: true,
-      selector: (t) => {
+      selector: (t: ThreadState) => {
         if (!myMessageId) return false;
         const idx = t.messages.findIndex((m) => m.id === myMessageId);
         if (idx === -1) return false;

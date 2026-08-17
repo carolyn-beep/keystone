@@ -9,6 +9,7 @@
 import { useState, useCallback } from 'react';
 import { useMutation } from '@tanstack/react-query';
 import { Loader2, Plus, Pencil, Trash2, Check, X, BookOpen, FileText } from 'lucide-react';
+import type { LucideIcon } from 'lucide-react';
 import { TactileButton } from '@/components/ui/tactile-button';
 import type { LearningStreamItem } from '@/hooks/useLearningStream';
 
@@ -414,7 +415,7 @@ function AddSummaryForm({ slug, itemId, facts, onSuccess, autoFocus }: {
 // ─── Section Empty Prompt ────────────────────────────────────────────────────
 
 function SectionEmptyPrompt({ icon: Icon, message }: {
-  icon: React.ComponentType<{ size?: number; className?: string }>;
+  icon: LucideIcon;
   message: string;
 }) {
   return (

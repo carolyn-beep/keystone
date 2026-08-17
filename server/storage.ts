@@ -7,8 +7,8 @@ export { storage } from "./storage/index";
 // Re-export types for backward compatibility
 export type {
   Brainlift, BrainliftData, InsertBrainlift,
-  Fact, ContradictionCluster, ReadingListItem, ReadingListGrade, InsertReadingListGrade,
-  BrainliftVersion, SourceFeedback, InsertSourceFeedback, Expert, InsertExpert,
+  Fact, ContradictionCluster,
+  BrainliftVersion, Expert, InsertExpert,
   FactVerification, InsertFactVerification, FactModelScore, InsertFactModelScore,
   FactWithVerification, LlmFeedback, ModelAccuracyStats,
   FactRedundancyGroup, InsertFactRedundancyGroup, RedundancyStatus,

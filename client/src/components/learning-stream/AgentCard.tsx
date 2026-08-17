@@ -175,7 +175,7 @@ export const AgentCard = memo(function AgentCard({ agent, onInspect, isInspected
  */
 function getTarget(agent: AgentInfo): string {
   if (agent.status === 'complete' && agent.result?.found) {
-    return agent.result.topic;
+    return agent.result.topic ?? '';
   }
   if (agent.status === 'failed') {
     return agent.result?.reason || 'Error';

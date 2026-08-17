@@ -400,7 +400,12 @@ export function extractPurposeFromHierarchy(roots: HierarchyNode[]): ExtractedPu
     return null;
   }
 
-  log(`[PurposeExtractor] Found Purpose node with ${purposeNode.children.length} children`);
+  // `purposeNode` is only assigned inside the nested `findPurposeNode` closure,
+  // so control-flow analysis widens it to `never` after the guard above.
+  // Bind it to an explicitly-typed local to restore the correct node type.
+  const foundPurposeNode: HierarchyNode = purposeNode;
+
+  log(`[PurposeExtractor] Found Purpose node with ${foundPurposeNode.children.length} children`);
 
   // Recursively collect all text from the subtree
   const parts: string[] = [];
@@ -415,7 +420,7 @@ export function extractPurposeFromHierarchy(roots: HierarchyNode[]): ExtractedPu
     }
   }
 
-  for (const child of purposeNode.children) {
+  for (const child of foundPurposeNode.children) {
     collectText(child);
   }
 

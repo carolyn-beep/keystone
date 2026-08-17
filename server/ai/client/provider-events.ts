@@ -53,7 +53,7 @@ class FailoverEventStore {
 
   getFailoverCounts(now = Date.now()): Record<ProviderName, number> {
     const result: Partial<Record<ProviderName, number>> = {};
-    for (const provider of this.perProviderTimestamps.keys()) {
+    for (const provider of Array.from(this.perProviderTimestamps.keys())) {
       result[provider] = this.getFailoverCount(provider, now);
     }
     return result as Record<ProviderName, number>;
