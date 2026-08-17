@@ -1,6 +1,7 @@
 # Keystone
 
 An AI learning platform that turns students into experts by making them do the thinking.
+Underneath the product is a multi-agent orchestration platform: a governed runtime tool/skill registry, an MCP server, and a provider-agnostic AI client with a circuit breaker and automatic failover.
 Published publicly as a portfolio reference.
 **View-only — all rights reserved. See [LICENSE](LICENSE).**
 
@@ -63,6 +64,18 @@ That single rule — the student articulates the knowledge, the AI does not — 
 | **DOK4 — Convictions** | Defensible positions where experts disagree | User only | Graded for divergence from a baseline LLM |
 
 **DOK1–2 come from the external world; DOK3–4 come from the owner's expertise.** The platform surfaces the world and grades the thinking, but the student must supply the thinking. This constraint drives every AI interaction in the system.
+
+## Agentic orchestration
+
+Under the learning product sits the layer that decides what the agents can actually do: the capability layer, the standards for how tools are built, and the governance for how they ship. The pieces:
+
+- **A governed tool and skill registry.** Chat tools are grouped by domain in [`server/ai/chat/tools/`](server/ai/chat/tools); 47 higher-level *skills* live in Postgres as first-class objects — permissioned, versioned, soft-deletable, shareable, and authorable from chat. Every write is validated (name format, description and body size caps, reference limits, path-traversal checks) before it ships. See [Runtime Skills Library](docs/DEEP-DIVE.md).
+- **Context engineering by construction.** Skills load through three-level progressive disclosure — catalogue → body → references — so the whole registry costs almost nothing in context until a skill fires. A skill's trigger description is the only signal the orchestrating model uses to select it, so the authoring discipline treats it as a list of user-vocabulary triggers rather than a topic blurb.
+- **Reliability under real providers.** All model calls route through one [unified AI client](server/ai/client) with per-call observability, a circuit breaker on the primary provider, and automatic failover to a mapped fallback tier. Background jobs are type-safe and non-throwing, and the LLM graders are continuously monitored for drift.
+- **Programmatic access via MCP.** The whole platform is exposed to any MCP-compatible agent through a companion Cloudflare Worker with Google OAuth ([`keystone-mcp`](https://github.com/carolyn-beep/keystone-mcp), 17 tools) backed by a service-authenticated internal API.
+- **Developer experience for tool authors.** New skills are created in-chat through a draft → review → save loop grounded in seeded references (a tool catalogue, a body template, and trigger-description patterns), so a new capability goes from idea to agent-invocable without platform-team involvement.
+
+Each of these is documented in full in the [deep dive](docs/DEEP-DIVE.md).
 
 ## How a student uses Keystone
 
