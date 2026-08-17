@@ -1,7 +1,8 @@
 # Keystone
 
 An AI learning platform that turns students into experts by making them do the thinking.
-Shared publicly with Alpha School's permission as a portfolio reference
+Published publicly as a portfolio reference.
+**View-only — all rights reserved. See [LICENSE](LICENSE).**
 
 ## ▶ If you're evaluating my agent / AI-infrastructure work, start here
 
@@ -1297,3 +1298,7 @@ docker exec -i wizardly_kalam psql -U postgres -d dok1grader_local < migrations/
 | `VITE_BRAND_NAME` | Display name shown in the browser tab and HTML meta description (e.g. `Keystone` or `Keystone Central`). |
 | `SWARM_VERBOSE_LOG` | Optional. `true` enables per-tool verbose file logging for both v1 and v2 research-stream runs. Default off. |
 | `VITE_ENABLE_DEV_LOGIN` | Optional build-time flag. `true` keeps the Login page's "Dev quick login" panel visible on production builds (for staging/demo accounts). Default off in production. |
+
+## License
+
+**Copyright (c) 2026 Carolyn Driscoll. All rights reserved.** This repository is published as a portfolio reference and work sample only, for viewing and evaluation. No rights to use, copy, modify, or redistribute the code are granted. See [LICENSE](LICENSE) for full terms. For any use beyond viewing, contact carolyn@carolyndriscoll.com.
