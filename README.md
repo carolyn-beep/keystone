@@ -71,9 +71,10 @@ Under the learning product sits the layer that decides what the agents can actua
 
 - **A governed tool and skill registry.** Chat tools are grouped by domain in [`server/ai/chat/tools/`](server/ai/chat/tools); 47 higher-level *skills* live in Postgres as first-class objects — permissioned, versioned, soft-deletable, shareable, and authorable from chat. Every write is validated (name format, description and body size caps, reference limits, path-traversal checks) before it ships. See [Runtime Skills Library](docs/DEEP-DIVE.md).
 - **Context engineering by construction.** Skills load through three-level progressive disclosure — catalogue → body → references — so the whole registry costs almost nothing in context until a skill fires. A skill's trigger description is the only signal the orchestrating model uses to select it, so the authoring discipline treats it as a list of user-vocabulary triggers rather than a topic blurb.
-- **Reliability under real providers.** All model calls route through one [unified AI client](server/ai/client) with per-call observability, a circuit breaker on the primary provider, and automatic failover to a mapped fallback tier. Background jobs are type-safe and non-throwing, and the LLM graders are continuously monitored for drift.
+- **Reliability and failure handling.** All model calls route through one [unified AI client](server/ai/client) with a circuit breaker on the primary provider and automatic failover to a mapped fallback tier. A typed error taxonomy ([`errors.ts`](server/ai/client/errors.ts): retryable / non-retryable / rate-limit / timeout / all-models-failed) classifies failures so retry and failover behave correctly. Tools collapse unauthorized, disabled, and unknown to the same not-found-shaped error so capabilities can't be enumerated; background jobs are non-throwing.
+- **Observability as the feedback loop.** Every logical model call emits a `CallRecord` (model, provider, duration, tokens, estimated cost, retry count, failover reason) and chat turns emit structured telemetry — the signal for surfacing tool failures and capability gaps. The LLM graders are separately monitored for week-over-week drift.
 - **Programmatic access via MCP.** The whole platform is exposed to any MCP-compatible agent through a companion Cloudflare Worker with Google OAuth ([`keystone-mcp`](https://github.com/carolyn-beep/keystone-mcp), 17 tools) backed by a service-authenticated internal API.
-- **Developer experience for tool authors.** New skills are created in-chat through a draft → review → save loop grounded in seeded references (a tool catalogue, a body template, and trigger-description patterns), so a new capability goes from idea to agent-invocable without platform-team involvement.
+- **Developer experience for tool authors.** A new skill is created in-chat through a draft → review → save loop grounded in seeded references (a tool catalogue, a body template, trigger-description patterns); a new tool is a typed function registered in the tool registry with tests as the deploy gate. Either way a capability goes from idea to agent-invocable without deep platform expertise — see **[Adding a Capability](docs/ADDING-A-CAPABILITY.md)**.
 
 Each of these is documented in full in the [deep dive](docs/DEEP-DIVE.md).
 
@@ -163,6 +164,8 @@ Each of these has a full section in the [deep dive](docs/DEEP-DIVE.md):
 ## Tech stack
 
 React 18 + TypeScript, TanStack Query, Tailwind, and Framer Motion on the client. Express, Drizzle ORM (PostgreSQL), and Graphile Worker on the server. LLM calls go through OpenRouter (primary) and Fireworks (failover) via the unified AI client, with Exa for search and content extraction.
+
+**Agent runtime:** the native chat agent runs on the Vercel AI SDK (`streamText`, tool calling, `LanguageModelV2` adapter); the research swarm's v1 path uses the Claude Agent SDK, with v2 on the Vercel AI SDK. Capabilities are exposed to models through native function calling and through the Model Context Protocol (MCP). No LangChain — tools and orchestration are built directly on the SDKs and a custom registry.
 
 ---
 
