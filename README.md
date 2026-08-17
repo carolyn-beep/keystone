@@ -3,13 +3,13 @@
 ![CI](https://github.com/carolyn-beep/keystone/actions/workflows/ci.yml/badge.svg)
 
 An AI learning platform that turns students into experts by making them do the thinking.
-Underneath the product is a multi-agent orchestration platform: a governed runtime tool/skill registry, an MCP server, and a provider-agnostic AI client with a circuit breaker and automatic failover.
+Underneath the product is the agent infrastructure: a runtime tool and skill registry with permissions and validation, an MCP server, and a provider-agnostic AI client with a circuit breaker and automatic failover.
 Published publicly as a portfolio reference.
 **View-only — all rights reserved. See [LICENSE](LICENSE).**
 
 > **Full technical documentation lives in [`docs/DEEP-DIVE.md`](docs/DEEP-DIVE.md).** This README is the overview; the deep dive covers every subsystem in detail.
 
-## ▶ If you're evaluating my agent / AI-infrastructure work, start here
+## ▶ If you're reviewing the engineering, start here
 
 The strongest engineering is in these paths:
 
@@ -67,12 +67,12 @@ That single rule — the student articulates the knowledge, the AI does not — 
 
 **DOK1–2 come from the external world; DOK3–4 come from the owner's expertise.** The platform surfaces the world and grades the thinking, but the student must supply the thinking. This constraint drives every AI interaction in the system.
 
-## Agentic orchestration
+## Tools and agents
 
-Under the learning product sits the layer that decides what the agents can actually do: the capability layer, the standards for how tools are built, and the governance for how they ship. The pieces:
+Under the learning product sits the part that decides what the agents can actually do: how tools and skills are defined, how they're validated, and how they ship. The pieces:
 
-- **A governed tool and skill registry.** Chat tools are grouped by domain in [`server/ai/chat/tools/`](server/ai/chat/tools); 47 higher-level *skills* live in Postgres as first-class objects — permissioned, versioned, soft-deletable, shareable, and authorable from chat. Every write is validated (name format, description and body size caps, reference limits, path-traversal checks) before it ships. See [Runtime Skills Library](docs/DEEP-DIVE.md).
-- **Context engineering by construction.** Skills load through three-level progressive disclosure — catalogue → body → references — so the whole registry costs almost nothing in context until a skill fires. A skill's trigger description is the only signal the orchestrating model uses to select it, so the authoring discipline treats it as a list of user-vocabulary triggers rather than a topic blurb.
+- **A tool and skill registry with permissions and validation.** Chat tools are grouped by domain in [`server/ai/chat/tools/`](server/ai/chat/tools); 47 higher-level *skills* live in Postgres as first-class objects — permissioned, versioned, soft-deletable, shareable, and authorable from chat. Every write is validated (name format, description and body size caps, reference limits, path-traversal checks) before it ships. See [Runtime Skills Library](docs/DEEP-DIVE.md).
+- **What goes into the prompt.** Skills load through three-level progressive disclosure — catalogue → body → references — so the whole registry costs almost nothing in context until a skill fires. A skill's trigger description is the only signal the model uses to select it, so authoring it well means writing a list of user-vocabulary triggers rather than a topic blurb.
 - **Reliability and failure handling.** All model calls route through one [unified AI client](server/ai/client) with a circuit breaker on the primary provider and automatic failover to a mapped fallback tier. A typed error taxonomy ([`errors.ts`](server/ai/client/errors.ts): retryable / non-retryable / rate-limit / timeout / all-models-failed) classifies failures so retry and failover behave correctly. Tools collapse unauthorized, disabled, and unknown to the same not-found-shaped error so capabilities can't be enumerated; background jobs are non-throwing.
 - **Observability as the feedback loop.** Every logical model call emits a `CallRecord` (model, provider, duration, tokens, estimated cost, retry count, failover reason) and chat turns emit structured telemetry — the signal for surfacing tool failures and capability gaps. The LLM graders are separately monitored for week-over-week drift.
 - **Programmatic access via MCP.** The whole platform is exposed to any MCP-compatible agent through a companion Cloudflare Worker with Google OAuth ([`keystone-mcp`](https://github.com/carolyn-beep/keystone-mcp), 17 tools) backed by a service-authenticated internal API.
@@ -80,18 +80,18 @@ Under the learning product sits the layer that decides what the agents can actua
 
 Each of these is documented in full in the [deep dive](docs/DEEP-DIVE.md).
 
-## Platform decisions & tradeoffs
+## Why it's built this way
 
-The mechanisms above are the *what*; these are the product calls behind them and how I'd measure whether they're working.
+The mechanisms above are the *what*. These are the decisions behind them, and how I'd tell whether they're working.
 
-- **Tool-development velocity vs. production reliability.** The core tension: teams need to ship new agent capabilities fast, but production agents need those tools to be dependable. The resolution is to make the *safe* path the *fast* path — a skill ships from chat in a draft→review→save loop, but only through a save path that enforces hard invariants (unique name, size caps, reference limits, explicit visibility), and every tool has test coverage as its deploy gate. Fast to add, hard to destabilize.
-- **Context budget is a first-class constraint, not an afterthought.** Loading every capability into the prompt doesn't scale — it burns the orchestrating model's attention and degrades tool selection. Three-level progressive disclosure (catalogue → body → references) keeps the whole registry nearly free until a capability fires, so the catalogue can grow without taxing every turn. The cost of a capability is designed, not incidental.
-- **Reliable before optimal.** LLM providers fail, rate-limit, and drift. Rather than chase a perfect single call, the platform assumes failure: a typed error taxonomy drives retry/failover, a circuit breaker sheds load from a failing provider, jobs are non-throwing, and unauthorized/unknown collapse to one safe error shape. The bet is that predictable degradation beats fragile perfection for production agents.
-- **Governance as an enabler, not a gate.** Capabilities are permissioned, versioned, and soft-deletable so teams can move without fear — a bad skill is reversible, a private one can't be enumerated, and the catalogue's quality is protected because a sloppy capability crowds out good ones. Governance here buys *velocity*, not just safety.
-- **One capability, many surfaces.** Building a capability once and exposing it through both native function calling and MCP (rather than a bespoke integration per client) is the composability bet — it's why an external agent and the in-app agent invoke the same tool, and why new clients are cheap to add.
-- **Production-ready vs. research curiosity.** Not everything designed is shipped: the Adversary Defense and Honcho layers are specified but marked roadmap, on purpose — deciding what's ready to run in production versus what stays a documented design is itself part of owning the platform.
+- **New tools can ship fast without destabilizing running ones.** New agent capabilities need to ship quickly, but production agents need those tools to be dependable. The approach is to make the *safe* path the *fast* path — a skill ships from chat in a draft → review → save loop, but only through a save path that enforces hard invariants (unique name, size caps, reference limits, explicit visibility), and every tool has test coverage as its deploy gate. Fast to add, hard to destabilize.
+- **Context budget is a real constraint.** Loading every tool and skill into the prompt doesn't scale — it burns the model's attention and degrades tool selection. Three-level progressive disclosure (catalogue → body → references) keeps the whole registry nearly free until something fires, so the catalogue can grow without taxing every turn.
+- **Reliable before optimal.** LLM providers fail, rate-limit, and drift. Rather than chase a perfect single call, the system assumes failure: a typed error taxonomy drives retry/failover, a circuit breaker sheds load from a failing provider, jobs are non-throwing, and unauthorized/unknown collapse to one safe error shape. Predictable degradation beats fragile perfection for production agents.
+- **Permissions and versioning, so changes are reversible.** Tools and skills are permissioned, versioned, and soft-deletable, so a bad skill can be rolled back, a private one can't be enumerated, and the catalogue's quality is protected because a sloppy skill crowds out good ones.
+- **One capability, many surfaces.** A capability is built once and exposed through both native function calling and MCP, rather than a bespoke integration per client. That's why an external agent and the in-app agent invoke the same tool, and why new clients are cheap to add.
+- **What's shipped vs. what's still a design sketch.** Not everything designed is shipped: the Adversary Defense and Honcho layers are specified but marked roadmap, on purpose. Deciding what's ready to run in production versus what stays a documented design is part of the work.
 
-**How success is measured:** time from capability idea to agent-invocable (velocity); tool-invocation failure rate surfaced via `CallRecord` and chat telemetry; week-over-week grader drift on a frozen corpus; and test coverage as the reliability floor. See [Adding a Capability](docs/ADDING-A-CAPABILITY.md) for the developer-facing version of these decisions.
+**How I'd tell if this is working:** time from a tool idea to agent-invocable; tool-invocation failure rate surfaced via `CallRecord` and chat telemetry; week-over-week grader drift on a frozen corpus; and test coverage as the reliability floor. See [Adding a Capability](docs/ADDING-A-CAPABILITY.md) for the developer-facing version of these decisions.
 
 ## How a student uses Keystone
 

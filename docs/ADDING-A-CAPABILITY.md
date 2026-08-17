@@ -1,6 +1,6 @@
 # Adding a Capability
 
-How a new thing an agent can *do* goes from idea to agent-invocable in Keystone. There are two kinds of capability, with different authoring paths but the same governance and reliability guarantees.
+How a new thing an agent can *do* goes from idea to agent-invocable in Keystone. There are two kinds of capability, with different authoring paths but the same validation and reliability guarantees.
 
 | | **Skill** | **Tool** |
 |---|---|---|
@@ -52,7 +52,7 @@ create_blank_project: tool({
 Steps:
 
 1. **Define** the tool in the relevant domain file under `server/ai/chat/tools/`. Give it a Zod `inputSchema` (validated before `execute` runs) and a description written for the model.
-2. **Register** it in `buildNativeChatTools()` ([`server/ai/chat/tools/index.ts`](../server/ai/chat/tools/index.ts)). Registration is where **governance** lives — tools are composed by domain and gated by context, e.g. admin-only management tools and mode-specific sets:
+2. **Register** it in `buildNativeChatTools()` ([`server/ai/chat/tools/index.ts`](../server/ai/chat/tools/index.ts)). Registration is where **permissions and gating** live — tools are composed by domain and gated by context, e.g. admin-only management tools and mode-specific sets:
 
    ```ts
    return {
@@ -64,7 +64,7 @@ Steps:
    ```
 3. **Test** it in `server/ai/chat/tools/__tests__/` (every existing tool has coverage there). Tests are the deployment gate — the suite runs green in CI before anything ships.
 
-## Context engineering (why the registry stays cheap)
+## What goes into the prompt (why the registry stays cheap)
 
 Skills load through **three-level progressive disclosure** so the whole catalogue costs almost nothing in context until a capability actually fires:
 
