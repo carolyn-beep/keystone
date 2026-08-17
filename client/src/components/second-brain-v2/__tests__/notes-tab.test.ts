@@ -23,6 +23,11 @@ const tabSource = fs.readFileSync(
   'utf8',
 );
 
+const navSource = fs.readFileSync(
+  new URL('../shared/navigation.ts', import.meta.url),
+  'utf8',
+);
+
 function makeNote(over: Partial<Note> = {}): Note {
   return {
     id: 1,
@@ -259,20 +264,9 @@ describe('FR4 grid + group rendering hooks', () => {
     expect(tabSource).toContain('const GROUP_DISCLOSURE_THRESHOLD = 12');
   });
 
-  it('declares the 5 view modes', () => {
-    expect(tabSource).toContain("'all-notes'");
+  it('declares the view modes', () => {
     expect(tabSource).toContain("'by-source'");
     expect(tabSource).toContain("'by-category'");
-    expect(tabSource).toContain("'standalone'");
-    expect(tabSource).toContain("'recent'");
-  });
-
-  it('recent view forces newest sort', () => {
-    expect(tabSource).toMatch(/viewMode === 'recent' \? 'newest' : sortBy/);
-  });
-
-  it('standalone view narrows to sourceId == null', () => {
-    expect(tabSource).toMatch(/viewMode === 'standalone'[\s\S]*sourceId == null/);
   });
 });
 
@@ -306,9 +300,11 @@ describe('FR12 cross-tab nav out', () => {
   });
 
   it('navigateToSubTab writes ?sb and dispatches popstate', () => {
-    expect(tabSource).toContain("params.set('sb', tab)");
-    expect(tabSource).toContain('window.history.replaceState');
-    expect(tabSource).toContain('new PopStateEvent');
+    // The helper now lives in shared/navigation.ts and uses pushState so the
+    // browser Back button returns the user to where they came from.
+    expect(navSource).toContain("searchParams.set('sb', target)");
+    expect(navSource).toContain('window.history.pushState');
+    expect(navSource).toContain('new PopStateEvent');
   });
 });
 

@@ -199,14 +199,17 @@ describe('propagateStaleFlags', () => {
 
     // Verify the actual stale flags are set
     const stale = await getStaleItems(testBrainliftId);
-    expect(stale.dok2).toContain(dok2Id1);
-    expect(stale.dok2).not.toContain(dok2Unlinked);
-    expect(stale.dok3).toContain(dok3Id1);
-    expect(stale.dok3).toContain(dok3Id2);
-    expect(stale.dok3).not.toContain(dok3Unlinked);
-    expect(stale.dok4).toContain(dok4Id1);
-    expect(stale.dok4).toContain(dok4Id2);
-    expect(stale.dok4).not.toContain(dok4Unlinked);
+    const dok2Ids = stale.dok2.map((item) => item.id);
+    const dok3Ids = stale.dok3.map((item) => item.id);
+    const dok4Ids = stale.dok4.map((item) => item.id);
+    expect(dok2Ids).toContain(dok2Id1);
+    expect(dok2Ids).not.toContain(dok2Unlinked);
+    expect(dok3Ids).toContain(dok3Id1);
+    expect(dok3Ids).toContain(dok3Id2);
+    expect(dok3Ids).not.toContain(dok3Unlinked);
+    expect(dok4Ids).toContain(dok4Id1);
+    expect(dok4Ids).toContain(dok4Id2);
+    expect(dok4Ids).not.toContain(dok4Unlinked);
   });
 
   it('DOK2 edit marks linked DOK3s and DOK4s stale', async () => {
@@ -259,12 +262,15 @@ describe('propagateStaleFlags', () => {
     });
 
     const stale = await getStaleItems(testBrainliftId);
+    const dok2Ids = stale.dok2.map((item) => item.id);
+    const dok3Ids = stale.dok3.map((item) => item.id);
+    const dok4Ids = stale.dok4.map((item) => item.id);
     // dok2Unlinked, dok3Unlinked, dok4Unlinked should NOT be stale
-    expect(stale.dok2).not.toContain(dok2Unlinked);
-    expect(stale.dok3).not.toContain(dok3Unlinked);
-    expect(stale.dok4).not.toContain(dok4Unlinked);
+    expect(dok2Ids).not.toContain(dok2Unlinked);
+    expect(dok3Ids).not.toContain(dok3Unlinked);
+    expect(dok4Ids).not.toContain(dok4Unlinked);
     // dok2Id1 should NOT be stale (not linked to fact2)
-    expect(stale.dok2).not.toContain(dok2Id1);
+    expect(dok2Ids).not.toContain(dok2Id1);
   });
 
   it('already-stale items get reason updated', async () => {
@@ -372,9 +378,9 @@ describe('getStaleItems', () => {
     const stale = await getStaleItems(testBrainliftId);
 
     expect(stale.dok1).toEqual([]); // DOK1 itself is not marked stale by propagation
-    expect(stale.dok2.sort()).toEqual([dok2Id1].sort());
-    expect(stale.dok3.sort()).toEqual([dok3Id1, dok3Id2].sort());
-    expect(stale.dok4.sort()).toEqual([dok4Id1, dok4Id2].sort());
+    expect(stale.dok2.map((item) => item.id).sort()).toEqual([dok2Id1].sort());
+    expect(stale.dok3.map((item) => item.id).sort()).toEqual([dok3Id1, dok3Id2].sort());
+    expect(stale.dok4.map((item) => item.id).sort()).toEqual([dok4Id1, dok4Id2].sort());
   });
 
   it('returns empty arrays when nothing is stale', async () => {

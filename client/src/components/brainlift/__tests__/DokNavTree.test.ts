@@ -112,9 +112,13 @@ describe('Dashboard.tsx import update (spec 04)', () => {
     expect(dashboardSource).not.toMatch(/\bSidebarLayout\b/);
   });
 
-  it('imports the unified AppSidebar from @/components/layout', () => {
+  it('integrates with the unified layout via the sidebar slot from @/components/layout', () => {
+    // Spec 04: the single <AppSidebar/> is rendered once by RootLayout, not by
+    // pages. Dashboard feeds its DokNavTree into that shared sidebar through the
+    // slot API (useSidebarSlot) imported from @/components/layout.
     expect(dashboardSource).toMatch(
-      /import[^;]*\bAppSidebar\b[^;]*from\s+['"]@\/components\/layout['"]/,
+      /import[^;]*\buseSidebarSlot\b[^;]*from\s+['"]@\/components\/layout['"]/,
     );
+    expect(dashboardSource).toMatch(/useSidebarSlot\(/);
   });
 });

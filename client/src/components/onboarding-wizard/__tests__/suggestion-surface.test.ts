@@ -129,16 +129,17 @@ describe('FR3: useOnboardingSuggestions hook source', () => {
 describe('FR3: TopicStep topic-chip rail', () => {
   const source = readSource('../TopicStep.tsx');
 
-  it('renders a SuggestionSurface fed by topic suggestions', () => {
-    expect(source).toContain('SuggestionSurface');
-    expect(source).toMatch(/useOnboardingSuggestions/);
+  it('renders a topic-chip rail fed by onboarding suggestions', () => {
+    // The suggestion surface now lives in TopicStepRail, typed by the
+    // useOnboardingSuggestions return shape (UseOnboardingSuggestions).
+    expect(source).toContain('TopicStepRail');
+    expect(source).toMatch(/UseOnboardingSuggestions/);
   });
 
   it('accepting a chip fills the topic input via onAccept, not a confirm', () => {
-    // The rail's SuggestionSurface onAccept is wired to the topic setter
-    // (onTopicChange), NOT onConfirm — tapping a chip never auto-advances.
-    expect(source).toMatch(/onAccept=\{onAccept\}/);
-    expect(source).toMatch(/onTopicChange/);
+    // Tapping a suggestion card calls onAccept(s) — it fills the inputs via
+    // the parent's setters and never auto-advances.
+    expect(source).toMatch(/onAccept\(s\)/);
     // The confirm path stays gated behind the explicit CONFIRM button handler.
     expect(source).toContain('handleConfirm');
   });

@@ -265,6 +265,7 @@ describe('brainlift grading surface', () => {
         status: 'complete',
         score: 4.5,
         createdAt: '2026-04-05T09:00:00.000Z',
+        permission: 'viewer',
         creator: 'Grace Hopper',
       },
     ]);

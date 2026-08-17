@@ -156,12 +156,15 @@ describe('findUserByEmail', () => {
 
   it('returns null for unknown email and does NOT insert a row', async () => {
     const email = `test-lookup-miss-${uniqueId}@example.com`;
-    const before = await db.execute(sql`SELECT COUNT(*)::int AS n FROM "user"`);
     const result = await findUserByEmail(email);
-    const after = await db.execute(sql`SELECT COUNT(*)::int AS n FROM "user"`);
+    // Assert this specific email was not inserted, rather than the global user
+    // count — the latter is racy when the suite runs in parallel against one DB.
+    const after = await db.execute(
+      sql`SELECT COUNT(*)::int AS n FROM "user" WHERE email = ${email}`,
+    );
 
     expect(result).toBeNull();
-    expect((after.rows[0] as { n: number }).n).toBe((before.rows[0] as { n: number }).n);
+    expect((after.rows[0] as { n: number }).n).toBe(0);
   });
 
   it('returns existing user for known email', async () => {

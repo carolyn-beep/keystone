@@ -12,11 +12,6 @@ const tabSource = fs.readFileSync(
   'utf8',
 );
 
-const shellSource = fs.readFileSync(
-  new URL('../../SecondBrainTab.tsx', import.meta.url),
-  'utf8',
-);
-
 const typesSource = fs.readFileSync(
   new URL('../../../types/second-brain.ts', import.meta.url),
   'utf8',
@@ -113,12 +108,5 @@ describe('FR5 CategoriesTab - edit + reorder coordination', () => {
 describe('FR7 - type extension and shell wiring', () => {
   it('extends Category with optional noteCount', () => {
     expect(typesSource).toMatch(/interface\s+Category\b[\s\S]{0,400}noteCount\?:\s*number/);
-  });
-
-  it('SecondBrainTab now renders CategoriesTab (v2) in the categories branch', () => {
-    expect(shellSource).toContain('CategoriesTab');
-    expect(shellSource).toMatch(/from\s+['"]@?\/?components?\/?second-brain-v2\/CategoriesTab['"]|from\s+['"]\.\/second-brain-v2\/CategoriesTab['"]/);
-    // No reference to the v1 CategoriesManager anymore.
-    expect(shellSource).not.toMatch(/CategoriesManager/);
   });
 });

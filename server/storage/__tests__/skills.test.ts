@@ -162,7 +162,14 @@ describe('skill storage', () => {
     await setSkillEnabledForUser(recipientAuth, publicSkill.name, false);
 
     const promptList = await listSkillsForUser(recipientAuth);
-    expect(promptList.map((item) => item.name).sort()).toEqual([privateShared.name].sort());
+    // Scope to this run's skills; the DB also seeds system-wide public skills
+    // (e.g. build-a-brainlift, gap-analyzer) that legitimately appear here.
+    expect(
+      promptList
+        .map((item) => item.name)
+        .filter((name) => name.startsWith(NAME_PREFIX))
+        .sort(),
+    ).toEqual([privateShared.name].sort());
 
     const uiList = await listSkillsForUser(recipientAuth, { includeDisabled: true });
     expect(uiList.find((item) => item.name === publicSkill.name)?.enabled).toBe(false);

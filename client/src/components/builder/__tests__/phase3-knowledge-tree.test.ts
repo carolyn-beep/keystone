@@ -148,7 +148,7 @@ describe('FR5: SwarmStatusBar visibility', () => {
 
   it('buildMissionDashboardUrl returns correct LS tab URL', () => {
     const url = buildMissionDashboardUrl('my-brainlift');
-    expect(url).toBe('/brainlifts/my-brainlift?tab=learning-stream');
+    expect(url).toBe('/grading/my-brainlift?tab=learning-stream');
   });
 });
 

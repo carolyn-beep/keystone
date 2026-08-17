@@ -48,16 +48,17 @@ const categoriesManagerSource = fs.readFileSync(
 
 describe('Second Brain Dashboard wiring', () => {
   it('declares research and authoring tab sets from brainlift phase', () => {
-    expect(dashboardSource).toMatch(/data\.phase\s*===\s*['"]research['"]/);
-    expect(dashboardSource).toMatch(/RESEARCH_NAV_ITEMS/);
-    expect(dashboardSource).toMatch(/AUTHORING_NAV_ITEMS/);
+    expect(dashboardSource).toMatch(/phase\s*===\s*['"]research['"]/);
+    // Nav items are built per-phase via buildBrainliftNavItems(phase).
+    expect(dashboardSource).toMatch(/buildBrainliftNavItems/);
+    // The research vs authoring available-tab sets.
     expect(dashboardSource).toMatch(/'second-brain', 'learning'/);
     expect(dashboardSource).toMatch(/'brainlift', 'facts'/);
   });
 
   it('falls back to phase-specific default tabs and mounts SecondBrainTab', () => {
     expect(dashboardSource).toMatch(/defaultActiveTab[^?]*\? 'second-brain' : 'brainlift'/);
-    expect(dashboardSource).toMatch(/requestedTab[\s\S]*availableTabs\.includes\(requestedTab\)/);
+    expect(dashboardSource).toMatch(/requestedTab[\s\S]*availableTabsEarly\.includes\(requestedTab\)/);
     expect(dashboardSource).toMatch(/<SecondBrainTab\s+slug=\{slug\}\s+brainlift=\{data\}/);
   });
 
@@ -71,10 +72,11 @@ describe('SecondBrainTab composition', () => {
   it('stays thin and delegates research-materials to the v2 ResearchMaterialsTab (post spec 03)', () => {
     // The shell is now smaller (the v1 two-pane wiring was removed in spec 03 FR12).
     expect(tabSource.split('\n').length).toBeLessThan(400);
-    // All three sub-tabs now route to v2 components (specs 03/04/05).
+    // The sub-tabs now route to v2 components (specs 03/04/05). The shell
+    // exposes Research Materials + Notes; categories are managed within the
+    // materials surface rather than as a third shell sub-tab.
     expect(tabSource).toMatch(/<ResearchMaterialsTab\s+slug=\{slug\}/);
     expect(tabSource).toMatch(/<NotesTab\s+slug=\{slug\}/);
-    expect(tabSource).toMatch(/<CategoriesTab\s+slug=\{slug\}/);
     // Legacy v1 panels are no longer mounted by the shell.
     expect(tabSource).not.toMatch(/<SourcesPanel\b/);
     expect(tabSource).not.toMatch(/<NotesPanel\b/);
@@ -82,9 +84,11 @@ describe('SecondBrainTab composition', () => {
   });
 
   it('uses neo-editorial design tokens and copy for empty research setup', () => {
-    expect(tabSource).toMatch(/font-serif italic/);
-    expect(tabSource).toMatch(/tracking-\[0\.35em\]/);
-    expect(sourcesPanelSource).toMatch(/Create a category first/);
+    // Shell header uses the editorial serif/italic treatment.
+    expect(tabSource).toMatch(/font-serif[^"]*italic/);
+    // Section headers use the wide letter-spacing token.
+    expect(sourcesPanelSource).toMatch(/tracking-\[0\.35em\]/);
+    expect(sourcesPanelSource).toMatch(/No sources yet/);
     expect(notesPanelSource).toMatch(/The best starting point is usually the chat/);
   });
 });
@@ -131,11 +135,19 @@ describe('Second Brain component contracts', () => {
     expect(addSourceModalSource).toContain('/api/brainlifts/${slug}/sources/prefetch');
     expect(addSourceModalSource).toMatch(/setTitle\(payload\.title\)/);
     expect(addSourceModalSource).toMatch(/setAuthor\(payload\.author\)/);
-    expect(addSourceModalSource).toMatch(/Create a category first/);
+    // Submit is gated on a chosen/typed category (canSubmit requires a
+    // non-empty category name); the modal supports inline category creation
+    // rather than blocking with a standalone message.
+    expect(addSourceModalSource).toMatch(/canSubmit/);
+    expect(addSourceModalSource).toMatch(/trimmedCategoryName\.length > 0/);
+    expect(addSourceModalSource).toMatch(/createCategory/);
   });
 
   it('NotesPanel wires linked and unlinked notes through AddNoteForm and NoteCard', () => {
-    expect(notesPanelSource).toMatch(/useNotes\(slug, \{\s*sourceId: filterSourceId/);
+    // Notes are fetched once and split client-side into linked (pinned) and
+    // unlinked buckets by filterSourceId.
+    expect(notesPanelSource).toMatch(/useNotes\(slug\)/);
+    expect(notesPanelSource).toMatch(/note\.sourceId === filterSourceId/);
     expect(notesPanelSource).toMatch(/<AddNoteForm\s+slug=\{slug\}\s+sourceId=\{filterSourceId\}/);
     expect(notesPanelSource).toMatch(/<NoteCard/);
   });

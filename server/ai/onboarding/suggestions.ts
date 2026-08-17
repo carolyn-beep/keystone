@@ -228,6 +228,11 @@ function buildPrompt(
       );
 
     case 'categories': {
+      const inBlock =
+        ctx.inScope.length > 0
+          ? `\n\nThe student has decided these areas are in scope:\n` +
+            ctx.inScope.map((i) => `- ${i}`).join('\n')
+          : '';
       const outBlock =
         ctx.outOfScope.length > 0
           ? `\n\nThe student explicitly decided not to focus on these areas for now:\n` +
@@ -252,6 +257,7 @@ function buildPrompt(
         `- 4-6 items\n` +
         `- No duplicates, no markdown, no explanation\n\n` +
         `Project: "${ctx.topic}"` +
+        inBlock +
         outBlock +
         `\n\nReturn ONLY a JSON array of strings.` +
         tail

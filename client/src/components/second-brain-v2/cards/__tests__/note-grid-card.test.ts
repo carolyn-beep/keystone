@@ -47,7 +47,8 @@ describe('FR5 NoteGridCard contract', () => {
     expect(cardSource).toContain('hover:shadow-card-hover');
   });
 
-  it('hides checkbox until hover or selected', () => {
-    expect(cardSource).toContain('opacity-0 group-hover:opacity-100');
+  it('renders an always-visible selection checkbox wired to isSelected', () => {
+    expect(cardSource).toContain('type="checkbox"');
+    expect(cardSource).toContain('checked={isSelected}');
   });
 });
