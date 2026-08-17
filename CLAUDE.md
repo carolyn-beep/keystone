@@ -191,9 +191,9 @@ Deploying code that expects schema changes before the DB has them = broken prod.
 
 **Workflow:**
 1. Generate migration: `npx drizzle-kit generate`
-2. **Apply locally first** against Docker Postgres (container: `wizardly_kalam`, db: `dok1grader_local`):
+2. **Apply locally first** against your local Postgres (`$DATABASE_URL`):
    ```bash
-   docker exec -i wizardly_kalam psql -U postgres -d dok1grader_local < migrations/XXXX_migration_file.sql
+   psql "$DATABASE_URL" < migrations/XXXX_migration_file.sql
    ```
 3. Develop and test against the local DB
 4. **Only when ready to deploy to prod**, apply to Neon:
