@@ -7,6 +7,8 @@ Underneath the product is the agent infrastructure: a runtime tool and skill reg
 Published publicly as a portfolio reference.
 **View-only — all rights reserved. See [LICENSE](LICENSE).**
 
+> **Provenance.** A public, sanitized copy of a platform I built and owned as AI Product Owner at Alpha School (2025–2026), used daily by students, published here with permission. Commit dates in this repo reflect that publication and cleanup, not the original development.
+
 > **Full technical documentation lives in [`docs/DEEP-DIVE.md`](docs/DEEP-DIVE.md).** This README is the overview; the deep dive covers every subsystem in detail.
 
 ## ▶ If you're reviewing the engineering, start here
