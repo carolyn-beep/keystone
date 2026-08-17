@@ -13,6 +13,7 @@
 //
 // Usage: DATABASE_URL=postgres://... node scripts/apply-migrations.mjs
 
+import "dotenv/config"; // load .env for local runs; a no-op in CI where DATABASE_URL is set directly
 import { readFileSync, readdirSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
