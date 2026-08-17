@@ -77,22 +77,22 @@ describe('getSectionNavItems', () => {
   });
 
   it('inserts Providers between Library and Chat when allowlisted (non-admin)', () => {
-    const items = getSectionNavItems({ isAdmin: false, email: 'caina.barbosa@trilogy.com' });
+    const items = getSectionNavItems({ isAdmin: false, email: 'provider-admin@example.com', providersAllowlist: 'provider-admin@example.com' });
     expect(items.map((i) => i.section)).toEqual(['library', 'skills', 'providers', 'chat']);
   });
 
   it('inserts Analytics then Providers between Library and Chat when admin AND allowlisted', () => {
-    const items = getSectionNavItems({ isAdmin: true, email: 'caina.barbosa@trilogy.com' });
+    const items = getSectionNavItems({ isAdmin: true, email: 'provider-admin@example.com', providersAllowlist: 'provider-admin@example.com' });
     expect(items.map((i) => i.section)).toEqual(['library', 'skills', 'analytics', 'providers', 'chat']);
   });
 
   it('matches email case-insensitively', () => {
-    const items = getSectionNavItems({ isAdmin: false, email: 'CAINA.BARBOSA@TRILOGY.COM' });
+    const items = getSectionNavItems({ isAdmin: false, email: 'PROVIDER-ADMIN@EXAMPLE.COM', providersAllowlist: 'provider-admin@example.com' });
     expect(items.map((i) => i.section)).toContain('providers');
   });
 
   it('each item has section, label, href, icon', () => {
-    const items = getSectionNavItems({ isAdmin: true, email: 'caina.barbosa@trilogy.com' });
+    const items = getSectionNavItems({ isAdmin: true, email: 'provider-admin@example.com', providersAllowlist: 'provider-admin@example.com' });
     for (const item of items) {
       expect(item).toHaveProperty('section');
       expect(item).toHaveProperty('label');
@@ -121,7 +121,7 @@ describe('getSectionNavItems', () => {
   it('Chat is always the last item', () => {
     expect(getSectionNavItems({ isAdmin: false }).at(-1)?.section).toBe('chat');
     expect(getSectionNavItems({ isAdmin: true }).at(-1)?.section).toBe('chat');
-    expect(getSectionNavItems({ isAdmin: true, email: 'caina.barbosa@trilogy.com' }).at(-1)?.section).toBe('chat');
+    expect(getSectionNavItems({ isAdmin: true, email: 'provider-admin@example.com', providersAllowlist: 'provider-admin@example.com' }).at(-1)?.section).toBe('chat');
   });
 
   it('Library label is "Projects"', () => {

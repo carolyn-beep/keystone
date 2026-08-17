@@ -30,9 +30,25 @@ export function buildChatConversationLocation(conversationId: number): string {
   return `${CHAT_HOME_ROUTE_PATH}?${params.toString()}`;
 }
 
-const PROVIDERS_ALLOWED_EMAIL = 'caina.barbosa@trilogy.com';
+/**
+ * Parse a comma-separated allow-list of emails (e.g. from the
+ * `VITE_PROVIDERS_ADMIN_ALLOWLIST` env var) into a lowercased Set for
+ * case-insensitive membership checks. Empty/undefined yields an empty set.
+ */
+function parseEmailAllowlist(allowlist?: string | null): Set<string> {
+  return new Set(
+    (allowlist ?? '')
+      .split(',')
+      .map((entry) => entry.trim().toLowerCase())
+      .filter(Boolean),
+  );
+}
 
-export function getChatHomeNavLinks(options: { isAdmin: boolean; email?: string | null }): ChatHomeNavLink[] {
+export function getChatHomeNavLinks(options: {
+  isAdmin: boolean;
+  email?: string | null;
+  providersAllowlist?: string | null;
+}): ChatHomeNavLink[] {
   const links: ChatHomeNavLink[] = [
     { href: LIBRARY_ROUTE_PATH, label: 'Projects' },
   ];
@@ -41,7 +57,8 @@ export function getChatHomeNavLinks(options: { isAdmin: boolean; email?: string 
     links.push({ href: '/analytics', label: 'Analytics' });
   }
 
-  if (options.email?.toLowerCase() === PROVIDERS_ALLOWED_EMAIL) {
+  const allowlisted = parseEmailAllowlist(options.providersAllowlist);
+  if (options.email && allowlisted.has(options.email.toLowerCase())) {
     links.push({ href: '/admin/providers', label: 'Providers' });
   }
 

@@ -34,19 +34,27 @@ describe('chat home routing contracts', () => {
     ]);
   });
 
-  it('exposes analytics to admins but gates providers behind a specific email', () => {
+  it('exposes analytics to admins but gates providers behind the allow-list', () => {
+    const providersAllowlist = 'provider-admin@example.com';
+
     expect(getChatHomeNavLinks({ isAdmin: true })).toEqual([
       { href: '/library', label: 'Projects' },
       { href: '/analytics', label: 'Analytics' },
     ]);
 
-    expect(getChatHomeNavLinks({ isAdmin: true, email: 'caina.barbosa@trilogy.com' })).toEqual([
+    // Allow-listed email but no allow-list configured -> no Providers link.
+    expect(getChatHomeNavLinks({ isAdmin: true, email: 'provider-admin@example.com' })).toEqual([
+      { href: '/library', label: 'Projects' },
+      { href: '/analytics', label: 'Analytics' },
+    ]);
+
+    expect(getChatHomeNavLinks({ isAdmin: true, email: 'provider-admin@example.com', providersAllowlist })).toEqual([
       { href: '/library', label: 'Projects' },
       { href: '/analytics', label: 'Analytics' },
       { href: '/admin/providers', label: 'Providers' },
     ]);
 
-    expect(getChatHomeNavLinks({ isAdmin: false, email: 'caina.barbosa@trilogy.com' })).toEqual([
+    expect(getChatHomeNavLinks({ isAdmin: false, email: 'provider-admin@example.com', providersAllowlist })).toEqual([
       { href: '/library', label: 'Projects' },
       { href: '/admin/providers', label: 'Providers' },
     ]);

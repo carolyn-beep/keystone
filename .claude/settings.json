@@ -26,14 +26,5 @@
       "mcp__Neon__explain_sql_statement",
       "mcp__Neon__list_slow_queries"
     ]
-  },
-  "allowedDirectories": [
-    "/home/perotti/XO/DOK1GraderV3",
-    "/home/perotti/XO/DOK1GraderV3-header",
-    "/home/perotti/XO/DOK1GraderV3-brainlift-tab",
-    "/home/perotti/XO/DOK1GraderV3-contradictions-tab",
-    "/home/perotti/XO/DOK1GraderV3-reading-tab",
-    "/home/perotti/XO/DOK1GraderV3-modals",
-    "/home/perotti/XO/DOK1GraderV3-utils"
-  ]
+  }
 }
