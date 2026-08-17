@@ -197,10 +197,11 @@ npm run build
 # Run tests (Vitest)
 npm test            # one-shot (vitest run)
 npm run test:watch  # watch mode
+# Note: integration tests need a Postgres via DATABASE_URL; unit tests run without one.
 
 # Database migrations
 npx drizzle-kit generate
-docker exec -i wizardly_kalam psql -U postgres -d dok1grader_local < migrations/XXXX.sql
+psql "$DATABASE_URL" < migrations/XXXX.sql
 ```
 
 ### Environment variables

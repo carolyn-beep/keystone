@@ -1,4 +1,4 @@
-# Better Auth Migration Plan for DOK1GraderV3
+# Better Auth Migration Plan for Keystone
 
 ## Overview
 

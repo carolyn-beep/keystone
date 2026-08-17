@@ -191,9 +191,9 @@ Deploying code that expects schema changes before the DB has them = broken prod.
 
 **Workflow:**
 1. Generate migration: `npx drizzle-kit generate`
-2. **Apply locally first** against Docker Postgres (container: `wizardly_kalam`, db: `dok1grader_local`):
+2. **Apply locally first** against your local Postgres (`$DATABASE_URL`):
    ```bash
-   docker exec -i wizardly_kalam psql -U postgres -d dok1grader_local < migrations/XXXX_migration_file.sql
+   psql "$DATABASE_URL" < migrations/XXXX_migration_file.sql
    ```
 3. Develop and test against the local DB
 4. **Only when ready to deploy to prod**, apply to Neon:
@@ -204,30 +204,21 @@ Deploying code that expects schema changes before the DB has them = broken prod.
 
 **⚠️ NEVER use Neon MCP tools during development. Neon is for PRODUCTION only.**
 
-**Local dev config:**
-- Docker container: `wizardly_kalam`
-- Database: `dok1grader_local`
-- User: `postgres`
+**Local dev config:** a local Postgres reached via `$DATABASE_URL`.
 
-**Neon prod config:**
-- Project: `dok1grader` (ID: `restless-pine-13558418`)
-- Database: `neondb`
-- Migrations dir: `migrations/`
-
-**Neon staging config:**
-- Branch: `staging` (ID: `br-shiny-bar-afaonda6`)
-- Database: `neondb`
-- Apply migrations to staging with:
+**Neon (prod / staging):** managed via the Neon MCP tools. Provide the Neon
+project id, branch id, and database name from your own environment/secrets —
+they are intentionally not committed here.
+- Apply migrations to a branch with:
   ```
-  mcp__Neon__run_sql(projectId: "restless-pine-13558418", branchId: "br-shiny-bar-afaonda6", databaseName: "neondb", sql: "<migration SQL>")
+  mcp__Neon__run_sql(projectId: "<project-id>", branchId: "<branch-id>", databaseName: "<db>", sql: "<migration SQL>")
   ```
-- **Apply to staging before merging to staging branch.** Apply to prod (main branch) before merging to main.
+- **Apply to staging before merging to the staging branch.** Apply to prod (main branch) before merging to main.
 
 ### Log Investigation (Render + Neon)
 
-**Render service IDs:**
-- Staging: `srv-d6jkespaae7s7397cp30` (Brainlift-Platform-Staging)
-- Prod: `srv-d5fu0p4hg0os73e072ng` (DOK1GraderV3)
+**Render service IDs:** supply the staging/prod service ids from your own
+environment/secrets — not committed here.
 
 **Flow:** Always query Neon first to get entity IDs (insight/Conviction IDs) for a brainlift slug, then search Render logs by those IDs. Slugs only appear in HTTP request logs — pipeline logs use entity IDs (e.g. `insight 1289`, `SPOV 364`).
 
