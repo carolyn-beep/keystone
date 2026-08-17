@@ -1,5 +1,7 @@
 # Keystone
 
+![CI](https://github.com/carolyn-beep/keystone/actions/workflows/ci.yml/badge.svg)
+
 An AI learning platform that turns students into experts by making them do the thinking.
 Underneath the product is a multi-agent orchestration platform: a governed runtime tool/skill registry, an MCP server, and a provider-agnostic AI client with a circuit breaker and automatic failover.
 Published publicly as a portfolio reference.

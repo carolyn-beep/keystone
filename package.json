@@ -16,6 +16,7 @@
     "check": "tsc",
     "typecheck": "tsc --noEmit --watch",
     "db:push": "drizzle-kit push",
+    "db:apply": "node scripts/apply-migrations.mjs",
     "test": "vitest run",
     "test:watch": "vitest"
   },

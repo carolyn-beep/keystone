@@ -31,3 +31,42 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run build
+
+  # Runs the full Vitest suite against a real Postgres with ALL migrations
+  # applied. `db:push` is deliberately NOT used: it skips the raw-SQL
+  # constraints/indexes in the migration files, and the suite fails without
+  # them. scripts/apply-migrations.mjs replays every migration instead
+  # (tolerating the harmless duplicate-object errors those files produce).
+  test:
+    name: test
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: keystone_ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/keystone_ci
+      BRAND: keystone
+      VITE_BRAND: keystone
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - name: Apply migrations
+        run: node scripts/apply-migrations.mjs
+      - name: Typecheck
+        run: npx tsc --noEmit
+      - name: Test
+        run: npm test
