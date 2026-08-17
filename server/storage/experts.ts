@@ -28,7 +28,11 @@ export async function saveExperts(brainliftId: number, expertsData: InsertExpert
 
     if (expertsData.length === 0) return [];
 
-    const inserted = await tx.insert(experts).values(expertsData).returning();
+    // InsertExpert is zod-derived and widens the `source` enum column to
+    // `string`; align it with the table's inferred insert type for Drizzle.
+    const inserted = await tx.insert(experts)
+      .values(expertsData as (typeof experts.$inferInsert)[])
+      .returning();
     return inserted.sort((a, b) => {
       if (a.rankScore === null && b.rankScore === null) return b.id - a.id;
       if (a.rankScore === null) return 1;

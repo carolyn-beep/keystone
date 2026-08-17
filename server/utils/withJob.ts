@@ -1,8 +1,9 @@
-import { quickAddJob, type QuickAddJobOptions } from 'graphile-worker';
+import { quickAddJob, type TaskSpec } from 'graphile-worker';
 import { pool } from '../db';
 import tasks, { type JobType } from '../jobs/tasks';
 
-type JobOptions = QuickAddJobOptions;
+// graphile-worker's quickAddJob accepts a TaskSpec as its options argument.
+type JobOptions = TaskSpec;
 
 function buildQueueMethods(name: string, payload: unknown, baseOptions: JobOptions) {
   return {

@@ -174,8 +174,19 @@ export async function getBrainliftsByOwnerId(userId: string): Promise<Brainlift[
   return await db.select().from(brainlifts).where(eq(brainlifts.createdByUserId, userId));
 }
 
+/**
+ * Insert shape accepted by create/update brainlift helpers.
+ *
+ * `InsertBrainlift` (drizzle-zod) types the nullable `expertDiagnostics`
+ * jsonb column as a required `any`, but callers may legitimately omit it.
+ * Making it optional here matches the actual nullable column semantics.
+ */
+type BrainliftWriteInput = Omit<InsertBrainlift, 'expertDiagnostics'> & {
+  expertDiagnostics?: InsertBrainlift['expertDiagnostics'];
+};
+
 export async function createBrainlift(
-  brainliftData: InsertBrainlift,
+  brainliftData: BrainliftWriteInput,
   factsData: any[],
   clustersData: any[],
   userId?: string
@@ -428,7 +439,7 @@ export async function updateOnboardingStep(
 
 export async function updateBrainlift(
   slug: string,
-  brainliftData: InsertBrainlift,
+  brainliftData: BrainliftWriteInput,
   factsData: any[],
   clustersData: any[]
 ): Promise<BrainliftData> {
@@ -470,7 +481,11 @@ export async function updateBrainlift(
     brainliftId: existing.id,
     versionNumber: nextVersionNumber,
     sourceType: brainliftData.sourceType || 'unknown',
-    snapshot,
+    // The persisted snapshot shape has drifted from the column's declared
+    // $type (facts now carry `summary`; legacy `readingList`/`grades` are no
+    // longer written). Cast preserves the exact runtime payload; the column
+    // type lives in shared/schema.ts, which is owned elsewhere.
+    snapshot: snapshot as unknown as typeof brainliftVersions.$inferInsert['snapshot'],
   });
 
   await db.delete(contradictionClusters).where(eq(contradictionClusters.brainliftId, existing.id));
@@ -1127,7 +1142,9 @@ export async function getLearningStreamContext(brainliftId: number): Promise<Lea
     description: brainlift.description,
     displayPurpose: brainlift.displayPurpose,
     onboardingTopic: brainlift.onboardingTopic ?? null,
-    facts: topFacts,
+    // `facts.category` is nullable in the DB but the swarm context treats it as
+    // a non-null label; coalesce so the shape matches LearningStreamContext.
+    facts: topFacts.map(f => ({ ...f, category: f.category ?? '' })),
     experts: expertsList,
     existingTopics: existingItems.map(i => i.topic),
   };

@@ -301,7 +301,6 @@ function rowToPayload(row: PangramAssessment): AiWritingSignalPayload {
     fractions: null,
     headline: null,
     confidence: null,
-    windows: null,
     errorMessage: null,
     analyzedAt: null,
   };

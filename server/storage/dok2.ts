@@ -190,7 +190,10 @@ export async function getDOK2Summaries(brainliftId: number): Promise<DOK2Summary
   // Build the result with nested points, related fact IDs, and grading fields
   return summaries.map(summary => ({
     id: summary.id,
-    category: summary.category,
+    // DB column is nullable, but the DOK2SummaryWithPoints/BrainliftData
+    // contract (shared/schema.ts, owned elsewhere) declares category as a
+    // non-null string. Narrow-cast preserves the runtime value as-is.
+    category: summary.category as string,
     sourceName: summary.sourceName,
     sourceUrl: summary.sourceUrl,
     displayTitle: summary.displayTitle,

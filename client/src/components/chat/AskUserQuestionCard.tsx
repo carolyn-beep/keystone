@@ -1,6 +1,7 @@
 import React, { useRef, useState } from 'react';
 import { ArrowUp, Check, Loader2 } from 'lucide-react';
 import { useMessage, useThread, type ToolCallMessagePartProps } from '@assistant-ui/react';
+import type { MessageState, ThreadState } from '@assistant-ui/core';
 import {
   buildAskUserResult,
   countAskUserRequiredAnswered,
@@ -55,11 +56,11 @@ export function AskUserQuestionCard(props: Props) {
   // and we treat that as "not stale" (no state to compare against).
   const myMessageId = useMessage({
     optional: true,
-    selector: (messageState) => messageState.id,
+    selector: (messageState: MessageState) => messageState.id,
   });
   const isStale = useThread({
     optional: true,
-    selector: (threadState) => {
+    selector: (threadState: ThreadState) => {
       if (!myMessageId) return false;
       const messages = threadState.messages;
       const index = messages.findIndex((message) => message.id === myMessageId);

@@ -36,8 +36,19 @@ const DEFAULT_ORDERED_STAGES: Exclude<ImportStage, 'complete' | 'error'>[] = [
   'redundancy',
 ];
 
+// Keys of ImportProgressProps that hold per-item GradingProgress counters. These
+// are exactly the props gathered into `allProps` below, so indexing with this
+// narrowed key type is type-safe (unlike `keyof ImportProgressProps`, which
+// includes props absent from `allProps`).
+type GradingProgressProp =
+  | 'formattingProgress'
+  | 'gradingProgress'
+  | 'gradingDok2Progress'
+  | 'gradingDok3Progress'
+  | 'gradingDok4Progress';
+
 // Stages that have per-item grading counters (displayed as "X of Y" below progress bar)
-const COUNTER_STAGES: Record<string, { prop: keyof ImportProgressProps; label: string }> = {
+const COUNTER_STAGES: Record<string, { prop: GradingProgressProp; label: string }> = {
   formatting: { prop: 'formattingProgress', label: 'chunks formatted' },
   grading: { prop: 'gradingProgress', label: 'facts graded' },
   grading_dok2: { prop: 'gradingDok2Progress', label: 'summaries graded' },
@@ -46,7 +57,7 @@ const COUNTER_STAGES: Record<string, { prop: keyof ImportProgressProps; label: s
 };
 
 // Stages that show inline counters in the checklist (right-aligned "X/Y")
-const INLINE_COUNTER_STAGES: Record<string, keyof ImportProgressProps> = {
+const INLINE_COUNTER_STAGES: Record<string, GradingProgressProp> = {
   formatting: 'formattingProgress',
   grading: 'gradingProgress',
   grading_dok2: 'gradingDok2Progress',

@@ -45,7 +45,7 @@ const factSearchFn = (fact: Fact, query: string): boolean => {
     fact.fact.toLowerCase().includes(q) ||
     fact.originalId.toLowerCase().includes(q) ||
     (fact.source?.toLowerCase().includes(q) ?? false) ||
-    fact.category.toLowerCase().includes(q)
+    (fact.category?.toLowerCase().includes(q) ?? false)
   );
 };
 
@@ -134,7 +134,7 @@ export function FactGradingPanel({
 
   // Extra filters for Facts tab
   const extraFilters = useMemo<ExtraFilter<Fact>[]>(() => [
-    { key: 'non-gradeable', label: 'Non-gradeable', predicate: (f: Fact) => !f.isGradeable, color: { bg: tokens.muted, text: tokens.textMuted } },
+    { key: 'non-gradeable', label: 'Non-gradeable', predicate: (f: Fact) => !f.isGradeable, color: { bg: tokens.borderMuted, text: tokens.textMuted } },
     { key: 'flagged', label: 'Flagged', predicate: (f: Fact) => (f.flags?.length ?? 0) > 0 },
     { key: 'redundant', label: 'Redundant', predicate: (f: Fact) => factsInRedundancyGroups.has(f.id) },
   ], [factsInRedundancyGroups]);

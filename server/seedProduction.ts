@@ -76,7 +76,7 @@ export async function seedProductionIfEmpty() {
           name: e.name,
           rankScore: e.rank_score,
           rationale: e.rationale,
-          source: e.source,
+          source: e.source as any,  // seed JSON widens the literal to `string`; column expects a provenance union
           twitterHandle: e.twitter_handle,
         }).onConflictDoNothing();
       }

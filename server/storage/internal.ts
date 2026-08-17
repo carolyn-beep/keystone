@@ -173,7 +173,7 @@ export async function getAssessmentDOK1(
 ): Promise<{ items: any[]; total: number }> {
   const conditions: SQL[] = [eq(facts.brainliftId, brainliftId)];
   if (filters.itemId != null) conditions.push(eq(facts.id, filters.itemId));
-  if (filters.status) conditions.push(eq(facts.gradingStatus, filters.status));
+  if (filters.status) conditions.push(eq(facts.gradingStatus, filters.status as (typeof facts.gradingStatus)['_']['data']));
   const where = and(...conditions)!;
 
   const sortCol = filters.sortBy === 'score' ? facts.score
@@ -219,7 +219,7 @@ export async function getAssessmentDOK2(
 ): Promise<{ items: any[]; total: number }> {
   const conditions: SQL[] = [eq(dok2Summaries.brainliftId, brainliftId)];
   if (filters.itemId != null) conditions.push(eq(dok2Summaries.id, filters.itemId));
-  if (filters.status) conditions.push(eq(dok2Summaries.gradingStatus, filters.status));
+  if (filters.status) conditions.push(eq(dok2Summaries.gradingStatus, filters.status as (typeof dok2Summaries.gradingStatus)['_']['data']));
   const where = and(...conditions)!;
 
   // DOK2 uses 'grade' column for score
@@ -303,7 +303,7 @@ export async function getAssessmentDOK3(
 ): Promise<{ items: any[]; total: number }> {
   const conditions: SQL[] = [eq(dok3Insights.brainliftId, brainliftId)];
   if (filters.itemId != null) conditions.push(eq(dok3Insights.id, filters.itemId));
-  if (filters.status) conditions.push(eq(dok3Insights.status, filters.status));
+  if (filters.status) conditions.push(eq(dok3Insights.status, filters.status as (typeof dok3Insights.status)['_']['data']));
   const where = and(...conditions)!;
 
   const sortCol = filters.sortBy === 'score' ? dok3Insights.score
@@ -398,7 +398,7 @@ export async function getAssessmentDOK4(
 ): Promise<{ items: any[]; total: number }> {
   const conditions: SQL[] = [eq(dok4Spovs.brainliftId, brainliftId)];
   if (filters.itemId != null) conditions.push(eq(dok4Spovs.id, filters.itemId));
-  if (filters.status) conditions.push(eq(dok4Spovs.status, filters.status));
+  if (filters.status) conditions.push(eq(dok4Spovs.status, filters.status as (typeof dok4Spovs.status)['_']['data']));
   const where = and(...conditions)!;
 
   const sortCol = filters.sortBy === 'score' ? dok4Spovs.score
