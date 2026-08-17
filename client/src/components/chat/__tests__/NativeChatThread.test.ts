@@ -20,7 +20,9 @@ describe('NativeChatThread source', () => {
 
   it('keeps homepage opener triggering separate from auto-send wiring', () => {
     expect(source).toMatch(/OpenerTrigger/);
-    expect(source).toMatch(/shouldConsiderOpener=\{shouldConsiderOpener\}/);
-    expect(source).toMatch(/userId=\{userId\}/);
+    expect(source).toMatch(/needsOpener=\{needsOpener\}/);
+    // Opener wiring stays distinct from the AutoSendTrigger path.
+    expect(source).toMatch(/AutoSendTrigger/);
+    expect(source).toMatch(/message=\{initialUserMessage\}/);
   });
 });

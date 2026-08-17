@@ -167,7 +167,7 @@ describe('chat storage', () => {
     const allRows = await db.select().from(chatMessages).where(eq(chatMessages.conversationId, conversation.id));
     expect(allRows).toHaveLength(4);
     expect(allRows.filter((row) => row.messageId === 'msg-assistant-1')).toHaveLength(1);
-    expect(allRows.find((row) => row.messageId === 'msg-assistant-1')?.metadata).toEqual({ finishReason: 'stop' });
+    expect(allRows.find((row) => row.messageId === 'msg-assistant-1')?.metadata).toEqual({ finishReason: 'stop', deduped: true });
 
     const firstPage = await listChatMessages(conversation.id, TEST_USER_ID, { limit: 2 });
     expect(firstPage.messages.map((message) => message.id)).toEqual(['msg-user-2', 'msg-assistant-2']);

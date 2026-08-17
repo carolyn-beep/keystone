@@ -28,7 +28,7 @@ describe('FR1: SSE Type and Weight Updates', () => {
 
   it('STAGE_WEIGHTS has entry for grading_dok4', () => {
     expect(STAGE_WEIGHTS.grading_dok4).toBeDefined();
-    expect(STAGE_WEIGHTS.grading_dok4).toBe(15);
+    expect(STAGE_WEIGHTS.grading_dok4).toBe(13);
   });
 
   // ── Updated weights ──
@@ -40,16 +40,16 @@ describe('FR1: SSE Type and Weight Updates', () => {
 
   it('STAGE_WEIGHTS match expected values', () => {
     expect(STAGE_WEIGHTS.extracting).toBe(3);
-    expect(STAGE_WEIGHTS.grading).toBe(30);
+    expect(STAGE_WEIGHTS.grading).toBe(27);
     expect(STAGE_WEIGHTS.contradictions).toBe(3);
-    expect(STAGE_WEIGHTS.grading_dok2).toBe(10);
+    expect(STAGE_WEIGHTS.grading_dok2).toBe(9);
     expect(STAGE_WEIGHTS.dok3_linking).toBe(5);
-    expect(STAGE_WEIGHTS.grading_dok3).toBe(18);
+    expect(STAGE_WEIGHTS.grading_dok3).toBe(16);
     expect(STAGE_WEIGHTS.dok4_extraction).toBe(1);
     expect(STAGE_WEIGHTS.dok4_linking).toBe(3);
-    expect(STAGE_WEIGHTS.grading_dok4).toBe(15);
-    expect(STAGE_WEIGHTS.experts).toBe(8);
-    expect(STAGE_WEIGHTS.redundancy).toBe(4);
+    expect(STAGE_WEIGHTS.grading_dok4).toBe(13);
+    expect(STAGE_WEIGHTS.experts).toBe(7);
+    expect(STAGE_WEIGHTS.redundancy).toBe(3);
   });
 
   // ── GradingDOK4Progress type ──
@@ -116,11 +116,11 @@ describe('FR1: SSE Type and Weight Updates', () => {
     };
     const progress = calculateProgress(event);
     // All stages before grading_dok4 are complete:
-    // extracting(3) + grading(30) + contradictions(3) + grading_dok2(10)
-    // + dok3_linking(5) + grading_dok3(18) + dok4_extraction(1) + dok4_linking(3) = 73
-    // + 50% of grading_dok4(15) = 7.5
-    // Total = 80.5
-    expect(progress).toBe(80.5);
+    // formatting(8) + validating(2) + extracting(3) + grading(27) + contradictions(3)
+    // + grading_dok2(9) + dok3_linking(5) + grading_dok3(16) + dok4_extraction(1) + dok4_linking(3) = 77
+    // + 50% of grading_dok4(13) = 6.5
+    // Total = 83.5
+    expect(progress).toBe(83.5);
   });
 
   it('calculateProgress handles grading_dok4 at 0/10', () => {
@@ -131,8 +131,8 @@ describe('FR1: SSE Type and Weight Updates', () => {
       total: 10,
     };
     const progress = calculateProgress(event);
-    // 73 (prior stages) + 0% of 15 = 73
-    expect(progress).toBe(73);
+    // 77 (prior stages) + 0% of 13 = 77
+    expect(progress).toBe(77);
   });
 
   it('calculateProgress handles dok3_linking with completed/total', () => {

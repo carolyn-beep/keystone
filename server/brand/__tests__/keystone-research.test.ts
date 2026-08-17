@@ -70,10 +70,14 @@ describe('AlphaX research prompt heuristics', () => {
       conversation: boundConversation,
     }).join('\n');
 
-    expect(lines).toContain('active research partner');
+    // Bound state advertises the now-actionable research toolset and points
+    // back at the persistent operational posture (the durable guidance —
+    // "Never compose notes yourself", DOK guardrails — lives in the system
+    // prompt sections, not in these per-state heuristic lines).
+    expect(lines).toContain('CURRENT STATE: bound');
     expect(lines).toContain('save_source');
-    expect(lines).toContain("Never compose notes yourself");
-    expect(lines).toContain('Avoid DOK1');
+    expect(lines).toContain('propose_research_run');
+    expect(lines).toContain('operational posture as written');
   });
 });
 

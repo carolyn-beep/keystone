@@ -107,7 +107,7 @@ describe('FR4: ExpertsStep matches the screen4 restyle', () => {
 
 describe('FR4: OnboardingWizard wires ExpertsStep at step 5', () => {
   it('imports and renders ExpertsStep', () => {
-    expect(wizardSource).toMatch(/import\s*\{\s*ExpertsStep\s*\}/);
+    expect(wizardSource).toMatch(/import\s*\{[^}]*\bExpertsStep\b[^}]*\}/);
     expect(wizardSource).toMatch(/<ExpertsStep/);
   });
 

@@ -31,8 +31,9 @@ describe('FR7 NewNoteModal contract', () => {
   });
 
   it('disables Save when body is empty (trimmed)', () => {
-    expect(modalSource).toContain('disabled={!trimmed || isCreating}');
     expect(modalSource).toContain('const trimmed = content.trim()');
+    expect(modalSource).toContain('const canSubmit = trimmed.length > 0 && !isCreating');
+    expect(modalSource).toContain('disabled={!canSubmit}');
   });
 
   it('Escape closes the modal', () => {
@@ -40,8 +41,10 @@ describe('FR7 NewNoteModal contract', () => {
   });
 
   it('backdrop click closes the modal', () => {
+    // The full-screen overlay wrapper closes on click; the inner form stops
+    // propagation so clicks inside the modal don't close it.
     expect(modalSource).toContain('onClick={onClose}');
-    expect(modalSource).toContain('new-note-modal-backdrop');
+    expect(modalSource).toContain('onClick={(event) => event.stopPropagation()}');
   });
 
   it('Link-to-source section auto-expands when defaultSourceId is provided', () => {
@@ -52,11 +55,13 @@ describe('FR7 NewNoteModal contract', () => {
     expect(modalSource).toContain('useState<number | null>(defaultSourceId ?? null)');
   });
 
-  it('submit calls createNote with content and sourceId only (no categoryId)', () => {
+  it('submit calls createNote with content, sourceId, and the effective categoryId', () => {
+    // Category is now inherited from the linked source (or the user's pick when
+    // standalone) via effectiveCategoryId, so createNote carries categoryId too.
     expect(modalSource).toContain('createNote({');
     expect(modalSource).toContain('content: trimmed,');
     expect(modalSource).toContain('sourceId,');
-    expect(modalSource).not.toMatch(/createNote\(\{[\s\S]*categoryId/);
+    expect(modalSource).toContain('categoryId: effectiveCategoryId');
   });
 
   it('shows inline error on network failure (modal stays open)', () => {

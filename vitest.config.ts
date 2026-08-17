@@ -12,7 +12,10 @@ export default defineConfig(({ mode }) => ({
       'client/src/**/*.test.ts',
       'script/**/*.test.ts',
     ],
-    env: loadEnv(mode, process.cwd(), ''),
+    // Default the brand selectors so modules that read BRAND at import time
+    // (e.g. server/brand/index.ts, which throws when unset) don't fail the
+    // suite in environments without a local .env. A real env value still wins.
+    env: { BRAND: 'keystone', VITE_BRAND: 'keystone', ...loadEnv(mode, process.cwd(), '') },
   },
   resolve: {
     alias: {

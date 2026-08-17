@@ -22,14 +22,13 @@ describe('FR1 SecondBrainTab shell', () => {
 
   it('renders the editorial header verbatim', () => {
     expect(tabSource).toContain('Second Brain');
-    expect(tabSource).toContain('central library');
-    expect(tabSource).toContain('font-serif text-[16px] italic');
+    expect(tabSource).toContain('Your library');
+    expect(tabSource).toContain('font-serif text-[14px] italic');
   });
 
-  it('declares the three sub-tabs with stable ids', () => {
+  it('declares the sub-tabs with stable ids', () => {
     expect(tabSource).toContain("'research-materials'");
     expect(tabSource).toContain("'notes'");
-    expect(tabSource).toContain("'categories'");
   });
 
   it('reads ?sb= from useSearch with default fallback', () => {
@@ -57,13 +56,11 @@ describe('FR1 SecondBrainTab shell', () => {
     expect(tabSource).toContain('onChange={setActiveSubTab}');
   });
 
-  it('renders the v2 components for all three sub-tab bodies (specs 03/04/05)', () => {
+  it('renders the v2 components for the sub-tab bodies (specs 03/04)', () => {
     expect(tabSource).toMatch(/import\s*\{[^}]*ResearchMaterialsTab[^}]*\}\s*from\s*['"][^'"]*second-brain-v2/);
     expect(tabSource).toMatch(/import\s*\{[^}]*NotesTab[^}]*\}\s*from\s*['"][^'"]*second-brain-v2/);
-    expect(tabSource).toMatch(/import\s*\{[^}]*CategoriesTab[^}]*\}\s*from\s*['"][^'"]*second-brain-v2/);
     expect(tabSource).toMatch(/<ResearchMaterialsTab\b/);
     expect(tabSource).toMatch(/<NotesTab\b/);
-    expect(tabSource).toMatch(/<CategoriesTab\b/);
     // Legacy v1 panels are no longer mounted by the shell
     expect(tabSource).not.toMatch(/<SourcesPanel\b/);
     expect(tabSource).not.toMatch(/<NotesPanel\b/);
@@ -71,9 +68,9 @@ describe('FR1 SecondBrainTab shell', () => {
   });
 
   it('routes the active sub-tab to its body', () => {
-    expect(tabSource).toMatch(/activeSubTab === 'research-materials'/);
     expect(tabSource).toMatch(/activeSubTab === 'notes'/);
-    // categories is the fall-through branch, now rendering the v2 CategoriesTab.
-    expect(tabSource).toContain('CategoriesTab');
+    expect(tabSource).toMatch(/<NotesTab\b/);
+    // research-materials is the fall-through default branch.
+    expect(tabSource).toMatch(/<ResearchMaterialsTab\b/);
   });
 });

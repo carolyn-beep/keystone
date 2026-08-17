@@ -90,7 +90,9 @@ describe('FR3 RightDrawer primitive', () => {
 
   it('renders full-screen on mobile, fixed desktopWidth otherwise', () => {
     expect(rightDrawer).toContain('useIsMobile');
-    expect(rightDrawer).toMatch(/isMobile \? '100vw' : `\$\{desktopWidth\}px`/);
+    // Width is a nested ternary now (mobile → 100vw, wide → calc, else fixed).
+    expect(rightDrawer).toMatch(/isMobile[\s\S]{0,20}\? '100vw'/);
+    expect(rightDrawer).toContain('`${desktopWidth}px`');
     expect(rightDrawer).toContain('desktopWidth = 480');
   });
 
@@ -227,8 +229,10 @@ describe('FR6 FilterBar slot-based primitive', () => {
   });
 
   it('Select supports clearable and renders the placeholder as the empty option', () => {
+    // Now Radix-based: the clear option is a SelectItem carrying the placeholder.
     expect(filterBar).toContain('clearable = true');
-    expect(filterBar).toContain('<option value="">{placeholder}</option>');
+    expect(filterBar).toContain('<SelectItem value={SENTINEL_CLEAR}>');
+    expect(filterBar).toContain('{placeholder}');
     expect(filterBar).toContain('onChange(null)');
   });
 

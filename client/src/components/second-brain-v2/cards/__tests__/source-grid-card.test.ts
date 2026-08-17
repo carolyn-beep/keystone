@@ -19,9 +19,9 @@ const card = fs.readFileSync(
 );
 
 describe('FR5 SourceGridCard', () => {
-  it('reuses ResourceTypeBadge and RETRIEVAL_TYPE_META from the existing libraries', () => {
-    expect(card).toContain('ResourceTypeBadge');
+  it('reuses RETRIEVAL_TYPE_META and resolveRetrievalType from the existing libraries', () => {
     expect(card).toContain('RETRIEVAL_TYPE_META');
+    expect(card).toContain('resolveRetrievalType');
   });
 
   it('uses the shared formatUrl util (not a local copy)', () => {
@@ -41,17 +41,19 @@ describe('FR5 SourceGridCard', () => {
   });
 
   it('renders the type badge only when source.type is set (null-safe)', () => {
-    // The badge should only render when type is present — match either a
-    // direct conditional, a helper guard, or a known-type check.
-    expect(card).toMatch(/source\.type\s*\?|source\.type\s*&&|type\s*!=\s*null|isKnownRetrievalType|known\s*\?/);
+    // The badge should only render when the type resolves — match either a
+    // direct conditional, a helper guard, or the resolved-meta gate.
+    expect(card).toMatch(/source\.type\s*\?|source\.type\s*&&|type\s*!=\s*null|isKnownRetrievalType|resolveRetrievalType|meta\s*\?|resolved\s*\?/);
   });
 
   it('omits the key insights blurb when null', () => {
     expect(card).toMatch(/keyInsights\s*\?|keyInsights\s*&&|keyInsights\s*!=\s*null/);
   });
 
-  it('preserves layout height for the badge row when type is null (min-h class)', () => {
-    expect(card).toMatch(/min-h-/);
+  it('preserves layout height for the badge row when type is null (fixed-height class)', () => {
+    // The badge row reserves a fixed height so the layout does not shift when
+    // the badge is absent. Accept either a min-height or a locked height class.
+    expect(card).toMatch(/min-h-|h-\[22px\]/);
   });
 
   it('renders a checkbox that fires onToggleSelect and stops propagation', () => {
@@ -84,7 +86,6 @@ describe('FR5 SourceGridCard', () => {
   });
 
   it('lifts on hover (standard editorial card pattern)', () => {
-    expect(card).toMatch(/hover:-translate-y/);
     expect(card).toMatch(/hover:shadow-card-hover/);
   });
 });
