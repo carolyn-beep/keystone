@@ -25,7 +25,7 @@
   --border-muted-hex: #8A867B;
   --text-primary-hex: #2D2D2D;
   --text-secondary-hex: #5A5A5A;
-  --text-muted-hex: #8A867B;
+  --text-muted-hex: #716D64; /* was #8A867B (3.2:1) */
   --primary-hex: #22150D;
   --primary-hover-hex: #3D2A1A;
   --primary-soft-hex: #F5EDE6;
@@ -33,7 +33,7 @@
   --secondary-soft-hex: #E6F5F3;
   --success-hex: #56643F;
   --success-soft-hex: #E8F5EC;
-  --warning-hex: #D97706;
+  --warning-hex: #A55A05; /* was #D97706 (2.8:1) */
   --warning-soft-hex: #FDF4E8;
   --danger-hex: #953A34;
   --danger-soft-hex: #FDECEC;
@@ -117,7 +117,8 @@
   --muted-foreground: 0 0% 35%;
 
   /* Lighter muted text */
-  --muted-foreground-light: 0 0% 55%;
+  /* 42% (was 55%, 2.9:1): light helper text now clears 4.5:1 on every surface */
+  --muted-foreground-light: 0 0% 42%;
 
   /* Accent Soft - warm beige */
   --accent: 30 40% 93%;
@@ -125,8 +126,8 @@
   /* Primary: #22150D */
   --accent-foreground: 23 45% 9%;
 
-  /* Danger: #DC2626 */
-  --destructive: 0 72% 51%;
+  /* Danger: was #DC2626 (51%); 47% so red text clears 4.5:1 on every surface */
+  --destructive: 0 72% 47%;
   --destructive-foreground: 0 0% 100%;
   --destructive-soft: 0 60% 96%;
 
@@ -135,13 +136,13 @@
   --success-foreground: 0 0% 100%;
   --success-soft: 142 50% 94%;
 
-  /* Warning: #9D691D */
-  --warning: 39 54% 48%;
+  /* Warning: was #9D691D (48%, 2.8:1 as text); 34% clears 4.5:1 on every surface */
+  --warning: 39 54% 34%;
   --warning-foreground: 0 0% 100%;
   --warning-soft: 38 70% 95%;
 
-  /* Info: #0284C7 */
-  --info: 200 98% 39%;
+  /* Info: was #0284C7 (39%, 3.8:1 as text); 33% clears 4.5:1 on every surface */
+  --info: 200 98% 33%;
   --info-foreground: 0 0% 100%;
   --info-soft: 200 60% 95%;
 
@@ -227,17 +228,17 @@
   --border-hex: #334155;
   --text-primary-hex: #F8FAFC;
   --text-secondary-hex: #CBD5E1;
-  --text-muted-hex: #64748B;
-  --primary-hex: #3B82F6;
+  --text-muted-hex: #A1ACBB; /* was #64748B (2.2:1 on surface-alt) */
+  --primary-hex: #7DACF9; /* was #3B82F6; matches --primary */
   --primary-hover-hex: #60A5FA;
   --primary-soft-hex: #1E3A5F;
-  --secondary-hex: #14B8A6;
+  --secondary-hex: #15C1AE; /* was #14B8A6 */
   --secondary-soft-hex: #134E4A;
-  --success-hex: #56643F;
+  --success-hex: #A1B285; /* was #56643F (1.6:1 on dark); matches --success */
   --success-soft-hex: #14532D;
-  --warning-hex: #9D691D;
+  --warning-hex: #DFA24A; /* was #9D691D (2.2:1 on surface-alt) */
   --warning-soft-hex: #78350F;
-  --danger-hex: #EF4444;
+  --danger-hex: #F58F8F; /* was #EF4444 (2.8:1 on surface-alt) */
   --danger-soft-hex: #7F1D1D;
   --info-hex: #38BDF8;
   --info-soft-hex: #0C4A6E;
@@ -246,7 +247,7 @@
   --news-hex: #94A3B8;
   --news-soft-hex: #2A3140;
   --overlay-hex: rgba(0, 0, 0, 0.7);
-  --on-primary-hex: #FFFFFF;
+  --on-primary-hex: #0B111E; /* dark text on the lighter primary */
   /* ===== END HEX TOKENS ===== */
 
   /* Dark background */
@@ -301,19 +302,23 @@
   /* Dark border */
   --popover-border: 217 33% 20%;
 
-  /* Primary: #3B82F6 */
-  --primary: 217 91% 60%;
-  --primary-foreground: 0 0% 100%;
+  /* Primary: was #3B82F6 (60%). The same blue is link text on dark surfaces
+     AND a button fill, so it is lighter (66%) with dark text on the fill:
+     both pairings clear 4.5:1 on every surface. White on the old blue was 3.6:1. */
+  --primary: 217 91% 73%;
+  --primary-foreground: 222 47% 8%;
 
   /* Secondary: #14B8A6 */
   --secondary: 173 80% 40%;
-  --secondary-foreground: 0 0% 100%;
+  /* dark text on the teal (white was 2.5:1); keeps the fill colour unchanged */
+  --secondary-foreground: 222 47% 8%;
 
   /* Darker muted */
   --muted: 217 33% 20%;
 
   /* Lighter muted text */
-  --muted-foreground-light: 0 0% 55%;
+  /* 59% (was 55%): clears 4.5:1 on the lighter dark surfaces too */
+  --muted-foreground-light: 0 0% 59%;
 
   /* Dark accent */
   --accent: 224 50% 20%;
@@ -321,24 +326,26 @@
   /* Light text */
   --accent-foreground: 210 40% 96%;
 
-  /* Danger: #EF4444 */
-  --destructive: 0 84% 60%;
-  --destructive-foreground: 0 0% 100%;
+  /* Danger: was #EF4444 (60%). Lighter (69%) so red text clears 4.5:1 on
+     dark surfaces, with dark text on the fill. */
+  --destructive: 0 84% 76%;
+  --destructive-foreground: 222 47% 8%;
   --destructive-soft: 0 63% 31%;
 
-  /* Success: #56643F */
-  --success: 83 23% 32%;
-  --success-foreground: 0 0% 100%;
+  /* Success: was #56643F (32%, 3.0:1 as text on dark). Lighter (51%) with
+     dark text on the fill. */
+  --success: 83 23% 61%;
+  --success-foreground: 222 47% 8%;
   --success-soft: 144 61% 20%;
 
-  /* Warning: #9D691D */
-  --warning: 39 54% 48%;
-  --warning-foreground: 0 0% 100%;
+  /* Warning: was #9D691D (48%). Lighter (58%) for the lighter dark surfaces, dark text on the fill (white was 3.0:1). */
+  --warning: 39 54% 58%;
+  --warning-foreground: 222 47% 8%;
   --warning-soft: 22 78% 26%;
 
-  /* Info: #38BDF8 */
+  /* Info: #38BDF8. Dark text on the sky fill (white was 2.1:1). */
   --info: 198 93% 60%;
-  --info-foreground: 0 0% 100%;
+  --info-foreground: 222 47% 8%;
   --info-soft: 202 80% 24%;
 
   /* Lighter input border for dark mode */
@@ -1817,5 +1824,21 @@
   .animate-exit-discard {
     opacity: 0;
     transition: opacity 0.15s ease-out;
+  }
+}
+
+/* Global reduced-motion floor. The Research Stream block above handles its
+   own exit animations by removing items immediately; this covers everything
+   else (framer-motion springs, hover transitions, shimmer) when the OS asks
+   for reduced motion. Near-zero durations instead of `none` so animationend
+   and transitionend still fire for code that waits on them. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
   }
 }
