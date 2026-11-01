@@ -210,11 +210,30 @@ function toResponseFormat(options: LanguageModelV2CallOptions) {
   };
 }
 
+/**
+ * Anthropic models cache prompt prefixes when asked. OpenRouter's top-level
+ * `cache_control` enables its automatic mode: the breakpoint is moved forward
+ * as the conversation grows, so the (long, stable) system prompt + skill text
+ * + earlier turns are read from cache on every subsequent step and turn.
+ * Prompts below the model's minimum cacheable length are simply not cached.
+ * OpenAI and Gemini cache implicitly; other providers ignore the field, but we
+ * only send it where it is documented to apply.
+ */
+export function supportsPromptCaching(modelId: string): boolean {
+  return modelId.startsWith('anthropic/');
+}
+
+const PROMPT_CACHE_CONTROL = { type: 'ephemeral' } as const;
+
 function buildRequestBody(modelId: string, options: LanguageModelV2CallOptions, stream: boolean) {
   const body: Record<string, unknown> = {
     model: modelId,
     messages: toOpenAIMessages(options.prompt),
   };
+
+  if (supportsPromptCaching(modelId)) {
+    body.cache_control = PROMPT_CACHE_CONTROL;
+  }
 
   if (stream) {
     body.stream = true;
@@ -281,11 +300,22 @@ function extractTextContent(content: unknown): string {
 }
 
 function normalizeUsage(usage: Record<string, unknown> | undefined): LanguageModelV2Usage {
-  return {
+  const normalized: LanguageModelV2Usage = {
     inputTokens: typeof usage?.prompt_tokens === 'number' ? usage.prompt_tokens : undefined,
     outputTokens: typeof usage?.completion_tokens === 'number' ? usage.completion_tokens : undefined,
     totalTokens: typeof usage?.total_tokens === 'number' ? usage.total_tokens : undefined,
   };
+
+  // OpenRouter reports prompt-cache hits under prompt_tokens_details.cached_tokens.
+  const details = usage?.prompt_tokens_details;
+  if (details && typeof details === 'object') {
+    const cached = (details as Record<string, unknown>).cached_tokens;
+    if (typeof cached === 'number') {
+      normalized.cachedInputTokens = cached;
+    }
+  }
+
+  return normalized;
 }
 
 function mapFinishReason(value: string | null | undefined): LanguageModelV2FinishReason {

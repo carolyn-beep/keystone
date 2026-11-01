@@ -168,11 +168,13 @@ export abstract class OpenAICompatibleProvider implements AIProvider {
       );
     }
 
+    const cachedPromptTokens = data.usage?.prompt_tokens_details?.cached_tokens;
     const usage = data.usage
       ? {
           promptTokens: data.usage.prompt_tokens,
           completionTokens: data.usage.completion_tokens,
           totalTokens: data.usage.total_tokens,
+          ...(typeof cachedPromptTokens === 'number' ? { cachedPromptTokens } : {}),
         }
       : undefined;
 

@@ -2,6 +2,8 @@ type ChatTurnUsage = {
   promptTokens?: number;
   completionTokens?: number;
   totalTokens?: number;
+  /** Prompt tokens served from the provider prompt cache (subset of promptTokens). */
+  cachedPromptTokens?: number;
 };
 
 export interface ChatTraceContext {

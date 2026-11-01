@@ -331,3 +331,72 @@ describe('getChatModel', () => {
     ]);
   });
 });
+
+describe('prompt caching', () => {
+  function mockFetchJson(payload: Record<string, unknown>) {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      headers: new Headers(),
+      json: async () => payload,
+    });
+    globalThis.fetch = fetchMock as typeof globalThis.fetch;
+    return fetchMock;
+  }
+
+  const prompt = [
+    { role: 'system' as const, content: 'Long stable system prompt.' },
+    { role: 'user' as const, content: [{ type: 'text' as const, text: 'Hi' }] },
+  ];
+
+  it('asks OpenRouter for automatic prompt caching on Anthropic models', async () => {
+    const fetchMock = mockFetchJson({
+      id: 'r',
+      model: 'anthropic/claude-sonnet-5.5',
+      choices: [{ message: { content: 'ok' } }],
+      usage: { prompt_tokens: 5, completion_tokens: 1, total_tokens: 6 },
+    });
+
+    await getChatModel('anthropic/claude-sonnet-5.5').doGenerate({ prompt });
+
+    const body = JSON.parse(fetchMock.mock.calls[0][1].body);
+    expect(body.cache_control).toEqual({ type: 'ephemeral' });
+  });
+
+  it('does not send cache_control for non-Anthropic models', async () => {
+    const fetchMock = mockFetchJson({
+      id: 'r',
+      model: 'qwen/qwen-plus',
+      choices: [{ message: { content: 'ok' } }],
+      usage: { prompt_tokens: 5, completion_tokens: 1, total_tokens: 6 },
+    });
+
+    await getChatModel('qwen/qwen-plus').doGenerate({ prompt });
+
+    const body = JSON.parse(fetchMock.mock.calls[0][1].body);
+    expect(body.cache_control).toBeUndefined();
+  });
+
+  it('surfaces cached prompt tokens from prompt_tokens_details', async () => {
+    mockFetchJson({
+      id: 'r',
+      model: 'anthropic/claude-sonnet-5.5',
+      choices: [{ message: { content: 'ok' } }],
+      usage: {
+        prompt_tokens: 5000,
+        completion_tokens: 10,
+        total_tokens: 5010,
+        prompt_tokens_details: { cached_tokens: 4800, cache_write_tokens: 0 },
+      },
+    });
+
+    const result = await getChatModel('anthropic/claude-sonnet-5.5').doGenerate({ prompt });
+
+    expect(result.usage).toEqual({
+      inputTokens: 5000,
+      outputTokens: 10,
+      totalTokens: 5010,
+      cachedInputTokens: 4800,
+    });
+  });
+});

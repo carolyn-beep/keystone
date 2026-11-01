@@ -297,6 +297,7 @@ export async function streamChatHandler(req: Request, res: Response): Promise<vo
         promptTokens?: number;
         completionTokens?: number;
         totalTokens?: number;
+        cachedPromptTokens?: number;
       }
     | undefined;
   let finishReasonSnapshot: string | undefined;
@@ -320,6 +321,7 @@ export async function streamChatHandler(req: Request, res: Response): Promise<vo
         promptTokens: usage.inputTokens,
         completionTokens: usage.outputTokens,
         totalTokens: usage.totalTokens,
+        cachedPromptTokens: usage.inputTokenDetails?.cacheReadTokens,
       };
     },
   });

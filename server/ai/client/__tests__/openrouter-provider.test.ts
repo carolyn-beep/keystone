@@ -166,3 +166,53 @@ describe('OpenRouterProvider', () => {
     await expect(provider.call(makeRequest())).rejects.toBeInstanceOf(NonRetryableError);
   });
 });
+
+describe('OpenRouterProvider prompt caching', () => {
+  it('adds automatic cache_control for Anthropic models', async () => {
+    const fetchMock = mockFetchSuccess('ok');
+    globalThis.fetch = fetchMock as typeof globalThis.fetch;
+
+    await makeProvider().call(makeRequest({ model: 'anthropic/claude-opus-5.5' }));
+
+    const body = JSON.parse(fetchMock.mock.calls[0][1].body);
+    expect(body.cache_control).toEqual({ type: 'ephemeral' });
+  });
+
+  it('leaves non-Anthropic requests untouched', async () => {
+    const fetchMock = mockFetchSuccess('ok');
+    globalThis.fetch = fetchMock as typeof globalThis.fetch;
+
+    await makeProvider().call(makeRequest({ model: 'qwen/qwen-plus' }));
+
+    const body = JSON.parse(fetchMock.mock.calls[0][1].body);
+    expect(body.cache_control).toBeUndefined();
+  });
+
+  it('reports cached prompt tokens when OpenRouter returns them', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      headers: makeHeaders(),
+      json: async () => ({
+        choices: [{ message: { content: 'ok' } }],
+        usage: {
+          prompt_tokens: 3000,
+          completion_tokens: 20,
+          total_tokens: 3020,
+          prompt_tokens_details: { cached_tokens: 2900 },
+        },
+        model: 'anthropic/claude-opus-5.5',
+      }),
+    });
+    globalThis.fetch = fetchMock as typeof globalThis.fetch;
+
+    const response = await makeProvider().call(makeRequest({ model: 'anthropic/claude-opus-5.5' }));
+
+    expect(response.usage).toEqual({
+      promptTokens: 3000,
+      completionTokens: 20,
+      totalTokens: 3020,
+      cachedPromptTokens: 2900,
+    });
+  });
+});

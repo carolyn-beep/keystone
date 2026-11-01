@@ -81,6 +81,8 @@ export interface CallModelResult {
     promptTokens: number;
     completionTokens: number;
     totalTokens: number;
+    /** Prompt tokens served from the provider's prompt cache (subset of promptTokens). */
+    cachedPromptTokens?: number;
   };
   costUsd?: number;
   durationMs: number;
@@ -107,6 +109,8 @@ export interface CallRecord {
     promptTokens: number;
     completionTokens: number;
     totalTokens: number;
+    /** Prompt tokens served from the provider's prompt cache (subset of promptTokens). */
+    cachedPromptTokens?: number;
   };
   costUsd?: number;
   temperature?: number;
@@ -134,6 +138,8 @@ export interface ProviderResponse {
     promptTokens: number;
     completionTokens: number;
     totalTokens: number;
+    /** Prompt tokens served from the provider's prompt cache (subset of promptTokens). */
+    cachedPromptTokens?: number;
   };
   costUsd?: number;
 }
