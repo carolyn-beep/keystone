@@ -17,7 +17,7 @@ The strongest engineering is in these paths:
 
 - **Multi-agent research swarm** — orchestrator, per-agent cost tracking, streamed events: [`server/ai/learning-stream-swarm-v2/`](server/ai/learning-stream-swarm-v2)
 - **Unified AI client** — provider-agnostic model calls with a circuit breaker and automatic failover: [`server/ai/client/`](server/ai/client) · [`circuit-breaker.ts`](server/ai/client/circuit-breaker.ts) · [`registry.ts`](server/ai/client/registry.ts)
-- **MCP server** — programmatic access to the platform for external agents: [`server/ai/learning-stream-swarm/mcp-server.ts`](server/ai/learning-stream-swarm/mcp-server.ts)
+- **MCP server** — programmatic access to the platform for external agents lives in its own repo, [keystone-mcp](https://github.com/carolyn-beep/keystone-mcp) (Cloudflare Worker, OAuth, 25 tools)
 - **Type-safe background jobs** — the DOK1–DOK4 grading pipelines and research jobs: [`server/jobs/`](server/jobs)
 - **Skills & tool registry** — runtime-loadable skills exposed to the chat agent: [`server/ai/chat/skills.ts`](server/ai/chat/skills.ts) · [`server/ai/chat/tools/`](server/ai/chat/tools)
 - **Grader evaluation & monitoring** — how the LLM graders are kept honest: see [How I know the graders work](#how-i-know-the-graders-work)
@@ -225,7 +225,6 @@ npm run db:apply           # replay migrations/ onto an EMPTY database only
 | `OPENAI_API_KEY` | Primary image-generation provider (`gpt-image-1`) |
 | `EXA_API_KEY` | Exa search and Contents APIs (research swarm, chat web search, article extraction) |
 | `YOUTUBE_API_KEY` | YouTube Data API (video researcher agent) |
-| `SWARM_AGENT_COUNT` | Research agents per swarm (default: 5) |
 | `DAILY_SWARM_LIMIT` | Research-swarm launches allowed per user per day (default: 3) |
 | `WORKER_CONCURRENCY` | Background job concurrency (default: 3) |
 | `S3_BUCKET`, `AWS_REGION`, `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY` | Optional. S3 storage for generated cover images. |

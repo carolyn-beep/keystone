@@ -19,7 +19,7 @@ import { storage } from '../storage';
 import { requireAuth } from '../middleware/auth';
 import { asyncHandler, BadRequestError, NotFoundError } from '../middleware/error-handler';
 import { requireBrainliftAccess, requireBrainliftModify } from '../middleware/brainlift-auth';
-import { swarmEmitter } from '../ai/learning-stream-swarm';
+import { swarmEmitter } from '../ai/learning-stream-swarm-v2/event-emitter';
 import { z } from 'zod';
 
 export const knowledgeTreeRouter = Router();

@@ -4,7 +4,7 @@
  * Manages real-time event broadcasting for DOK3 grading jobs.
  * Allows SSE endpoints to subscribe to grading events and receive updates.
  *
- * Pattern mirrors server/ai/learning-stream-swarm/event-emitter.ts
+ * Pattern mirrors server/ai/learning-stream-swarm-v2/event-emitter.ts
  */
 
 import type { DOK3GradingStage } from '@shared/import-progress';

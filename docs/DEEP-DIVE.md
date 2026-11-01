@@ -89,7 +89,6 @@ server/
     chat/         Native chat provider adapter, system prompt, tool registry, skills, telemetry
       tools/      Domain-grouped chat tools (second-brain, project, research-stream, research, ask-user, …)
     learning-stream-swarm-v2/  Vercel AI SDK research orchestrator + per-type agents + cost tracking
-    learning-stream-swarm/     Legacy Claude Agent SDK swarm (kept for rollback during v2 soak)
   brand/          Per-brand system prompts (keystone authoring, keystone-research, brainlift) + dispatcher
   jobs/           Graphile Worker background jobs (incl. refreshModelPrices, learningStreamResearch)
   events/         SSE event emitters (DOK4 grading progress)
@@ -635,7 +634,7 @@ What makes it more than a search box:
 
 The effect for a learner: instead of drowning in tabs or settling for the first search result, they get a steady, personalized stream of the material an expert in their field would actually be reading — and it keeps pace as their thinking evolves.
 
-**Under the hood.** The Research Stream (formerly Learning Stream) surfaces relevant, high-quality sources aligned to a project's evolving research context. The v2 architecture (`server/ai/learning-stream-swarm-v2/`) replaces the original Claude Agent SDK swarm with a thin orchestrator + `Promise.allSettled` fan-out over Vercel AI SDK `streamText` calls. The legacy `learning-stream-swarm/` path is kept available for rollback during the soak window.
+**Under the hood.** The Research Stream (formerly Learning Stream) surfaces relevant, high-quality sources aligned to a project's evolving research context. The v2 architecture (`server/ai/learning-stream-swarm-v2/`) replaces the original Claude Agent SDK swarm with a thin orchestrator + `Promise.allSettled` fan-out over Vercel AI SDK `streamText` calls.
 
 ### Two Co-Equal Entry Points, One Contract
 

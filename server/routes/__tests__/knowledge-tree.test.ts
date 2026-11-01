@@ -38,7 +38,7 @@ vi.mock('../../storage', () => ({
 }));
 
 const mockIsSwarmActive = vi.fn();
-vi.mock('../../ai/learning-stream-swarm', () => ({
+vi.mock('../../ai/learning-stream-swarm-v2/event-emitter', () => ({
   swarmEmitter: {
     isSwarmActive: (...args: unknown[]) => mockIsSwarmActive(...args),
   },

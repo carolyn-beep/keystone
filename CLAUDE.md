@@ -159,7 +159,6 @@ const result = await callModel({
 
 **Exceptions (NOT using the unified client):**
 - Vercel AI SDK routes (`server/routes/discussion.ts`, `server/routes/import-agent.ts`) — different streaming paradigm
-- Claude Agent SDK (`server/ai/learning-stream-swarm/`) — different SDK
 - OpenAI image generation (`server/ai/imageGenerator.ts`) — not chat completions
 
 ### SSE Streaming

@@ -17,7 +17,7 @@ vi.mock('../../db', () => ({
   db: mockDb,
 }));
 
-vi.mock('../../ai/learning-stream-swarm', () => ({
+vi.mock('../../ai/learning-stream-swarm-v2/event-emitter', () => ({
   swarmEmitter: {
     isSwarmActive: vi.fn(),
     subscribe: vi.fn(),
