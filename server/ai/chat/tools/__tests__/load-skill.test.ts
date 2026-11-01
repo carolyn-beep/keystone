@@ -307,3 +307,59 @@ describe('buildAdminSkillManagementTools', () => {
     expect(storage.softDeleteSkill).toHaveBeenCalledWith(adminContext, 'onboarding');
   });
 });
+
+describe('buildAdminSkillManagementTools: review_skill_draft', () => {
+  const draftInput = {
+    name: 'research-coach',
+    description: 'Use when the student says "find sources", "back this up" or "cite this".',
+    body: '# Research Coach\n\n## Procedure\n\n### Step 1: Search\n\nCall `web_search_exa`.\n',
+    visibility: 'private' as const,
+    references: [],
+  };
+  const review = {
+    triggerTest: { cases: [], positives: 6, fired: 5, negatives: 6, falseFires: 0 },
+    toolCheck: { referenced: ['web_search_exa'], unknown: [] },
+    critique: {
+      scores: [
+        { dimension: 'Trigger clarity' as const, score: 4, evidence: 'One oblique miss.' },
+        { dimension: 'Procedure executability' as const, score: 4, evidence: 'Steps are concrete.' },
+        { dimension: 'Output specificity' as const, score: 3, evidence: 'No example output.' },
+        { dimension: 'Grounding and honesty' as const, score: 5, evidence: 'Sources via search.' },
+        { dimension: 'Student ownership' as const, score: 5, evidence: 'Coach asks first.' },
+      ],
+      topFixes: ['Add an example output.'],
+      verdict: 'ready' as const,
+      firstFix: 'Add an example output.',
+    },
+    models: { trigger: 'anthropic/claude-haiku-5.5', critique: 'anthropic/claude-opus-5.5' },
+    costUsd: 0.03,
+    durationMs: 20000,
+  };
+
+  it('rejects non-admin execution without running the review', async () => {
+    const reviewer = vi.fn();
+    const tools = buildAdminSkillManagementTools({ authContext, reviewSkillDraft: reviewer });
+    await expect(tools.review_skill_draft.execute(draftInput, createToolContext())).rejects.toThrow('Admin access required');
+    expect(reviewer).not.toHaveBeenCalled();
+  });
+
+  it('runs the injected reviewer on the validated draft and returns the review with a chat summary', async () => {
+    const reviewer = vi.fn().mockResolvedValue(review);
+    const storage = {
+      createSkill: vi.fn(),
+      updateSkill: vi.fn(),
+      getSkillForUserByName: vi.fn(),
+      softDeleteSkill: vi.fn(),
+    };
+    const tools = buildAdminSkillManagementTools({ authContext: adminContext, skillStorage: storage, reviewSkillDraft: reviewer });
+
+    const result = await tools.review_skill_draft.execute(draftInput, createToolContext());
+
+    expect(reviewer).toHaveBeenCalledWith(adminContext, expect.objectContaining({ name: 'research-coach', references: [] }));
+    expect(result.review).toBe(review);
+    expect(result.summary).toContain('Quality review verdict: Ready to publish.');
+    expect(result.summary).toContain('fired on 5 of 6 messages it should handle; 0 of 6 false fires');
+    expect(storage.createSkill).not.toHaveBeenCalled();
+    expect(storage.updateSkill).not.toHaveBeenCalled();
+  });
+});

@@ -20,6 +20,14 @@ vi.mock('../../storage', () => ({
   storage: mockStorage,
 }));
 
+const { mockRunSkillDraftReview } = vi.hoisted(() => ({
+  mockRunSkillDraftReview: vi.fn(),
+}));
+
+vi.mock('../../ai/skills/run-review', () => ({
+  runSkillDraftReview: mockRunSkillDraftReview,
+}));
+
 function createReq(overrides: Record<string, unknown> = {}): any {
   return {
     params: {},
@@ -105,6 +113,42 @@ describe('skills route handlers', () => {
 
     await expect(createSkillHandler(req, res)).rejects.toThrow('Admin access required');
     expect(mockStorage.createSkill).not.toHaveBeenCalled();
+  });
+
+  it('reviewSkillDraftHandler rejects non-admin callers before running anything', async () => {
+    const { reviewSkillDraftHandler } = await import('../skills');
+    const req = createReq({ body: { name: 'x', description: 'd', body: 'b', visibility: 'private' } });
+    await expect(reviewSkillDraftHandler(req, createRes())).rejects.toThrow('Admin access required');
+    expect(mockRunSkillDraftReview).not.toHaveBeenCalled();
+  });
+
+  it('reviewSkillDraftHandler validates the draft, runs the review and writes nothing', async () => {
+    const { reviewSkillDraftHandler } = await import('../skills');
+    const draft = {
+      name: 'research-coach',
+      description: 'Use when the student says "find sources".',
+      body: '# Research Coach\n\n## Procedure\n\n### Step 1: Search\n',
+      visibility: 'private',
+      references: [],
+    };
+    const review = { critique: { verdict: 'ready' } };
+    mockRunSkillDraftReview.mockResolvedValue(review);
+    const req = createAdminReq({ body: draft });
+    const res = createRes();
+
+    await reviewSkillDraftHandler(req, res);
+
+    expect(mockRunSkillDraftReview).toHaveBeenCalledWith(req.authContext, expect.objectContaining({ name: 'research-coach', references: [] }));
+    expect(res.json).toHaveBeenCalledWith({ review });
+    expect(mockStorage.createSkill).not.toHaveBeenCalled();
+    expect(mockStorage.updateSkill).not.toHaveBeenCalled();
+  });
+
+  it('reviewSkillDraftHandler rejects an invalid draft before running the review', async () => {
+    const { reviewSkillDraftHandler } = await import('../skills');
+    const req = createAdminReq({ body: { name: 'Bad Name', description: 'd', body: 'b', visibility: 'private' } });
+    await expect(reviewSkillDraftHandler(req, createRes())).rejects.toThrow();
+    expect(mockRunSkillDraftReview).not.toHaveBeenCalled();
   });
 
   it('updateSkillHandler persists the full draft payload through storage', async () => {

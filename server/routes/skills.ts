@@ -7,6 +7,8 @@ import {
   ForbiddenError,
   NotFoundError,
 } from '../middleware/error-handler';
+import { skillDraftSchema } from '@shared/chat-skill-draft';
+import { runSkillDraftReview } from '../ai/skills/run-review';
 import { storage } from '../storage';
 
 export const skillsRouter = Router();
@@ -92,6 +94,17 @@ export async function createSkillHandler(req: Request, res: Response): Promise<v
   } catch (error) {
     throw toBadRequest(error);
   }
+}
+
+/**
+ * Quality review of an unsaved draft (admin). Trigger test against the live
+ * catalogue, tool check against the runtime, scored critique. Writes nothing.
+ */
+export async function reviewSkillDraftHandler(req: Request, res: Response): Promise<void> {
+  assertAdmin(req);
+  const draft = skillDraftSchema.parse(req.body);
+  const review = await runSkillDraftReview(req.authContext!, draft);
+  res.json({ review });
 }
 
 export async function updateSkillHandler(req: Request, res: Response): Promise<void> {
@@ -233,6 +246,12 @@ skillsRouter.get(
   '/api/skills/trash',
   requireAuth,
   asyncHandler(listDeletedSkillsHandler),
+);
+
+skillsRouter.post(
+  '/api/skills/review-draft',
+  requireAuth,
+  asyncHandler(reviewSkillDraftHandler),
 );
 
 skillsRouter.get(

@@ -123,6 +123,7 @@ describe('buildKeystoneSystemPrompt', () => {
     // Self-correcting loop: lint warnings go back to the model first.
     expect(adminPrompt).toContain('call `draft_skill` again before you reply');
     expect(adminPrompt).toContain('publishing private first');
+    expect(adminPrompt).toContain('call `review_skill_draft` with the complete draft');
     expect(adminPrompt.indexOf('=== END OF TOOLS PROTOCOL ===')).toBeLessThan(
       adminPrompt.indexOf('=== START OF SKILL AUTHORING PROTOCOL (ADMIN) ==='),
     );

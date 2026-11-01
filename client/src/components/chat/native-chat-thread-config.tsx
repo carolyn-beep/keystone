@@ -27,6 +27,7 @@ import {
   Pencil,
   Radar,
   Search,
+  ShieldCheck,
   Sparkles,
   StickyNote,
   Tags,
@@ -55,7 +56,9 @@ import { AskUserQuestionCard } from './AskUserQuestionCard';
 import { ChatComposer } from './ChatComposer';
 import { ProposeResearchRunCard } from './ProposeResearchRunCard';
 import { SkillDraftCard } from './SkillDraftCard';
+import { SkillQualityReviewSection } from './SkillQualityReviewSection';
 import type { DraftSkillToolInput, DraftSkillToolResult } from '@shared/chat-skill-draft';
+import type { SkillQualityReview } from '@shared/chat-skill-review';
 
 const MarkdownText = makeMarkdownText({ remarkPlugins: [remarkGfm] });
 
@@ -1377,6 +1380,38 @@ const SkillDraftToolUI = makeAssistantToolUI<DraftSkillToolInput, DraftSkillTool
 });
 
 /**
+ * review_skill_draft (admin): a status line while the ~14 model calls run,
+ * then the same scored review card the draft card shows.
+ */
+const SkillReviewToolUI = makeAssistantToolUI<
+  DraftSkillToolInput,
+  { review: SkillQualityReview; summary: string }
+>({
+  toolName: 'review_skill_draft',
+  render: ({ args, status, result, isError }) => {
+    if (!isError && result?.review) {
+      return (
+        <div className="my-3">
+          <SkillQualityReviewSection review={result.review} />
+        </div>
+      );
+    }
+    return (
+      <ToolStatusLine
+        icon={<StatusIcon status={status} isError={isError} fallback={<ShieldCheck size={13} />} />}
+        tone={getTone(status, isError)}
+      >
+        {isError
+          ? `Quality review failed for ${args.name}`
+          : isRunning(status)
+            ? `Reviewing skill draft: ${args.name}… trigger test, tool check, critique`
+            : `Reviewed skill draft: ${args.name}`}
+      </ToolStatusLine>
+    );
+  },
+});
+
+/**
  * UserMessage variant that hides the chat opener-prompt user message from
  * the visible thread. The message stays in the runtime state and the DB —
  * it is purely visually filtered. See client/src/chat/chat-opener.ts for context.
@@ -1451,8 +1486,9 @@ export const nativeChatToolUIs = [
   AskUserQuestionToolUI,
   // Research stream proposal
   ProposeResearchRunToolUI,
-  // Skill draft (admin)
+  // Skill draft + quality review (admin)
   SkillDraftToolUI,
+  SkillReviewToolUI,
 ];
 
 export function buildNativeChatThreadConfig() {

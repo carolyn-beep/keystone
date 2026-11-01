@@ -24,6 +24,7 @@ describe('useSkills hooks source', () => {
     expect(source).toContain('/api/skills/trash');
     expect(source).toContain('/enabled');
     expect(source).toContain('/try-it-out');
+    expect(source).toContain('/api/skills/review-draft');
     expect(source).toContain('/shares');
     expect(source).toContain('/restore');
   });

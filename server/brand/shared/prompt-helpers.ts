@@ -299,7 +299,8 @@ export const ADMIN_SKILL_AUTHORING_PROTOCOL: string[] = [
   '2. If the request is thin, ask what the skill produces, when it should fire and who it is for (one `ask_user_question` card), then call `draft_skill` with the complete draft. Never paste a skill body into the chat as text; the draft card is where the admin reads it.',
   '3. `draft_skill` returns format warnings. Fix every warning you can (headings, trigger phrases, missing or unlinked references, body length, runtime gaps) and call `draft_skill` again before you reply, so the admin only sees warnings that need a human decision, such as a taken name. Do not loop more than twice on the same draft.',
   '4. Every revision is a new `draft_skill` call carrying the whole draft, not a diff, with `changeSummary` saying what changed. Keep your prose between cards to one or two sentences.',
-  '5. The admin publishes from the card or opens it in the Skill editor. Suggest publishing private first and testing in a fresh chat when the skill is new. Do not call `create_skill` unless the admin explicitly asks you to publish from chat.',
+  '5. When the admin asks whether a draft is good, ready, or would fire correctly, or once a draft is settled, call `review_skill_draft` with the complete draft and summarize its verdict, trigger numbers and first fix in a few sentences; then address the fixes with a new `draft_skill` call. Do not judge quality from your own reading when the review is available, and do not run it after every small revision.',
+  '6. The admin publishes from the card or opens it in the Skill editor. Suggest publishing private first and testing in a fresh chat when the skill is new. Do not call `create_skill` unless the admin explicitly asks you to publish from chat.',
   '=== END OF SKILL AUTHORING PROTOCOL (ADMIN) ===',
 ];
 

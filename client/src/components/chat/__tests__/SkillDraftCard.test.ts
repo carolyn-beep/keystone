@@ -3,19 +3,23 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { DraftSkillToolExecuteResult } from '@shared/chat-skill-draft';
 
-const { mockUseMessage, mockUseThread, mockMutateAsync } = vi.hoisted(() => ({
+const { mockUseMessage, mockUseThread, mockMutateAsync, mockReviewMutateAsync, mockAppend } = vi.hoisted(() => ({
   mockUseMessage: vi.fn(),
   mockUseThread: vi.fn(),
   mockMutateAsync: vi.fn(),
+  mockReviewMutateAsync: vi.fn(),
+  mockAppend: vi.fn(),
 }));
 
 vi.mock('@assistant-ui/react', () => ({
   useMessage: (...args: unknown[]) => mockUseMessage(...args),
   useThread: (...args: unknown[]) => mockUseThread(...args),
+  useThreadRuntime: () => ({ append: mockAppend }),
 }));
 
 vi.mock('@/hooks/useSkills', () => ({
   useCreateSkill: () => ({ mutateAsync: mockMutateAsync, isPending: false }),
+  useReviewSkillDraft: () => ({ mutateAsync: mockReviewMutateAsync, isPending: false }),
 }));
 
 import { SkillDraftCard } from '../SkillDraftCard';
@@ -87,6 +91,7 @@ describe('SkillDraftCard', () => {
     expect(html).toContain('Show all 30 lines');
     expect(html).toContain('Publish skill');
     expect(html).toContain('Open in editor');
+    expect(html).toContain('Run quality review');
     // private is the pre-selected visibility, with the private-first nudge
     expect(html).toMatch(/aria-checked="true"[^>]*>private/);
     expect(html).toContain('Test it in a fresh chat');

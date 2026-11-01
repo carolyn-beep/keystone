@@ -64,6 +64,7 @@ describe('native chat thread config', () => {
       'load_skill',
       'load_skill_reference',
       'draft_skill',
+      'review_skill_draft',
       'create_skill',
       'update_skill',
       'add_skill_reference',

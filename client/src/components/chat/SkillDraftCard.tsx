@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useMessage, useThread, type ToolCallMessagePartProps } from '@assistant-ui/react';
+import { useMessage, useThread, useThreadRuntime, type ToolCallMessagePartProps } from '@assistant-ui/react';
 import type { MessageState, ThreadState } from '@assistant-ui/core';
 import {
   AlertTriangle,
@@ -7,7 +7,9 @@ import {
   Check,
   ExternalLink,
   Loader2,
+  MessageSquareReply,
   PenLine,
+  ShieldCheck,
   Upload,
 } from 'lucide-react';
 import type {
@@ -17,7 +19,9 @@ import type {
   SkillDraftWarning,
 } from '@shared/chat-skill-draft';
 import { SKILL_DESCRIPTION_MAX_LENGTH } from '@shared/chat-skill-draft';
-import { useCreateSkill } from '@/hooks/useSkills';
+import { formatSkillQualityReviewForChat, type SkillQualityReview } from '@shared/chat-skill-review';
+import { useCreateSkill, useReviewSkillDraft } from '@/hooks/useSkills';
+import { SkillQualityReviewSection } from './SkillQualityReviewSection';
 import {
   buildSkillDraftEditorUrl,
   stashSkillDraftHandoff,
@@ -143,16 +147,44 @@ function DraftCard({
   addResult: Props['addResult'];
 }): JSX.Element {
   const createSkill = useCreateSkill();
+  const reviewSkill = useReviewSkillDraft();
+  const threadRuntime = useThreadRuntime();
   const [visibility, setVisibility] = useState<SkillDraft['visibility']>(draft.visibility);
   const [showFullBody, setShowFullBody] = useState(false);
   const [openReference, setOpenReference] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [review, setReview] = useState<SkillQualityReview | null>(null);
+  const [reviewError, setReviewError] = useState<string | null>(null);
 
   const bodyLines = draft.body.split('\n');
   const isTruncated = !showFullBody && bodyLines.length > BODY_PREVIEW_LINES;
   const shownBody = isTruncated ? bodyLines.slice(0, BODY_PREVIEW_LINES).join('\n') : draft.body;
   const nameTaken = warnings.some((warning) => warning.code === 'name-taken');
   const isPublishing = createSkill.isPending;
+  const isReviewing = reviewSkill.isPending;
+
+  async function handleReview() {
+    setReviewError(null);
+    try {
+      const result = await reviewSkill.mutateAsync({
+        name: draft.name,
+        description: draft.description,
+        body: draft.body,
+        visibility,
+        references: draft.references,
+      });
+      setReview(result);
+    } catch (reviewFailure) {
+      setReviewError(reviewFailure instanceof Error ? reviewFailure.message : 'The quality review failed.');
+    }
+  }
+
+  function handleSendReviewToChat() {
+    if (!review) return;
+    void threadRuntime.append(
+      `${formatSkillQualityReviewForChat(review)}\n\nRevise the draft to address this review, then show me the new draft.`,
+    );
+  }
 
   async function handlePublish() {
     setError(null);
@@ -314,6 +346,42 @@ function DraftCard({
               ))}
             </ul>
           </div>
+        ) : null}
+
+        {/* Quality review: does it fire, can it run, is it good */}
+        {review ? (
+          <div className="space-y-2">
+            <SkillQualityReviewSection review={review} />
+            <button
+              type="button"
+              onClick={handleSendReviewToChat}
+              className="flex w-full items-center justify-center gap-2 rounded-md border border-border bg-card px-4 py-2.5 text-[12.5px] font-semibold text-foreground transition-colors hover:bg-muted/60"
+            >
+              <MessageSquareReply size={13} aria-hidden />
+              <span>Send review to chat for a revised draft</span>
+            </button>
+          </div>
+        ) : (
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-2 rounded-md border border-dashed border-border px-3.5 py-2.5">
+            <button
+              type="button"
+              onClick={() => void handleReview()}
+              disabled={isReviewing || isPublishing}
+              className="flex items-center gap-2 rounded-md border border-border bg-card px-3.5 py-2 text-[12px] font-semibold text-foreground transition-colors hover:bg-muted/60 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {isReviewing ? <Loader2 size={13} className="animate-spin" aria-hidden /> : <ShieldCheck size={13} aria-hidden />}
+              <span>{isReviewing ? 'Reviewing… about half a minute' : 'Run quality review'}</span>
+            </button>
+            <p className="min-w-0 flex-1 text-[11.5px] leading-relaxed text-muted-foreground">
+              Trigger test against the live catalogue, a check that every tool exists, and a scored critique. A few cents.
+            </p>
+          </div>
+        )}
+
+        {reviewError ? (
+          <p className="rounded-md border border-destructive/40 bg-destructive-soft px-3.5 py-2.5 text-[12px] text-destructive" role="alert">
+            {reviewError}
+          </p>
         ) : null}
 
         {error ? (

@@ -5,8 +5,10 @@ import {
   lintSkillDraft,
   skillDraftSchema,
   type DraftSkillToolExecuteResult,
+  type SkillDraft,
   type SkillDraftWarning,
 } from '@shared/chat-skill-draft';
+import { formatSkillQualityReviewForChat, type SkillQualityReview } from '@shared/chat-skill-review';
 import { storage as defaultStorage } from '../../../storage';
 import {
   UNKNOWN_SKILL_ERROR_MESSAGE,
@@ -54,10 +56,23 @@ export interface AdminSkillStorage {
   softDeleteSkill(authContext: AuthContext, name: string): Promise<boolean>;
 }
 
+export type SkillDraftReviewer = (authContext: AuthContext, draft: SkillDraft) => Promise<SkillQualityReview>;
+
 export interface BuildAdminSkillManagementToolsArgs {
   authContext: AuthContext;
   skillStorage?: AdminSkillStorage;
+  /** Injectable for tests. Defaults to the live review (catalogue + runtime tool names + model calls). */
+  reviewSkillDraft?: SkillDraftReviewer;
 }
+
+/**
+ * Lazy import: server/ai/skills/run-review.ts reaches back into the tool
+ * registry (for the known tool names), which imports this file.
+ */
+const defaultSkillDraftReviewer: SkillDraftReviewer = async (authContext, draft) => {
+  const { runSkillDraftReview } = await import('../../skills/run-review');
+  return runSkillDraftReview(authContext, draft);
+};
 
 const visibilitySchema = z.enum(['public', 'private']);
 
@@ -133,6 +148,7 @@ export function buildChatSkillTools(args: BuildChatSkillToolsArgs) {
 
 export function buildAdminSkillManagementTools(args: BuildAdminSkillManagementToolsArgs) {
   const skillStorage = args.skillStorage ?? defaultStorage;
+  const reviewer = args.reviewSkillDraft ?? defaultSkillDraftReviewer;
 
   return {
     draft_skill: tool({
@@ -160,6 +176,21 @@ export function buildAdminSkillManagementTools(args: BuildAdminSkillManagementTo
         }
         warnings.push(...lintSkillDraft(draft));
         return { kind: 'draft', draft, warnings };
+      },
+    }),
+
+    review_skill_draft: tool({
+      description: [
+        'Admin only. Run the quality review on a skill draft: a trigger test against the live skill catalogue (does the router pick it when it should, and not otherwise), a check that every tool the body names exists in the chat runtime, and a scored critique with a verdict. Saves nothing.',
+        'Takes 20 to 60 seconds and costs a few cents, so call it when the admin asks whether a draft is good, ready, or would fire correctly, or once a draft is settled and before publishing; not after every small revision.',
+        'Pass the complete current draft. Summarize the result in a few sentences (verdict, trigger numbers, the first fix), then address the fixes with a new draft_skill call unless the admin says otherwise.',
+      ].join(' '),
+      inputSchema: skillDraftSchema,
+      execute: async (input): Promise<{ review: SkillQualityReview; summary: string }> => {
+        assertAdmin(args.authContext);
+        const draft = skillDraftSchema.parse(input);
+        const review = await reviewer(args.authContext, draft);
+        return { review, summary: formatSkillQualityReviewForChat(review) };
       },
     }),
 

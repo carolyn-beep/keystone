@@ -1,4 +1,5 @@
 import { useMutation, useQuery } from '@tanstack/react-query';
+import type { SkillQualityReview } from '@shared/chat-skill-review';
 import { apiRequest, queryClient } from '@/lib/queryClient';
 import { CHAT_CONVERSATIONS_QUERY_KEY } from './useChatConversations';
 
@@ -213,6 +214,28 @@ export function useCreateSkill() {
     },
     onSuccess: (skill) => {
       invalidateSkillQueries(skill.name);
+    },
+  });
+}
+
+export interface ReviewSkillDraftRequest {
+  name: string;
+  description: string;
+  body: string;
+  visibility: SkillVisibility;
+  references: SkillReferenceInput[];
+}
+
+/**
+ * Quality review of an unsaved draft (admin): trigger test, tool check,
+ * critique. Nothing is written, so no queries are invalidated.
+ */
+export function useReviewSkillDraft() {
+  return useMutation({
+    mutationFn: async (draft: ReviewSkillDraftRequest) => {
+      const response = await apiRequest('POST', '/api/skills/review-draft', draft);
+      const data = await response.json() as { review: SkillQualityReview };
+      return data.review;
     },
   });
 }
