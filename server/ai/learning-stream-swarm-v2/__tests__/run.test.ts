@@ -146,6 +146,10 @@ describe('runResearchSwarm', () => {
       expect(call[0].system).toContain('Prioritize named experts and unresolved Second Brain gaps.');
       expect(call[0].system).toContain(`You have at most ${SWARM_AGENT_MAX_STEPS} model/tool steps`);
       expect(call[0].system).toContain('Plan to call save_item by about step 40');
+      expect(call[0].experimental_telemetry).toMatchObject({
+        functionId: 'research-swarm.agent',
+        metadata: expect.objectContaining({ brainliftId: 1, pass: 'primary' }),
+      });
     }
   });
 

@@ -10,6 +10,7 @@ import { toNodeHandler } from "better-auth/node";
 import { startWorker, stopWorker } from "./jobs/worker";
 import { pool } from "./db";
 import { assertPangramConfigured } from "./ai/pangram/client";
+import { startTracing, shutdownTracing } from "./telemetry/otel";
 
 // Fail loudly at startup if required third-party API keys are missing.
 // PANGRAM_API_KEY powers the AI Writing Signal feature; the analyze job will
@@ -124,6 +125,10 @@ app.use((req, res, next) => {
     await setupVite(httpServer, app);
   }
 
+  // LLM tracing (Langfuse via OpenTelemetry). No-op unless LANGFUSE_* keys are
+  // set. Must be running before the worker starts, since jobs call models.
+  await startTracing();
+
   // Start Graphile Worker (Option 1: same process)
   let worker = null;
   try {
@@ -153,6 +158,9 @@ app.use((req, res, next) => {
     if (worker) {
       await stopWorker();
     }
+
+    // Flush buffered trace spans before the process exits
+    await shutdownTracing();
 
     // Close database pool after all work is done
     // This ensures in-flight HTTP requests and jobs have completed

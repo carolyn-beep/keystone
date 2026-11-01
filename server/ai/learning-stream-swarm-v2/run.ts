@@ -2,6 +2,7 @@ import { stepCountIs, streamText } from 'ai';
 import type { RunSpec, Slot } from '@shared/research-stream';
 import { MAX_SLOTS } from '@shared/research-stream';
 import { getChatModel } from '../chat/provider';
+import { telemetrySettings } from '../../telemetry/otel';
 import { buildSwarmContext, type SwarmContext } from './context-builder';
 import * as swarmEmitter from './event-emitter';
 import { typeRunnerFor } from './agents';
@@ -164,6 +165,14 @@ async function runSlot(
 
     const result = streamText({
       model: getChatModel(model),
+      experimental_telemetry: telemetrySettings('research-swarm.agent', {
+        brainliftId,
+        runId,
+        slotIdx: idx,
+        slotType: slot.type,
+        model,
+        pass: 'primary',
+      }),
       system: systemPrompt,
       messages: [{ role: 'user', content: userPrompt }],
       tools,
@@ -224,6 +233,14 @@ async function runSlot(
 
       const recovery = streamText({
         model: getChatModel(model),
+        experimental_telemetry: telemetrySettings('research-swarm.agent', {
+          brainliftId,
+          runId,
+          slotIdx: idx,
+          slotType: slot.type,
+          model,
+          pass: 'recovery',
+        }),
         system: systemPrompt,
         messages: [{ role: 'user', content: recoveryPrompt }],
         tools,

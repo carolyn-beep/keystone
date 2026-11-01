@@ -120,6 +120,7 @@ Grading students with an LLM is only trustworthy if the grader itself is measure
 - **Append-only score-event history** — score events recorded with their triggers across pipeline checkpoints: [`analytics-score-events.ts`](server/services/analytics-score-events.ts)
 - **LLM divergence check** — DOK4 positions graded against a baseline model's output: [`dok4Grader.ts`](server/ai/dok4Grader.ts)
 - **Import-pipeline integrity** — every extraction validated for content loss and hallucinations before acceptance: [`preformat/validator.ts`](server/ai/preformat/validator.ts)
+- **Per-step LLM tracing** — chat turns and research-swarm agents emit OpenTelemetry spans (every model step, tool call, token count and cache hit) to Langfuse when configured: [`telemetry/otel.ts`](server/telemetry/otel.ts)
 - **313 test files** (Vitest): [`vitest.config.ts`](vitest.config.ts)
 
 ---
@@ -231,6 +232,8 @@ npm run db:apply           # replay migrations/ onto an EMPTY database only
 | `VITE_BRAND` | Client brand selector. `keystone` or `brainlift`. Read at Vite config time to alias `@/brand`. Must match `BRAND`. |
 | `VITE_BRAND_NAME` | Display name used for the HTML title (e.g. `Keystone` or `Keystone Central`). |
 | `SWARM_VERBOSE_LOG` | Optional. `true` enables per-tool verbose file logging for research-stream runs. Default off. |
+| `LANGFUSE_PUBLIC_KEY` / `LANGFUSE_SECRET_KEY` | Optional. When both are set, every chat turn and research-swarm agent exports an OpenTelemetry trace (steps, tool calls, tokens, cache hits) to Langfuse. Off by default. |
+| `LANGFUSE_BASE_URL` | Optional. Langfuse host; defaults to EU cloud. `LANGFUSE_TRACING_ENVIRONMENT` labels traces (defaults to `NODE_ENV`). |
 | `VITE_ENABLE_DEV_LOGIN` | Optional build-time flag. `true` keeps the Login page's "Dev quick login" panel visible on production builds. Default off in production. |
 | `VITE_PROVIDERS_ADMIN_ALLOWLIST` | Optional. Comma-separated emails that see the "Providers" admin nav link in the client. Server routes stay protected by `requireAdmin` regardless. Default: none. |
 

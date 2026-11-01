@@ -22,6 +22,7 @@ import {
   logChatStreamStart,
   logChatTurn,
 } from '../ai/chat/telemetry';
+import { telemetrySettings, withTraceAttributes } from '../telemetry/otel';
 import { buildNativeChatTools } from '../ai/chat/tools';
 import type { ChatMode, ConversationContext } from '../brand/types';
 import { resolveChatMode } from '../brand/chat-mode';
@@ -302,10 +303,26 @@ export async function streamChatHandler(req: Request, res: Response): Promise<vo
     | undefined;
   let finishReasonSnapshot: string | undefined;
 
-  const result = streamText({
+  const modelMessages = await convertToModelMessages(messages);
+
+  // One Langfuse trace per turn, grouped into a session per conversation.
+  const result = withTraceAttributes(
+    {
+      userId: traceContext.userId,
+      sessionId: `conversation-${conversation.id}`,
+      tags: ['chat'],
+      metadata: { requestId },
+    },
+    () => streamText({
     model: getChatModel(requestedModel),
+    experimental_telemetry: telemetrySettings('chat.turn', {
+      userId: traceContext.userId,
+      conversationId: conversation.id,
+      requestedModel,
+      requestId,
+    }),
     system: systemPrompt,
-    messages: await convertToModelMessages(messages),
+    messages: modelMessages,
     tools,
     stopWhen: stepCountIs(30),
     onError: async ({ error }) => {
@@ -324,7 +341,8 @@ export async function streamChatHandler(req: Request, res: Response): Promise<vo
         cachedPromptTokens: usage.inputTokenDetails?.cacheReadTokens,
       };
     },
-  });
+  }),
+  );
 
   result.pipeUIMessageStreamToResponse(res, {
     originalMessages: messages,

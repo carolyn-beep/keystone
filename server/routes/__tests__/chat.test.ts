@@ -486,6 +486,10 @@ describe('chat route handlers', () => {
       tools: {
         load_skill: { name: 'load_skill' },
       },
+      experimental_telemetry: expect.objectContaining({
+        functionId: 'chat.turn',
+        metadata: expect.objectContaining({ userId: 'user-1', conversationId: 42 }),
+      }),
     }));
   });
 
