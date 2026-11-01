@@ -9,7 +9,7 @@
  * which insights most strongly support each SPOV.
  *
  * Pattern: One LLM call per SPOV (parallelized with p-limit).
- * Model: Haiku 4.5 via OpenRouter.
+ * Model: Haiku 5.5 via OpenRouter.
  */
 
 import pLimit from 'p-limit';

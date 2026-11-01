@@ -27,28 +27,32 @@ export function tracingEnabled(): boolean {
 }
 
 /**
- * Starts the OpenTelemetry NodeSDK with the Langfuse span processor.
+ * Registers a Node tracer provider with the Langfuse span processor.
  * No-op (returns false) when Langfuse keys are absent or tracing already runs.
  * Dependencies are loaded lazily so a deploy without tracing never touches them.
+ *
+ * Trace-only on purpose: `@opentelemetry/sdk-trace-node` instead of the full
+ * `sdk-node` bundle, which drags in metrics and log exporters (gRPC, protobuf)
+ * this app never uses and that carried most of its dependency advisories.
  */
 export async function startTracing(): Promise<boolean> {
   if (started || !tracingEnabled()) {
     return started;
   }
 
-  const [{ NodeSDK }, { LangfuseSpanProcessor }] = await Promise.all([
-    import('@opentelemetry/sdk-node'),
+  const [{ NodeTracerProvider }, { LangfuseSpanProcessor }] = await Promise.all([
+    import('@opentelemetry/sdk-trace-node'),
     import('@langfuse/otel'),
   ]);
 
   const processor = new LangfuseSpanProcessor({
     environment: process.env.LANGFUSE_TRACING_ENVIRONMENT ?? process.env.NODE_ENV ?? 'development',
   });
-  const nodeSdk = new NodeSDK({ spanProcessors: [processor] });
-  nodeSdk.start();
+  const provider = new NodeTracerProvider({ spanProcessors: [processor] });
+  provider.register();
 
   spanProcessor = processor;
-  sdk = nodeSdk;
+  sdk = provider;
   started = true;
   console.log('[Tracing] Langfuse span export enabled');
   return true;

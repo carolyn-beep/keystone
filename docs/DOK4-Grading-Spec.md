@@ -250,7 +250,7 @@ Each criterion is assessed as `strong`, `partial`, or `weak` with one sentence o
 
 `final_score = min(raw_llm_score, foundation_ceiling)`
 
-**Model:** Quality-tier (Opus 4.6 primary, Sonnet 4.5 fallback). Temperature 0.1.
+**Model:** Quality-tier (Fable 5.1 primary, Opus 5.5 fallback). Temperature 0.1.
 
 ---
 
@@ -294,7 +294,7 @@ The strategy describes *what to do*, not a rewritten Conviction. The student doe
 
 > **Changelog:** The original spec defines an Antimemetic Conversion as a student-driven submission flow: the student diagnoses barriers, writes a converted form, and the system scores the conversion attempt (1-5). The UX for this was never specified — no user flow for when the student would be prompted, how they'd submit, or where it lived in the Keystone Document interface. V1 replaces this with an automated assessment that runs post-grading. No student submission, no conversion score, no separate evaluation pipeline. The system diagnoses the barrier and provides a strategy. If the student acts on it, they rewrite their Conviction — which triggers re-grading through the existing pipeline. This is simpler, fits the current architecture, and can be extended into a full conversion flow later if needed.
 
-**Model:** Quality-tier (Opus 4.6 primary, Sonnet 4.5 fallback). Temperature 0.3 (slightly higher for more creative strategy suggestions).
+**Model:** Quality-tier (Fable 5.1 primary, Opus 5.5 fallback). Temperature 0.3 (slightly higher for more creative strategy suggestions).
 
 ---
 

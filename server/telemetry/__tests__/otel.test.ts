@@ -12,9 +12,9 @@ vi.mock('@langfuse/tracing', () => ({
   propagateAttributes: (...args: [unknown, () => unknown]) => mocks.propagateAttributes(...args),
 }));
 
-vi.mock('@opentelemetry/sdk-node', () => ({
-  NodeSDK: class {
-    start = mocks.nodeSdkStart;
+vi.mock('@opentelemetry/sdk-trace-node', () => ({
+  NodeTracerProvider: class {
+    register = mocks.nodeSdkStart;
     shutdown = mocks.nodeSdkShutdown;
   },
 }));
@@ -96,7 +96,7 @@ describe('tracing without Langfuse keys', () => {
 describe('tracing with Langfuse keys', () => {
   beforeEach(enableLangfuse);
 
-  it('starts the NodeSDK once with the Langfuse span processor', async () => {
+  it('registers the tracer provider once with the Langfuse span processor', async () => {
     const otel = await import('../otel');
     expect(await otel.startTracing()).toBe(true);
     expect(await otel.startTracing()).toBe(true);

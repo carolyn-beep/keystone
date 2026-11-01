@@ -1225,8 +1225,8 @@ export const DOK3_MODELS = {
   // Quality-tier (conceptual coherence evaluation)
   OPUS: 'anthropic/claude-opus-5.5',
   SONNET_FALLBACK: 'anthropic/claude-sonnet-5.5',
-  // Mid-tier (traceability) — Gemini primary, Sonnet fallback on rate limit
-  GEMINI_FLASH: 'google/gemini-2.0-flash-001',
+  // Mid-tier (traceability) — fast tier, Sonnet fallback on rate limit
+  GEMINI_FLASH: 'google/gemini-2.5-flash-lite',
   SONNET_MID_FALLBACK: 'anthropic/claude-sonnet-5.5',
 } as const;
 
