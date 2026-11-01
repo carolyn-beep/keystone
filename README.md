@@ -221,7 +221,6 @@ npm run db:apply           # replay migrations/ onto an EMPTY database only
 | `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | Google sign-in; the only self-service login in production. |
 | `AUTH_SIGNUP_ALLOWLIST` | Comma-separated emails allowed to create accounts in production. |
 | `CLIENT_URL` | Public URL of the client (used to build share links). |
-| `ANTHROPIC_API_KEY` | Claude API (discussions, extraction, orchestration, adversary, evaluation) |
 | `OPENROUTER_API_KEY` | Primary text-generation provider for the unified AI client |
 | `FIREWORKS_API_KEY` | Fireworks failover provider for the unified AI client and image fallback |
 | `OPENAI_API_KEY` | Primary image-generation provider (`gpt-image-1`) |

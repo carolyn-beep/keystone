@@ -223,7 +223,7 @@ AI-powered purpose suggestion endpoint for the Build from Scratch wizard.
 
 ### Notes
 
-- Uses `google/gemini-2.0-flash-001` (fast tier) via unified AI client
+- Uses `anthropic/claude-haiku-5.5` (fast tier) via unified AI client
 - Caller: `builder.purposeSuggestions`
 - Non-blocking: always returns 200, even on AI failure (empty array)
 

@@ -143,10 +143,10 @@ The **model registry** (`server/ai/client/registry.ts`) is the single source of 
 
 | Tier | Primary Models | Fireworks Fallback | Use Case |
 |------|----------------|--------------------|----------|
-| Premium | Claude Opus 4.6 | MiniMax 2.5 | High-stakes evaluation, structural decisions |
-| Standard | Claude Sonnet 4/4.5/4.6 | GLM 4.7 | General-purpose grading, quality fallback |
-| Fast | Claude Haiku 4.5, Gemini 2.0 Flash | Llama V3P3 70B Instruct | Parallel batch operations, classification |
-| Budget | Qwen 3 32B, Llama 3.1 8B | GPT-OSS 20B | Low-priority fallbacks |
+| Premium | Claude Fable 5.1 (DOK4 quality judgement only), Claude Opus 5.5 | DeepSeek V4 Pro | High-stakes evaluation, structural decisions |
+| Standard | Claude Sonnet 5.5 | GLM 5.1 | General-purpose grading, quality fallback |
+| Fast | Claude Haiku 5.5, Gemini 2.5 Flash Lite | GPT-OSS 120B | Parallel batch operations, classification |
+| Budget | Qwen 3 32B, Llama 3.1 8B (no live call sites) | GPT-OSS 120B | Low-priority fallbacks |
 
 A provider abstraction (`AIProvider` interface) now ships with both OpenRouter and Fireworks. The unified client covers the grading pipeline, auto-linkers, preformat service, expert extraction, and other non-streaming text-generation call sites. The main exceptions are still Vercel AI SDK routes (discussion, import agent — different streaming paradigm) and the Claude Agent SDK research swarm. Image generation is handled separately in `server/ai/imageGenerator.ts`, with its own OpenAI primary + Fireworks fallback path.
 
@@ -301,7 +301,7 @@ Users import Keystone Documents from WorkFlowy, HTML exports, or Google Docs. Th
 
 ### Structural Evaluation
 
-Before extraction begins, the system evaluates the Keystone Document's structural quality via a single Opus 4.6 LLM call. The evaluator receives both the serialized hierarchy and extraction diagnostics (fact counts, marker presence, source attribution rates) and returns a ternary decision:
+Before extraction begins, the system evaluates the Keystone Document's structural quality via a single Opus 5.5 LLM call (Sonnet 5.5 fallback). The evaluator receives both the serialized hierarchy and extraction diagnostics (fact counts, marker presence, source attribution rates) and returns a ternary decision:
 
 - **`no_formatting_needed`** — the extractor can handle the structure as-is. Proceeds directly to extraction.
 - **`needs_formatting`** — the document has research content but poor structure (no DOK markers, flat layout, misplaced sections, insights buried in the Knowledge Tree). The user sees a decision modal with the evaluator's justification and can accept formatting, reject it (use raw), or cancel.
@@ -393,7 +393,7 @@ Before grading, the system gathers evidence for each fact:
 
 1. **Direct source fetch** — extracts URLs from source citations, fetches the page with a 10-second timeout, strips navigation and boilerplate, and returns clean text. PDFs are detected and skipped. A shared URL cache prevents re-attempting failed URLs across the batch — important when many facts cite the same source.
 
-2. **Web-search fallback** — when the direct fetch fails or no URL is present, the system generates a concise search query with `anthropic/claude-haiku-5.5`, falling back to `google/gemini-2.0-flash-001` if needed. The query is passed to Exa, and the returned pages are fetched as readable source evidence for the verifier. A deterministic query builder remains as the last backup so tests can pin query behavior and make future query-generation swaps straightforward.
+2. **Web-search fallback** — when the direct fetch fails or no URL is present, the system generates a concise search query with `anthropic/claude-haiku-5.5`, falling back to `google/gemini-2.5-flash-lite` if needed. The query is passed to Exa, and the returned pages are fetched as readable source evidence for the verifier. A deterministic query builder remains as the last backup so tests can pin query behavior and make future query-generation swaps straightforward.
 
 Fallback evidence retrieval is intentionally conservative. Known arXiv PDF URLs are normalized to arXiv HTML pages before extraction, and readable sources are rejected when they look like blocker or error pages (`Just a moment...`, captcha/browser-check pages, access denied, not found) or when the extracted text is too short to support grading. Fallback logs include the reason fallback started, the generated query, returned result metadata, skipped-source reasons, readable source metadata, and the verifier score, without dumping page content into logs.
 
@@ -411,9 +411,9 @@ Each fact is graded on a 1--5 scale:
 
 The fact verifier in `server/ai/factVerifier.ts` uses an ordered fast-tier chain tuned for batch throughput and resilience:
 
-1. `google/gemini-2.0-flash-001`
-2. `anthropic/claude-haiku-5.5`
-3. Fireworks fast-tier fallback: `accounts/fireworks/models/llama-v3p3-70b-instruct`
+1. `anthropic/claude-haiku-5.5`
+2. `google/gemini-2.5-flash-lite`
+3. Fireworks fast-tier fallback: `accounts/fireworks/models/gpt-oss-120b`
 
 For each fact, the unified client runs one logical verification call through that chain in order. This keeps DOK1 grading fast enough for high-concurrency batch verification while still preserving automatic provider failover under outage conditions.
 
@@ -649,7 +649,7 @@ Both paths POST to `/api/brainlifts/:slug/learning-stream/launch`. The endpoint 
 
 ### Project-Data-Aware Orchestrator
 
-`server/ai/learning-stream-swarm-v2/orchestrator.ts` runs Opus 4.7 (with Sonnet fallback) on **every** launch. It receives a freshly-built context from `context-builder.ts` that blends:
+`server/ai/learning-stream-swarm-v2/orchestrator.ts` runs Opus 5.5 (with Sonnet 5.5 fallback) on **every** launch. It receives a freshly-built context from `context-builder.ts` that blends:
 
 - Keystone Document title, purpose, top-ranked facts, followed experts.
 - **Second Brain sources and notes** — the orchestrator now sees the research the student has actually accumulated, not just the Keystone Document.
@@ -824,7 +824,7 @@ When a student opens a learning stream item, they get a split-panel view: the re
 
 The Keystone Document methodology has a hard rule: **the user must write their own DOK2-4. No AI generation, no copy-paste.** Knowledge must pass through the user's brain to count. But "read this article and write your own summary" is a weak prompt that produces surface-level engagement. The discussion agent solves this by making knowledge extraction a conversation — the student articulates, the agent sharpens, and the result is captured as verified Keystone Document content.
 
-The agent (Claude Sonnet 4.5, streamed via Vercel AI SDK) is designed around this constraint: it does not summarize, extract, or produce knowledge for the student. It asks probing questions, challenges shallow readings, and guides the student to articulate their own understanding. The DOK framework is embedded in the system prompt — the agent understands the distinction between recalling facts (DOK1) and synthesizing them into a unique interpretation (DOK2), and it enforces the bright line between them.
+The agent (Claude Sonnet 5.5 through the same OpenRouter chat adapter as native chat, streamed via Vercel AI SDK) is designed around this constraint: it does not summarize, extract, or produce knowledge for the student. It asks probing questions, challenges shallow readings, and guides the student to articulate their own understanding. The DOK framework is embedded in the system prompt — the agent understands the distinction between recalling facts (DOK1) and synthesizing them into a unique interpretation (DOK2), and it enforces the bright line between them.
 
 ### DOK Pyramid Enforcement
 

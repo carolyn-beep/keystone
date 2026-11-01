@@ -1,22 +1,24 @@
 import { Router } from 'express';
-import { createAnthropic } from '@ai-sdk/anthropic';
 import { streamText, generateText, convertToModelMessages, stepCountIs, type UIMessage } from 'ai';
 import { storage } from '../storage';
 import { requireAuth } from '../middleware/auth';
 import { asyncHandler, BadRequestError, NotFoundError } from '../middleware/error-handler';
 import { requireBrainliftAccess } from '../middleware/brainlift-auth';
+import { getChatModel } from '../ai/chat/provider';
 import { buildDiscussionSystemPrompt } from '../ai/discussion/system-prompt';
 import { buildDiscussionTools } from '../ai/discussion/tools';
 
 export const discussionRouter = Router();
 
-const anthropic = createAnthropic({
-  apiKey: process.env.ANTHROPIC_API_KEY,
-});
+// Both discussion calls go through the same OpenRouter chat adapter as native
+// chat, so one OPENROUTER_API_KEY runs the whole platform. This route used to
+// hold the only direct Anthropic SDK client (ANTHROPIC_API_KEY, Sonnet 4.5).
+const DISCUSSION_MODEL = 'anthropic/claude-sonnet-5.5';
+const SUGGESTIONS_MODEL = 'anthropic/claude-haiku-5.5';
 
 /**
  * POST /api/brainlifts/:slug/discussion
- * Streaming discussion endpoint using Vercel AI SDK + Anthropic Sonnet.
+ * Streaming discussion endpoint using Vercel AI SDK over the OpenRouter chat adapter.
  * Accepts UIMessage[] from the frontend, streams SSE tokens back.
  */
 discussionRouter.post(
@@ -49,7 +51,7 @@ discussionRouter.post(
     const tools = buildDiscussionTools(item, brainlift, req.authContext!, builderContext);
 
     const result = streamText({
-      model: anthropic('claude-sonnet-4-5'),
+      model: getChatModel(DISCUSSION_MODEL),
       system: systemPrompt,
       messages: await convertToModelMessages(messages),
       tools,
@@ -85,7 +87,7 @@ discussionRouter.get(
     const purpose = brainlift.displayPurpose || brainlift.description || 'General learning';
 
     const { text } = await generateText({
-      model: anthropic('claude-haiku-4-5-20251001'),
+      model: getChatModel(SUGGESTIONS_MODEL),
       prompt: `You are generating discussion starter suggestions for a student studying a resource.
 
 BRAINLIFT PURPOSE: ${purpose}
