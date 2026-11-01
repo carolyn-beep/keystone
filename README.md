@@ -224,7 +224,6 @@ npm run db:apply           # replay migrations/ onto an EMPTY database only
 | `FIREWORKS_API_KEY` | Fireworks failover provider for the unified AI client and image fallback |
 | `OPENAI_API_KEY` | Primary image-generation provider (`gpt-image-1`) |
 | `EXA_API_KEY` | Exa search and Contents APIs (research swarm, chat web search, article extraction) |
-| `YOUTUBE_API_KEY` | YouTube Data API (video researcher agent) |
 | `DAILY_SWARM_LIMIT` | Research-swarm launches allowed per user per day (default: 3) |
 | `WORKER_CONCURRENCY` | Background job concurrency (default: 3) |
 | `S3_BUCKET`, `AWS_REGION`, `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY` | Optional. S3 storage for generated cover images. |
