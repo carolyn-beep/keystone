@@ -72,7 +72,7 @@ function deferred<T>() {
 
 const ORCH_RESULT = {
   runSpec: { agents: [{ type: 'Substack' as const, focus: 'F' }], notesToAgents: 'n' },
-  modelUsed: 'anthropic/claude-opus-4.6',
+  modelUsed: 'anthropic/claude-opus-5.5',
   usedDefault: false,
   usage: { inputTokens: 5, outputTokens: 6 },
   durationMs: 1,
@@ -85,7 +85,7 @@ const SWARM_RESULT = {
   failedCount: 0,
   errors: [],
   durationMs: 10,
-  slotUsages: [{ slotIdx: 0, type: 'Substack', model: 'anthropic/claude-haiku-4.5', inputTokens: 1, outputTokens: 2, durationMs: 5, status: 'success' as const }],
+  slotUsages: [{ slotIdx: 0, type: 'Substack', model: 'anthropic/claude-haiku-5.5', inputTokens: 1, outputTokens: 2, durationMs: 5, status: 'success' as const }],
 };
 
 beforeEach(() => {
@@ -112,7 +112,7 @@ describe('FR3: quick RunRequest', () => {
       42,
       expect.objectContaining({ topic: 'Online Education', agentCount: 3 }),
       expect.objectContaining({
-        models: ['anthropic/claude-sonnet-4.6', 'qwen/qwen-plus'],
+        models: ['anthropic/claude-sonnet-5.5', 'anthropic/claude-haiku-5.5'],
       }),
     );
     const req = mocks.orchestrate.mock.calls[0][1] as { notes?: string };

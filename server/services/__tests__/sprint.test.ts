@@ -161,7 +161,7 @@ describe('sprint service plan generation', () => {
       tasks: [
         { scheduledDate: '2026-04-21', title: 'Task 1', description: 'Desc 1', milestone: null },
       ],
-      modelUsed: 'anthropic/claude-opus-4.6',
+      modelUsed: 'anthropic/claude-opus-5.5',
     });
     mockStorage.finalizeGeneratingPlan.mockResolvedValue({
       plan: {

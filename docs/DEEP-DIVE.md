@@ -391,7 +391,7 @@ Before grading, the system gathers evidence for each fact:
 
 1. **Direct source fetch** — extracts URLs from source citations, fetches the page with a 10-second timeout, strips navigation and boilerplate, and returns clean text. PDFs are detected and skipped. A shared URL cache prevents re-attempting failed URLs across the batch — important when many facts cite the same source.
 
-2. **Web-search fallback** — when the direct fetch fails or no URL is present, the system generates a concise search query with `qwen/qwen-plus`, falling back to `google/gemini-2.0-flash-001` if needed. The query is passed to Exa, and the returned pages are fetched as readable source evidence for the verifier. A deterministic query builder remains as the last backup so tests can pin query behavior and make future query-generation swaps straightforward.
+2. **Web-search fallback** — when the direct fetch fails or no URL is present, the system generates a concise search query with `anthropic/claude-haiku-5.5`, falling back to `google/gemini-2.0-flash-001` if needed. The query is passed to Exa, and the returned pages are fetched as readable source evidence for the verifier. A deterministic query builder remains as the last backup so tests can pin query behavior and make future query-generation swaps straightforward.
 
 Fallback evidence retrieval is intentionally conservative. Known arXiv PDF URLs are normalized to arXiv HTML pages before extraction, and readable sources are rejected when they look like blocker or error pages (`Just a moment...`, captcha/browser-check pages, access denied, not found) or when the extracted text is too short to support grading. Fallback logs include the reason fallback started, the generated query, returned result metadata, skipped-source reasons, readable source metadata, and the verifier score, without dumping page content into logs.
 
@@ -410,7 +410,7 @@ Each fact is graded on a 1--5 scale:
 The fact verifier in `server/ai/factVerifier.ts` uses an ordered fast-tier chain tuned for batch throughput and resilience:
 
 1. `google/gemini-2.0-flash-001`
-2. `anthropic/claude-haiku-4.5`
+2. `anthropic/claude-haiku-5.5`
 3. Fireworks fast-tier fallback: `accounts/fireworks/models/llama-v3p3-70b-instruct`
 
 For each fact, the unified client runs one logical verification call through that chain in order. This keeps DOK1 grading fast enough for high-concurrency batch verification while still preserving automatic provider failover under outage conditions.

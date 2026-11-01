@@ -122,7 +122,7 @@ describe('FR2: DOK1 regrading prompt support', () => {
 
     mockCallModelWithFallback.mockResolvedValue({
       content: JSON.stringify({ score: 4, rationale: 'Improved', isNonGradeable: false }),
-      model: 'qwen/qwen-plus',
+      model: 'anthropic/claude-haiku-5.5',
       durationMs: 300,
       attempts: 1,
     });
@@ -147,7 +147,7 @@ describe('FR2: DOK1 regrading prompt support', () => {
 
     mockCallModelWithFallback.mockResolvedValue({
       content: JSON.stringify({ score: 4, rationale: 'Improved', isNonGradeable: false }),
-      model: 'qwen/qwen-plus',
+      model: 'anthropic/claude-haiku-5.5',
       durationMs: 300,
       attempts: 1,
     });
@@ -176,7 +176,7 @@ describe('FR2: DOK1 regrading prompt support', () => {
 
     mockCallModelWithFallback.mockResolvedValue({
       content: JSON.stringify({ score: 4, rationale: 'Good', isNonGradeable: false }),
-      model: 'qwen/qwen-plus',
+      model: 'anthropic/claude-haiku-5.5',
       durationMs: 300,
       attempts: 1,
     });
@@ -214,7 +214,7 @@ describe('FR3: DOK2 regrading prompt support', () => {
 
     mockCallModelWithFallback.mockResolvedValue({
       content: JSON.stringify({ displayTitle: 'Test', score: 4, diagnosis: 'Good', feedback: 'Well done', failReason: null }),
-      model: 'qwen/qwen-plus',
+      model: 'anthropic/claude-haiku-5.5',
       durationMs: 300,
       attempts: 1,
     });
@@ -240,7 +240,7 @@ describe('FR3: DOK2 regrading prompt support', () => {
 
     mockCallModelWithFallback.mockResolvedValue({
       content: JSON.stringify({ displayTitle: 'Test', score: 4, diagnosis: 'Good', feedback: 'Done', failReason: null }),
-      model: 'qwen/qwen-plus',
+      model: 'anthropic/claude-haiku-5.5',
       durationMs: 300,
       attempts: 1,
     });
@@ -268,7 +268,7 @@ describe('FR3: DOK2 regrading prompt support', () => {
 
     mockCallModelWithFallback.mockResolvedValue({
       content: JSON.stringify({ displayTitle: 'Test', score: 3, diagnosis: 'OK', feedback: 'Fine', failReason: null }),
-      model: 'qwen/qwen-plus',
+      model: 'anthropic/claude-haiku-5.5',
       durationMs: 300,
       attempts: 1,
     });
@@ -455,7 +455,7 @@ describe('FR5: DOK4 regrading prompt support', () => {
         rationale: 'Good SPOV',
         feedback: 'Minor improvements needed',
       }),
-      model: 'anthropic/claude-opus-4.6',
+      model: 'anthropic/claude-opus-5.5',
       durationMs: 1000,
       attempts: 1,
     });

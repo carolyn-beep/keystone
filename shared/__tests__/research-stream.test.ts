@@ -30,7 +30,7 @@ describe('research stream contract', () => {
       angles: [' engineering side ', 'policy framing'],
       preferredTypes: ['Podcast', 'AcademicPaper', 'Video'],
       slotOverrides: [
-        { type: 'Podcast', focus: ' Lex Fridman interviews ', model: ' anthropic/claude-haiku-4.5 ' },
+        { type: 'Podcast', focus: ' Lex Fridman interviews ', model: ' anthropic/claude-haiku-5.5 ' },
         { type: 'AcademicPaper', focus: 'superoptimization 2024+' },
       ],
       notes: ' lean recent ',
@@ -42,7 +42,7 @@ describe('research stream contract', () => {
       expect(parsed.data.angles).toEqual(['engineering side', 'policy framing']);
       expect(parsed.data.slotOverrides?.[0]).toMatchObject({
         focus: 'Lex Fridman interviews',
-        model: 'anthropic/claude-haiku-4.5',
+        model: 'anthropic/claude-haiku-5.5',
       });
       expect(parsed.data.notes).toBe('lean recent');
     }

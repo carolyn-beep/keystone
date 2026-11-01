@@ -45,7 +45,7 @@ function makeResult(overrides: Partial<WebSearchResult> = {}): WebSearchResult {
 }
 
 function modelResult(content: string) {
-  return { content, model: 'anthropic/claude-haiku-4.5' };
+  return { content, model: 'anthropic/claude-haiku-5.5' };
 }
 
 const CTX = {
@@ -139,7 +139,7 @@ describe('FR1: discoverExperts happy path', () => {
 
     expect(mockCallModel).toHaveBeenCalledTimes(1);
     const opts = mockCallModel.mock.calls[0][0];
-    expect(opts.model).toBe('anthropic/claude-haiku-4.5');
+    expect(opts.model).toBe('anthropic/claude-haiku-5.5');
     expect(opts.temperature).toBe(0);
     expect(opts.caller).toBe('onboarding.expertDiscovery');
     expect(opts.timeout).toBe(30_000);

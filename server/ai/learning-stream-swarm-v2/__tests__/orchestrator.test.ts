@@ -74,7 +74,7 @@ describe('orchestrate', () => {
 
     expect(mocks.callModelWithFallback).toHaveBeenCalledOnce();
     expect(mocks.callModelWithFallback).toHaveBeenCalledWith(expect.objectContaining({
-      models: ['anthropic/claude-opus-5.5', 'anthropic/claude-sonnet-5.5', 'qwen/qwen-plus'],
+      models: ['anthropic/claude-opus-5.5', 'anthropic/claude-sonnet-5.5', 'anthropic/claude-haiku-5.5'],
       caller: 'researchStreamV2.orchestrator',
       retries: 0,
     }));

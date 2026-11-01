@@ -150,7 +150,7 @@ body. Invalid `kind` → `400`; foreign slug → `404` (via
 
 No body. Reads context server-side from the loaded brainlift (`title`,
 `inScope`, category names via `getCategoriesWithCountsForSecondBrain`), runs
-`discoverExperts` (2-3 Exa `searchWeb` passes → one `anthropic/claude-haiku-4.5`
+`discoverExperts` (2-3 Exa `searchWeb` passes → one `anthropic/claude-haiku-5.5`
 extraction, search-grounded in code, deduped, capped at 5), and returns
 `200 { candidates }` (shape per `expertDiscoveryResponse`; each candidate carries
 `evidenceUrls` with ≥1 entry). **Fail-open:** any search/model failure degrades
@@ -160,7 +160,7 @@ unauthenticated → `401`.
 ### POST `/api/brainlifts/:slug/onboarding/starter-pack`
 
 No body. Launches the quick (starter-pack) swarm: a 3-agent `quick: true` run
-(forced `anthropic/claude-haiku-4.5`, 20-step cap, no recovery, 2-3 saves/slot,
+(forced `anthropic/claude-haiku-5.5`, 20-step cap, no recovery, 2-3 saves/slot,
 items land `source='starter-pack'`), orchestrated synchronously then run in the
 background. After the swarm completes, if the project declared out-of-scope
 topics, a cheap scope filter (`onboarding.scopeFilter`) prunes out-of-scope
@@ -249,7 +249,7 @@ Endpoints for managing builder-authored experts in native brainlifts (suggested 
 
 ### Background Job
 
-- `brainlift:suggest-experts` -- AI-generated expert suggestions using `callModelWithFallback(['anthropic/claude-sonnet-4.6', 'anthropic/claude-haiku-4.5'])`
+- `brainlift:suggest-experts` -- AI-generated expert suggestions using `callModelWithFallback(['anthropic/claude-sonnet-5.5', 'anthropic/claude-haiku-5.5'])`
 
 ---
 

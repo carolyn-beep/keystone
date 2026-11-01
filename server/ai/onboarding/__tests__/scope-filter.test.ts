@@ -25,7 +25,7 @@ function item(id: number, topic = `Topic ${id}`) {
 }
 
 function modelResult(content: string) {
-  return { content, model: 'anthropic/claude-haiku-4.5' };
+  return { content, model: 'anthropic/claude-haiku-5.5' };
 }
 
 const ITEMS = [item(1), item(2), item(3)];
@@ -122,7 +122,7 @@ describe('FR2: call configuration', () => {
       expect.objectContaining({
         caller: 'onboarding.scopeFilter',
         temperature: 0,
-        model: 'anthropic/claude-haiku-4.5',
+        model: 'anthropic/claude-haiku-5.5',
         timeout: 20_000,
       }),
     );

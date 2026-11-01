@@ -56,7 +56,7 @@ describe('REWRITE_CONFIG', () => {
 describe('REWRITER_MODELS', () => {
   it('is qwen3-30b primary then haiku failover', () => {
     expect(REWRITER_MODELS[0]).toBe('qwen/qwen3-30b-a3b-instruct-2507');
-    expect(REWRITER_MODELS[1]).toBe('anthropic/claude-haiku-4.5');
+    expect(REWRITER_MODELS[1]).toBe('anthropic/claude-haiku-5.5');
   });
 
   it('every rewriter model resolves through the registry', () => {

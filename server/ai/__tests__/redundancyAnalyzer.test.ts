@@ -48,7 +48,7 @@ describe('redundancyAnalyzer', () => {
         ],
         coreFactIds: [1, 3],
       }),
-      model: 'anthropic/claude-opus-4.6',
+      model: 'anthropic/claude-opus-5.5',
       durationMs: 300,
       attempts: 1,
     });
@@ -57,7 +57,7 @@ describe('redundancyAnalyzer', () => {
 
     expect(mockCallModelWithFallback).toHaveBeenCalledWith(
       expect.objectContaining({
-        models: ['anthropic/claude-opus-4.6', 'anthropic/claude-sonnet-4.6'],
+        models: ['anthropic/claude-opus-5.5', 'anthropic/claude-sonnet-5.5'],
         temperature: 0.1,
         maxTokens: 4000,
         timeout: 120_000,
@@ -105,7 +105,7 @@ describe('redundancyAnalyzer', () => {
         ],
         coreFactIds: [1, 3],
       }),
-      model: 'anthropic/claude-opus-4.6',
+      model: 'anthropic/claude-opus-5.5',
       durationMs: 250,
       attempts: 1,
     });
@@ -129,7 +129,7 @@ describe('redundancyAnalyzer', () => {
   it('handles JSON wrapped in markdown code blocks', async () => {
     mockCallModelWithFallback.mockResolvedValue({
       content: '```json\n{"redundancyGroups": [], "coreFactIds": [1, 2, 3]}\n```',
-      model: 'anthropic/claude-opus-4.6',
+      model: 'anthropic/claude-opus-5.5',
       durationMs: 200,
       attempts: 1,
     });

@@ -24,7 +24,7 @@ import { PROMPT_BUILDERS } from './section-prompts';
 import { parseMarkdownToHierarchy } from './markdown-parser';
 import { callModel } from '../client';
 
-const MODEL = 'anthropic/claude-haiku-4.5';
+const MODEL = 'anthropic/claude-haiku-5.5';
 const LLM_CONCURRENCY = 15;
 const verboseLog = () => process.env.VERBOSE_PRE_FORMATTER_LOG === 'true';
 

@@ -21,7 +21,7 @@ import { searchWeb, type WebSearchResult } from '../../services/web-research';
 import { callModel } from '../client';
 
 const MAX_CANDIDATES = 5;
-const DISCOVERY_MODEL = 'anthropic/claude-haiku-4.5';
+const DISCOVERY_MODEL = 'anthropic/claude-haiku-5.5';
 const DISCOVERY_TIMEOUT_MS = 30_000;
 
 export interface ExpertCandidate {

@@ -56,7 +56,7 @@ describe('brainliftExtractor - extractChunk (via extractBrainlift LLM fallback)'
     // Set up callModel to return valid JSON for chunk extraction
     mockCallModel.mockResolvedValue({
       content: JSON.stringify({ facts: [{ fact: 'Test fact', source: 'Test source' }] }),
-      model: 'qwen/qwen-plus',
+      model: 'anthropic/claude-haiku-5.5',
       durationMs: 100,
       attempts: 1,
     });
@@ -67,7 +67,7 @@ describe('brainliftExtractor - extractChunk (via extractBrainlift LLM fallback)'
     // extractChunk should have been called since regex finds no facts, triggering LLM fallback
     expect(mockCallModel).toHaveBeenCalledWith(
       expect.objectContaining({
-        model: 'qwen/qwen-plus',
+        model: 'anthropic/claude-haiku-5.5',
         temperature: 0.1,
         caller: 'brainliftExtractor.chunkExtraction',
         responseFormat: expect.objectContaining({
@@ -91,7 +91,7 @@ describe('brainliftExtractor - extractChunk (via extractBrainlift LLM fallback)'
     // Return content wrapped in markdown code block (malformed for direct JSON parse)
     mockCallModel.mockResolvedValue({
       content: '```json\n{"facts": [{"fact": "Extracted fact", "source": null}]}\n```',
-      model: 'qwen/qwen-plus',
+      model: 'anthropic/claude-haiku-5.5',
       durationMs: 100,
       attempts: 1,
     });
@@ -122,7 +122,7 @@ describe('brainliftExtractor - summarizePurposeForDisplay', () => {
     // extractChunk uses callModel (LLM fallback for facts)
     mockCallModel.mockResolvedValue({
       content: JSON.stringify({ facts: [{ fact: 'A fact', source: null }] }),
-      model: 'qwen/qwen-plus',
+      model: 'anthropic/claude-haiku-5.5',
       durationMs: 100,
       attempts: 1,
     });
@@ -130,7 +130,7 @@ describe('brainliftExtractor - summarizePurposeForDisplay', () => {
     // summarizePurposeForDisplay uses callModelWithFallback
     mockCallModelWithFallback.mockResolvedValue({
       content: 'Short summary of purpose',
-      model: 'qwen/qwen-plus',
+      model: 'anthropic/claude-haiku-5.5',
       durationMs: 50,
       attempts: 1,
     });
@@ -144,7 +144,7 @@ describe('brainliftExtractor - summarizePurposeForDisplay', () => {
     // Verify purpose summarization was called via callModelWithFallback
     expect(mockCallModelWithFallback).toHaveBeenCalledWith(
       expect.objectContaining({
-        models: ['qwen/qwen-plus', 'google/gemini-2.5-flash-lite'],
+        models: ['anthropic/claude-haiku-5.5', 'google/gemini-2.5-flash-lite'],
         maxTokens: 80,
         timeout: 15_000,
         retries: 2,

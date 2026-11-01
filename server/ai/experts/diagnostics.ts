@@ -7,8 +7,8 @@ import {
 } from '../prompts/expert-diagnostics';
 import { callModelWithFallback } from '../client';
 
-const PRIMARY_MODEL = 'anthropic/claude-sonnet-4.5';
-const FALLBACK_MODEL = 'qwen/qwen-plus';
+const PRIMARY_MODEL = 'anthropic/claude-sonnet-5.5';
+const FALLBACK_MODEL = 'anthropic/claude-haiku-5.5';
 
 /**
  * Diagnostic for real expert section format issues.

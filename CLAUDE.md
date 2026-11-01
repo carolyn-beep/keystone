@@ -117,7 +117,7 @@ import { callModel, callModelWithFallback } from '../ai/client';
 
 // Simple call
 const result = await callModel({
-  model: 'anthropic/claude-haiku-4.5',
+  model: 'anthropic/claude-haiku-5.5',
   messages: [{ role: 'user', content: prompt }],
   system: 'You are helpful',
   temperature: 0,
@@ -128,7 +128,7 @@ const result = await callModel({
 
 // With fallback chain (tries models in order)
 const result = await callModelWithFallback({
-  models: ['anthropic/claude-opus-4.6', 'anthropic/claude-sonnet-4.6'],
+  models: ['anthropic/claude-opus-5.5', 'anthropic/claude-sonnet-5.5'],
   messages: [...],
   caller: 'myFeature.evaluation',
 });

@@ -86,7 +86,7 @@ Find redundant groups and identify the core non-redundant facts.`;
 
   try {
     const result = await callModelWithFallback({
-      models: ['anthropic/claude-opus-4.6', 'anthropic/claude-sonnet-4.6'],
+      models: ['anthropic/claude-opus-5.5', 'anthropic/claude-sonnet-5.5'],
       system: REDUNDANCY_SYSTEM_PROMPT,
       messages: [{ role: 'user', content: userPrompt }],
       temperature: 0.1,

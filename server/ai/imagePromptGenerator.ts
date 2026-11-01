@@ -51,7 +51,7 @@ export async function generateImagePrompt(
   }
 
   const result = await callModelWithFallback({
-    models: ['anthropic/claude-opus-4.6', 'anthropic/claude-sonnet-4.6'],
+    models: ['anthropic/claude-opus-5.5', 'anthropic/claude-sonnet-5.5'],
     messages: [{ role: 'user', content: prompt }],
     maxTokens: 100,
     temperature: 0.7,

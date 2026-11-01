@@ -17,7 +17,7 @@ const RECENT_RUNS_LOOKBACK = 3;
 const ORCHESTRATOR_MODELS = [
   'anthropic/claude-opus-5.5',
   'anthropic/claude-sonnet-5.5',
-  'qwen/qwen-plus',
+  'anthropic/claude-haiku-5.5',
 ] as const;
 
 export interface OrchestrateResult {

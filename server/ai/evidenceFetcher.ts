@@ -156,7 +156,7 @@ Rules:
 
   try {
     const result = await callModelWithFallback({
-      models: ['qwen/qwen-plus', 'google/gemini-2.5-flash-lite'],
+      models: ['anthropic/claude-haiku-5.5', 'google/gemini-2.5-flash-lite'],
       messages: [{ role: 'user', content: prompt }],
       temperature: 0,
       maxTokens: 120,

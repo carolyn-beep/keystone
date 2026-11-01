@@ -1223,11 +1223,11 @@ export const swarmUsageRelations = relations(swarmUsage, ({ one }) => ({
 // DOK3 Models — used for DOK3 grading (quality-tier and fast-tier)
 export const DOK3_MODELS = {
   // Quality-tier (conceptual coherence evaluation)
-  OPUS: 'anthropic/claude-opus-4.6',
-  SONNET_FALLBACK: 'anthropic/claude-sonnet-4.5',
+  OPUS: 'anthropic/claude-opus-5.5',
+  SONNET_FALLBACK: 'anthropic/claude-sonnet-5.5',
   // Mid-tier (traceability) — Gemini primary, Sonnet fallback on rate limit
   GEMINI_FLASH: 'google/gemini-2.0-flash-001',
-  SONNET_MID_FALLBACK: 'anthropic/claude-sonnet-4.5',
+  SONNET_MID_FALLBACK: 'anthropic/claude-sonnet-5.5',
 } as const;
 
 export type DOK3Model = typeof DOK3_MODELS[keyof typeof DOK3_MODELS];

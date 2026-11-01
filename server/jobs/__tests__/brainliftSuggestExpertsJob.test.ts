@@ -76,7 +76,7 @@ describe('brainliftSuggestExpertsJob', () => {
     mockGetBrainliftById.mockResolvedValue(BRAINLIFT_FIXTURE);
     mockCallModelWithFallback.mockResolvedValue({
       content: AI_RESPONSE_FIXTURE,
-      model: 'anthropic/claude-sonnet-4.6',
+      model: 'anthropic/claude-sonnet-5.5',
     });
     mockInsertSuggestedExperts.mockResolvedValue([]);
     mockSetBuilderSuggestionState.mockResolvedValue(undefined);
@@ -87,7 +87,7 @@ describe('brainliftSuggestExpertsJob', () => {
     expect(mockGetBrainliftById).toHaveBeenCalledWith(42);
     expect(mockCallModelWithFallback).toHaveBeenCalledWith(
       expect.objectContaining({
-        models: ['anthropic/claude-sonnet-4.6', 'anthropic/claude-haiku-4.5'],
+        models: ['anthropic/claude-sonnet-5.5', 'anthropic/claude-haiku-5.5'],
         caller: 'brainliftBuilder.suggestExperts',
         timeout: 30_000,
       })
@@ -118,7 +118,7 @@ describe('brainliftSuggestExpertsJob', () => {
     mockGetBrainliftById.mockResolvedValue(BRAINLIFT_FIXTURE);
     mockCallModelWithFallback.mockResolvedValue({
       content: 'not valid json at all',
-      model: 'anthropic/claude-sonnet-4.6',
+      model: 'anthropic/claude-sonnet-5.5',
     });
     mockSetBuilderSuggestionState.mockResolvedValue(undefined);
 

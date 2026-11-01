@@ -165,7 +165,7 @@ export async function generateSprintPlan(input: SprintGenerationInput): Promise<
 
   try {
     const llmResult = await callModelWithFallback({
-      models: ['anthropic/claude-opus-4.6', 'anthropic/claude-sonnet-4.6'],
+      models: ['anthropic/claude-opus-5.5', 'anthropic/claude-sonnet-5.5'],
       system,
       messages: [{ role: 'user', content: userPrompt }],
       temperature: 0.3,

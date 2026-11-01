@@ -4,7 +4,7 @@
  * Simplifies and shortens a grader's long user-facing field for a high-school
  * audience WITHOUT changing the score. Pure: no DB, no persistence, no grader
  * wiring (that is spec 03). Uses the unified AI client callModelWithFallback
- * (qwen3-30b-a3b primary -> haiku-4.5 failover), always with a `caller` string.
+ * (qwen3-30b-a3b primary -> haiku-5.5 failover), always with a `caller` string.
  * No per-rewrite LLM judge — acceptance is decided by deterministic guards.
  *
  * Contract: rewriteField NEVER throws to the caller. Any model error, timeout,

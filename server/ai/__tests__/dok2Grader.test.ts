@@ -47,7 +47,7 @@ describe('DOK2 Grader — Unified Client Migration', () => {
 
       mockCallModelWithFallback.mockResolvedValue({
         content: JSON.stringify(mockResponse),
-        model: 'qwen/qwen-plus',
+        model: 'anthropic/claude-haiku-5.5',
         durationMs: 500,
         attempts: 1,
       });
@@ -75,7 +75,7 @@ describe('DOK2 Grader — Unified Client Migration', () => {
           feedback: 'OK',
           failReason: null,
         }),
-        model: 'qwen/qwen-plus',
+        model: 'anthropic/claude-haiku-5.5',
         durationMs: 400,
         attempts: 1,
       });
@@ -89,7 +89,7 @@ describe('DOK2 Grader — Unified Client Migration', () => {
 
       expect(mockCallModelWithFallback).toHaveBeenCalledTimes(1);
       const callArgs = mockCallModelWithFallback.mock.calls[0][0];
-      expect(callArgs.models).toEqual(['qwen/qwen-plus', 'google/gemini-2.5-flash-lite']);
+      expect(callArgs.models).toEqual(['anthropic/claude-haiku-5.5', 'google/gemini-2.5-flash-lite']);
       expect(callArgs.temperature).toBe(0.1);
       expect(callArgs.maxTokens).toBe(1500);
       expect(callArgs.timeout).toBe(60_000);
@@ -113,7 +113,7 @@ describe('DOK2 Grader — Unified Client Migration', () => {
       // The regex match for \{[\s\S]*\} should still capture the object
       mockCallModelWithFallback.mockResolvedValue({
         content: malformedContent,
-        model: 'qwen/qwen-plus',
+        model: 'anthropic/claude-haiku-5.5',
         durationMs: 400,
         attempts: 1,
       });
@@ -141,7 +141,7 @@ describe('DOK2 Grader — Unified Client Migration', () => {
 
       mockCallModelWithFallback.mockResolvedValue({
         content: `{${regexContent}}`,
-        model: 'qwen/qwen-plus',
+        model: 'anthropic/claude-haiku-5.5',
         durationMs: 300,
         attempts: 1,
       });
@@ -161,7 +161,7 @@ describe('DOK2 Grader — Unified Client Migration', () => {
     it('returns default grade (score 3) when callModelWithFallback throws AllModelsFailed', async () => {
       mockCallModelWithFallback.mockRejectedValue(
         new AllModelsFailed(
-          ['qwen/qwen-plus', 'google/gemini-2.5-flash-lite'],
+          ['anthropic/claude-haiku-5.5', 'google/gemini-2.5-flash-lite'],
           [new Error('Gemini failed'), new Error('Sonnet failed')],
         ),
       );
@@ -204,7 +204,7 @@ describe('DOK2 Grader — Unified Client Migration', () => {
           feedback: 'Great',
           failReason: null,
         }),
-        model: 'qwen/qwen-plus',
+        model: 'anthropic/claude-haiku-5.5',
         durationMs: 300,
         attempts: 1,
       });
@@ -229,7 +229,7 @@ describe('DOK2 Grader — Unified Client Migration', () => {
           feedback: 'Nice',
           failReason: null,
         }),
-        model: 'qwen/qwen-plus',
+        model: 'anthropic/claude-haiku-5.5',
         durationMs: 300,
         attempts: 1,
       });
@@ -254,7 +254,7 @@ describe('DOK2 Grader — Unified Client Migration', () => {
           feedback: 'Excellent',
           failReason: null,
         }),
-        model: 'qwen/qwen-plus',
+        model: 'anthropic/claude-haiku-5.5',
         durationMs: 300,
         attempts: 1,
       });
@@ -281,7 +281,7 @@ describe('DOK2 Grader — Unified Client Migration', () => {
           feedback: 'Rewrite needed',
           failReason: 'copy_paste',
         }),
-        model: 'qwen/qwen-plus',
+        model: 'anthropic/claude-haiku-5.5',
         durationMs: 300,
         attempts: 1,
       });

@@ -40,11 +40,11 @@ export const REWRITE_CONFIG: Record<DokLevel, LevelRewriteConfig> = {
 };
 
 /**
- * Uniform rewriter chain: qwen3-30b-a3b primary -> haiku-4.5 failover, used via
+ * Uniform rewriter chain: qwen3-30b-a3b primary -> haiku-5.5 failover, used via
  * the unified client's callModelWithFallback. Both ids must exist in the model
  * registry (server/ai/client/registry.ts).
  */
 export const REWRITER_MODELS = [
   'qwen/qwen3-30b-a3b-instruct-2507',
-  'anthropic/claude-haiku-4.5',
+  'anthropic/claude-haiku-5.5',
 ] as const;

@@ -35,7 +35,7 @@ describe('imagePromptGenerator', () => {
   it('calls callModelWithFallback with correct models, temperature, maxTokens, timeout, and caller', async () => {
     mockCallModelWithFallback.mockResolvedValue({
       content: 'an open book with gears emerging from its pages',
-      model: 'anthropic/claude-opus-4.6',
+      model: 'anthropic/claude-opus-5.5',
       durationMs: 150,
       attempts: 1,
     });
@@ -44,7 +44,7 @@ describe('imagePromptGenerator', () => {
 
     expect(mockCallModelWithFallback).toHaveBeenCalledWith(
       expect.objectContaining({
-        models: ['anthropic/claude-opus-4.6', 'anthropic/claude-sonnet-4.6'],
+        models: ['anthropic/claude-opus-5.5', 'anthropic/claude-sonnet-5.5'],
         temperature: 0.7,
         maxTokens: 100,
         timeout: 15_000,
@@ -56,7 +56,7 @@ describe('imagePromptGenerator', () => {
   it('returns the visual concept from callModel', async () => {
     mockCallModelWithFallback.mockResolvedValue({
       content: 'a lighthouse beam splitting into prismatic colors',
-      model: 'anthropic/claude-opus-4.6',
+      model: 'anthropic/claude-opus-5.5',
       durationMs: 100,
       attempts: 1,
     });
@@ -68,7 +68,7 @@ describe('imagePromptGenerator', () => {
   it('throws on empty response from callModel', async () => {
     mockCallModelWithFallback.mockResolvedValue({
       content: '',
-      model: 'anthropic/claude-opus-4.6',
+      model: 'anthropic/claude-opus-5.5',
       durationMs: 100,
       attempts: 1,
     });
@@ -80,7 +80,7 @@ describe('imagePromptGenerator', () => {
   it('includes title, purpose, and themes in the prompt', async () => {
     mockCallModelWithFallback.mockResolvedValue({
       content: 'a visual concept',
-      model: 'anthropic/claude-opus-4.6',
+      model: 'anthropic/claude-opus-5.5',
       durationMs: 100,
       attempts: 1,
     });
@@ -99,7 +99,7 @@ describe('imagePromptGenerator', () => {
 
     mockCallModelWithFallback.mockResolvedValue({
       content: 'a hourglass filled with data streams',
-      model: 'anthropic/claude-opus-4.6',
+      model: 'anthropic/claude-opus-5.5',
       durationMs: 100,
       attempts: 1,
     });

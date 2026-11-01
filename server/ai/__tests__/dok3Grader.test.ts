@@ -150,7 +150,7 @@ describe('FR1: checkSourceTraceability — unified client', () => {
   it('calls callModelWithFallback with correct models for each source', async () => {
     mockCallModelWithFallback.mockResolvedValue({
       content: TRACEABILITY_RESPONSE,
-      model: 'qwen/qwen-plus',
+      model: 'anthropic/claude-haiku-5.5',
       durationMs: 500,
       attempts: 1,
     });
@@ -164,7 +164,7 @@ describe('FR1: checkSourceTraceability — unified client', () => {
     // Check first call has correct models array
     const firstCall = mockCallModelWithFallback.mock.calls[0][0];
     expect(firstCall.models).toEqual([
-      'qwen/qwen-plus',
+      'anthropic/claude-haiku-5.5',
       'google/gemini-2.5-flash-lite',
     ]);
   });
@@ -172,7 +172,7 @@ describe('FR1: checkSourceTraceability — unified client', () => {
   it('passes correct system prompt, temperature, responseFormat, and caller', async () => {
     mockCallModelWithFallback.mockResolvedValue({
       content: TRACEABILITY_RESPONSE,
-      model: 'qwen/qwen-plus',
+      model: 'anthropic/claude-haiku-5.5',
       durationMs: 500,
       attempts: 1,
     });
@@ -206,7 +206,7 @@ describe('FR1: checkSourceTraceability — unified client', () => {
   it('passes user message with source-specific content', async () => {
     mockCallModelWithFallback.mockResolvedValue({
       content: TRACEABILITY_RESPONSE,
-      model: 'qwen/qwen-plus',
+      model: 'anthropic/claude-haiku-5.5',
       durationMs: 500,
       attempts: 1,
     });
@@ -223,7 +223,7 @@ describe('FR1: checkSourceTraceability — unified client', () => {
   it('returns { flagged: false } when no sources are flagged', async () => {
     mockCallModelWithFallback.mockResolvedValue({
       content: TRACEABILITY_RESPONSE,
-      model: 'qwen/qwen-plus',
+      model: 'anthropic/claude-haiku-5.5',
       durationMs: 500,
       attempts: 1,
     });
@@ -240,13 +240,13 @@ describe('FR1: checkSourceTraceability — unified client', () => {
     mockCallModelWithFallback
       .mockResolvedValueOnce({
         content: TRACEABILITY_FLAGGED_RESPONSE,
-        model: 'qwen/qwen-plus',
+        model: 'anthropic/claude-haiku-5.5',
         durationMs: 500,
         attempts: 1,
       })
       .mockResolvedValueOnce({
         content: TRACEABILITY_RESPONSE,
-        model: 'qwen/qwen-plus',
+        model: 'anthropic/claude-haiku-5.5',
         durationMs: 500,
         attempts: 1,
       });
@@ -263,7 +263,7 @@ describe('FR1: checkSourceTraceability — unified client', () => {
     mockCallModelWithFallback
       .mockResolvedValueOnce({
         content: TRACEABILITY_RESPONSE,
-        model: 'qwen/qwen-plus',
+        model: 'anthropic/claude-haiku-5.5',
         durationMs: 500,
         attempts: 1,
       })
@@ -296,7 +296,7 @@ describe('FR2: evaluateConceptualCoherence — unified client (via gradeDOK3Insi
     for (let i = 0; i < sourceCount; i++) {
       mockCallModelWithFallback.mockResolvedValueOnce({
         content: TRACEABILITY_RESPONSE,
-        model: 'qwen/qwen-plus',
+        model: 'anthropic/claude-haiku-5.5',
         durationMs: 500,
         attempts: 1,
       });
@@ -305,7 +305,7 @@ describe('FR2: evaluateConceptualCoherence — unified client (via gradeDOK3Insi
     // Coherence evaluation call
     mockCallModelWithFallback.mockResolvedValueOnce({
       content: EVALUATION_RESPONSE,
-      model: 'anthropic/claude-opus-4.6',
+      model: 'anthropic/claude-opus-5.5',
       durationMs: 2000,
       attempts: 1,
     });
@@ -320,8 +320,8 @@ describe('FR2: evaluateConceptualCoherence — unified client (via gradeDOK3Insi
     // Find the coherence call (last one)
     const lastCall = mockCallModelWithFallback.mock.calls[mockCallModelWithFallback.mock.calls.length - 1][0];
     expect(lastCall.models).toEqual([
-      'anthropic/claude-opus-4.6',
-      'anthropic/claude-sonnet-4.5',
+      'anthropic/claude-opus-5.5',
+      'anthropic/claude-sonnet-5.5',
     ]);
   });
 
@@ -347,7 +347,7 @@ describe('FR2: evaluateConceptualCoherence — unified client (via gradeDOK3Insi
 
     const result = await gradeDOK3Insight(1, 10);
 
-    expect(result.evaluatorModel).toBe('anthropic/claude-opus-4.6');
+    expect(result.evaluatorModel).toBe('anthropic/claude-opus-5.5');
   });
 
   it('captures fallback model when primary fails', async () => {
@@ -357,13 +357,13 @@ describe('FR2: evaluateConceptualCoherence — unified client (via gradeDOK3Insi
     // Traceability calls
     mockCallModelWithFallback.mockResolvedValueOnce({
       content: TRACEABILITY_RESPONSE,
-      model: 'qwen/qwen-plus',
+      model: 'anthropic/claude-haiku-5.5',
       durationMs: 500,
       attempts: 1,
     });
     mockCallModelWithFallback.mockResolvedValueOnce({
       content: TRACEABILITY_RESPONSE,
-      model: 'qwen/qwen-plus',
+      model: 'anthropic/claude-haiku-5.5',
       durationMs: 500,
       attempts: 1,
     });
@@ -371,13 +371,13 @@ describe('FR2: evaluateConceptualCoherence — unified client (via gradeDOK3Insi
     // Coherence evaluation -- fallback model used
     mockCallModelWithFallback.mockResolvedValueOnce({
       content: EVALUATION_RESPONSE,
-      model: 'anthropic/claude-sonnet-4.5',
+      model: 'anthropic/claude-sonnet-5.5',
       durationMs: 1500,
       attempts: 2,
     });
 
     const result = await gradeDOK3Insight(1, 10);
-    expect(result.evaluatorModel).toBe('anthropic/claude-sonnet-4.5');
+    expect(result.evaluatorModel).toBe('anthropic/claude-sonnet-5.5');
   });
 
   it('parses evaluation response through extractJSON and Zod schema', async () => {
@@ -452,7 +452,7 @@ describe('FR4: gradeDOK3Insight — pipeline orchestration preserved', () => {
     for (let i = 0; i < sourceCount; i++) {
       mockCallModelWithFallback.mockResolvedValueOnce({
         content: TRACEABILITY_RESPONSE,
-        model: 'qwen/qwen-plus',
+        model: 'anthropic/claude-haiku-5.5',
         durationMs: 500,
         attempts: 1,
       });
@@ -460,7 +460,7 @@ describe('FR4: gradeDOK3Insight — pipeline orchestration preserved', () => {
 
     mockCallModelWithFallback.mockResolvedValueOnce({
       content: EVALUATION_RESPONSE,
-      model: 'anthropic/claude-opus-4.6',
+      model: 'anthropic/claude-opus-5.5',
       durationMs: 2000,
       attempts: 1,
     });
@@ -564,7 +564,7 @@ describe('FR4: gradeDOK3Insight — pipeline orchestration preserved', () => {
     expect(insightId).toBe(1);
     expect(gradeData.score).toBeDefined();
     expect(gradeData.frameworkName).toBe('Compound Skills Gap');
-    expect(gradeData.evaluatorModel).toBe('anthropic/claude-opus-4.6');
+    expect(gradeData.evaluatorModel).toBe('anthropic/claude-opus-5.5');
   });
 
   it('rewrites the rationale and persists rationale (rewritten) + rationaleRaw (original); score untouched', async () => {
@@ -635,7 +635,7 @@ describe('04-token-backend: dok3Grader threads ids into the coherence user promp
     for (let i = 0; i < sourceCount; i++) {
       mockCallModelWithFallback.mockResolvedValueOnce({
         content: TRACEABILITY_RESPONSE,
-        model: 'qwen/qwen-plus',
+        model: 'anthropic/claude-haiku-5.5',
         durationMs: 500,
         attempts: 1,
       });
@@ -643,7 +643,7 @@ describe('04-token-backend: dok3Grader threads ids into the coherence user promp
 
     mockCallModelWithFallback.mockResolvedValueOnce({
       content: EVALUATION_RESPONSE,
-      model: 'anthropic/claude-opus-4.6',
+      model: 'anthropic/claude-opus-5.5',
       durationMs: 2000,
       attempts: 1,
     });

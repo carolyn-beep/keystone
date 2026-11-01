@@ -38,7 +38,7 @@ export async function brainliftSuggestExpertsJob(
     const { system, messages } = buildSuggestExpertsPrompt(topic, purpose);
 
     const result = await callModelWithFallback({
-      models: ['anthropic/claude-sonnet-4.6', 'anthropic/claude-haiku-4.5'],
+      models: ['anthropic/claude-sonnet-5.5', 'anthropic/claude-haiku-5.5'],
       messages,
       system,
       temperature: 0.7,

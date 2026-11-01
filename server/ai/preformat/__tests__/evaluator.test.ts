@@ -186,7 +186,7 @@ describe('evaluateNeedsPreformat', () => {
       const callArgs = mockCallModelWithFallback.mock.calls[0][0];
 
       expect(callArgs.caller).toBe('preformat.evaluation');
-      expect(callArgs.models).toEqual(['anthropic/claude-opus-4.6', 'anthropic/claude-sonnet-4.6']);
+      expect(callArgs.models).toEqual(['anthropic/claude-opus-5.5', 'anthropic/claude-sonnet-5.5']);
       expect(callArgs.temperature).toBe(0);
       expect(callArgs.timeout).toBe(45_000);
 

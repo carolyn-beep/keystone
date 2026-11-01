@@ -147,7 +147,7 @@ async function extractChunk(chunk: string, title: string, chunkIdx: number): Pro
   console.log(`[DOK1 Extractor] FALLBACK: Chunk ${chunkIdx + 1} started (${chunk.length} chars)`);
   try {
     const result = await callModel({
-      model: 'qwen/qwen-plus',
+      model: 'anthropic/claude-haiku-5.5',
       system: LLM_EXTRACT_SYSTEM,
       messages: [
         { role: 'user', content: `Extract DOK1 facts from chunk ${chunkIdx + 1} of "${title}":\n\n${chunk}` }
@@ -263,7 +263,7 @@ async function summarizePurposeForDisplay(fullPurpose: string, title: string): P
 
   try {
     const result = await callModelWithFallback({
-      models: ['qwen/qwen-plus', 'google/gemini-2.5-flash-lite'],
+      models: ['anthropic/claude-haiku-5.5', 'google/gemini-2.5-flash-lite'],
       system: `Compress a purpose statement into ONE punchy sentence (50-120 chars).
 
 FORMAT: "[Topic]: [key question or goal]"

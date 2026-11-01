@@ -105,7 +105,7 @@ describe('sprintGenerator', () => {
           ],
         }),
       }),
-      model: 'anthropic/claude-opus-4.6',
+      model: 'anthropic/claude-opus-5.5',
       durationMs: 300,
       attempts: 1,
     });
@@ -117,7 +117,7 @@ describe('sprintGenerator', () => {
     });
 
     expect(result.startDate).toBe('2026-04-27');
-    expect(result.modelUsed).toBe('anthropic/claude-opus-4.6');
+    expect(result.modelUsed).toBe('anthropic/claude-opus-5.5');
     expect(result.tasks).toHaveLength(SPRINT_PLAN_DAY_COUNT);
     expect(result.tasks[0]).toEqual({
       scheduledDate: '2026-04-27',
@@ -129,7 +129,7 @@ describe('sprintGenerator', () => {
 
     expect(mockCallModelWithFallback).toHaveBeenCalledWith(
       expect.objectContaining({
-        models: ['anthropic/claude-opus-4.6', 'anthropic/claude-sonnet-4.6'],
+        models: ['anthropic/claude-opus-5.5', 'anthropic/claude-sonnet-5.5'],
         caller: 'scopeBreaker.sprintGenerator',
         timeout: 600_000,
         retries: 0,
@@ -173,7 +173,7 @@ describe('sprintGenerator', () => {
       content: JSON.stringify({
         days: invalidDays,
       }),
-      model: 'anthropic/claude-sonnet-4.6',
+      model: 'anthropic/claude-sonnet-5.5',
       durationMs: 120,
       attempts: 1,
     });
@@ -197,7 +197,7 @@ describe('sprintGenerator', () => {
           ],
         }),
       }),
-      model: 'anthropic/claude-sonnet-4.6',
+      model: 'anthropic/claude-sonnet-5.5',
       durationMs: 120,
       attempts: 1,
     });
@@ -221,7 +221,7 @@ describe('sprintGenerator', () => {
           ],
         }),
       }),
-      model: 'anthropic/claude-sonnet-4.6',
+      model: 'anthropic/claude-sonnet-5.5',
       durationMs: 120,
       attempts: 1,
     });
@@ -247,7 +247,7 @@ describe('sprintGenerator', () => {
           })),
         }),
       }),
-      model: 'anthropic/claude-sonnet-4.6',
+      model: 'anthropic/claude-sonnet-5.5',
       durationMs: 90,
       attempts: 1,
     });

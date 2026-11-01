@@ -4,7 +4,7 @@
  * Phase 1: Extract key concepts from text content
  * Phase 2: Generate DOK1 MCQs from those concepts
  *
- * Both phases use claude-haiku-4.5 via the unified AI client.
+ * Both phases use claude-haiku-5.5 via the unified AI client.
  */
 
 import { callModel } from '../ai/client';
@@ -40,7 +40,7 @@ interface RawQuestion {
 // --- Constants ---
 
 const MAX_CONTENT_WORDS = 4000;
-const MODEL = 'anthropic/claude-haiku-4.5';
+const MODEL = 'anthropic/claude-haiku-5.5';
 
 // --- Main Function ---
 

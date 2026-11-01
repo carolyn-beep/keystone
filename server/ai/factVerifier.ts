@@ -212,7 +212,7 @@ Grade this claim using only the supplied evidence. Provide a substantive rationa
 
   try {
     const result = await callModelWithFallback({
-      models: ['qwen/qwen-plus', 'google/gemini-2.5-flash-lite'],
+      models: ['anthropic/claude-haiku-5.5', 'google/gemini-2.5-flash-lite'],
       system: systemPrompt,
       messages: [{ role: 'user', content: userPrompt }],
       temperature: 0.1,

@@ -67,7 +67,7 @@ function makeChunk(type: ChunkType, label: string, markdown?: string): Preformat
 function mockCallModelResponse(responseBody: object) {
   mockCallModel.mockResolvedValue({
     content: JSON.stringify(responseBody),
-    model: 'anthropic/claude-haiku-4.5',
+    model: 'anthropic/claude-haiku-5.5',
     durationMs: 100,
     attempts: 1,
   });
@@ -365,7 +365,7 @@ describe('FR3: Parallel LLM Dispatch', () => {
       const response = callCount === 1 ? CATEGORY_RESPONSE : catResponse2;
       return {
         content: JSON.stringify(response),
-        model: 'anthropic/claude-haiku-4.5',
+        model: 'anthropic/claude-haiku-5.5',
         durationMs: 100,
         attempts: 1,
       };
@@ -455,7 +455,7 @@ describe('FR3: Parallel LLM Dispatch', () => {
       const response = responseMap[callCount] || OWNER_RESPONSE;
       return {
         content: JSON.stringify(response),
-        model: 'anthropic/claude-haiku-4.5',
+        model: 'anthropic/claude-haiku-5.5',
         durationMs: 100,
         attempts: 1,
       };
@@ -486,7 +486,7 @@ describe('FR3: Parallel LLM Dispatch', () => {
         retries: 3,
         timeout: 60_000,
         caller: 'preformat.sectionClassification',
-        model: 'anthropic/claude-haiku-4.5',
+        model: 'anthropic/claude-haiku-5.5',
       }),
     );
   });
@@ -524,7 +524,7 @@ describe('FR4: Error Handling', () => {
       }
       return {
         content: JSON.stringify(PURPOSE_RESPONSE),
-        model: 'anthropic/claude-haiku-4.5',
+        model: 'anthropic/claude-haiku-5.5',
         durationMs: 100,
         attempts: 1,
       };

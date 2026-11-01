@@ -16,7 +16,7 @@
 
 import { callModel } from '../client';
 
-const FILTER_MODEL = 'anthropic/claude-haiku-4.5';
+const FILTER_MODEL = 'anthropic/claude-haiku-5.5';
 const FILTER_TIMEOUT_MS = 20_000;
 
 export interface ScopeFilterItem {

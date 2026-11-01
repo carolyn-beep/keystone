@@ -11,8 +11,8 @@ import { extractExpertsFromFactSources } from './extractors';
 import { buildExpertProfiles, computeImpactScore } from './profiler';
 import { callModelWithFallback } from '../client';
 
-const CLEANUP_MODEL_PRIMARY = 'qwen/qwen-plus';
-const CLEANUP_MODEL_FALLBACK = 'anthropic/claude-haiku-4.5';
+const CLEANUP_MODEL_PRIMARY = 'anthropic/claude-haiku-5.5';
+const CLEANUP_MODEL_FALLBACK = 'google/gemini-2.5-flash-lite';
 
 const SYSTEM_PROMPT = `You are an expert analyst performing STACK RANKING of researchers based on their MEASURED IMPACT on a document.
 
@@ -150,7 +150,7 @@ async function stackRankExpertsByName(input: ExtractionInput, experts: Extracted
 
   const t0 = performance.now();
   const result = await callModelWithFallback({
-    models: ['anthropic/claude-sonnet-4.6', 'anthropic/claude-haiku-4.5'],
+    models: ['anthropic/claude-sonnet-5.5', 'anthropic/claude-haiku-5.5'],
     system: SYSTEM_PROMPT,
     messages: [{ role: 'user', content: userPrompt }],
     temperature: 0.1,
@@ -430,7 +430,7 @@ export async function rerankExistingExperts(input: Omit<ExtractionInput, 'brainl
 
   try {
     const result = await callModelWithFallback({
-      models: ['anthropic/claude-sonnet-4.6', 'anthropic/claude-haiku-4.5'],
+      models: ['anthropic/claude-sonnet-5.5', 'anthropic/claude-haiku-5.5'],
       system: RERANK_SYSTEM_PROMPT,
       messages: [{
         role: 'user',

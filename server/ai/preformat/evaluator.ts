@@ -247,7 +247,7 @@ export async function evaluateNeedsPreformat(
   const userMessage = `${diagnostics}\n\n---\n\n## Document Hierarchy\n\n${markdown}`;
 
   const result = await callModelWithFallback({
-    models: ['anthropic/claude-opus-4.6', 'anthropic/claude-sonnet-4.6'],
+    models: ['anthropic/claude-opus-5.5', 'anthropic/claude-sonnet-5.5'],
     system: EVALUATION_SYSTEM_PROMPT,
     messages: [{ role: 'user', content: userMessage }],
     temperature: 0,

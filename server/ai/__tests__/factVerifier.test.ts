@@ -82,7 +82,7 @@ describe('Fact Verifier — Unified Client Migration', () => {
 
       expect(mockCallModelWithFallback).toHaveBeenCalledTimes(1);
       const callArgs = mockCallModelWithFallback.mock.calls[0][0];
-      expect(callArgs.models).toEqual(['qwen/qwen-plus', 'google/gemini-2.5-flash-lite']);
+      expect(callArgs.models).toEqual(['anthropic/claude-haiku-5.5', 'google/gemini-2.5-flash-lite']);
       expect(callArgs.temperature).toBe(0.1);
       expect(callArgs.maxTokens).toBe(800);
       expect(callArgs.timeout).toBe(45_000);
@@ -102,7 +102,7 @@ describe('Fact Verifier — Unified Client Migration', () => {
           rationale: 'Fallback model verified this',
           isNonGradeable: false,
         }),
-        model: 'anthropic/claude-haiku-4.5',
+        model: 'anthropic/claude-haiku-5.5',
         durationMs: 600,
         attempts: 2,
       });

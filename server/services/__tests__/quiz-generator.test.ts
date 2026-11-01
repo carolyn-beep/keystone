@@ -50,7 +50,7 @@ function setupMockCallModel(conceptCount: number, questionCount: number) {
       // Phase 1: concept extraction
       return {
         content: makeConceptExtractionResponse(conceptCount),
-        model: 'anthropic/claude-haiku-4.5',
+        model: 'anthropic/claude-haiku-5.5',
         durationMs: 1000,
         attempts: 1,
       };
@@ -58,7 +58,7 @@ function setupMockCallModel(conceptCount: number, questionCount: number) {
     // Phase 2: question generation
     return {
       content: makeQuestionGenerationResponse(questionCount),
-      model: 'anthropic/claude-haiku-4.5',
+      model: 'anthropic/claude-haiku-5.5',
       durationMs: 1500,
       attempts: 1,
     };
@@ -253,10 +253,10 @@ describe('generateQuiz', () => {
       });
 
       expect(mockCallModel).toHaveBeenNthCalledWith(1, expect.objectContaining({
-        model: 'anthropic/claude-haiku-4.5',
+        model: 'anthropic/claude-haiku-5.5',
       }));
       expect(mockCallModel).toHaveBeenNthCalledWith(2, expect.objectContaining({
-        model: 'anthropic/claude-haiku-4.5',
+        model: 'anthropic/claude-haiku-5.5',
       }));
     });
 

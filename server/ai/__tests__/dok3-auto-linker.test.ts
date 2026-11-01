@@ -31,7 +31,7 @@ const mockCallModelWithFallback = vi.mocked(callModelWithFallback);
 function mockCallModelWithFallbackResponse(responseBody: object) {
   mockCallModelWithFallback.mockResolvedValue({
     content: JSON.stringify(responseBody),
-    model: 'anthropic/claude-haiku-4.5',
+    model: 'anthropic/claude-haiku-5.5',
     durationMs: 100,
     attempts: 1,
   });
@@ -94,7 +94,7 @@ describe('DOK3 Auto-Linker', () => {
 
       expect(mockCallModelWithFallback).toHaveBeenCalledWith(
         expect.objectContaining({
-          models: ['qwen/qwen-plus', 'google/gemini-2.5-flash-lite'],
+          models: ['anthropic/claude-haiku-5.5', 'google/gemini-2.5-flash-lite'],
           caller: 'dok3AutoLinker',
           temperature: 0,
           responseFormat: expect.objectContaining({
@@ -385,7 +385,7 @@ describe('DOK3 Auto-Linker', () => {
       const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
       mockCallModelWithFallback.mockResolvedValue({
         content: 'not valid json at all',
-        model: 'anthropic/claude-haiku-4.5',
+        model: 'anthropic/claude-haiku-5.5',
         durationMs: 100,
         attempts: 1,
       });
@@ -434,7 +434,7 @@ describe('DOK3 Auto-Linker', () => {
               { dok2Id: 2, score: 0.8 },
             ],
           }),
-          model: 'anthropic/claude-haiku-4.5',
+          model: 'anthropic/claude-haiku-5.5',
           durationMs: 100,
           attempts: 1,
         };

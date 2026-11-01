@@ -12,7 +12,7 @@ import pLimit from 'p-limit';
 import { storage } from '../storage';
 import { callModel } from './client';
 
-const MODEL = 'anthropic/claude-haiku-4.5';
+const MODEL = 'anthropic/claude-haiku-5.5';
 const LINK_CONCURRENCY = 60;
 
 // Minimum semantic relevance score to create a link

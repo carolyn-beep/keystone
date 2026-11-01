@@ -32,7 +32,7 @@ function templated(i: number): string {
 
 /** Resolve the mock with a clean JSON-array string body. */
 function resolveArray(items: string[]) {
-  mockCallModel.mockResolvedValue({ content: JSON.stringify(items), model: 'anthropic/claude-haiku-4.5' });
+  mockCallModel.mockResolvedValue({ content: JSON.stringify(items), model: 'anthropic/claude-haiku-5.5' });
 }
 
 /** The CallModelOptions the module passed to its single callModel call. */
@@ -191,7 +191,7 @@ describe('FR1: response parsing', () => {
   it('recovers a fenced ```json bare-array response', async () => {
     mockCallModel.mockResolvedValue({
       content: '```json\n' + JSON.stringify([templated(1)]) + '\n```',
-      model: 'anthropic/claude-haiku-4.5',
+      model: 'anthropic/claude-haiku-5.5',
     });
     const out = await generateTopicSuggestions();
     expect(out.map((s) => s.topic)).toEqual(['Topic 1']);
@@ -200,7 +200,7 @@ describe('FR1: response parsing', () => {
   it('recovers a { suggestions: [...] } wrapper shape', async () => {
     mockCallModel.mockResolvedValue({
       content: JSON.stringify({ suggestions: ['one', 'two'] }),
-      model: 'anthropic/claude-haiku-4.5',
+      model: 'anthropic/claude-haiku-5.5',
     });
     const out = await generateOnboardingSuggestions('in-scope', CTX);
     expect(out).toEqual(['one', 'two']);
@@ -209,7 +209,7 @@ describe('FR1: response parsing', () => {
   it('drops non-string and empty entries', async () => {
     mockCallModel.mockResolvedValue({
       content: JSON.stringify(['keep', '', 42, null, 'also']),
-      model: 'anthropic/claude-haiku-4.5',
+      model: 'anthropic/claude-haiku-5.5',
     });
     const out = await generateOnboardingSuggestions('out-of-scope', CTX);
     expect(out).toEqual(['keep', 'also']);
@@ -321,7 +321,7 @@ describe('tolerant response parsing', () => {
   it('parses a JSON array wrapped in prose', async () => {
     mockCallModel.mockResolvedValue({
       content: 'Here are the suggestions:\n["Tide pools", "Deep sea vents"]\nHope these help!',
-      model: 'anthropic/claude-haiku-4.5',
+      model: 'anthropic/claude-haiku-5.5',
     });
     await expect(generateOnboardingSuggestions('in-scope', CTX)).resolves.toEqual([
       'Tide pools',
@@ -332,7 +332,7 @@ describe('tolerant response parsing', () => {
   it('parses a { suggestions } wrapper buried in prose', async () => {
     mockCallModel.mockResolvedValue({
       content: 'Sure! {"suggestions": ["one", "two"]} — let me know.',
-      model: 'anthropic/claude-haiku-4.5',
+      model: 'anthropic/claude-haiku-5.5',
     });
     await expect(generateOnboardingSuggestions('categories', CTX)).resolves.toEqual(['one', 'two']);
   });

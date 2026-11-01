@@ -27,8 +27,8 @@ import { filterOutOfScopeItems } from './scope-filter';
 const STARTER_PACK_AGENT_COUNT = 3;
 /** Planning chain for quick runs: a near-empty digest does not need opus. */
 const STARTER_PACK_ORCHESTRATOR_MODELS = [
-  'anthropic/claude-sonnet-4.6',
-  'qwen/qwen-plus',
+  'anthropic/claude-sonnet-5.5',
+  'anthropic/claude-haiku-5.5',
 ] as const;
 const STARTER_PACK_NOTES =
   'This is a quick starter pack for a brand-new project with little or no material yet. ' +

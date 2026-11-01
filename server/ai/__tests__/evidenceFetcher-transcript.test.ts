@@ -75,7 +75,7 @@ describe('fetchEvidenceForFact - cachedTranscript', () => {
     // No URL in source, should go to AI search
     mockCallModelWithFallback.mockResolvedValue({
       content: 'AI found evidence',
-      model: 'qwen/qwen-plus',
+      model: 'anthropic/claude-haiku-5.5',
       durationMs: 200,
       attempts: 1,
     });
@@ -94,7 +94,7 @@ describe('fetchEvidenceForFact - cachedTranscript', () => {
   it('falls back to existing behavior when cachedTranscript is empty string', async () => {
     mockCallModelWithFallback.mockResolvedValue({
       content: 'AI found evidence',
-      model: 'qwen/qwen-plus',
+      model: 'anthropic/claude-haiku-5.5',
       durationMs: 200,
       attempts: 1,
     });

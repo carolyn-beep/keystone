@@ -124,12 +124,12 @@ describe('runResearchSwarm', () => {
     const { runResearchSwarm } = await import('../run');
     await runResearchSwarm(1, {
       agents: [
-        { type: 'Substack', focus: 'A', model: 'anthropic/claude-sonnet-4.6' },
+        { type: 'Substack', focus: 'A', model: 'anthropic/claude-sonnet-5.5' },
         ...runSpec.agents.slice(1),
       ],
     }, 100);
 
-    expect(mocks.getChatModel).toHaveBeenCalledWith('anthropic/claude-sonnet-4.6');
+    expect(mocks.getChatModel).toHaveBeenCalledWith('anthropic/claude-sonnet-5.5');
     expect(mocks.getChatModel).toHaveBeenCalledWith('anthropic/claude-haiku-5.5');
   });
 
@@ -336,12 +336,12 @@ describe('runResearchSwarm', () => {
       const { runResearchSwarm } = await import('../run');
 
       await runResearchSwarm(1, {
-        agents: [{ type: 'Substack', focus: 'A', model: 'anthropic/claude-sonnet-4.6' }],
+        agents: [{ type: 'Substack', focus: 'A', model: 'anthropic/claude-sonnet-5.5' }],
         quick: true,
       }, 202);
 
       expect(mocks.getChatModel).toHaveBeenCalledWith('anthropic/claude-haiku-5.5');
-      expect(mocks.getChatModel).not.toHaveBeenCalledWith('anthropic/claude-sonnet-4.6');
+      expect(mocks.getChatModel).not.toHaveBeenCalledWith('anthropic/claude-sonnet-5.5');
     });
 
     it('appends the 2-3 save-target block to a quick slot prompt', async () => {

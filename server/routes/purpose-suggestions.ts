@@ -21,7 +21,7 @@ purposeSuggestionsRouter.post(
 
     try {
       const result = await callModel({
-        model: 'qwen/qwen-plus',
+        model: 'anthropic/claude-haiku-5.5',
         messages: [
           {
             role: 'user',

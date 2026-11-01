@@ -24,6 +24,15 @@ export const FIREWORKS_TIER_MODELS: Record<ModelTier, string> = {
 
 export const MODEL_REGISTRY: Record<string, ModelDef> = {
   // Premium tier
+  // Fable is Anthropic's top tier ($10/$50 per 1M on OpenRouter, 2026-11-01).
+  // Reserved for the DOK4 quality judgement (dok4Grader QUALITY_TIER_MODELS),
+  // the one call whose output is the headline score; everything else uses Opus.
+  'anthropic/claude-fable-5.1': {
+    id: 'anthropic/claude-fable-5.1',
+    provider: 'openrouter',
+    tier: 'premium',
+    displayName: 'Claude Fable 5.1',
+  },
   'anthropic/claude-opus-5.5': {
     id: 'anthropic/claude-opus-5.5',
     provider: 'openrouter',

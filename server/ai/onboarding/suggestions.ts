@@ -53,7 +53,7 @@ export interface OnboardingSuggestionContext {
 }
 
 /** Scoped kinds (steps 2-4). */
-const FAST_MODEL = 'anthropic/claude-haiku-4.5';
+const FAST_MODEL = 'anthropic/claude-haiku-5.5';
 
 /**
  * Topic kind. Gemini won the 5-model bake-off on register: 3% business-school

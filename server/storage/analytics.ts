@@ -7,8 +7,11 @@ import { MODEL_REGISTRY } from '../ai/client/registry';
 
 // Fact-verification models used for accuracy tracking
 const FACT_VERIFICATION_MODELS = [
-  'qwen/qwen-plus',
+  'anthropic/claude-haiku-5.5',
   'google/gemini-2.5-flash-lite',
+  // Retained for historical accuracy rows: fact verification ran on qwen-plus
+  // until the 2026-11-01 move to haiku-5.5.
+  'qwen/qwen-plus',
   // Retained for historical accuracy rows recorded before the 2026-06-12 migration
   // off the now-delisted gemini-2.0-flash-001.
   'google/gemini-2.0-flash-001',

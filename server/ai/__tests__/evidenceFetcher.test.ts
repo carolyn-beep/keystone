@@ -88,12 +88,12 @@ describe('buildDeterministicFallbackEvidenceQuery', () => {
 });
 
 describe('generateFallbackEvidenceQuery', () => {
-  it('uses qwen-plus with gemini-flash fallback to generate a clean search query', async () => {
+  it('uses haiku-5.5 with gemini-flash-lite fallback to generate a clean search query', async () => {
     mockCallModelWithFallback.mockResolvedValue({
       content: JSON.stringify({
         query: 'Laurent Kubaski MCP Prompts explained 58 MCP clients 20 support Prompts',
       }),
-      model: 'qwen/qwen-plus',
+      model: 'anthropic/claude-haiku-5.5',
       durationMs: 120,
       attempts: 1,
     });
@@ -104,7 +104,7 @@ describe('generateFallbackEvidenceQuery', () => {
     );
 
     expect(mockCallModelWithFallback).toHaveBeenCalledWith(expect.objectContaining({
-      models: ['qwen/qwen-plus', 'google/gemini-2.5-flash-lite'],
+      models: ['anthropic/claude-haiku-5.5', 'google/gemini-2.5-flash-lite'],
       temperature: 0,
       maxTokens: 120,
       timeout: 12_000,
@@ -169,7 +169,7 @@ describe('fetchEvidenceForFact', () => {
     const logSpy = vi.mocked(console.log);
     mockCallModelWithFallback.mockResolvedValue({
       content: JSON.stringify({ query: 'retrieval practice retention alternate evidence' }),
-      model: 'qwen/qwen-plus',
+      model: 'anthropic/claude-haiku-5.5',
       durationMs: 100,
       attempts: 1,
     });
@@ -224,7 +224,7 @@ describe('fetchEvidenceForFact', () => {
     const logSpy = vi.mocked(console.log);
     mockCallModelWithFallback.mockResolvedValue({
       content: JSON.stringify({ query: 'blocked page alternate evidence' }),
-      model: 'qwen/qwen-plus',
+      model: 'anthropic/claude-haiku-5.5',
       durationMs: 100,
       attempts: 1,
     });
@@ -277,7 +277,7 @@ describe('fetchEvidenceForFact', () => {
   it('searches from claim and source context when no source URL exists', async () => {
     mockCallModelWithFallback.mockResolvedValue({
       content: JSON.stringify({ query: 'claim without URL Named Research Report evidence' }),
-      model: 'qwen/qwen-plus',
+      model: 'anthropic/claude-haiku-5.5',
       durationMs: 100,
       attempts: 1,
     });
@@ -312,7 +312,7 @@ describe('fetchEvidenceForFact', () => {
   it('returns no evidence when fallback search cannot fetch readable sources', async () => {
     mockCallModelWithFallback.mockResolvedValue({
       content: JSON.stringify({ query: 'some fact fallback evidence' }),
-      model: 'qwen/qwen-plus',
+      model: 'anthropic/claude-haiku-5.5',
       durationMs: 100,
       attempts: 1,
     });

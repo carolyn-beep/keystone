@@ -22,6 +22,7 @@ import type { ModelDef } from '../types';
 
 describe('MODEL_REGISTRY', () => {
   const OPENROUTER_MODELS = [
+    'anthropic/claude-fable-5.1',
     'anthropic/claude-opus-5.5',
     'anthropic/claude-opus-4.8',
     'anthropic/claude-opus-4.7',

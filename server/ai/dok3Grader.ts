@@ -287,7 +287,7 @@ export async function checkSourceTraceability(
 
         const t0 = performance.now();
         const result = await callModelWithFallback({
-          models: ['qwen/qwen-plus', 'google/gemini-2.5-flash-lite'],
+          models: ['anthropic/claude-haiku-5.5', 'google/gemini-2.5-flash-lite'],
           system: DOK3_TRACEABILITY_SYSTEM_PROMPT,
           messages: [{ role: 'user', content: userPrompt }],
           temperature: 0.1,
@@ -377,7 +377,7 @@ async function evaluateConceptualCoherence(
   console.log('[DOK3-Grade] Calling unified client for conceptual coherence evaluation...');
   const t0 = performance.now();
   const callResult = await callModelWithFallback({
-    models: ['anthropic/claude-opus-4.6', 'anthropic/claude-sonnet-4.5'],
+    models: ['anthropic/claude-opus-5.5', 'anthropic/claude-sonnet-5.5'],
     system: DOK3_GRADING_SYSTEM_PROMPT,
     messages: [{ role: 'user', content: userPrompt }],
     temperature: 0.1,

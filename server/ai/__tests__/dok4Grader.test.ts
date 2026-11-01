@@ -18,7 +18,7 @@ vi.mock('../client', () => ({
 }));
 
 // Helper to create a successful CallModelResult
-function makeCallResult(content: string, model = 'qwen/qwen-plus') {
+function makeCallResult(content: string, model = 'anthropic/claude-haiku-5.5') {
   return {
     content,
     model,
@@ -105,9 +105,9 @@ const FIXTURE_EVALUATION_CONTEXT: DOK4EvaluationContext = {
 };
 
 // Model ID constants for assertions
-const MID_TIER_MODELS = ['qwen/qwen-plus', 'google/gemini-2.5-flash-lite'];
-const DIVERGENCE_TIER_MODELS = ['qwen/qwen-plus', 'google/gemini-2.5-flash-lite'];
-const QUALITY_TIER_MODELS = ['anthropic/claude-opus-4.6', 'anthropic/claude-sonnet-4.5'];
+const MID_TIER_MODELS = ['anthropic/claude-haiku-5.5', 'google/gemini-2.5-flash-lite'];
+const DIVERGENCE_TIER_MODELS = ['anthropic/claude-haiku-5.5', 'google/gemini-2.5-flash-lite'];
+const QUALITY_TIER_MODELS = ['anthropic/claude-fable-5.1', 'anthropic/claude-opus-5.5'];
 
 
 // =============================================================================
@@ -513,7 +513,7 @@ describe('Quality Evaluation', () => {
 
   it('calls callModelWithFallback with quality-tier models', async () => {
     mockCallModelWithFallback.mockResolvedValueOnce(
-      makeCallResult(JSON.stringify(qualityResponse), 'anthropic/claude-opus-4.6')
+      makeCallResult(JSON.stringify(qualityResponse), 'anthropic/claude-fable-5.1')
     );
 
     await evaluateDOK4Quality(FIXTURE_EVALUATION_CONTEXT);
@@ -610,7 +610,7 @@ describe('Antimemetic Assessment', () => {
 
   it('calls callModelWithFallback with quality-tier models', async () => {
     mockCallModelWithFallback.mockResolvedValueOnce(
-      makeCallResult(JSON.stringify(antimemeticResponse), 'anthropic/claude-opus-4.6')
+      makeCallResult(JSON.stringify(antimemeticResponse), 'anthropic/claude-fable-5.1')
     );
 
     await assessAntimemetic(FIXTURE_SPOV_TEXT, FIXTURE_BRAINLIFT_PURPOSE, 4, 'Strong educational stance');
