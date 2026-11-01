@@ -51,3 +51,5 @@ roadmap-*.md
 *-raw.md
 backups/
 .codex
+# DOK4 grader eval reports (per-run JSON)
+server/evals/**/reports/

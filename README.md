@@ -120,8 +120,9 @@ Grading students with an LLM is only trustworthy if the grader itself is measure
 - **Append-only score-event history** — score events recorded with their triggers across pipeline checkpoints: [`analytics-score-events.ts`](server/services/analytics-score-events.ts)
 - **LLM divergence check** — DOK4 positions graded against a baseline model's output: [`dok4Grader.ts`](server/ai/dok4Grader.ts)
 - **Import-pipeline integrity** — every extraction validated for content loss and hallucinations before acceptance: [`preformat/validator.ts`](server/ai/preformat/validator.ts)
+- **Golden-set eval** — 21 hand-labelled DOK4 submissions with full evidence chains and expected score bands, graded by the live pipeline with `npm run eval:dok4`; exits non-zero below the pass-rate threshold so a prompt or model change can be gated: [`evals/dok4-grader/`](server/evals/dok4-grader)
 - **Per-step LLM tracing** — chat turns and research-swarm agents emit OpenTelemetry spans (every model step, tool call, token count and cache hit) to Langfuse when configured: [`telemetry/otel.ts`](server/telemetry/otel.ts)
-- **313 test files** (Vitest): [`vitest.config.ts`](vitest.config.ts)
+- **315 test files** (Vitest): [`vitest.config.ts`](vitest.config.ts)
 
 ---
 

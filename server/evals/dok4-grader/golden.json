@@ -1,0 +1,1302 @@
+{
+  "version": 1,
+  "rubric": "DOK4 quality evaluation v2 (6 criteria: S1 S4 P1 / S2 S3 O2; levels 1-5; foundation ceiling)",
+  "cases": [
+    {
+      "id": "bike-consensus-hedge",
+      "probe": "Level 1: hedged consensus a vanilla model would produce",
+      "brainliftPurpose": "Figure out whether my mid-sized city should convert downtown car lanes into protected bike lanes, and what evidence would convince the council.",
+      "primaryDok3": {
+        "text": "Protected lanes change who cycles, not just how many: physical separation from traffic is the variable that brings in women, children and older riders, and that demographic shift is what moves mode share.",
+        "score": 4,
+        "frameworkName": "Separation as demographic filter",
+        "frameworkDescription": "Paint changes routes for existing cyclists; curbs change the population of cyclists."
+      },
+      "additionalDok3s": [
+        {
+          "text": "Removing parking is the political cost that every successful downtown redesign paid up front rather than avoided.",
+          "score": 3
+        }
+      ],
+      "linkedDok2s": [
+        {
+          "sourceName": "Oslo city-centre street redesign evaluation (2023)",
+          "sourceUrl": "https://example.org/oslo-redesign-2023",
+          "grade": 4,
+          "points": [
+            "Cycling injury crashes fell sharply on corridors that received physical separation",
+            "The share of women among cyclists rose from 29% to 41% within two years of separation",
+            "Paint-only lanes on comparison corridors showed no change in rider demographics"
+          ],
+          "dok1Facts": [
+            {
+              "fact": "Oslo removed about 700 on-street parking spaces from the city centre between 2017 and 2019.",
+              "score": 5
+            },
+            {
+              "fact": "Injury crashes involving cyclists fell 38% on the separated corridors over the evaluation period.",
+              "score": 4
+            }
+          ],
+          "content": "The evaluation compared corridors that received curb-separated lanes with corridors that received painted lanes. Separated corridors saw a 38% drop in cyclist injury crashes and a rise in the share of women riding from 29% to 41%. Painted corridors saw neither effect. The redesign removed roughly 700 parking spaces, which generated the strongest public opposition in the first year."
+        },
+        {
+          "sourceName": "Interview with a Dutch municipal traffic planner (podcast, 2022)",
+          "sourceUrl": "https://example.org/dutch-planner-podcast",
+          "grade": 4,
+          "points": [
+            "Dutch planners design every route for the 8-year-old and the 80-year-old, not the confident commuter",
+            "Network continuity matters more than the quality of any single lane"
+          ],
+          "dok1Facts": [
+            {
+              "fact": "The Netherlands averages about 2.6 km cycled per person per day.",
+              "score": 4
+            }
+          ],
+          "content": "The planner described the design rule of thumb: if an eight-year-old and an eighty-year-old would not ride it, it is not a bike route. He stressed that a gap in the network undoes the value of the rest of it, and that Dutch cities accepted years of parking disputes to get continuous routes."
+        }
+      ],
+      "spovText": "Cities should probably consider a balanced mix of transportation options so that drivers and cyclists can both get what they need.",
+      "expected": {
+        "accept": true,
+        "minScore": 1,
+        "maxScore": 2,
+        "weakCriteria": [
+          "S1",
+          "S2",
+          "P1"
+        ],
+        "rationale": "No one argues with this. It commits to nothing and names no trade-off; it is the vanilla answer."
+      }
+    },
+    {
+      "id": "bike-borrowed-source",
+      "probe": "Level 2: restates a source's own line as the conviction",
+      "brainliftPurpose": "Figure out whether my mid-sized city should convert downtown car lanes into protected bike lanes, and what evidence would convince the council.",
+      "primaryDok3": {
+        "text": "Protected lanes change who cycles, not just how many: physical separation from traffic is the variable that brings in women, children and older riders, and that demographic shift is what moves mode share.",
+        "score": 4,
+        "frameworkName": "Separation as demographic filter",
+        "frameworkDescription": "Paint changes routes for existing cyclists; curbs change the population of cyclists."
+      },
+      "additionalDok3s": [
+        {
+          "text": "Removing parking is the political cost that every successful downtown redesign paid up front rather than avoided.",
+          "score": 3
+        }
+      ],
+      "linkedDok2s": [
+        {
+          "sourceName": "Oslo city-centre street redesign evaluation (2023)",
+          "sourceUrl": "https://example.org/oslo-redesign-2023",
+          "grade": 4,
+          "points": [
+            "Cycling injury crashes fell sharply on corridors that received physical separation",
+            "The share of women among cyclists rose from 29% to 41% within two years of separation",
+            "Paint-only lanes on comparison corridors showed no change in rider demographics"
+          ],
+          "dok1Facts": [
+            {
+              "fact": "Oslo removed about 700 on-street parking spaces from the city centre between 2017 and 2019.",
+              "score": 5
+            },
+            {
+              "fact": "Injury crashes involving cyclists fell 38% on the separated corridors over the evaluation period.",
+              "score": 4
+            }
+          ],
+          "content": "The evaluation compared corridors that received curb-separated lanes with corridors that received painted lanes. Separated corridors saw a 38% drop in cyclist injury crashes and a rise in the share of women riding from 29% to 41%. Painted corridors saw neither effect. The redesign removed roughly 700 parking spaces, which generated the strongest public opposition in the first year."
+        },
+        {
+          "sourceName": "Interview with a Dutch municipal traffic planner (podcast, 2022)",
+          "sourceUrl": "https://example.org/dutch-planner-podcast",
+          "grade": 4,
+          "points": [
+            "Dutch planners design every route for the 8-year-old and the 80-year-old, not the confident commuter",
+            "Network continuity matters more than the quality of any single lane"
+          ],
+          "dok1Facts": [
+            {
+              "fact": "The Netherlands averages about 2.6 km cycled per person per day.",
+              "score": 4
+            }
+          ],
+          "content": "The planner described the design rule of thumb: if an eight-year-old and an eighty-year-old would not ride it, it is not a bike route. He stressed that a gap in the network undoes the value of the rest of it, and that Dutch cities accepted years of parking disputes to get continuous routes."
+        }
+      ],
+      "spovText": "We should design for the 8-year-old and the 80-year-old, like the Dutch planners do.",
+      "expected": {
+        "accept": true,
+        "minScore": 2,
+        "maxScore": 3,
+        "weakCriteria": [
+          "O2",
+          "S3"
+        ],
+        "rationale": "A direct lift of the planner's rule of thumb. Contrarian-sounding, but it is the source's stance, not a position built from the Oslo demographic evidence."
+      }
+    },
+    {
+      "id": "bike-unrefined-paragraph",
+      "probe": "Level 3: real position buried in qualifications and length",
+      "brainliftPurpose": "Figure out whether my mid-sized city should convert downtown car lanes into protected bike lanes, and what evidence would convince the council.",
+      "primaryDok3": {
+        "text": "Protected lanes change who cycles, not just how many: physical separation from traffic is the variable that brings in women, children and older riders, and that demographic shift is what moves mode share.",
+        "score": 4,
+        "frameworkName": "Separation as demographic filter",
+        "frameworkDescription": "Paint changes routes for existing cyclists; curbs change the population of cyclists."
+      },
+      "additionalDok3s": [
+        {
+          "text": "Removing parking is the political cost that every successful downtown redesign paid up front rather than avoided.",
+          "score": 3
+        }
+      ],
+      "linkedDok2s": [
+        {
+          "sourceName": "Oslo city-centre street redesign evaluation (2023)",
+          "sourceUrl": "https://example.org/oslo-redesign-2023",
+          "grade": 4,
+          "points": [
+            "Cycling injury crashes fell sharply on corridors that received physical separation",
+            "The share of women among cyclists rose from 29% to 41% within two years of separation",
+            "Paint-only lanes on comparison corridors showed no change in rider demographics"
+          ],
+          "dok1Facts": [
+            {
+              "fact": "Oslo removed about 700 on-street parking spaces from the city centre between 2017 and 2019.",
+              "score": 5
+            },
+            {
+              "fact": "Injury crashes involving cyclists fell 38% on the separated corridors over the evaluation period.",
+              "score": 4
+            }
+          ],
+          "content": "The evaluation compared corridors that received curb-separated lanes with corridors that received painted lanes. Separated corridors saw a 38% drop in cyclist injury crashes and a rise in the share of women riding from 29% to 41%. Painted corridors saw neither effect. The redesign removed roughly 700 parking spaces, which generated the strongest public opposition in the first year."
+        },
+        {
+          "sourceName": "Interview with a Dutch municipal traffic planner (podcast, 2022)",
+          "sourceUrl": "https://example.org/dutch-planner-podcast",
+          "grade": 4,
+          "points": [
+            "Dutch planners design every route for the 8-year-old and the 80-year-old, not the confident commuter",
+            "Network continuity matters more than the quality of any single lane"
+          ],
+          "dok1Facts": [
+            {
+              "fact": "The Netherlands averages about 2.6 km cycled per person per day.",
+              "score": 4
+            }
+          ],
+          "content": "The planner described the design rule of thumb: if an eight-year-old and an eighty-year-old would not ride it, it is not a bike route. He stressed that a gap in the network undoes the value of the rest of it, and that Dutch cities accepted years of parking disputes to get continuous routes."
+        }
+      ],
+      "spovText": "After going through the Oslo evaluation and the planner interview, and acknowledging that every city is different and that our downtown has its own parking politics which may or may not resemble Oslo's, I have come to think that the key variable, at least for the kinds of riders we say we want, is probably physical separation rather than paint, because the demographic data only moved on separated corridors, so if we are serious we should likely prioritize curbs over painted lanes even where that costs parking.",
+      "expected": {
+        "accept": true,
+        "minScore": 3,
+        "maxScore": 4,
+        "weakCriteria": [
+          "P1"
+        ],
+        "rationale": "The claim (curbs, not paint, because separation changes who rides) is there and grounded in the Oslo data, but it takes a paragraph of hedging to arrive."
+      }
+    },
+    {
+      "id": "bike-sharp",
+      "probe": "Level 4-5: punchy, grounded, diverges from the balanced-mix default",
+      "brainliftPurpose": "Figure out whether my mid-sized city should convert downtown car lanes into protected bike lanes, and what evidence would convince the council.",
+      "primaryDok3": {
+        "text": "Protected lanes change who cycles, not just how many: physical separation from traffic is the variable that brings in women, children and older riders, and that demographic shift is what moves mode share.",
+        "score": 4,
+        "frameworkName": "Separation as demographic filter",
+        "frameworkDescription": "Paint changes routes for existing cyclists; curbs change the population of cyclists."
+      },
+      "additionalDok3s": [
+        {
+          "text": "Removing parking is the political cost that every successful downtown redesign paid up front rather than avoided.",
+          "score": 3
+        }
+      ],
+      "linkedDok2s": [
+        {
+          "sourceName": "Oslo city-centre street redesign evaluation (2023)",
+          "sourceUrl": "https://example.org/oslo-redesign-2023",
+          "grade": 4,
+          "points": [
+            "Cycling injury crashes fell sharply on corridors that received physical separation",
+            "The share of women among cyclists rose from 29% to 41% within two years of separation",
+            "Paint-only lanes on comparison corridors showed no change in rider demographics"
+          ],
+          "dok1Facts": [
+            {
+              "fact": "Oslo removed about 700 on-street parking spaces from the city centre between 2017 and 2019.",
+              "score": 5
+            },
+            {
+              "fact": "Injury crashes involving cyclists fell 38% on the separated corridors over the evaluation period.",
+              "score": 4
+            }
+          ],
+          "content": "The evaluation compared corridors that received curb-separated lanes with corridors that received painted lanes. Separated corridors saw a 38% drop in cyclist injury crashes and a rise in the share of women riding from 29% to 41%. Painted corridors saw neither effect. The redesign removed roughly 700 parking spaces, which generated the strongest public opposition in the first year."
+        },
+        {
+          "sourceName": "Interview with a Dutch municipal traffic planner (podcast, 2022)",
+          "sourceUrl": "https://example.org/dutch-planner-podcast",
+          "grade": 4,
+          "points": [
+            "Dutch planners design every route for the 8-year-old and the 80-year-old, not the confident commuter",
+            "Network continuity matters more than the quality of any single lane"
+          ],
+          "dok1Facts": [
+            {
+              "fact": "The Netherlands averages about 2.6 km cycled per person per day.",
+              "score": 4
+            }
+          ],
+          "content": "The planner described the design rule of thumb: if an eight-year-old and an eighty-year-old would not ride it, it is not a bike route. He stressed that a gap in the network undoes the value of the rest of it, and that Dutch cities accepted years of parking disputes to get continuous routes."
+        }
+      ],
+      "spovText": "Paint is a promise the city breaks every rush hour. Only a curb changes who rides.",
+      "expected": {
+        "accept": true,
+        "minScore": 4,
+        "maxScore": 5,
+        "weakCriteria": [],
+        "rationale": "Two quotable sentences that commit to separation over paint, trace straight to the Oslo demographic shift, and would not come out of a vanilla model."
+      }
+    },
+    {
+      "id": "bike-question-rejected",
+      "probe": "Gate: a question is not a position",
+      "brainliftPurpose": "Figure out whether my mid-sized city should convert downtown car lanes into protected bike lanes, and what evidence would convince the council.",
+      "primaryDok3": {
+        "text": "Protected lanes change who cycles, not just how many: physical separation from traffic is the variable that brings in women, children and older riders, and that demographic shift is what moves mode share.",
+        "score": 4,
+        "frameworkName": "Separation as demographic filter",
+        "frameworkDescription": "Paint changes routes for existing cyclists; curbs change the population of cyclists."
+      },
+      "additionalDok3s": [
+        {
+          "text": "Removing parking is the political cost that every successful downtown redesign paid up front rather than avoided.",
+          "score": 3
+        }
+      ],
+      "linkedDok2s": [
+        {
+          "sourceName": "Oslo city-centre street redesign evaluation (2023)",
+          "sourceUrl": "https://example.org/oslo-redesign-2023",
+          "grade": 4,
+          "points": [
+            "Cycling injury crashes fell sharply on corridors that received physical separation",
+            "The share of women among cyclists rose from 29% to 41% within two years of separation",
+            "Paint-only lanes on comparison corridors showed no change in rider demographics"
+          ],
+          "dok1Facts": [
+            {
+              "fact": "Oslo removed about 700 on-street parking spaces from the city centre between 2017 and 2019.",
+              "score": 5
+            },
+            {
+              "fact": "Injury crashes involving cyclists fell 38% on the separated corridors over the evaluation period.",
+              "score": 4
+            }
+          ],
+          "content": "The evaluation compared corridors that received curb-separated lanes with corridors that received painted lanes. Separated corridors saw a 38% drop in cyclist injury crashes and a rise in the share of women riding from 29% to 41%. Painted corridors saw neither effect. The redesign removed roughly 700 parking spaces, which generated the strongest public opposition in the first year."
+        },
+        {
+          "sourceName": "Interview with a Dutch municipal traffic planner (podcast, 2022)",
+          "sourceUrl": "https://example.org/dutch-planner-podcast",
+          "grade": 4,
+          "points": [
+            "Dutch planners design every route for the 8-year-old and the 80-year-old, not the confident commuter",
+            "Network continuity matters more than the quality of any single lane"
+          ],
+          "dok1Facts": [
+            {
+              "fact": "The Netherlands averages about 2.6 km cycled per person per day.",
+              "score": 4
+            }
+          ],
+          "content": "The planner described the design rule of thumb: if an eight-year-old and an eighty-year-old would not ride it, it is not a bike route. He stressed that a gap in the network undoes the value of the rest of it, and that Dutch cities accepted years of parking disputes to get continuous routes."
+        }
+      ],
+      "spovText": "Are protected bike lanes actually worth the lost parking downtown?",
+      "expected": {
+        "accept": false,
+        "weakCriteria": [],
+        "rationale": "A question asks the reader to take a side; it does not take one. The POV gate should reject it before grading."
+      }
+    },
+    {
+      "id": "remote-consensus",
+      "probe": "Level 1: generic management advice",
+      "brainliftPurpose": "Decide how my 40-person remote-first software team should onboard junior engineers so they ramp as fast as our in-office juniors used to.",
+      "primaryDok3": {
+        "text": "Juniors learn mostly by overhearing: how seniors argue, hedge and recover. Remote work removes the overhearing, so remote teams must manufacture it deliberately or juniors stall.",
+        "score": 4,
+        "frameworkName": "Manufactured overhearing",
+        "frameworkDescription": "Tacit knowledge in software transfers through incidental observation, which remote work eliminates by default."
+      },
+      "additionalDok3s": [],
+      "linkedDok2s": [
+        {
+          "sourceName": "Internal onboarding retrospective (2024)",
+          "sourceUrl": null,
+          "grade": 4,
+          "points": [
+            "Juniors hired remotely took about 40% longer to ship their first independent feature than the 2019 in-office cohort",
+            "Scheduled pairing hours were the strongest predictor of ramp speed, ahead of documentation quality"
+          ],
+          "dok1Facts": [
+            {
+              "fact": "Remote juniors asked 60% fewer unprompted questions in their first month than the in-office cohort.",
+              "score": 4
+            },
+            {
+              "fact": "Juniors with a daily 30-minute pairing slot reached independent delivery in 9 weeks versus 14 weeks without it.",
+              "score": 5
+            }
+          ],
+          "content": "The retrospective compared the 2019 in-office junior cohort with the 2022 and 2023 remote cohorts. Remote juniors shipped their first independent feature about 40% later. The team tested a daily 30-minute pairing slot in 2023: juniors with the slot reached independence in 9 weeks versus 14 without. Remote juniors asked 60% fewer unprompted questions in month one."
+        },
+        {
+          "sourceName": "Summary of apprenticeship and situated-learning research (academic review)",
+          "sourceUrl": "https://example.org/situated-learning-review",
+          "grade": 4,
+          "points": [
+            "Tacit knowledge transfers through observing experts handle ambiguity, not through instruction",
+            "Newcomers learn norms through legitimate peripheral participation: being present while real work happens"
+          ],
+          "dok1Facts": [
+            {
+              "fact": "Lave and Wenger introduced the term \"legitimate peripheral participation\" in 1991.",
+              "score": 5
+            }
+          ],
+          "content": "The review traces how apprentices acquire judgement by being present while masters work, long before they are trusted to act. It argues that formal instruction transfers explicit knowledge while incidental observation transfers the tacit kind."
+        }
+      ],
+      "spovText": "Remote onboarding works best when teams communicate clearly and set expectations early.",
+      "expected": {
+        "accept": true,
+        "minScore": 1,
+        "maxScore": 2,
+        "weakCriteria": [
+          "S1",
+          "S2"
+        ],
+        "rationale": "True of all onboarding everywhere. Nothing here comes from the retrospective or the apprenticeship research."
+      }
+    },
+    {
+      "id": "remote-sharp",
+      "probe": "Level 4-5: names the missing mechanism in one line",
+      "brainliftPurpose": "Decide how my 40-person remote-first software team should onboard junior engineers so they ramp as fast as our in-office juniors used to.",
+      "primaryDok3": {
+        "text": "Juniors learn mostly by overhearing: how seniors argue, hedge and recover. Remote work removes the overhearing, so remote teams must manufacture it deliberately or juniors stall.",
+        "score": 4,
+        "frameworkName": "Manufactured overhearing",
+        "frameworkDescription": "Tacit knowledge in software transfers through incidental observation, which remote work eliminates by default."
+      },
+      "additionalDok3s": [],
+      "linkedDok2s": [
+        {
+          "sourceName": "Internal onboarding retrospective (2024)",
+          "sourceUrl": null,
+          "grade": 4,
+          "points": [
+            "Juniors hired remotely took about 40% longer to ship their first independent feature than the 2019 in-office cohort",
+            "Scheduled pairing hours were the strongest predictor of ramp speed, ahead of documentation quality"
+          ],
+          "dok1Facts": [
+            {
+              "fact": "Remote juniors asked 60% fewer unprompted questions in their first month than the in-office cohort.",
+              "score": 4
+            },
+            {
+              "fact": "Juniors with a daily 30-minute pairing slot reached independent delivery in 9 weeks versus 14 weeks without it.",
+              "score": 5
+            }
+          ],
+          "content": "The retrospective compared the 2019 in-office junior cohort with the 2022 and 2023 remote cohorts. Remote juniors shipped their first independent feature about 40% later. The team tested a daily 30-minute pairing slot in 2023: juniors with the slot reached independence in 9 weeks versus 14 without. Remote juniors asked 60% fewer unprompted questions in month one."
+        },
+        {
+          "sourceName": "Summary of apprenticeship and situated-learning research (academic review)",
+          "sourceUrl": "https://example.org/situated-learning-review",
+          "grade": 4,
+          "points": [
+            "Tacit knowledge transfers through observing experts handle ambiguity, not through instruction",
+            "Newcomers learn norms through legitimate peripheral participation: being present while real work happens"
+          ],
+          "dok1Facts": [
+            {
+              "fact": "Lave and Wenger introduced the term \"legitimate peripheral participation\" in 1991.",
+              "score": 5
+            }
+          ],
+          "content": "The review traces how apprentices acquire judgement by being present while masters work, long before they are trusted to act. It argues that formal instruction transfers explicit knowledge while incidental observation transfers the tacit kind."
+        }
+      ],
+      "spovText": "Remote juniors do not lack mentors, they lack eavesdropping. Schedule the eavesdropping or hire seniors only.",
+      "expected": {
+        "accept": true,
+        "minScore": 4,
+        "maxScore": 5,
+        "weakCriteria": [],
+        "rationale": "Commits to a mechanism (incidental observation) the retrospective and the situated-learning review both support, and ends on a choice a manager can argue with."
+      }
+    },
+    {
+      "id": "remote-jargon",
+      "probe": "Level 2-3: the idea is in there but drowned in jargon",
+      "brainliftPurpose": "Decide how my 40-person remote-first software team should onboard junior engineers so they ramp as fast as our in-office juniors used to.",
+      "primaryDok3": {
+        "text": "Juniors learn mostly by overhearing: how seniors argue, hedge and recover. Remote work removes the overhearing, so remote teams must manufacture it deliberately or juniors stall.",
+        "score": 4,
+        "frameworkName": "Manufactured overhearing",
+        "frameworkDescription": "Tacit knowledge in software transfers through incidental observation, which remote work eliminates by default."
+      },
+      "additionalDok3s": [],
+      "linkedDok2s": [
+        {
+          "sourceName": "Internal onboarding retrospective (2024)",
+          "sourceUrl": null,
+          "grade": 4,
+          "points": [
+            "Juniors hired remotely took about 40% longer to ship their first independent feature than the 2019 in-office cohort",
+            "Scheduled pairing hours were the strongest predictor of ramp speed, ahead of documentation quality"
+          ],
+          "dok1Facts": [
+            {
+              "fact": "Remote juniors asked 60% fewer unprompted questions in their first month than the in-office cohort.",
+              "score": 4
+            },
+            {
+              "fact": "Juniors with a daily 30-minute pairing slot reached independent delivery in 9 weeks versus 14 weeks without it.",
+              "score": 5
+            }
+          ],
+          "content": "The retrospective compared the 2019 in-office junior cohort with the 2022 and 2023 remote cohorts. Remote juniors shipped their first independent feature about 40% later. The team tested a daily 30-minute pairing slot in 2023: juniors with the slot reached independence in 9 weeks versus 14 without. Remote juniors asked 60% fewer unprompted questions in month one."
+        },
+        {
+          "sourceName": "Summary of apprenticeship and situated-learning research (academic review)",
+          "sourceUrl": "https://example.org/situated-learning-review",
+          "grade": 4,
+          "points": [
+            "Tacit knowledge transfers through observing experts handle ambiguity, not through instruction",
+            "Newcomers learn norms through legitimate peripheral participation: being present while real work happens"
+          ],
+          "dok1Facts": [
+            {
+              "fact": "Lave and Wenger introduced the term \"legitimate peripheral participation\" in 1991.",
+              "score": 5
+            }
+          ],
+          "content": "The review traces how apprentices acquire judgement by being present while masters work, long before they are trusted to act. It argues that formal instruction transfers explicit knowledge while incidental observation transfers the tacit kind."
+        }
+      ],
+      "spovText": "Leveraging asynchronous-first enablement paradigms, organizations should operationalize tacit-knowledge-transfer touchpoints to de-risk junior ramp velocity in distributed topologies.",
+      "expected": {
+        "accept": true,
+        "minScore": 2,
+        "maxScore": 3,
+        "weakCriteria": [
+          "P1",
+          "O2"
+        ],
+        "rationale": "Underneath the jargon this is roughly the manufactured-overhearing idea, but it is unquotable and reads like reassembled consultant language, not the student."
+      }
+    },
+    {
+      "id": "remote-placeholder-rejected",
+      "probe": "Gate: a placeholder is not gradable",
+      "brainliftPurpose": "Decide how my 40-person remote-first software team should onboard junior engineers so they ramp as fast as our in-office juniors used to.",
+      "primaryDok3": {
+        "text": "Juniors learn mostly by overhearing: how seniors argue, hedge and recover. Remote work removes the overhearing, so remote teams must manufacture it deliberately or juniors stall.",
+        "score": 4,
+        "frameworkName": "Manufactured overhearing",
+        "frameworkDescription": "Tacit knowledge in software transfers through incidental observation, which remote work eliminates by default."
+      },
+      "additionalDok3s": [],
+      "linkedDok2s": [
+        {
+          "sourceName": "Internal onboarding retrospective (2024)",
+          "sourceUrl": null,
+          "grade": 4,
+          "points": [
+            "Juniors hired remotely took about 40% longer to ship their first independent feature than the 2019 in-office cohort",
+            "Scheduled pairing hours were the strongest predictor of ramp speed, ahead of documentation quality"
+          ],
+          "dok1Facts": [
+            {
+              "fact": "Remote juniors asked 60% fewer unprompted questions in their first month than the in-office cohort.",
+              "score": 4
+            },
+            {
+              "fact": "Juniors with a daily 30-minute pairing slot reached independent delivery in 9 weeks versus 14 weeks without it.",
+              "score": 5
+            }
+          ],
+          "content": "The retrospective compared the 2019 in-office junior cohort with the 2022 and 2023 remote cohorts. Remote juniors shipped their first independent feature about 40% later. The team tested a daily 30-minute pairing slot in 2023: juniors with the slot reached independence in 9 weeks versus 14 without. Remote juniors asked 60% fewer unprompted questions in month one."
+        },
+        {
+          "sourceName": "Summary of apprenticeship and situated-learning research (academic review)",
+          "sourceUrl": "https://example.org/situated-learning-review",
+          "grade": 4,
+          "points": [
+            "Tacit knowledge transfers through observing experts handle ambiguity, not through instruction",
+            "Newcomers learn norms through legitimate peripheral participation: being present while real work happens"
+          ],
+          "dok1Facts": [
+            {
+              "fact": "Lave and Wenger introduced the term \"legitimate peripheral participation\" in 1991.",
+              "score": 5
+            }
+          ],
+          "content": "The review traces how apprentices acquire judgement by being present while masters work, long before they are trusted to act. It argues that formal instruction transfers explicit knowledge while incidental observation transfers the tacit kind."
+        }
+      ],
+      "spovText": "TODO: write my conviction here once I finish the pairing research.",
+      "expected": {
+        "accept": false,
+        "weakCriteria": [],
+        "rationale": "There is no position to grade. The gate should reject rather than score it a 1."
+      }
+    },
+    {
+      "id": "spaced-sharp-quotable",
+      "probe": "Level 4-5: reframes the felt experience of studying",
+      "brainliftPurpose": "Work out how to structure my own Spanish vocabulary study so I actually retain words past the exam.",
+      "primaryDok3": {
+        "text": "Retention tracks the difficulty of the recall, not the number of exposures: a review scheduled just before forgetting beats a review that feels easy.",
+        "score": 5,
+        "frameworkName": "Desirable difficulty",
+        "frameworkDescription": "Effortful retrieval strengthens memory; fluent re-reading does not."
+      },
+      "additionalDok3s": [
+        {
+          "text": "App engagement metrics reward the opposite of learning: easy, pleasant, daily sessions.",
+          "score": 3
+        }
+      ],
+      "linkedDok2s": [
+        {
+          "sourceName": "Cepeda et al., meta-analysis of distributed practice",
+          "sourceUrl": "https://example.org/cepeda-spacing",
+          "grade": 5,
+          "points": [
+            "The optimal gap between reviews grows with the retention interval you care about",
+            "Massed practice produces fast gains and fast forgetting"
+          ],
+          "dok1Facts": [
+            {
+              "fact": "The meta-analysis covered 254 studies with over 14,000 participants.",
+              "score": 5
+            },
+            {
+              "fact": "The spacing effect replicated across verbal, motor and procedural learning tasks.",
+              "score": 4
+            }
+          ],
+          "content": "Across 254 studies, spaced study outperformed massed study at every retention interval tested. The best spacing grew longer as the desired retention interval grew. Massed practice produced high immediate test scores that decayed fastest."
+        },
+        {
+          "sourceName": "Language-app growth team blog post on engagement",
+          "sourceUrl": "https://example.org/app-engagement-post",
+          "grade": 2,
+          "points": [
+            "Daily streaks are the strongest retention lever for app usage",
+            "Users rate easy sessions as more enjoyable and return more often"
+          ],
+          "dok1Facts": [
+            {
+              "fact": "Users who maintained a daily streak churned 30% less within 90 days.",
+              "score": 3
+            }
+          ],
+          "content": "The post explains how streaks and easy early sessions reduced 90-day churn by 30%. It does not measure vocabulary retention."
+        }
+      ],
+      "spovText": "If a flashcard feels easy, you reviewed it too soon. The forgetting is the learning.",
+      "expected": {
+        "accept": true,
+        "minScore": 4,
+        "maxScore": 5,
+        "weakCriteria": [],
+        "rationale": "Quotable, counter-intuitive, and a direct compression of desirable difficulty with the meta-analysis behind it. The kind of line people repeat."
+      }
+    },
+    {
+      "id": "spaced-borrowed-app",
+      "probe": "Level 2: adopts the weak source's stance against the chain's own primary insight",
+      "brainliftPurpose": "Work out how to structure my own Spanish vocabulary study so I actually retain words past the exam.",
+      "primaryDok3": {
+        "text": "Retention tracks the difficulty of the recall, not the number of exposures: a review scheduled just before forgetting beats a review that feels easy.",
+        "score": 5,
+        "frameworkName": "Desirable difficulty",
+        "frameworkDescription": "Effortful retrieval strengthens memory; fluent re-reading does not."
+      },
+      "additionalDok3s": [
+        {
+          "text": "App engagement metrics reward the opposite of learning: easy, pleasant, daily sessions.",
+          "score": 3
+        }
+      ],
+      "linkedDok2s": [
+        {
+          "sourceName": "Cepeda et al., meta-analysis of distributed practice",
+          "sourceUrl": "https://example.org/cepeda-spacing",
+          "grade": 5,
+          "points": [
+            "The optimal gap between reviews grows with the retention interval you care about",
+            "Massed practice produces fast gains and fast forgetting"
+          ],
+          "dok1Facts": [
+            {
+              "fact": "The meta-analysis covered 254 studies with over 14,000 participants.",
+              "score": 5
+            },
+            {
+              "fact": "The spacing effect replicated across verbal, motor and procedural learning tasks.",
+              "score": 4
+            }
+          ],
+          "content": "Across 254 studies, spaced study outperformed massed study at every retention interval tested. The best spacing grew longer as the desired retention interval grew. Massed practice produced high immediate test scores that decayed fastest."
+        },
+        {
+          "sourceName": "Language-app growth team blog post on engagement",
+          "sourceUrl": "https://example.org/app-engagement-post",
+          "grade": 2,
+          "points": [
+            "Daily streaks are the strongest retention lever for app usage",
+            "Users rate easy sessions as more enjoyable and return more often"
+          ],
+          "dok1Facts": [
+            {
+              "fact": "Users who maintained a daily streak churned 30% less within 90 days.",
+              "score": 3
+            }
+          ],
+          "content": "The post explains how streaks and easy early sessions reduced 90-day churn by 30%. It does not measure vocabulary retention."
+        }
+      ],
+      "spovText": "Streaks keep learners coming back every day, so the best study system is the one that protects your streak.",
+      "expected": {
+        "accept": true,
+        "minScore": 2,
+        "maxScore": 3,
+        "weakCriteria": [
+          "S3"
+        ],
+        "rationale": "Borrowed from the grade-2 engagement post and contradicts the primary insight (difficulty drives retention). It is a position, but not one the student's chain supports."
+      }
+    },
+    {
+      "id": "spaced-weak-foundation-ceiling",
+      "probe": "Ceiling: a sharp line on a weak chain must be capped by foundation integrity",
+      "brainliftPurpose": "Work out how to structure my own Spanish vocabulary study so I actually retain words past the exam.",
+      "primaryDok3": {
+        "text": "Retention tracks the difficulty of the recall, not the number of exposures: a review scheduled just before forgetting beats a review that feels easy.",
+        "score": 2,
+        "frameworkName": "Desirable difficulty",
+        "frameworkDescription": "Effortful retrieval strengthens memory; fluent re-reading does not."
+      },
+      "additionalDok3s": [],
+      "linkedDok2s": [
+        {
+          "sourceName": "Cepeda et al., meta-analysis of distributed practice",
+          "sourceUrl": "https://example.org/cepeda-spacing",
+          "grade": 2,
+          "points": [
+            "Spacing is generally better than cramming"
+          ],
+          "dok1Facts": [
+            {
+              "fact": "Spacing studies exist.",
+              "score": 2
+            },
+            {
+              "fact": "Some people use flashcards.",
+              "score": 1
+            }
+          ],
+          "content": "Across 254 studies, spaced study outperformed massed study at every retention interval tested. The best spacing grew longer as the desired retention interval grew. Massed practice produced high immediate test scores that decayed fastest."
+        },
+        {
+          "sourceName": "Language-app growth team blog post on engagement",
+          "sourceUrl": "https://example.org/app-engagement-post",
+          "grade": 1,
+          "points": [
+            "Daily streaks are the strongest retention lever for app usage",
+            "Users rate easy sessions as more enjoyable and return more often"
+          ],
+          "dok1Facts": [
+            {
+              "fact": "Apps have streaks.",
+              "score": 1
+            }
+          ],
+          "content": "The post explains how streaks and easy early sessions reduced 90-day churn by 30%. It does not measure vocabulary retention."
+        }
+      ],
+      "spovText": "If a flashcard feels easy, you reviewed it too soon. The forgetting is the learning.",
+      "expected": {
+        "accept": true,
+        "minScore": 1,
+        "maxScore": 2,
+        "weakCriteria": [
+          "S3"
+        ],
+        "rationale": "Identical line to the quotable case, but the chain beneath it scores 1-2 at every level. Foundation index is about 1.7, so the ceiling is 2 regardless of how sharp the line is."
+      }
+    },
+    {
+      "id": "spaced-hedged",
+      "probe": "Level 1: hedged into meaninglessness",
+      "brainliftPurpose": "Work out how to structure my own Spanish vocabulary study so I actually retain words past the exam.",
+      "primaryDok3": {
+        "text": "Retention tracks the difficulty of the recall, not the number of exposures: a review scheduled just before forgetting beats a review that feels easy.",
+        "score": 5,
+        "frameworkName": "Desirable difficulty",
+        "frameworkDescription": "Effortful retrieval strengthens memory; fluent re-reading does not."
+      },
+      "additionalDok3s": [
+        {
+          "text": "App engagement metrics reward the opposite of learning: easy, pleasant, daily sessions.",
+          "score": 3
+        }
+      ],
+      "linkedDok2s": [
+        {
+          "sourceName": "Cepeda et al., meta-analysis of distributed practice",
+          "sourceUrl": "https://example.org/cepeda-spacing",
+          "grade": 5,
+          "points": [
+            "The optimal gap between reviews grows with the retention interval you care about",
+            "Massed practice produces fast gains and fast forgetting"
+          ],
+          "dok1Facts": [
+            {
+              "fact": "The meta-analysis covered 254 studies with over 14,000 participants.",
+              "score": 5
+            },
+            {
+              "fact": "The spacing effect replicated across verbal, motor and procedural learning tasks.",
+              "score": 4
+            }
+          ],
+          "content": "Across 254 studies, spaced study outperformed massed study at every retention interval tested. The best spacing grew longer as the desired retention interval grew. Massed practice produced high immediate test scores that decayed fastest."
+        },
+        {
+          "sourceName": "Language-app growth team blog post on engagement",
+          "sourceUrl": "https://example.org/app-engagement-post",
+          "grade": 2,
+          "points": [
+            "Daily streaks are the strongest retention lever for app usage",
+            "Users rate easy sessions as more enjoyable and return more often"
+          ],
+          "dok1Facts": [
+            {
+              "fact": "Users who maintained a daily streak churned 30% less within 90 days.",
+              "score": 3
+            }
+          ],
+          "content": "The post explains how streaks and easy early sessions reduced 90-day churn by 30%. It does not measure vocabulary retention."
+        }
+      ],
+      "spovText": "Spaced repetition might be somewhat more effective than cramming for some learners, although it really depends on the context.",
+      "expected": {
+        "accept": true,
+        "minScore": 1,
+        "maxScore": 2,
+        "weakCriteria": [
+          "S1",
+          "S4",
+          "P1"
+        ],
+        "rationale": "Every clause retreats from the one before it. No informed practitioner would bother to disagree."
+      }
+    },
+    {
+      "id": "rural-sharp",
+      "probe": "Level 4-5: punchy and traceable to the obstetrics-first pattern",
+      "brainliftPurpose": "Understand why small-town hospitals keep closing and what a county commission could realistically do about it.",
+      "primaryDok3": {
+        "text": "Rural hospitals close from the obstetrics ward outward: low-volume, high-liability services go first, and with them the young families whose other visits kept the building viable.",
+        "score": 4,
+        "frameworkName": "Obstetrics-first collapse",
+        "frameworkDescription": "Service-line closures are not independent cuts; losing deliveries removes the patient base for everything else."
+      },
+      "additionalDok3s": [],
+      "linkedDok2s": [
+        {
+          "sourceName": "Chartis Center for Rural Health annual report (2024)",
+          "sourceUrl": "https://example.org/chartis-rural-2024",
+          "grade": 4,
+          "points": [
+            "More than half of rural hospitals no longer deliver babies",
+            "Closures cluster in states that did not expand Medicaid"
+          ],
+          "dok1Facts": [
+            {
+              "fact": "136 rural hospitals closed or converted away from inpatient care between 2010 and 2023.",
+              "score": 5
+            },
+            {
+              "fact": "A rural obstetrics unit costs roughly $1 million a year to staff at low delivery volumes.",
+              "score": 4
+            }
+          ],
+          "content": "The report counts 136 rural closures or conversions since 2010 and finds that over half of remaining rural hospitals have stopped delivering babies. Obstetrics is typically the first unit cut because staffing a 24-hour unit costs about $1M a year regardless of volume. Closures cluster in non-expansion states."
+        },
+        {
+          "sourceName": "County commission town-hall transcript on the hospital",
+          "sourceUrl": null,
+          "grade": 4,
+          "points": [
+            "Residents now drive more than 70 minutes to deliver a baby",
+            "The hospital is the second-largest employer in the county"
+          ],
+          "dok1Facts": [
+            {
+              "fact": "The county hospital employs about 240 people.",
+              "score": 4
+            }
+          ],
+          "content": "Residents described 70-plus minute drives to the nearest delivery unit since the local OB ward closed, and several said they now take all their care to the city. The hospital employs about 240 people, second only to the school district."
+        }
+      ],
+      "spovText": "A rural hospital does not die when the money runs out. It dies the day it stops delivering babies.",
+      "expected": {
+        "accept": true,
+        "minScore": 4,
+        "maxScore": 5,
+        "weakCriteria": [],
+        "rationale": "Memorable, committed, and grounded in both the Chartis obstetrics data and the town-hall testimony about families taking all their care to the city."
+      }
+    },
+    {
+      "id": "rural-consensus",
+      "probe": "Level 1: policy-brief boilerplate",
+      "brainliftPurpose": "Understand why small-town hospitals keep closing and what a county commission could realistically do about it.",
+      "primaryDok3": {
+        "text": "Rural hospitals close from the obstetrics ward outward: low-volume, high-liability services go first, and with them the young families whose other visits kept the building viable.",
+        "score": 4,
+        "frameworkName": "Obstetrics-first collapse",
+        "frameworkDescription": "Service-line closures are not independent cuts; losing deliveries removes the patient base for everything else."
+      },
+      "additionalDok3s": [],
+      "linkedDok2s": [
+        {
+          "sourceName": "Chartis Center for Rural Health annual report (2024)",
+          "sourceUrl": "https://example.org/chartis-rural-2024",
+          "grade": 4,
+          "points": [
+            "More than half of rural hospitals no longer deliver babies",
+            "Closures cluster in states that did not expand Medicaid"
+          ],
+          "dok1Facts": [
+            {
+              "fact": "136 rural hospitals closed or converted away from inpatient care between 2010 and 2023.",
+              "score": 5
+            },
+            {
+              "fact": "A rural obstetrics unit costs roughly $1 million a year to staff at low delivery volumes.",
+              "score": 4
+            }
+          ],
+          "content": "The report counts 136 rural closures or conversions since 2010 and finds that over half of remaining rural hospitals have stopped delivering babies. Obstetrics is typically the first unit cut because staffing a 24-hour unit costs about $1M a year regardless of volume. Closures cluster in non-expansion states."
+        },
+        {
+          "sourceName": "County commission town-hall transcript on the hospital",
+          "sourceUrl": null,
+          "grade": 4,
+          "points": [
+            "Residents now drive more than 70 minutes to deliver a baby",
+            "The hospital is the second-largest employer in the county"
+          ],
+          "dok1Facts": [
+            {
+              "fact": "The county hospital employs about 240 people.",
+              "score": 4
+            }
+          ],
+          "content": "Residents described 70-plus minute drives to the nearest delivery unit since the local OB ward closed, and several said they now take all their care to the city. The hospital employs about 240 people, second only to the school district."
+        }
+      ],
+      "spovText": "Rural hospitals face many challenges and need sustainable funding models that balance community needs with financial realities.",
+      "expected": {
+        "accept": true,
+        "minScore": 1,
+        "maxScore": 2,
+        "weakCriteria": [
+          "S1",
+          "S2",
+          "P1"
+        ],
+        "rationale": "Could open any report on the topic. Names no mechanism, takes no side."
+      }
+    },
+    {
+      "id": "rural-unrefined",
+      "probe": "Level 3: the right claim, stated at paragraph length with hedges",
+      "brainliftPurpose": "Understand why small-town hospitals keep closing and what a county commission could realistically do about it.",
+      "primaryDok3": {
+        "text": "Rural hospitals close from the obstetrics ward outward: low-volume, high-liability services go first, and with them the young families whose other visits kept the building viable.",
+        "score": 4,
+        "frameworkName": "Obstetrics-first collapse",
+        "frameworkDescription": "Service-line closures are not independent cuts; losing deliveries removes the patient base for everything else."
+      },
+      "additionalDok3s": [],
+      "linkedDok2s": [
+        {
+          "sourceName": "Chartis Center for Rural Health annual report (2024)",
+          "sourceUrl": "https://example.org/chartis-rural-2024",
+          "grade": 4,
+          "points": [
+            "More than half of rural hospitals no longer deliver babies",
+            "Closures cluster in states that did not expand Medicaid"
+          ],
+          "dok1Facts": [
+            {
+              "fact": "136 rural hospitals closed or converted away from inpatient care between 2010 and 2023.",
+              "score": 5
+            },
+            {
+              "fact": "A rural obstetrics unit costs roughly $1 million a year to staff at low delivery volumes.",
+              "score": 4
+            }
+          ],
+          "content": "The report counts 136 rural closures or conversions since 2010 and finds that over half of remaining rural hospitals have stopped delivering babies. Obstetrics is typically the first unit cut because staffing a 24-hour unit costs about $1M a year regardless of volume. Closures cluster in non-expansion states."
+        },
+        {
+          "sourceName": "County commission town-hall transcript on the hospital",
+          "sourceUrl": null,
+          "grade": 4,
+          "points": [
+            "Residents now drive more than 70 minutes to deliver a baby",
+            "The hospital is the second-largest employer in the county"
+          ],
+          "dok1Facts": [
+            {
+              "fact": "The county hospital employs about 240 people.",
+              "score": 4
+            }
+          ],
+          "content": "Residents described 70-plus minute drives to the nearest delivery unit since the local OB ward closed, and several said they now take all their care to the city. The hospital employs about 240 people, second only to the school district."
+        }
+      ],
+      "spovText": "Having looked at the closure data and the town hall, I think, although it is complicated and every county is different, that the real issue is probably that once obstetrics goes, families start driving to the city for everything, and the hospital, which is also a major employer, loses the patient base that justified its other departments, so counties should maybe focus on keeping obstetrics open even at a loss.",
+      "expected": {
+        "accept": true,
+        "minScore": 3,
+        "maxScore": 4,
+        "weakCriteria": [
+          "P1"
+        ],
+        "rationale": "The obstetrics-first mechanism and the recommendation are both present and well grounded; the student has simply not compressed them to a line."
+      }
+    },
+    {
+      "id": "rural-contrarian-defensible",
+      "probe": "Independence: a position the grader may disagree with must not lose points for that",
+      "brainliftPurpose": "Understand why small-town hospitals keep closing and what a county commission could realistically do about it.",
+      "primaryDok3": {
+        "text": "Rural hospitals close from the obstetrics ward outward: low-volume, high-liability services go first, and with them the young families whose other visits kept the building viable.",
+        "score": 4,
+        "frameworkName": "Obstetrics-first collapse",
+        "frameworkDescription": "Service-line closures are not independent cuts; losing deliveries removes the patient base for everything else."
+      },
+      "additionalDok3s": [],
+      "linkedDok2s": [
+        {
+          "sourceName": "Chartis Center for Rural Health annual report (2024)",
+          "sourceUrl": "https://example.org/chartis-rural-2024",
+          "grade": 4,
+          "points": [
+            "More than half of rural hospitals no longer deliver babies",
+            "Closures cluster in states that did not expand Medicaid"
+          ],
+          "dok1Facts": [
+            {
+              "fact": "136 rural hospitals closed or converted away from inpatient care between 2010 and 2023.",
+              "score": 5
+            },
+            {
+              "fact": "A rural obstetrics unit costs roughly $1 million a year to staff at low delivery volumes.",
+              "score": 4
+            }
+          ],
+          "content": "The report counts 136 rural closures or conversions since 2010 and finds that over half of remaining rural hospitals have stopped delivering babies. Obstetrics is typically the first unit cut because staffing a 24-hour unit costs about $1M a year regardless of volume. Closures cluster in non-expansion states."
+        },
+        {
+          "sourceName": "County commission town-hall transcript on the hospital",
+          "sourceUrl": null,
+          "grade": 4,
+          "points": [
+            "Residents now drive more than 70 minutes to deliver a baby",
+            "The hospital is the second-largest employer in the county"
+          ],
+          "dok1Facts": [
+            {
+              "fact": "The county hospital employs about 240 people.",
+              "score": 4
+            }
+          ],
+          "content": "Residents described 70-plus minute drives to the nearest delivery unit since the local OB ward closed, and several said they now take all their care to the city. The hospital employs about 240 people, second only to the school district."
+        }
+      ],
+      "spovText": "Let the full-service hospital close. Fund a standalone birthing center and a helicopter contract instead.",
+      "expected": {
+        "accept": true,
+        "minScore": 3,
+        "maxScore": 5,
+        "weakCriteria": [],
+        "rationale": "Many readers will think this is wrong, which is exactly the point. It is committed, contested, punchy, and it leaps from the $1M obstetrics cost and the drive-time testimony. Disagreement must not pull it below a 3."
+      }
+    },
+    {
+      "id": "oss-sharp",
+      "probe": "Level 4-5: compresses obligation debt into one line",
+      "brainliftPurpose": "Decide whether my company should fund the open-source libraries we depend on, and if so how.",
+      "primaryDok3": {
+        "text": "Maintainers burn out on obligation, not workload: unpaid support expectations, not code volume, are what drive abandonment.",
+        "score": 4,
+        "frameworkName": "Obligation debt",
+        "frameworkDescription": "The unpaid duty to respond is the cost that scales with popularity, not the code."
+      },
+      "additionalDok3s": [],
+      "linkedDok2s": [
+        {
+          "sourceName": "Tidelift state of the open source maintainer survey (2023)",
+          "sourceUrl": "https://example.org/tidelift-2023",
+          "grade": 4,
+          "points": [
+            "About 60% of maintainers have considered quitting their project",
+            "Paid maintainers report higher satisfaction than unpaid ones at the same weekly hours"
+          ],
+          "dok1Facts": [
+            {
+              "fact": "The survey had roughly 400 maintainer respondents.",
+              "score": 4
+            },
+            {
+              "fact": "44% of surveyed maintainers receive no payment for their work.",
+              "score": 5
+            }
+          ],
+          "content": "Of about 400 maintainers surveyed, 60% had considered quitting and 44% were entirely unpaid. The strongest predictor of satisfaction was not hours worked but whether the maintainer felt entitled to decline requests, which paid maintainers reported far more often."
+        },
+        {
+          "sourceName": "Log4Shell postmortem (industry article)",
+          "sourceUrl": "https://example.org/log4shell-postmortem",
+          "grade": 4,
+          "points": [
+            "Log4j was maintained by a handful of volunteers when the vulnerability was disclosed",
+            "The companies most exposed had never contributed to the project"
+          ],
+          "dok1Facts": [
+            {
+              "fact": "Log4Shell was publicly disclosed in December 2021.",
+              "score": 5
+            }
+          ],
+          "content": "When Log4Shell was disclosed in December 2021, the library was maintained by volunteers who fielded demands from companies that had never contributed. Maintainers described the weeks after disclosure as unpaid emergency support."
+        }
+      ],
+      "spovText": "Do not sponsor the code. Buy the maintainer's right to say no.",
+      "expected": {
+        "accept": true,
+        "minScore": 4,
+        "maxScore": 5,
+        "weakCriteria": [],
+        "rationale": "A quotable instruction that follows directly from the survey finding that the ability to decline, not hours, predicts satisfaction."
+      }
+    },
+    {
+      "id": "oss-borrowed-stat",
+      "probe": "Level 2: a statistic from a source plus the consensus conclusion",
+      "brainliftPurpose": "Decide whether my company should fund the open-source libraries we depend on, and if so how.",
+      "primaryDok3": {
+        "text": "Maintainers burn out on obligation, not workload: unpaid support expectations, not code volume, are what drive abandonment.",
+        "score": 4,
+        "frameworkName": "Obligation debt",
+        "frameworkDescription": "The unpaid duty to respond is the cost that scales with popularity, not the code."
+      },
+      "additionalDok3s": [],
+      "linkedDok2s": [
+        {
+          "sourceName": "Tidelift state of the open source maintainer survey (2023)",
+          "sourceUrl": "https://example.org/tidelift-2023",
+          "grade": 4,
+          "points": [
+            "About 60% of maintainers have considered quitting their project",
+            "Paid maintainers report higher satisfaction than unpaid ones at the same weekly hours"
+          ],
+          "dok1Facts": [
+            {
+              "fact": "The survey had roughly 400 maintainer respondents.",
+              "score": 4
+            },
+            {
+              "fact": "44% of surveyed maintainers receive no payment for their work.",
+              "score": 5
+            }
+          ],
+          "content": "Of about 400 maintainers surveyed, 60% had considered quitting and 44% were entirely unpaid. The strongest predictor of satisfaction was not hours worked but whether the maintainer felt entitled to decline requests, which paid maintainers reported far more often."
+        },
+        {
+          "sourceName": "Log4Shell postmortem (industry article)",
+          "sourceUrl": "https://example.org/log4shell-postmortem",
+          "grade": 4,
+          "points": [
+            "Log4j was maintained by a handful of volunteers when the vulnerability was disclosed",
+            "The companies most exposed had never contributed to the project"
+          ],
+          "dok1Facts": [
+            {
+              "fact": "Log4Shell was publicly disclosed in December 2021.",
+              "score": 5
+            }
+          ],
+          "content": "When Log4Shell was disclosed in December 2021, the library was maintained by volunteers who fielded demands from companies that had never contributed. Maintainers described the weeks after disclosure as unpaid emergency support."
+        }
+      ],
+      "spovText": "60% of maintainers have considered quitting, so open source is in crisis and companies should pay.",
+      "expected": {
+        "accept": true,
+        "minScore": 2,
+        "maxScore": 3,
+        "weakCriteria": [
+          "S3",
+          "O2"
+        ],
+        "rationale": "Restates the survey headline and lands on the position everyone already holds. It does not use the chain's actual insight about obligation versus workload."
+      }
+    },
+    {
+      "id": "oss-off-chain",
+      "probe": "Grounding: a sharp line the chain does not support",
+      "brainliftPurpose": "Decide whether my company should fund the open-source libraries we depend on, and if so how.",
+      "primaryDok3": {
+        "text": "Maintainers burn out on obligation, not workload: unpaid support expectations, not code volume, are what drive abandonment.",
+        "score": 4,
+        "frameworkName": "Obligation debt",
+        "frameworkDescription": "The unpaid duty to respond is the cost that scales with popularity, not the code."
+      },
+      "additionalDok3s": [],
+      "linkedDok2s": [
+        {
+          "sourceName": "Tidelift state of the open source maintainer survey (2023)",
+          "sourceUrl": "https://example.org/tidelift-2023",
+          "grade": 4,
+          "points": [
+            "About 60% of maintainers have considered quitting their project",
+            "Paid maintainers report higher satisfaction than unpaid ones at the same weekly hours"
+          ],
+          "dok1Facts": [
+            {
+              "fact": "The survey had roughly 400 maintainer respondents.",
+              "score": 4
+            },
+            {
+              "fact": "44% of surveyed maintainers receive no payment for their work.",
+              "score": 5
+            }
+          ],
+          "content": "Of about 400 maintainers surveyed, 60% had considered quitting and 44% were entirely unpaid. The strongest predictor of satisfaction was not hours worked but whether the maintainer felt entitled to decline requests, which paid maintainers reported far more often."
+        },
+        {
+          "sourceName": "Log4Shell postmortem (industry article)",
+          "sourceUrl": "https://example.org/log4shell-postmortem",
+          "grade": 4,
+          "points": [
+            "Log4j was maintained by a handful of volunteers when the vulnerability was disclosed",
+            "The companies most exposed had never contributed to the project"
+          ],
+          "dok1Facts": [
+            {
+              "fact": "Log4Shell was publicly disclosed in December 2021.",
+              "score": 5
+            }
+          ],
+          "content": "When Log4Shell was disclosed in December 2021, the library was maintained by volunteers who fielded demands from companies that had never contributed. Maintainers described the weeks after disclosure as unpaid emergency support."
+        }
+      ],
+      "spovText": "Companies should rewrite their critical dependencies in-house rather than trust volunteers.",
+      "expected": {
+        "accept": true,
+        "minScore": 2,
+        "maxScore": 3,
+        "weakCriteria": [
+          "S3"
+        ],
+        "rationale": "Committed and arguable, but nothing in the DOK1-3 chain points here; the chain is about why maintainers quit, not about replacing them. A leap without evidence under it."
+      }
+    },
+    {
+      "id": "oss-consensus",
+      "probe": "Level 1: the shared-responsibility platitude",
+      "brainliftPurpose": "Decide whether my company should fund the open-source libraries we depend on, and if so how.",
+      "primaryDok3": {
+        "text": "Maintainers burn out on obligation, not workload: unpaid support expectations, not code volume, are what drive abandonment.",
+        "score": 4,
+        "frameworkName": "Obligation debt",
+        "frameworkDescription": "The unpaid duty to respond is the cost that scales with popularity, not the code."
+      },
+      "additionalDok3s": [],
+      "linkedDok2s": [
+        {
+          "sourceName": "Tidelift state of the open source maintainer survey (2023)",
+          "sourceUrl": "https://example.org/tidelift-2023",
+          "grade": 4,
+          "points": [
+            "About 60% of maintainers have considered quitting their project",
+            "Paid maintainers report higher satisfaction than unpaid ones at the same weekly hours"
+          ],
+          "dok1Facts": [
+            {
+              "fact": "The survey had roughly 400 maintainer respondents.",
+              "score": 4
+            },
+            {
+              "fact": "44% of surveyed maintainers receive no payment for their work.",
+              "score": 5
+            }
+          ],
+          "content": "Of about 400 maintainers surveyed, 60% had considered quitting and 44% were entirely unpaid. The strongest predictor of satisfaction was not hours worked but whether the maintainer felt entitled to decline requests, which paid maintainers reported far more often."
+        },
+        {
+          "sourceName": "Log4Shell postmortem (industry article)",
+          "sourceUrl": "https://example.org/log4shell-postmortem",
+          "grade": 4,
+          "points": [
+            "Log4j was maintained by a handful of volunteers when the vulnerability was disclosed",
+            "The companies most exposed had never contributed to the project"
+          ],
+          "dok1Facts": [
+            {
+              "fact": "Log4Shell was publicly disclosed in December 2021.",
+              "score": 5
+            }
+          ],
+          "content": "When Log4Shell was disclosed in December 2021, the library was maintained by volunteers who fielded demands from companies that had never contributed. Maintainers described the weeks after disclosure as unpaid emergency support."
+        }
+      ],
+      "spovText": "Open-source sustainability is a shared responsibility and companies should contribute back where they can.",
+      "expected": {
+        "accept": true,
+        "minScore": 1,
+        "maxScore": 2,
+        "weakCriteria": [
+          "S1",
+          "S2",
+          "P1"
+        ],
+        "rationale": "The position every conference keynote already holds. \"Where they can\" removes whatever commitment was left."
+      }
+    }
+  ]
+}

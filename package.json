@@ -18,7 +18,8 @@
     "db:push": "drizzle-kit push",
     "db:apply": "node scripts/apply-migrations.mjs",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "eval:dok4": "tsx server/evals/dok4-grader/run.ts"
   },
   "dependencies": {
     "@ai-sdk/anthropic": "^3.0.42",
