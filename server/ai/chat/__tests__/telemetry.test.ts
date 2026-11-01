@@ -22,7 +22,7 @@ describe('chat telemetry', () => {
     logChatTurn({
       userId: 'user-1',
       conversationId: 42,
-      requestedModel: 'qwen/qwen-plus',
+      requestedModel: 'x-ai/grok-4.7',
       requestId: 'req-1',
       finishReason: 'stop',
       durationMs: 1234,
@@ -39,7 +39,7 @@ describe('chat telemetry', () => {
       event: 'chat_turn',
       userId: 'user-1',
       conversationId: 42,
-      requestedModel: 'qwen/qwen-plus',
+      requestedModel: 'x-ai/grok-4.7',
       requestId: 'req-1',
       finishReason: 'stop',
       durationMs: 1234,
@@ -56,7 +56,7 @@ describe('chat telemetry', () => {
     logChatStreamStart({
       userId: 'user-1',
       conversationId: 42,
-      requestedModel: 'qwen/qwen-plus',
+      requestedModel: 'x-ai/grok-4.7',
       requestId: 'req-1',
       timestamp: new Date('2026-04-28T12:00:00.000Z'),
     });
@@ -65,7 +65,7 @@ describe('chat telemetry', () => {
       event: 'chat_stream_start',
       userId: 'user-1',
       conversationId: 42,
-      requestedModel: 'qwen/qwen-plus',
+      requestedModel: 'x-ai/grok-4.7',
       requestId: 'req-1',
       timestamp: '2026-04-28T12:00:00.000Z',
     });
@@ -75,7 +75,7 @@ describe('chat telemetry', () => {
     logChatStreamError({
       userId: 'user-1',
       conversationId: 42,
-      requestedModel: 'qwen/qwen-plus',
+      requestedModel: 'x-ai/grok-4.7',
       requestId: 'req-1',
       stage: 'model-stream',
       error: new Error('boom'),
@@ -89,7 +89,7 @@ describe('chat telemetry', () => {
       event: 'chat_stream_error',
       userId: 'user-1',
       conversationId: 42,
-      requestedModel: 'qwen/qwen-plus',
+      requestedModel: 'x-ai/grok-4.7',
       requestId: 'req-1',
       stage: 'model-stream',
       error: {
@@ -118,7 +118,7 @@ describe('chat telemetry', () => {
     logChatStreamError({
       userId: 'user-1',
       conversationId: 42,
-      requestedModel: 'qwen/qwen-plus',
+      requestedModel: 'x-ai/grok-4.7',
       requestId: 'req-1',
       stage: 'ui-stream',
       error,
@@ -129,7 +129,7 @@ describe('chat telemetry', () => {
       event: 'chat_stream_error',
       userId: 'user-1',
       conversationId: 42,
-      requestedModel: 'qwen/qwen-plus',
+      requestedModel: 'x-ai/grok-4.7',
       requestId: 'req-1',
       stage: 'ui-stream',
       error: {

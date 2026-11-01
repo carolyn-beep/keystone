@@ -64,7 +64,7 @@ describe('getChatModel', () => {
       headers: new Headers(),
       json: async () => ({
         id: 'resp-1',
-        model: 'qwen/qwen-plus',
+        model: 'x-ai/grok-4.7',
         choices: [{ message: { content: 'Hello from OpenRouter' } }],
         usage: {
           prompt_tokens: 12,
@@ -75,7 +75,7 @@ describe('getChatModel', () => {
     });
     globalThis.fetch = fetchMock as typeof globalThis.fetch;
 
-    const model = getChatModel('qwen/qwen-plus');
+    const model = getChatModel('x-ai/grok-4.7');
     const result = await model.doGenerate({
       prompt: [
         { role: 'system', content: 'You are precise.' },
@@ -93,7 +93,7 @@ describe('getChatModel', () => {
 
     const body = JSON.parse(options.body);
     expect(body.stream).toBeUndefined();
-    expect(body.model).toBe('qwen/qwen-plus');
+    expect(body.model).toBe('x-ai/grok-4.7');
     expect(body.messages).toEqual([
       { role: 'system', content: 'You are precise.' },
       { role: 'user', content: 'Say hello' },
@@ -199,7 +199,7 @@ describe('getChatModel', () => {
       status: 200,
       headers: new Headers({ 'content-type': 'text/event-stream' }),
       body: makeSseStream([
-        'data: {"id":"resp-2","model":"qwen/qwen-plus","choices":[{"delta":{"tool_calls":[{"index":0,"id":"call_1","type":"function","function":{"name":"get_template","arguments":"{\\"slug\\":\\""}}]}}]}\n\n',
+        'data: {"id":"resp-2","model":"x-ai/grok-4.7","choices":[{"delta":{"tool_calls":[{"index":0,"id":"call_1","type":"function","function":{"name":"get_template","arguments":"{\\"slug\\":\\""}}]}}]}\n\n',
         'data: {"choices":[{"delta":{"tool_calls":[{"index":0,"function":{"arguments":"brainlift\\"}"}}]}}]}\n\n',
         'data: {"choices":[{"finish_reason":"tool_calls"}],"usage":{"prompt_tokens":9,"completion_tokens":3,"total_tokens":12}}\n\n',
         'data: [DONE]\n\n',
@@ -207,7 +207,7 @@ describe('getChatModel', () => {
     });
     globalThis.fetch = fetchMock as typeof globalThis.fetch;
 
-    const model = getChatModel('qwen/qwen-plus');
+    const model = getChatModel('x-ai/grok-4.7');
     const { stream } = await model.doStream({
       prompt: [
         {
@@ -223,7 +223,7 @@ describe('getChatModel', () => {
       {
         type: 'response-metadata',
         id: 'resp-2',
-        modelId: 'qwen/qwen-plus',
+        modelId: 'x-ai/grok-4.7',
         timestamp: expect.any(Date),
       },
       {
@@ -269,7 +269,7 @@ describe('getChatModel', () => {
       status: 200,
       headers: new Headers({ 'content-type': 'text/event-stream' }),
       body: makeSseStream([
-        'data: {"id":"resp-3","model":"qwen/qwen-plus","choices":[{"delta":{"content":"Let me grab the template. "}}]}\n\n',
+        'data: {"id":"resp-3","model":"x-ai/grok-4.7","choices":[{"delta":{"content":"Let me grab the template. "}}]}\n\n',
         'data: {"choices":[{"delta":{"tool_calls":[{"index":0,"id":"call_2","type":"function","function":{"name":"get_template","arguments":"{}"}}]}}]}\n\n',
         'data: {"choices":[{"finish_reason":"tool_calls"}],"usage":{"prompt_tokens":11,"completion_tokens":4,"total_tokens":15}}\n\n',
         'data: [DONE]\n\n',
@@ -277,7 +277,7 @@ describe('getChatModel', () => {
     });
     globalThis.fetch = fetchMock as typeof globalThis.fetch;
 
-    const model = getChatModel('qwen/qwen-plus');
+    const model = getChatModel('x-ai/grok-4.7');
     const { stream } = await model.doStream({
       prompt: [
         {
@@ -293,7 +293,7 @@ describe('getChatModel', () => {
       {
         type: 'response-metadata',
         id: 'resp-3',
-        modelId: 'qwen/qwen-plus',
+        modelId: 'x-ai/grok-4.7',
         timestamp: expect.any(Date),
       },
       { type: 'text-start', id: 'text-1' },
@@ -366,12 +366,12 @@ describe('prompt caching', () => {
   it('does not send cache_control for non-Anthropic models', async () => {
     const fetchMock = mockFetchJson({
       id: 'r',
-      model: 'qwen/qwen-plus',
+      model: 'x-ai/grok-4.7',
       choices: [{ message: { content: 'ok' } }],
       usage: { prompt_tokens: 5, completion_tokens: 1, total_tokens: 6 },
     });
 
-    await getChatModel('qwen/qwen-plus').doGenerate({ prompt });
+    await getChatModel('x-ai/grok-4.7').doGenerate({ prompt });
 
     const body = JSON.parse(fetchMock.mock.calls[0][1].body);
     expect(body.cache_control).toBeUndefined();

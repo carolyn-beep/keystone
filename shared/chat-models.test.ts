@@ -23,13 +23,25 @@ describe('chat schema contract', () => {
 describe('CHAT_MODELS', () => {
   it('keeps the curated native chat model set in one shared place', () => {
     expect(CHAT_MODELS.map((model) => model.id)).toEqual([
+      'anthropic/claude-fable-5.1',
       'anthropic/claude-opus-5.5',
       'anthropic/claude-sonnet-5.5',
-      'openai/gpt-5.5',
-      'google/gemini-3-flash-preview',
-      'qwen/qwen-plus',
       'anthropic/claude-haiku-5.5',
+      'openai/gpt-5.6-sol',
+      'google/gemini-3.8-flash',
+      'x-ai/grok-4.7',
+      'moonshotai/kimi-k3.1-pro',
+      'deepseek/deepseek-v4.1-flash',
     ]);
+  });
+
+  it('has no duplicate ids and a label and description for every entry', () => {
+    const ids = CHAT_MODELS.map((model) => model.id);
+    expect(new Set(ids).size).toBe(ids.length);
+    for (const model of CHAT_MODELS) {
+      expect(model.label.trim().length).toBeGreaterThan(0);
+      expect(model.description.trim().length).toBeGreaterThan(0);
+    }
   });
 
   it('exposes a default model that is part of the curated list', () => {
@@ -38,7 +50,8 @@ describe('CHAT_MODELS', () => {
   });
 
   it('validates model IDs against the curated list', () => {
-    expect(isChatModelId('qwen/qwen-plus')).toBe(true);
+    expect(isChatModelId('x-ai/grok-4.7')).toBe(true);
+    expect(isChatModelId('qwen/qwen-plus')).toBe(false);
     expect(isChatModelId('google/gemini-2.0-flash-001')).toBe(false);
   });
 });

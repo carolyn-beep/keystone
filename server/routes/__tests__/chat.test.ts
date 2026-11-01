@@ -507,7 +507,7 @@ describe('chat route handlers', () => {
         conversationId: 42,
         messages: inputMessages,
         config: {
-          modelName: 'qwen/qwen-plus',
+          modelName: 'x-ai/grok-4.7',
         },
       },
     });
@@ -560,7 +560,7 @@ describe('chat route handlers', () => {
       },
     ];
 
-    expect(mockGetChatModel).toHaveBeenCalledWith('qwen/qwen-plus');
+    expect(mockGetChatModel).toHaveBeenCalledWith('x-ai/grok-4.7');
     expect(mockBuildChatSystemPromptFromRegistry).toHaveBeenCalledWith(expect.objectContaining({
       userContext: {
         userId: 'user-1',
@@ -585,7 +585,7 @@ describe('chat route handlers', () => {
     expect(mockLogChatStreamStart).toHaveBeenCalledWith({
       userId: 'user-1',
       conversationId: 42,
-      requestedModel: 'qwen/qwen-plus',
+      requestedModel: 'x-ai/grok-4.7',
       requestId: 'generated-assistant-id',
     });
     expect(mockConvertToModelMessages).toHaveBeenCalledWith(inputMessages);
@@ -607,7 +607,7 @@ describe('chat route handlers', () => {
     expect(mockLogChatTurn).toHaveBeenCalledWith(expect.objectContaining({
       userId: 'user-1',
       conversationId: 42,
-      requestedModel: 'qwen/qwen-plus',
+      requestedModel: 'x-ai/grok-4.7',
       requestId: 'generated-assistant-id',
       finishReason: 'stop',
       usage: {
