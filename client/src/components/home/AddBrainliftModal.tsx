@@ -1,4 +1,6 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
+import { buttonLikeProps } from '@/lib/a11y';
+import { useEscapeKey } from '@/hooks/use-escape-key';
 import { X, Upload, FileText, Link as LinkIcon, File, Loader2, PenLine, ArrowLeft } from 'lucide-react';
 import { motion, AnimatePresence, LayoutGroup } from 'framer-motion';
 import { tokens } from '@/lib/colors';
@@ -290,17 +292,24 @@ export function AddBrainliftModal({ show, mode, onClose, onSuccess }: AddBrainli
     pendingFormDataRef.current = null;
   }, [importState]);
 
+  // Escape is the keyboard equivalent of clicking the backdrop.
+  useEscapeKey(closeModal, show && !isManualLinking && !isBusy);
+
   if (!show) return null;
 
   return (
     <div
       className="fixed inset-0 flex items-center justify-center z-[1000] p-5 overflow-hidden"
       style={{ backgroundColor: tokens.overlay }}
+      role="presentation"
       onClick={(isManualLinking || isBusy) ? undefined : closeModal}
     >
       <motion.div
         layout
         transition={{ layout: { duration: 0.4, ease: [0.4, 0, 0.2, 1] } }}
+        role="dialog"
+        aria-modal="true"
+        aria-label="Add document"
         className="relative overflow-hidden rounded-xl bg-card flex flex-col"
         style={{
           width: isExpanded ? '90vw' : '100%',
@@ -578,7 +587,9 @@ export function AddBrainliftModal({ show, mode, onClose, onSuccess }: AddBrainli
                                 disabled={isBusy}
                               />
                               <div
-                                onClick={() => !isBusy && fileInputRef.current?.click()}
+                                {...buttonLikeProps(() => { if (!isBusy) fileInputRef.current?.click(); })}
+                                aria-label={selectedFile ? `Change file (${selectedFile.name})` : 'Choose a file to import'}
+                                aria-disabled={isBusy || undefined}
                                 className="border-2 border-dashed rounded-lg py-6 px-5 text-center cursor-pointer flex flex-col items-center justify-center"
                                 style={{
                                   borderColor: tokens.border,
@@ -639,6 +650,10 @@ export function AddBrainliftModal({ show, mode, onClose, onSuccess }: AddBrainli
 
                         <div className={`relative z-10 flex items-center gap-3 py-3 ${isBusy ? 'opacity-50 pointer-events-none' : ''}`}>
                           <button
+                            type="button"
+                            id="auto-link-toggle"
+                            role="switch"
+                            aria-checked={autoLink}
                             onClick={() => !isBusy && setAutoLink(!autoLink)}
                             disabled={isBusy}
                             className={`relative w-10 h-5 rounded-full transition-colors duration-200 border-0 cursor-pointer disabled:cursor-not-allowed ${
@@ -653,8 +668,8 @@ export function AddBrainliftModal({ show, mode, onClose, onSuccess }: AddBrainli
                             />
                           </button>
                           <label
+                            htmlFor="auto-link-toggle"
                             className="text-sm text-muted-foreground cursor-pointer select-none"
-                            onClick={() => !isBusy && setAutoLink(!autoLink)}
                           >
                             Auto-link DOK3s and DOK4s
                           </label>

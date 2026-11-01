@@ -228,7 +228,7 @@ function Actions({ onBookmark, onGrade, onDiscard, onOpen, isBookmarking, isProc
   const saveAriaLabel = 'Save to Second Brain';
 
   return (
-    <div className="px-10 py-5 border-t border-border flex items-center justify-between bg-sidebar/30" onClick={(e) => e.stopPropagation()}>
+    <div className="px-10 py-5 border-t border-border flex items-center justify-between bg-sidebar/30" role="presentation" onClick={(e) => e.stopPropagation()}>
       <div className="flex items-center gap-3">
         <motion.div layoutId={`action-save-${item.id}`}>
           <TactileButton

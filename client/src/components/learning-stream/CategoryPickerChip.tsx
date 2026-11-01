@@ -155,7 +155,7 @@ export function CategoryPickerChip({
           disabled={disabled}
           aria-haspopup="listbox"
           aria-expanded={mode === 'dropdown'}
-          aria-invalid={error}
+          data-invalid={error || undefined}
           className={cn(
             'inline-flex items-center gap-1.5 rounded-full border bg-card px-3 py-1 font-sans text-[11px] font-medium uppercase tracking-[0.18em] text-foreground transition-colors duration-200',
             disabled ? 'cursor-not-allowed opacity-60' : 'hover:bg-muted',

@@ -101,14 +101,14 @@ export function NewNoteModal({
         <div
           className="fixed inset-0 z-[1000] flex items-center justify-center px-4"
           style={{ backgroundColor: tokens.overlay }}
-          onClick={onClose}
-          role="dialog"
-          aria-modal="true"
-          aria-label="New note"
+          onClick={(event) => { if (event.target === event.currentTarget) onClose(); }}
+          role="presentation"
         >
           <motion.form
             onSubmit={handleSubmit}
-            onClick={(event) => event.stopPropagation()}
+            role="dialog"
+            aria-modal="true"
+            aria-label="New note"
             className="flex max-h-[90vh] w-full max-w-[560px] flex-col rounded-xl bg-card-elevated p-6 shadow-card"
             initial={{ y: 16, opacity: 0 }}
             animate={{ y: 0, opacity: 1 }}

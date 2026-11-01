@@ -102,10 +102,11 @@ export function BuildFromScratchWizard({ onClose, onSuccess, onBack }: BuildFrom
                 focus the knowledge base.
               </p>
 
-              <label className="block mb-2 text-[10px] uppercase tracking-[0.35em] font-semibold text-muted-foreground">
+              <label htmlFor="wizard-topic" className="block mb-2 text-[10px] uppercase tracking-[0.35em] font-semibold text-muted-foreground">
                 Topic
               </label>
               <input
+                id="wizard-topic"
                 type="text"
                 value={topic}
                 onChange={(e) => setTopic(e.target.value)}
@@ -159,10 +160,11 @@ export function BuildFromScratchWizard({ onClose, onSuccess, onBack }: BuildFrom
                 or the action you are taking.
               </p>
 
-              <label className="block mb-2 text-[10px] uppercase tracking-[0.35em] font-semibold text-muted-foreground">
+              <label htmlFor="wizard-purpose" className="block mb-2 text-[10px] uppercase tracking-[0.35em] font-semibold text-muted-foreground">
                 Purpose
               </label>
               <textarea
+                id="wizard-purpose"
                 value={purpose}
                 onChange={(e) => setPurpose(e.target.value)}
                 onKeyDown={handleKeyDown}
@@ -221,10 +223,11 @@ export function BuildFromScratchWizard({ onClose, onSuccess, onBack }: BuildFrom
               )}
 
               <div className="mt-6">
-                <label className="block mb-2 text-[10px] uppercase tracking-[0.35em] font-semibold text-muted-foreground">
+                <label htmlFor="wizard-owner" className="block mb-2 text-[10px] uppercase tracking-[0.35em] font-semibold text-muted-foreground">
                   Authored by
                 </label>
                 <input
+                  id="wizard-owner"
                   type="text"
                   value={owner}
                   onChange={(e) => setOwner(e.target.value)}

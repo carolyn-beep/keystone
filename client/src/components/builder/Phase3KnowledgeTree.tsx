@@ -7,6 +7,7 @@
  */
 
 import { useState, useCallback, useRef } from 'react';
+import { buttonLikeProps } from '@/lib/a11y';
 import { AnimatePresence, motion } from 'framer-motion';
 import { Loader2, Plus, RefreshCw, X, BookOpen, ArrowRight, Check, ChevronDown, ChevronRight, FolderPlus } from 'lucide-react';
 import * as Popover from '@radix-ui/react-popover';
@@ -130,7 +131,8 @@ function UnprocessedCard({ item, onKeep, onDiscard, onOpen, isKeeping, isDiscard
   return (
     <div
       className="bg-card-elevated rounded-xl shadow-card overflow-hidden hover:shadow-card-hover transition-shadow cursor-pointer"
-      onClick={() => onOpen(item.id)}
+      {...buttonLikeProps(() => onOpen(item.id))}
+      aria-label={`Open ${item.topic || 'Untitled Resource'}`}
     >
       <div className="px-6 py-5">
         {/* Type badge + metadata */}
@@ -158,7 +160,7 @@ function UnprocessedCard({ item, onKeep, onDiscard, onOpen, isKeeping, isDiscard
       </div>
 
       {/* Action bar — stopPropagation on the bar itself so no click bleeds to card */}
-      <div className="px-6 py-3 border-t border-border/50 flex items-center gap-3" onClick={(e) => e.stopPropagation()}>
+      <div className="px-6 py-3 border-t border-border/50 flex items-center gap-3" role="presentation" onClick={(e) => e.stopPropagation()}>
         <TactileButton
           variant="raised"
           onClick={() => onKeep(item.id)}
@@ -206,7 +208,8 @@ function TriagedCard({ item }: { item: LearningStreamItem }) {
   return (
     <div
       className="bg-card-elevated rounded-xl shadow-card overflow-hidden hover:shadow-card-hover transition-shadow cursor-pointer"
-      onClick={() => navigateToItemDetail(item.id)}
+      {...buttonLikeProps(() => navigateToItemDetail(item.id))}
+      aria-label={`Open ${item.topic || 'Untitled Resource'}`}
     >
       <div className="px-6 py-4 flex items-center gap-4">
         <div className="flex-1 min-w-0">

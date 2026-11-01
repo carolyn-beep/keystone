@@ -1,4 +1,5 @@
 import { motion } from 'framer-motion';
+import { buttonLikeProps } from '@/lib/a11y';
 import { Star, Trash2, User, Clock, Loader2 } from 'lucide-react';
 import { TactileButton } from '@/components/ui/tactile-button';
 import { ResourceTypeBadge } from './ResourceTypeBadge';
@@ -112,7 +113,8 @@ function SavedCard({ item, onGrade, onDiscard, onClick }: {
   return (
     <div
       className="bg-card-elevated rounded-xl shadow-card overflow-hidden opacity-90 hover:opacity-100 transition-opacity cursor-pointer"
-      onClick={onClick}
+      {...buttonLikeProps(onClick)}
+      aria-label={`Open ${item.topic || 'Untitled Resource'}`}
     >
       <div className="flex">
         {/* Left: Content - 70% */}
@@ -162,7 +164,7 @@ function SavedCard({ item, onGrade, onDiscard, onClick }: {
       </div>
 
       {/* Footer strip */}
-      <div className="px-8 py-3 border-t border-border flex items-center justify-between bg-sidebar/20" onClick={(e) => e.stopPropagation()}>
+      <div className="px-8 py-3 border-t border-border flex items-center justify-between bg-sidebar/20" role="presentation" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center gap-3">
           <motion.div layoutId={`action-grade-${item.id}`}>
             <TactileButton

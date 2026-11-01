@@ -1,4 +1,5 @@
 import { useState, useCallback, useMemo } from 'react';
+import { activateOnKey } from '@/lib/a11y';
 import { Download, FileText, ChevronRight, ChevronDown, Link2 } from 'lucide-react';
 import type { Fact, Expert } from '@shared/schema';
 import type { DOK3InsightWithLinks } from '@/hooks/useDOK3Insights';
@@ -63,7 +64,9 @@ function TreeNode({ label, score, depth, defaultExpanded = true, children, itali
     <li className={`${depth === 0 ? 'mt-3 first:mt-0' : depth === 1 ? 'mt-1.5' : 'my-0.5'} list-none`}>
       <div
         className={`flex items-start gap-1 ${hasChildren ? 'cursor-pointer' : ''}`}
-        onClick={toggle}
+        {...(hasChildren
+          ? { role: 'button', tabIndex: 0, 'aria-expanded': expanded, onClick: toggle, onKeyDown: activateOnKey(toggle) }
+          : {})}
       >
         {hasChildren ? (
           <span className={`${chevronOffset} flex-shrink-0 text-muted-foreground opacity-50`}>

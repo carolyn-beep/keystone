@@ -68,5 +68,7 @@ jobs:
         run: node scripts/apply-migrations.mjs
       - name: Typecheck
         run: npx tsc --noEmit
+      - name: Accessibility lint
+        run: npm run lint:a11y
       - name: Test
         run: npm test

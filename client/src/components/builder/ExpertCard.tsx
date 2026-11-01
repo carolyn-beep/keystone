@@ -122,7 +122,8 @@ export function ExpertCard({ expert, prefill, onSave, onDelete, onCancel }: Expe
   if (isEditing) {
     return (
       <div className="rounded-xl shadow-card bg-card-elevated overflow-hidden">
-        <div className="px-8 py-6" onKeyDown={handleKeyDown}>
+        {/* Catches Escape / submit shortcuts bubbling up from the fields; not itself a control. */}
+        <div className="px-8 py-6" role="presentation" onKeyDown={handleKeyDown}>
           {/* Header */}
           <div className="flex items-center gap-2 mb-5">
             <User size={14} className="text-muted-foreground" />

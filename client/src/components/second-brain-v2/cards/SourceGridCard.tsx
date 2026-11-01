@@ -71,9 +71,10 @@ export function SourceGridCard({
     >
       {/* Always-visible checkbox in the top-left corner. Sized to match the
           badge's outer height (22px) so the two sit on the same baseline. */}
+      {/* Clicks on the checkbox must not open the drawer; the wrapper absorbs them. */}
+      <div role="presentation" onClick={(event) => event.stopPropagation()}>
       <label
         className="absolute left-4 top-4 z-10 inline-flex h-[22px] w-[22px] cursor-pointer items-center justify-center rounded-[4px] border border-border bg-card"
-        onClick={(event) => event.stopPropagation()}
       >
         <input
           type="checkbox"
@@ -83,6 +84,7 @@ export function SourceGridCard({
           className="h-[14px] w-[14px] accent-primary"
         />
       </label>
+      </div>
 
       {/* Card body — the click target for opening the drawer.
           Two-column layout: text on the left, icon on the right.
@@ -206,8 +208,15 @@ export function SourceGridCard({
             {isKebabOpen ? (
               <div
                 role="menu"
+                tabIndex={-1}
                 className="absolute right-0 top-full z-20 mt-1 min-w-[180px] rounded-lg border border-border bg-card p-1 shadow-card-hover"
                 onClick={(event) => event.stopPropagation()}
+                onKeyDown={(event) => {
+                  if (event.key === 'Escape') {
+                    event.stopPropagation();
+                    setKebabOpen(false);
+                  }
+                }}
               >
                 <button
                   type="button"

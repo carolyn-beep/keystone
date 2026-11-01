@@ -46,7 +46,7 @@ export function NoteGridCard({
   };
 
   return (
-    <article
+    <div
       onClick={onOpenDetail}
       className={cn(
         'group relative flex h-full cursor-pointer flex-col rounded-xl bg-card-elevated px-5 py-4 shadow-card transition-shadow duration-200 hover:shadow-card-hover',
@@ -62,9 +62,10 @@ export function NoteGridCard({
         }
       }}
     >
+      {/* Clicks on the checkbox must not open the detail view; the wrapper absorbs them. */}
+      <div role="presentation" onClick={(event) => event.stopPropagation()}>
       <label
         className="absolute left-3 top-3 inline-flex h-[22px] w-[22px] cursor-pointer items-center justify-center rounded border border-border-strong/40 bg-card"
-        onClick={(event) => event.stopPropagation()}
       >
         <input
           type="checkbox"
@@ -75,6 +76,7 @@ export function NoteGridCard({
           className="h-[14px] w-[14px] cursor-pointer accent-primary"
         />
       </label>
+      </div>
 
       {/* Body — grows, takes whatever vertical space is left after the
           shrink-0 footer claims its own. min-h-0 lets the inner line-clamp
@@ -107,6 +109,6 @@ export function NoteGridCard({
           {isLinked ? <Link2 size={10} aria-hidden /> : <Unlink size={10} aria-hidden />}
         </span>
       </div>
-    </article>
+    </div>
   );
 }

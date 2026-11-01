@@ -84,7 +84,7 @@ export function BookmarkCategoryDialog({ slug, itemId, open, onClose, onSaved }:
 
   if (!open) return null;
 
-  const handleKeyDown = (event: KeyboardEvent<HTMLFormElement>) => {
+  const handleKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
     if (event.key === 'Escape') {
       event.preventDefault();
       onClose();
@@ -138,6 +138,8 @@ export function BookmarkCategoryDialog({ slug, itemId, open, onClose, onSaved }:
     <div
       className="fixed inset-0 z-[1000] flex items-center justify-center px-4"
       style={{ backgroundColor: tokens.overlay }}
+      role="presentation"
+      onKeyDown={handleKeyDown}
     >
       <form
         ref={dialogRef}
@@ -145,7 +147,6 @@ export function BookmarkCategoryDialog({ slug, itemId, open, onClose, onSaved }:
         aria-modal="true"
         aria-labelledby="bookmark-category-dialog-title"
         onSubmit={submit}
-        onKeyDown={handleKeyDown}
         className="max-h-[90vh] w-[95%] max-w-[600px] overflow-auto rounded-xl bg-card-elevated p-8 shadow-card sm:p-10"
       >
         <div className="mb-8 flex items-start justify-between gap-4">

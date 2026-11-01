@@ -1,4 +1,5 @@
 import { motion } from 'framer-motion';
+import { buttonLikeProps } from '@/lib/a11y';
 import { Star, Loader2 } from 'lucide-react';
 import { tokens } from '@/lib/colors';
 import { TactileButton } from '@/components/ui/tactile-button';
@@ -111,8 +112,9 @@ function GradedRow({ item, onClick, isFirst, isLast }: {
 
   return (
     <div
+      {...buttonLikeProps(onClick)}
+      aria-label={`Open ${item.topic || 'Untitled Resource'}`}
       className={`bg-card-elevated shadow-card px-8 py-4 flex items-center gap-4 cursor-pointer hover:bg-sidebar/30 transition-colors ${roundingClass} ${!isFirst ? 'border-t border-border' : ''}`}
-      onClick={onClick}
     >
       <ResourceTypeBadge type={resourceType} size="compact" className="shrink-0" />
 

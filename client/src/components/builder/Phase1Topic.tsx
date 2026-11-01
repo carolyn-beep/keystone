@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
+import { buttonLikeProps } from '@/lib/a11y';
 import { Pencil, Loader2 } from 'lucide-react';
 import type { NativeDetailsResponse } from '@shared/routes';
 
@@ -148,7 +149,7 @@ function InlineField({
           {label}
         </div>
         <div
-          onClick={handleEdit}
+          {...(canModify ? { ...buttonLikeProps(handleEdit), 'aria-label': `Edit ${label}` } : {})}
           className={`relative rounded-lg px-4 py-3 transition-colors duration-300 ${
             canModify
               ? 'cursor-pointer hover:bg-primary/5'

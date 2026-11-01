@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useSearch } from 'wouter';
+import { useEscapeKey } from '@/hooks/use-escape-key';
 import {
   Plus,
   FileText,
@@ -258,6 +259,8 @@ export function NotesTab({ slug }: NotesTabProps) {
   const [drawerNoteId, setDrawerNoteId] = useState<number | null>(null);
   const [isNewNoteOpen, setIsNewNoteOpen] = useState(false);
   const [recategorizeTarget, setRecategorizeTarget] = useState<number | null | undefined>(undefined);
+  const closeRecategorize = useCallback(() => setRecategorizeTarget(undefined), []);
+  useEscapeKey(closeRecategorize, recategorizeTarget !== undefined);
 
   // One-shot read of ?filterSource / ?filterCategory / ?openNote on mount.
   useEffect(() => {
@@ -671,6 +674,7 @@ export function NotesTab({ slug }: NotesTabProps) {
         <div className="fixed inset-0 z-[60] flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-label="Recategorize notes">
           <div
             className="absolute inset-0 bg-foreground/30"
+            role="presentation"
             onClick={() => setRecategorizeTarget(undefined)}
           />
           <div className="relative w-full max-w-[420px] overflow-hidden rounded-2xl bg-card shadow-card-hover">

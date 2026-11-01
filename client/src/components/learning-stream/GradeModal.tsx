@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { X, Star, Loader2 } from 'lucide-react';
+import { useEscapeKey } from '@/hooks/use-escape-key';
 import { tokens } from '@/lib/colors';
 import type { LearningStreamItem } from '@/hooks/useLearningStream';
 import { TactileButton } from '@/components/ui/tactile-button';
@@ -30,6 +31,9 @@ export function GradeModal({ show, item, onClose, onSubmit, isSubmitting }: Grad
     onClose();
   };
 
+  // Escape is the keyboard equivalent of clicking the backdrop.
+  useEscapeKey(handleClose, Boolean(show && item));
+
   if (!show || !item) return null;
 
   const canSubmit = quality !== null && alignment !== null && !isSubmitting;
@@ -38,16 +42,19 @@ export function GradeModal({ show, item, onClose, onSubmit, isSubmitting }: Grad
     <div
       className="fixed inset-0 flex items-center justify-center z-[1000]"
       style={{ backgroundColor: tokens.overlay }}
-      onClick={handleClose}
+      role="presentation"
+      onClick={(e) => { if (e.target === e.currentTarget) handleClose(); }}
     >
       <div
         className="p-8 w-[95%] max-w-[450px] rounded-xl shadow-card bg-card-elevated"
-        onClick={(e) => e.stopPropagation()}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="grade-modal-title"
       >
         {/* Header */}
         <div className="flex justify-between items-start mb-6">
           <div>
-            <h2 className="font-serif text-xl text-foreground m-0">Grade Resource</h2>
+            <h2 id="grade-modal-title" className="font-serif text-xl text-foreground m-0">Grade Resource</h2>
             <p className="text-sm text-muted-foreground mt-2 m-0 line-clamp-2 font-serif italic">
               {item.topic || 'Untitled Resource'}
             </p>
@@ -63,10 +70,10 @@ export function GradeModal({ show, item, onClose, onSubmit, isSubmitting }: Grad
 
         {/* Quality Rating */}
         <div className="mb-8">
-          <label className="block text-[10px] uppercase tracking-[0.35em] font-semibold text-muted-foreground mb-4">
+          <span id="grade-quality-label" className="block text-[10px] uppercase tracking-[0.35em] font-semibold text-muted-foreground mb-4">
             Quality
-          </label>
-          <div className="flex items-center gap-1">
+          </span>
+          <div className="flex items-center gap-1" role="group" aria-labelledby="grade-quality-label">
             {[1, 2, 3, 4, 5].map((value) => (
               <button
                 key={value}
@@ -100,10 +107,10 @@ export function GradeModal({ show, item, onClose, onSubmit, isSubmitting }: Grad
 
         {/* Alignment */}
         <div className="mb-8">
-          <label className="block text-[10px] uppercase tracking-[0.35em] font-semibold text-muted-foreground mb-4">
+          <span id="grade-alignment-label" className="block text-[10px] uppercase tracking-[0.35em] font-semibold text-muted-foreground mb-4">
             Alignment
-          </label>
-          <div className="flex gap-3">
+          </span>
+          <div className="flex gap-3" role="group" aria-labelledby="grade-alignment-label">
             <button
               onClick={() => setAlignment(true)}
               className="flex-1 px-4 py-3 rounded-lg text-sm font-medium transition-all"

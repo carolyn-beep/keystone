@@ -173,9 +173,11 @@ function ArticleViewer({
 
   return (
     <div>
+      {/* onMouseUp captures text selection for highlights; a pointer enhancement, not a control. */}
       <div
         ref={wrapperRef}
         data-reader-article-body
+        role="presentation"
         onMouseUp={handleMouseUp}
         className="prose prose-sm dark:prose-invert max-w-none
         prose-headings:text-foreground prose-headings:font-semibold prose-headings:mt-4 prose-headings:mb-2

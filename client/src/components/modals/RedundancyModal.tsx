@@ -1,4 +1,5 @@
 import { X } from 'lucide-react';
+import { activateOnKey } from '@/lib/a11y';
 import { AnimatePresence, motion } from 'framer-motion';
 import { tokens, getScoreChipColors } from '@/lib/colors';
 import { TactileButton } from '@/components/ui/tactile-button';
@@ -160,7 +161,7 @@ export function RedundancyModal({
                     <p className="text-[10px] uppercase tracking-[0.3em] font-semibold text-muted-light mb-3">
                       Click a fact to select it as the one to keep
                     </p>
-                    <div className="flex flex-col gap-4 mb-6">
+                    <div className="flex flex-col gap-4 mb-6" role="radiogroup" aria-label="Fact to keep">
                       {group.facts.map((fact) => {
                         const currentPrimary = selectedPrimaryFacts[group.id] ?? group.primaryFactId;
                         const isSelected = fact.id === currentPrimary;
@@ -169,7 +170,11 @@ export function RedundancyModal({
                         return (
                           <div
                             key={fact.id}
+                            role="radio"
+                            aria-checked={isSelected}
+                            tabIndex={0}
                             onClick={() => onSelectPrimaryFact(group.id, fact.id)}
+                            onKeyDown={activateOnKey(() => onSelectPrimaryFact(group.id, fact.id))}
                             className={`flex items-start gap-3 p-3.5 rounded-lg cursor-pointer transition-all duration-300 ease-in-out ${
                               isSelected
                                 ? 'bg-card-elevated shadow-card border border-transparent'

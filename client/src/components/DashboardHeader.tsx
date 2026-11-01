@@ -1,5 +1,6 @@
 import { ReactNode } from 'react';
 import { useLocation } from 'wouter';
+import { buttonLikeProps } from '@/lib/a11y';
 import { MessageSquare, Download, Users, History, Pencil } from 'lucide-react';
 import { BrainliftData, BrainliftVersion } from '@shared/schema';
 import { TactileButton } from '@/components/ui/tactile-button';
@@ -216,6 +217,8 @@ export function DashboardHeader({
             </div>
           ) : (
             <div className="header-title mt-2 flex items-center gap-2 group">
+              {/* Mouse shortcut only; keyboard users rename via the adjacent "Rename project" button. */}
+              {/* eslint-disable-next-line jsx-a11y/no-noninteractive-element-interactions, jsx-a11y/click-events-have-key-events */}
               <h1
                 className={`text-[30px] font-bold text-foreground tracking-tight leading-[1.3] m-0 ${canEditTitle ? 'cursor-pointer' : ''}`}
                 onClick={canEditTitle ? beginTitleEdit : undefined}
@@ -260,6 +263,8 @@ export function DashboardHeader({
             </div>
           ) : (
             <div className="header-description group flex items-start gap-2">
+              {/* Mouse shortcut only; keyboard users edit via the adjacent edit button. */}
+              {/* eslint-disable-next-line jsx-a11y/no-noninteractive-element-interactions, jsx-a11y/click-events-have-key-events */}
               <p
                 className={`text-muted-foreground text-base m-0 min-w-0 ${canEditPurpose ? 'cursor-pointer' : ''}`}
                 onClick={canEditPurpose ? beginPurposeEdit : undefined}
@@ -289,12 +294,15 @@ export function DashboardHeader({
           {/* Author */}
           <div
             className={`header-author flex items-center gap-1 ${editingAuthor ? 'cursor-text' : 'cursor-pointer'}`}
-            onClick={() => {
-              if (!editingAuthor) {
-                setAuthorInput(data.author || '');
-                setEditingAuthor(true);
-              }
-            }}
+            {...(!editingAuthor
+              ? {
+                  ...buttonLikeProps(() => {
+                    setAuthorInput(data.author || '');
+                    setEditingAuthor(true);
+                  }),
+                  'aria-label': 'Set owner name',
+                }
+              : {})}
             title={editingAuthor ? undefined : "Click to set owner name"}
           >
             <span className="text-muted-foreground text-[13px]">By</span>

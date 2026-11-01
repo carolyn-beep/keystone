@@ -41,10 +41,12 @@ describe('FR7 NewNoteModal contract', () => {
   });
 
   it('backdrop click closes the modal', () => {
-    // The full-screen overlay wrapper closes on click; the inner form stops
-    // propagation so clicks inside the modal don't close it.
-    expect(modalSource).toContain('onClick={onClose}');
-    expect(modalSource).toContain('onClick={(event) => event.stopPropagation()}');
+    // The full-screen overlay wrapper closes only when the click lands on the
+    // overlay itself, so clicks inside the form never close it. The overlay is
+    // presentational (Escape is the keyboard path) and the form is the dialog.
+    expect(modalSource).toContain('if (event.target === event.currentTarget) onClose();');
+    expect(modalSource).toContain('role="presentation"');
+    expect(modalSource).toMatch(/<motion\.form[\s\S]*?role="dialog"/);
   });
 
   it('Link-to-source section auto-expands when defaultSourceId is provided', () => {

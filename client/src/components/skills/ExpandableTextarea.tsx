@@ -77,6 +77,7 @@ export function ExpandableTextarea({
             <div
               className="fixed inset-0 z-[1000] flex items-center justify-center px-4 py-6"
               style={{ backgroundColor: 'rgba(45, 45, 45, 0.55)' }}
+              role="presentation"
               onMouseDown={(e) => {
                 mouseDownOnBackdropRef.current = e.target === e.currentTarget;
               }}

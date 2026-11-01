@@ -27,7 +27,9 @@ describe('FR4: CategoryPickerChip export + props', () => {
 
   it('accepts an optional validation error prop', () => {
     expect(componentSource).toMatch(/error\??\s*:\s*boolean/);
-    expect(componentSource).toMatch(/aria-invalid=\{error\}/);
+    // aria-invalid is not valid on role=button, so the chip exposes the error
+    // state as a data attribute for styling and leaves the message to the form.
+    expect(componentSource).toMatch(/data-invalid=\{error \|\| undefined\}/);
   });
 
   it('accepts a read-only mode for categorized sources', () => {

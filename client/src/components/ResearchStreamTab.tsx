@@ -347,7 +347,12 @@ export function ResearchStreamTab({ slug, phase, canModify = true, setActiveTab,
                             onNext={index < items.length - 1 ? handleNextItem : undefined}
                           />
                         ) : (
-                          <div className="cursor-pointer" onClick={() => setViewingItem(item)}>
+                          <div
+                            className="cursor-pointer"
+                            // Mouse shortcut only: keyboard users open the item with the card's own Open button.
+                            role="presentation"
+                            onClick={() => setViewingItem(item)}
+                          >
                             <StreamItemCard.Root
                               item={item}
                               phase={phase}

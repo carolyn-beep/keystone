@@ -156,8 +156,10 @@ function CategoryCombobox({
         placeholder="Type or pick a category…"
         autoComplete="off"
         spellCheck={false}
+        role="combobox"
         aria-autocomplete="list"
         aria-expanded={isOpen}
+        aria-controls="add-source-category-listbox"
       />
       <button
         type="button"
@@ -184,6 +186,7 @@ function CategoryCombobox({
 
       {isOpen && (matches.length > 0 || showCreate) ? (
         <ul
+          id="add-source-category-listbox"
           className="absolute left-0 right-0 z-20 mt-1 max-h-[260px] overflow-y-auto rounded-lg border border-border bg-card-elevated p-1 shadow-card"
           role="listbox"
         >

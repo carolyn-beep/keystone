@@ -92,12 +92,11 @@ export function AddCategoryModal({ slug, open, onClose, onCreated }: AddCategory
     <div
       className="fixed inset-0 z-[1000] flex items-center justify-center px-4"
       style={{ backgroundColor: tokens.overlay }}
-      onClick={onClose}
+      onClick={(event) => { if (event.target === event.currentTarget) onClose(); }}
       role="presentation"
     >
       <form
         onSubmit={submit}
-        onClick={(event) => event.stopPropagation()}
         className="w-[95%] max-w-[480px] rounded-xl bg-card-elevated p-8 shadow-card"
       >
         <div className="mb-6 flex items-start justify-between gap-4">

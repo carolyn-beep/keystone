@@ -177,13 +177,14 @@ Each of these has a full section in the [deep dive](docs/DEEP-DIVE.md):
 - **Import & extraction** — imports from WorkFlowy, HTML, or Google Docs run through structural evaluation, an optional pre-formatting pipeline, and integrity validation (content-loss and hallucination checks) before the DOK grading pipeline.
 - **MCP server & internal API** — the whole grading platform is exposed to any MCP-compatible agent through a companion Cloudflare Worker with Google OAuth ([`keystone-mcp`](https://github.com/carolyn-beep/keystone-mcp)), backed by a service-authenticated internal API.
 - **Dual-brand deployment** — one codebase ships as two products (student and professional) selected by an env var at build time, with a post-build bundle grep proving the inactive brand is tree-shaken out.
+- **Accessibility as a CI gate** — WCAG 2.2 AA target enforced three ways on every push: a JSX accessibility lint, axe-core run against the rendered chat cards, and a design-token contrast test that holds every text colour to 4.5:1 on every surface in both themes. Conventions, the manual checklist, and known gaps are in [docs/ACCESSIBILITY.md](docs/ACCESSIBILITY.md).
 - **Roadmap (specified, not yet shipped):** AI Adversary Defense (12-round adversarial expertise test) and Honcho (a persistent learner-profile layer). Both are documented in the deep dive and marked as roadmap.
 
 ## Tech stack
 
 React 18 + TypeScript, TanStack Query, Tailwind, and Framer Motion on the client. Express, Drizzle ORM (PostgreSQL), and Graphile Worker on the server. LLM calls go through OpenRouter (primary) and Fireworks (failover) via the unified AI client, with Exa for search and content extraction.
 
-**Agent runtime:** the native chat agent runs on the Vercel AI SDK (`streamText`, tool calling, `LanguageModelV2` adapter); the research swarm's v1 path uses the Claude Agent SDK, with v2 on the Vercel AI SDK. Capabilities are exposed to models through native function calling and through the Model Context Protocol (MCP). No LangChain — tools and orchestration are built directly on the SDKs and a custom registry.
+**Agent runtime:** the native chat agent and the research swarm both run on the Vercel AI SDK (`streamText`, tool calling, `LanguageModelV2` adapter). Capabilities are exposed to models through native function calling and through the Model Context Protocol (MCP). No LangChain — tools and orchestration are built directly on the SDKs and a custom registry.
 
 ---
 
