@@ -140,6 +140,7 @@ export function buildAdminSkillManagementTools(args: BuildAdminSkillManagementTo
         'Admin only. Draft a runtime skill for the admin to review on a card in the chat. Saves nothing.',
         'Before the first draft in a conversation, call load_skill with "create-skill" and follow its format rules; load its references when a rule is unclear.',
         'Send the complete draft every time: the first version and every revision the admin asks for, with changeSummary saying what changed. Never paste a skill body into the chat as text.',
+        'The result lists format warnings. Fix the ones you can and call draft_skill again before replying (at most twice per draft); leave only human decisions, such as a taken name, to the admin.',
         'visibility is required; ask the admin if they have not said.',
         'The admin publishes from the card or opens the draft in the Skill editor. Do not call create_skill unless the admin explicitly asks you to publish from chat.',
       ].join(' '),

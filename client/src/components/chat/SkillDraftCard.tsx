@@ -36,21 +36,33 @@ const BODY_PREVIEW_LINES = 18;
  *   - streaming   → skeleton while the model writes the draft.
  *   - draft       → the reviewable card: name, visibility, when-to-use, body,
  *                   references, format warnings, Publish / Open in editor.
- *   - superseded  → frozen summary once a LATER draft_skill call exists in the
- *                   thread. A plain reply does not freeze the card: the admin
- *                   iterates in chat and the newest draft must stay actionable.
+ *   - superseded  → frozen summary once a LATER draft_skill call exists, either
+ *                   later in the same assistant message (the model fixed its own
+ *                   format warnings before replying) or in a later message. A
+ *                   plain reply does not freeze the card: the admin iterates in
+ *                   chat and the newest draft must stay actionable.
  *   - published   → confirmation with a link to the skill. The card writes
  *                   `{ kind: 'published' }` back via addResult so the
  *                   conversation records the outcome.
  */
 export function SkillDraftCard(props: Props): JSX.Element {
-  const { args, result, status, addResult } = props;
+  const { args, result, status, addResult, toolCallId } = props;
 
   const myMessageId = useMessage({
     optional: true,
     selector: (m: MessageState) => m.id,
   });
-  const isSuperseded =
+  const supersededInMessage =
+    useMessage({
+      optional: true,
+      selector: (m: MessageState) => {
+        const parts = m.content as ReadonlyArray<{ type: string; toolCallId?: string; toolName?: string }>;
+        const idx = parts.findIndex((part) => part.type === 'tool-call' && part.toolCallId === toolCallId);
+        if (idx === -1) return false;
+        return parts.slice(idx + 1).some((part) => part.type === 'tool-call' && part.toolName === DRAFT_TOOL_NAME);
+      },
+    }) === true;
+  const supersededInThread =
     useThread({
       optional: true,
       selector: (t: ThreadState) => {
@@ -64,9 +76,10 @@ export function SkillDraftCard(props: Props): JSX.Element {
         );
       },
     }) === true;
+  const isSuperseded = supersededInMessage || supersededInThread;
 
   if (result && result.kind === 'published') {
-    return <PublishedCard skillName={result.skillName} />;
+    return <PublishedCard skillName={result.skillName} visibility={result.visibility} />;
   }
 
   if (status.type === 'incomplete') {
@@ -155,7 +168,7 @@ function DraftCard({
         })),
         shareIdentifiers: [],
       });
-      addResult({ kind: 'published', skillName: saved.name });
+      addResult({ kind: 'published', skillName: saved.name, visibility });
     } catch (publishError) {
       setError(publishError instanceof Error ? publishError.message : 'Could not publish the skill.');
     }
@@ -211,6 +224,13 @@ function DraftCard({
             </div>
           </div>
         </div>
+
+        {/* Private-first nudge: the real quality check is running the skill. */}
+        <p className="-mt-2 font-serif italic text-[11.5px] leading-relaxed text-muted-light">
+          {visibility === 'public'
+            ? 'Public goes live for every user at once. Private first lets you test it in a fresh chat, then switch it to public in Skills.'
+            : 'Private: only you, and anyone you share it with, can use it. Test it in a fresh chat, then make it public from Skills when it is ready.'}
+        </p>
 
         {/* What changed (revisions only) */}
         {draft.changeSummary ? (
@@ -339,26 +359,40 @@ function DraftCard({
   );
 }
 
-function PublishedCard({ skillName }: { skillName: string }): JSX.Element {
-  const href = `/skills?view=edit&name=${encodeURIComponent(skillName)}`;
+function PublishedCard({
+  skillName,
+  visibility,
+}: {
+  skillName: string;
+  visibility?: SkillDraft['visibility'];
+}): JSX.Element {
+  const skillsHref = `/skills?view=edit&name=${encodeURIComponent(skillName)}`;
+  const linkClass =
+    'inline-flex items-center gap-1 text-[11px] uppercase tracking-[0.2em] font-semibold text-primary hover:underline';
   return (
     <div className="skill-draft-card skill-draft-card-published my-3 rounded-lg border border-success/30 bg-success-soft/40 px-4 py-3">
       <div className="flex items-start gap-2.5">
         <Check size={14} className="mt-0.5 shrink-0 text-success" aria-hidden />
         <div className="min-w-0 flex-1">
           <span className="mb-1 block text-[10px] uppercase tracking-[0.25em] font-semibold text-success">
-            Skill published
+            Skill published{visibility ? ` · ${visibility}` : ''}
           </span>
           <p className="font-serif text-[13px] leading-relaxed text-foreground">
-            <span className="font-mono">{skillName}</span> is live for new conversations. Start a fresh chat to try it.
+            <span className="font-mono">{skillName}</span>
+            {visibility === 'private'
+              ? ' is live for you in new conversations. Test it in a fresh chat, then make it public from Skills when it is ready.'
+              : ' is live for new conversations. Start a fresh chat to try it.'}
           </p>
-          <a
-            href={href}
-            className="mt-1.5 inline-flex items-center gap-1 text-[11px] uppercase tracking-[0.2em] font-semibold text-primary hover:underline"
-          >
-            <span>Open in Skills</span>
-            <ExternalLink size={11} aria-hidden />
-          </a>
+          <div className="mt-1.5 flex flex-wrap gap-x-4 gap-y-1">
+            <a href="/?new=1" className={linkClass}>
+              <span>Test in a new chat</span>
+              <ExternalLink size={11} aria-hidden />
+            </a>
+            <a href={skillsHref} className={linkClass}>
+              <span>Open in Skills</span>
+              <ExternalLink size={11} aria-hidden />
+            </a>
+          </div>
         </div>
       </div>
     </div>

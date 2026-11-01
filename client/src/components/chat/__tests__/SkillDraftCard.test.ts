@@ -51,9 +51,20 @@ function render(overrides: Partial<RenderProps>): string {
   );
 }
 
+type FakeMessage = { id: string; content: Array<{ type: string; toolCallId?: string; toolName?: string }> };
+
+function mockMessage(message: FakeMessage): void {
+  mockUseMessage.mockImplementation((options: { selector: (m: FakeMessage) => unknown }) =>
+    options.selector(message),
+  );
+}
+
 beforeEach(() => {
   vi.clearAllMocks();
-  mockUseMessage.mockReturnValue('msg-1');
+  mockMessage({
+    id: 'msg-1',
+    content: [{ type: 'tool-call', toolCallId: 'tc-draft-1', toolName: 'draft_skill' }],
+  });
   mockUseThread.mockReturnValue(false);
 });
 
@@ -76,8 +87,44 @@ describe('SkillDraftCard', () => {
     expect(html).toContain('Show all 30 lines');
     expect(html).toContain('Publish skill');
     expect(html).toContain('Open in editor');
-    // private is the pre-selected visibility
+    // private is the pre-selected visibility, with the private-first nudge
     expect(html).toMatch(/aria-checked="true"[^>]*>private/);
+    expect(html).toContain('Test it in a fresh chat');
+  });
+
+  it('nudges towards private-first when the draft is public', () => {
+    const html = render({
+      status: { type: 'complete' },
+      result: { ...draftResult, draft: { ...draftResult.draft, visibility: 'public' } },
+    });
+    expect(html).toContain('Private first lets you test it in a fresh chat');
+  });
+
+  it('freezes the card when a later draft_skill call sits in the same message', () => {
+    mockMessage({
+      id: 'msg-1',
+      content: [
+        { type: 'tool-call', toolCallId: 'tc-draft-1', toolName: 'draft_skill' },
+        { type: 'text' },
+        { type: 'tool-call', toolCallId: 'tc-draft-2', toolName: 'draft_skill' },
+      ],
+    });
+    const html = render({ status: { type: 'complete' }, result: draftResult });
+    expect(html).toContain('Earlier draft');
+    expect(html).not.toContain('Publish skill');
+  });
+
+  it('does not freeze the card for an earlier draft_skill call or other tools in the same message', () => {
+    mockMessage({
+      id: 'msg-1',
+      content: [
+        { type: 'tool-call', toolCallId: 'tc-draft-0', toolName: 'draft_skill' },
+        { type: 'tool-call', toolCallId: 'tc-draft-1', toolName: 'draft_skill' },
+        { type: 'tool-call', toolCallId: 'tc-other', toolName: 'load_skill' },
+      ],
+    });
+    const html = render({ status: { type: 'complete' }, result: draftResult });
+    expect(html).toContain('Publish skill');
   });
 
   it('disables publishing when the name is taken', () => {
@@ -107,6 +154,16 @@ describe('SkillDraftCard', () => {
     });
     expect(html).toContain('Skill published');
     expect(html).toContain('/skills?view=edit&amp;name=research-coach');
+    expect(html).toContain('href="/?new=1"');
+  });
+
+  it('tells a private publish how to go public later', () => {
+    const html = render({
+      status: { type: 'complete' },
+      result: { kind: 'published', skillName: 'research-coach', visibility: 'private' },
+    });
+    expect(html).toContain('Skill published · private');
+    expect(html).toContain('make it public from Skills');
   });
 
   it('renders an error when the tool call was interrupted', () => {

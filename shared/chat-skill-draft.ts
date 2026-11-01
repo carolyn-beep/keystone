@@ -108,7 +108,7 @@ export interface DraftSkillToolExecuteResult {
  */
 export type DraftSkillToolResult =
   | DraftSkillToolExecuteResult
-  | { kind: 'published'; skillName: string };
+  | { kind: 'published'; skillName: string; visibility?: SkillDraft['visibility'] };
 
 const TRIGGER_OPENERS = /^(use|invoke|run)\s+(this\s+skill\s+)?when\b/i;
 const BODY_TRIGGER_PROSE = /\b(use|invoke|run)\s+this\s+skill\s+(when|if|whenever)\b|\bthis\s+skill\s+is\s+useful\s+(when|for)\b/i;

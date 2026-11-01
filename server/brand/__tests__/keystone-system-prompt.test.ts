@@ -120,6 +120,9 @@ describe('buildKeystoneSystemPrompt', () => {
     const adminPrompt = buildKeystoneSystemPrompt({ userContext: multiBrainliftContext, skills: [] });
     expect(adminPrompt).toContain('## Skill Authoring (admin only)');
     expect(adminPrompt).toContain('`draft_skill`');
+    // Self-correcting loop: lint warnings go back to the model first.
+    expect(adminPrompt).toContain('call `draft_skill` again before you reply');
+    expect(adminPrompt).toContain('publishing private first');
     expect(adminPrompt.indexOf('=== END OF TOOLS PROTOCOL ===')).toBeLessThan(
       adminPrompt.indexOf('=== START OF SKILL AUTHORING PROTOCOL (ADMIN) ==='),
     );
