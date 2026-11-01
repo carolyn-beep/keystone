@@ -1,7 +1,7 @@
 {
   "name": "keystone",
   "version": "1.0.0",
-  "description": "Keystone — an AI learning platform that turns students into experts by making them do the thinking. Published as a portfolio reference.",
+  "description": "Keystone \u2014 an AI learning platform that turns students into experts by making them do the thinking. Published as a portfolio reference.",
   "type": "module",
   "author": "Carolyn Driscoll",
   "license": "UNLICENSED",
@@ -150,7 +150,10 @@
   "overrides": {
     "drizzle-kit": {
       "@esbuild-kit/esm-loader": "npm:tsx@^4.20.4"
-    }
+    },
+    "protobufjs": "^8.8.1",
+    "postcss-selector-parser": "^6.1.5",
+    "@opentelemetry/core": "^2.12.0"
   },
   "optionalDependencies": {
     "bufferutil": "^4.0.8"
