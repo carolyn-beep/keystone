@@ -1,0 +1,65 @@
+# Render blueprint for a single Keystone deployment (student brand).
+#
+# Before first deploy:
+#   1. Create a Postgres database (Render Postgres or Neon) and run
+#        DATABASE_URL=... node scripts/apply-migrations.mjs
+#      ONCE against the EMPTY database.
+#   2. Create a Google OAuth client with redirect URI
+#        https://<your-host>/api/auth/callback/google
+#   3. Set every `sync: false` variable below in the Render dashboard.
+#
+# The job worker runs inside the web process, so use a plan that does not
+# sleep (the free plan suspends idle services and kills in-flight jobs).
+
+services:
+  - type: web
+    name: keystone
+    runtime: node
+    region: oregon
+    plan: starter
+    buildCommand: npm install --include=dev && npm run build
+    startCommand: npm run start
+    healthCheckPath: /healthz
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 10000
+      - key: BRAND
+        value: keystone
+      - key: VITE_BRAND
+        value: keystone
+      - key: VITE_BRAND_NAME
+        value: Keystone
+
+      # --- Required secrets (set in dashboard) ---
+      - key: DATABASE_URL
+        sync: false
+      - key: OPENROUTER_API_KEY
+        sync: false
+      - key: PANGRAM_API_KEY
+        sync: false
+      - key: EXA_API_KEY
+        sync: false
+      - key: BETTER_AUTH_SECRET
+        sync: false # openssl rand -hex 32
+      - key: BETTER_AUTH_URL
+        sync: false # https://<your-host>
+      - key: TRUSTED_ORIGINS
+        sync: false # same as BETTER_AUTH_URL unless the client is served elsewhere
+      - key: GOOGLE_CLIENT_ID
+        sync: false
+      - key: GOOGLE_CLIENT_SECRET
+        sync: false
+      - key: AUTH_SIGNUP_ALLOWLIST
+        sync: false # comma-separated emails allowed to create accounts
+
+      # --- Cost controls ---
+      - key: DAILY_SWARM_LIMIT
+        value: 3
+
+      # --- Optional (leave unset to disable the feature) ---
+      # FIREWORKS_API_KEY, OPENAI_API_KEY, ANTHROPIC_API_KEY, YOUTUBE_API_KEY,
+      # AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, AWS_REGION, S3_BUCKET,
+      # GOOGLE_SERVICE_ACCOUNT_JSON_BASE64, GOOGLE_DRIVE_SHARED_DRIVE_ID,
+      # GOOGLE_DRIVE_ROOT_FOLDER_NAME, CLIENT_URL

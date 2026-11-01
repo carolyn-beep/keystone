@@ -1,0 +1,263 @@
+import { Link } from 'wouter';
+import { Brainlift } from '@shared/schema';
+import { Trash2 } from 'lucide-react';
+import { tokens } from '@/lib/colors';
+import { buildCardHref } from '@/components/onboarding-wizard/entry-points';
+import paperGrainTexture from '@/assets/textures/paper-grain.webp';
+
+// Import all profile images
+import appleImg from '@/assets/bl_profile/apple.webp';
+import birdImg from '@/assets/bl_profile/bird.webp';
+import booksImg from '@/assets/bl_profile/books.webp';
+import brainImg from '@/assets/bl_profile/brain.webp';
+import dandelionImg from '@/assets/bl_profile/dandelion.webp';
+import doorImg from '@/assets/bl_profile/door.webp';
+import hourglassImg from '@/assets/bl_profile/hourglass.webp';
+import lighthouseImg from '@/assets/bl_profile/lighthouse.webp';
+import listenImg from '@/assets/bl_profile/listen.webp';
+import maskImg from '@/assets/bl_profile/mask.webp';
+import matchstickImg from '@/assets/bl_profile/matchstick.webp';
+import prismImg from '@/assets/bl_profile/prism.webp';
+import shipImg from '@/assets/bl_profile/ship.webp';
+import stairsImg from '@/assets/bl_profile/stairs.webp';
+import telescopeImg from '@/assets/bl_profile/telescope.webp';
+import hourglass2Img from '@/assets/bl_profile/hourglass2.webp';
+import mindImg from '@/assets/bl_profile/mind.webp';
+
+const PROFILE_IMAGES = [
+  appleImg, birdImg, booksImg, brainImg, dandelionImg, doorImg, hourglassImg,
+  lighthouseImg, listenImg, maskImg, matchstickImg, prismImg, shipImg,
+  stairsImg, telescopeImg, hourglass2Img, mindImg
+];
+
+/**
+ * Get the profile image for a brainlift.
+ * Uses the AI-generated cover image if available, otherwise falls back to a
+ * placeholder based on the brainlift ID.
+ */
+function getProfileImage(id: number, coverImageUrl?: string | null): string {
+  if (coverImageUrl) {
+    return coverImageUrl;
+  }
+  const index = id % PROFILE_IMAGES.length;
+  return PROFILE_IMAGES[index];
+}
+
+/**
+ * Format date in a readable way
+ */
+function formatDate(dateString: string | Date | null | undefined): string {
+  if (!dateString) return 'No date';
+  const date = new Date(dateString);
+  return date.toLocaleDateString('en-US', {
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric',
+  });
+}
+
+/**
+ * Get grifo (engraved underline) color based on score
+ * 0-2: red tones, 2-3.5: amber tones, 3.5-5: green tones
+ */
+function getGrifoColor(score: number): string {
+  if (score <= 0) return '#9ca3af'; // gray for N/A
+  if (score <= 2) return '#b83a3a'; // rich crimson red
+  if (score <= 3) return '#c47a2a'; // burnt orange
+  if (score <= 3.5) return '#a89030'; // golden amber
+  if (score <= 4) return '#6a9a40'; // spring green
+  if (score <= 4.5) return '#3a9a5a'; // emerald
+  return '#2a8a4a'; // vibrant forest green
+}
+
+interface BrainliftCardProps {
+  brainlift: Brainlift & {
+    creatorName?: string | null;
+    shareInfo?: {
+      permission?: 'viewer' | 'editor';
+      sharedWithCount?: number;
+    };
+  };
+  adminView: boolean;
+  canDelete: boolean;
+  onDelete: (e: React.MouseEvent, brainlift: { id: number; title: string; canDelete: boolean }) => void;
+}
+
+export function BrainliftCard({ brainlift, adminView, canDelete, onDelete }: BrainliftCardProps) {
+  const summary = brainlift.summary || { meanScore: '0', totalFacts: 0, score5Count: 0, contradictionCount: 0 };
+  const meanScore = parseFloat(summary.meanScore || '0');
+  const projectName = brainlift.title || 'Untitled Project';
+  // Sub-line: "by <author>" with the document author (legacy field) preferred;
+  // falls back to the platform user who created it so admins still see
+  // attribution on imports that never set an author manually.
+  const byName = brainlift.author || brainlift.creatorName || null;
+  const profileImage = getProfileImage(brainlift.id, brainlift.coverImageUrl);
+  // Mid-onboarding projects (onboardingStep != null) resume into the wizard
+  // and surface a "Setup incomplete" badge.
+  const isOnboarding = brainlift.onboardingStep != null;
+  const cardHref = buildCardHref({
+    slug: brainlift.slug,
+    onboardingStep: brainlift.onboardingStep,
+    adminView,
+  });
+  const deleteButton = (
+    <button
+      data-testid={`button-delete-${brainlift.id}`}
+      onClick={(e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        onDelete(e, { id: brainlift.id, title: brainlift.title, canDelete });
+      }}
+      className="absolute top-3 right-3 flex items-center justify-center w-7 h-7 rounded-md cursor-pointer transition-all duration-150 p-0 z-10 opacity-0 group-hover:opacity-100"
+      style={{
+        backgroundColor: tokens.surface,
+        border: `1px solid ${tokens.border}`,
+        color: tokens.textMuted,
+      }}
+      onMouseEnter={(e) => {
+        if (canDelete) {
+          e.currentTarget.style.backgroundColor = tokens.dangerSoft;
+          e.currentTarget.style.borderColor = tokens.danger;
+          e.currentTarget.style.color = tokens.danger;
+          return;
+        }
+        e.currentTarget.style.backgroundColor = tokens.surfaceAlt;
+        e.currentTarget.style.borderColor = tokens.borderStrong;
+        e.currentTarget.style.color = tokens.textSecondary;
+      }}
+      onMouseLeave={(e) => {
+        e.currentTarget.style.backgroundColor = tokens.surface;
+        e.currentTarget.style.borderColor = tokens.border;
+        e.currentTarget.style.color = tokens.textMuted;
+      }}
+      aria-label={canDelete ? 'Delete document' : 'Delete unavailable: only the owner can delete this document'}
+    >
+      <Trash2 size={14} />
+    </button>
+  );
+
+  return (
+    <Link
+      href={cardHref}
+      data-testid={`card-brainlift-${brainlift.slug}`}
+      className="group rounded-xl no-underline flex relative transition-all duration-200 cursor-pointer h-full box-border overflow-hidden shadow-card hover:shadow-card-hover hover:-translate-y-0.5"
+      style={{
+        backgroundColor: tokens.surface,
+        border: `1px solid ${tokens.border}`,
+        color: 'inherit',
+      }}
+      onMouseEnter={(e) => {
+        e.currentTarget.style.borderColor = tokens.borderStrong;
+      }}
+      onMouseLeave={(e) => {
+        e.currentTarget.style.borderColor = tokens.border;
+      }}
+    >
+      {/* Delete Button - Top Right */}
+      {deleteButton}
+
+      {/* Left Side - Profile Image */}
+      <div
+        className="w-28 shrink-0 flex items-center justify-center p-2"
+        style={{ backgroundColor: tokens.surfaceAlt }}
+      >
+        <img
+          src={profileImage}
+          alt=""
+          className="w-21 h-21 object-contain"
+          style={{ filter: 'sepia(60%) saturate(80%) brightness(92%)' }}
+          loading="lazy"
+        />
+      </div>
+
+      {/* Right Side - Content */}
+      <div className="flex flex-col justify-between p-5 flex-1 min-w-0">
+        {/* Project Name - Bold, Big */}
+        <h3
+          className="text-base font-bold m-0 leading-tight truncate pr-8"
+          style={{ color: tokens.textPrimary }}
+        >
+          {projectName}
+        </h3>
+
+        {/* Resume badge for mid-onboarding projects. */}
+        {isOnboarding && (
+          <span
+            data-testid={`badge-onboarding-${brainlift.slug}`}
+            className="mt-1.5 inline-flex w-fit items-center rounded bg-warning-soft px-[6px] py-[2px] text-[9px] uppercase tracking-[0.25em] font-semibold text-warning"
+          >
+            Setup incomplete
+          </span>
+        )}
+
+        {/* "by <name>" — author when set, otherwise platform creator. */}
+        {byName && (
+          <p
+            className="text-xs m-0 mt-1 truncate"
+            style={{ color: tokens.textSecondary }}
+          >
+            by {byName}
+          </p>
+        )}
+
+        {/* Date - Regular, Non-bold */}
+        <p
+          className="text-xs m-0 mt-2"
+          style={{ color: tokens.textSecondary }}
+        >
+          {formatDate(brainlift.createdAt)}
+        </p>
+
+        {/* Mean Score - Semi-bold with engraved grifo */}
+        <p
+          className="text-sm font-semibold m-0 mt-2 font-serif"
+          style={{ color: tokens.textPrimary }}
+        >
+          Mean Score:{' '}
+          <span
+            className="relative inline-block px-1"
+            style={{ isolation: 'isolate' }}
+          >
+            <span
+              style={{
+                color: meanScore > 0 ? getGrifoColor(meanScore) : tokens.textMuted,
+                fontWeight: 700,
+                textShadow: meanScore > 0 ? '0 1px 0 rgba(255,255,255,0.3)' : 'none',
+              }}
+            >
+              {meanScore > 0 ? parseFloat(meanScore.toFixed(2)) : 'N/A'}
+            </span>
+            {/* Engraved grifo underline - only shown for valid scores */}
+            {meanScore > 0 && (
+              <span
+                aria-hidden="true"
+                style={{
+                  position: 'absolute',
+                  left: '-0.1em',
+                  right: '-0.1em',
+                  bottom: '0.1em',
+                  height: '0.1em',
+                  borderRadius: '4px',
+                  zIndex: -1,
+                  background: `
+                    linear-gradient(${getGrifoColor(meanScore)}, ${getGrifoColor(meanScore)}),
+                    url(${paperGrainTexture})
+                  `,
+                  backgroundBlendMode: 'multiply',
+                  backgroundSize: 'cover, 100px',
+                  boxShadow: `
+                    inset 0 1.5px 0 rgba(255,255,255,0.45),
+                    inset 0 -1.5px 0 rgba(0,0,0,0.25),
+                    0 1px 0 rgba(0,0,0,0.06)
+                  `,
+                  mixBlendMode: 'multiply',
+                  opacity: 0.88,
+                }}
+              />
+            )}
+          </span>
+        </p>
+      </div>
+    </Link>
+  );
+}

@@ -1,0 +1,325 @@
+/**
+ * DOK2 Storage Layer
+ *
+ * Handles persistence of DOK2 summaries (owner's interpretation/synthesis of sources).
+ * Each summary group corresponds to one source and contains multiple summary points.
+ */
+
+import {
+  db, eq, and, inArray, sql, asc,
+  dok2Summaries, dok2Points, dok2FactRelations, facts,
+} from './base';
+import type { DOK2SummaryGroup } from '@shared/hierarchy-types';
+import type { DOK2FailReason } from '@shared/schema';
+
+/**
+ * Shape of DOK2 summary with points and related facts, for API responses
+ */
+export interface DOK2SummaryWithPoints {
+  id: number;
+  category: string;
+  sourceName: string;
+  sourceUrl: string | null;
+  displayTitle: string | null;  // AI-generated insight title
+  workflowyNodeId: string | null;
+  sourceWorkflowyNodeId: string | null;
+  points: Array<{
+    id: number;
+    text: string;
+    sortOrder: number;
+  }>;
+  relatedFactIds: number[];
+  // DOK2 Grading fields
+  grade: number | null;
+  diagnosis: string | null;
+  diagnosisRaw: string | null;
+  feedback: string | null;
+  failReason: DOK2FailReason | null;
+  sourceVerified: boolean | null;
+}
+
+/**
+ * Extended DOK2SummaryGroup with grading fields for saving
+ */
+export interface DOK2SummaryGroupWithGrading extends DOK2SummaryGroup {
+  displayTitle?: string | null;
+  grade?: number;
+  diagnosis?: string;
+  feedback?: string;
+  failReason?: DOK2FailReason | null;
+  sourceVerified?: boolean;
+}
+
+/**
+ * Save DOK2 summaries with fact ID mapping
+ *
+ * @param brainliftId - The brainlift to save summaries for
+ * @param summaries - Array of DOK2 summary groups from extraction (with optional grading)
+ * @param factIdMap - Map from original fact ID (string) to database fact ID (number)
+ */
+export async function saveDOK2Summaries(
+  brainliftId: number,
+  summaries: DOK2SummaryGroupWithGrading[],
+  factIdMap: Map<string, number>
+): Promise<number[]> {
+  if (summaries.length === 0) return [];
+
+  console.log(`[DOK2 Storage] Saving ${summaries.length} DOK2 summaries for brainlift ${brainliftId}`);
+  const insertedIds: number[] = [];
+
+  for (const summary of summaries) {
+    // Insert the summary group with grading fields
+    const [insertedSummary] = await db.insert(dok2Summaries).values({
+      brainliftId,
+      category: summary.category,
+      sourceName: summary.sourceName,
+      sourceUrl: summary.sourceUrl,
+      displayTitle: summary.displayTitle ?? null,
+      workflowyNodeId: summary.workflowyNodeId,
+      sourceWorkflowyNodeId: summary.sourceWorkflowyNodeId,
+      // Grading fields (optional, will be null if not graded)
+      grade: summary.grade ?? null,
+      diagnosis: summary.diagnosis ?? null,
+      feedback: summary.feedback ?? null,
+      gradedAt: summary.grade !== undefined ? new Date() : null,
+      failReason: summary.failReason ?? null,
+      sourceVerified: summary.sourceVerified ?? null,
+    }).returning();
+    insertedIds.push(insertedSummary.id);
+
+    // Insert summary points
+    if (summary.points.length > 0) {
+      await db.insert(dok2Points).values(
+        summary.points.map((point, index) => ({
+          summaryId: insertedSummary.id,
+          text: point.text,
+          sortOrder: index,
+        }))
+      );
+    }
+
+    // Insert fact relations (link DOK2 to related DOK1 facts)
+    const relatedDbFactIds = summary.relatedDOK1Ids
+      .map(originalId => factIdMap.get(originalId))
+      .filter((id): id is number => id !== undefined);
+
+    if (relatedDbFactIds.length > 0) {
+      await db.insert(dok2FactRelations).values(
+        relatedDbFactIds.map(factId => ({
+          summaryId: insertedSummary.id,
+          factId,
+        }))
+      );
+    }
+
+    console.log(`[DOK2 Storage] Saved summary "${summary.sourceName}" with ${summary.points.length} points, ${relatedDbFactIds.length} related facts`);
+  }
+
+  return insertedIds;
+}
+
+/**
+ * Save a single DOK2 summary from the discussion agent.
+ * Accepts relatedFactIds directly (no factIdMap needed).
+ * Returns the new summary's database ID.
+ */
+export async function saveSingleDOK2Summary(input: {
+  brainliftId: number;
+  category: string;
+  sourceName: string;
+  sourceUrl: string;
+  points: string[];
+  relatedFactIds: number[];
+  learningStreamItemId?: number;
+}): Promise<number> {
+  const [inserted] = await db.insert(dok2Summaries).values({
+    brainliftId: input.brainliftId,
+    category: input.category,
+    sourceName: input.sourceName,
+    sourceUrl: input.sourceUrl,
+    displayTitle: null,
+    workflowyNodeId: null,
+    sourceWorkflowyNodeId: null,
+    ...(input.learningStreamItemId ? { learningStreamItemId: input.learningStreamItemId } : {}),
+  }).returning();
+
+  if (input.points.length > 0) {
+    await db.insert(dok2Points).values(
+      input.points.map((text, index) => ({
+        summaryId: inserted.id,
+        text,
+        sortOrder: index,
+      }))
+    );
+  }
+
+  if (input.relatedFactIds.length > 0) {
+    await db.insert(dok2FactRelations).values(
+      input.relatedFactIds.map(factId => ({
+        summaryId: inserted.id,
+        factId,
+      }))
+    );
+  }
+
+  console.log(`[DOK2 Storage] Saved discussion summary "${input.sourceName}" with ${input.points.length} points, ${input.relatedFactIds.length} related facts`);
+  return inserted.id;
+}
+
+/**
+ * Get DOK2 summaries with points and related fact IDs for a brainlift
+ */
+export async function getDOK2Summaries(brainliftId: number): Promise<DOK2SummaryWithPoints[]> {
+  // Get all summaries for the brainlift
+  const summaries = await db.select().from(dok2Summaries)
+    .where(eq(dok2Summaries.brainliftId, brainliftId))
+    .orderBy(asc(dok2Summaries.id));
+
+  if (summaries.length === 0) return [];
+
+  const summaryIds = summaries.map(s => s.id);
+
+  // Get all points for these summaries
+  const points = await db.select().from(dok2Points)
+    .where(inArray(dok2Points.summaryId, summaryIds));
+
+  // Get all fact relations for these summaries
+  const factRelations = await db.select().from(dok2FactRelations)
+    .where(inArray(dok2FactRelations.summaryId, summaryIds));
+
+  // Build the result with nested points, related fact IDs, and grading fields
+  return summaries.map(summary => ({
+    id: summary.id,
+    // DB column is nullable, but the DOK2SummaryWithPoints/BrainliftData
+    // contract (shared/schema.ts, owned elsewhere) declares category as a
+    // non-null string. Narrow-cast preserves the runtime value as-is.
+    category: summary.category as string,
+    sourceName: summary.sourceName,
+    sourceUrl: summary.sourceUrl,
+    displayTitle: summary.displayTitle,
+    workflowyNodeId: summary.workflowyNodeId,
+    sourceWorkflowyNodeId: summary.sourceWorkflowyNodeId,
+    points: points
+      .filter(p => p.summaryId === summary.id)
+      .sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0))
+      .map(p => ({
+        id: p.id,
+        text: p.text,
+        sortOrder: p.sortOrder ?? 0,
+      })),
+    relatedFactIds: factRelations
+      .filter(r => r.summaryId === summary.id)
+      .map(r => r.factId),
+    // DOK2 Grading fields
+    grade: summary.grade,
+    diagnosis: summary.diagnosis,
+    diagnosisRaw: summary.diagnosisRaw,
+    feedback: summary.feedback,
+    failReason: summary.failReason as DOK2FailReason | null,
+    sourceVerified: summary.sourceVerified,
+  }));
+}
+
+/**
+ * Update a DOK2 summary's grading fields in place.
+ * Uses brainliftId in WHERE clause for IDOR safety.
+ */
+export async function updateDOK2Grading(
+  summaryId: number,
+  brainliftId: number,
+  data: {
+    displayTitle: string | null;
+    grade: number;
+    diagnosis: string;
+    diagnosisRaw?: string;
+    feedback: string;
+    failReason: DOK2FailReason | null;
+    sourceVerified: boolean;
+  }
+): Promise<void> {
+  await db.update(dok2Summaries).set({
+    displayTitle: data.displayTitle,
+    grade: data.grade,
+    diagnosis: data.diagnosis,                       // rewritten/user-facing
+    diagnosisRaw: data.diagnosisRaw ?? data.diagnosis, // grader original
+    feedback: data.feedback,
+    failReason: data.failReason,
+    sourceVerified: data.sourceVerified,
+    gradedAt: new Date(),
+  }).where(and(eq(dok2Summaries.id, summaryId), eq(dok2Summaries.brainliftId, brainliftId)));
+}
+
+/**
+ * Get a single DOK2 summary by ID with brainlift ownership check (IDOR-safe).
+ * Returns null if not found or wrong brainliftId.
+ */
+export async function getDok2SummaryByIdForBrainlift(
+  summaryId: number,
+  brainliftId: number,
+) {
+  const [summary] = await db.select().from(dok2Summaries)
+    .where(and(eq(dok2Summaries.id, summaryId), eq(dok2Summaries.brainliftId, brainliftId)));
+  return summary || null;
+}
+
+/**
+ * Get all points for a DOK2 summary, ordered by sort order.
+ */
+export async function getDok2PointsForSummary(summaryId: number) {
+  return db.select().from(dok2Points)
+    .where(eq(dok2Points.summaryId, summaryId))
+    .orderBy(dok2Points.sortOrder);
+}
+
+/**
+ * Get related DOK1 facts for a DOK2 summary (via dok2_fact_relations).
+ * Returns array of { fact, source } for grading context.
+ */
+export async function getRelatedDOK1sForSummary(summaryId: number) {
+  const relations = await db.select({
+    fact: facts.fact,
+    source: facts.source,
+  })
+    .from(dok2FactRelations)
+    .innerJoin(facts, eq(dok2FactRelations.factId, facts.id))
+    .where(eq(dok2FactRelations.summaryId, summaryId));
+
+  return relations;
+}
+
+/**
+ * Delete all DOK2 data for a brainlift (used during re-imports)
+ */
+export async function deleteDOK2Summaries(brainliftId: number): Promise<void> {
+  // Get all summary IDs first
+  const summaries = await db.select({ id: dok2Summaries.id })
+    .from(dok2Summaries)
+    .where(eq(dok2Summaries.brainliftId, brainliftId));
+
+  if (summaries.length === 0) return;
+
+  const summaryIds = summaries.map(s => s.id);
+
+  // Delete in order: fact relations → points → summaries
+  await db.delete(dok2FactRelations).where(inArray(dok2FactRelations.summaryId, summaryIds));
+  await db.delete(dok2Points).where(inArray(dok2Points.summaryId, summaryIds));
+  await db.delete(dok2Summaries).where(eq(dok2Summaries.brainliftId, brainliftId));
+
+  console.log(`[DOK2 Storage] Deleted ${summaries.length} DOK2 summaries for brainlift ${brainliftId}`);
+}
+
+/**
+ * Get the mean DOK2 grade for a brainlift (only summaries with grade > 0).
+ * Returns null if no graded DOK2 summaries exist.
+ */
+export async function getDOK2MeanScore(brainliftId: number): Promise<number | null> {
+  const [result] = await db.select({
+    mean: sql<string | null>`AVG(${dok2Summaries.grade})`,
+  }).from(dok2Summaries)
+    .where(and(
+      eq(dok2Summaries.brainliftId, brainliftId),
+      sql`${dok2Summaries.grade} > 0`
+    ));
+
+  return result?.mean ? parseFloat(result.mean) : null;
+}

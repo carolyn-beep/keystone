@@ -1,0 +1,5 @@
+ALTER TABLE sources
+  ADD COLUMN IF NOT EXISTS type          TEXT,
+  ADD COLUMN IF NOT EXISTS key_insights  TEXT,
+  ADD COLUMN IF NOT EXISTS length        TEXT,
+  ADD COLUMN IF NOT EXISTS why_matters   TEXT;

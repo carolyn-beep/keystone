@@ -1,0 +1,1 @@
+ALTER TABLE "learning_stream_items" ADD COLUMN "extracted_content" jsonb;

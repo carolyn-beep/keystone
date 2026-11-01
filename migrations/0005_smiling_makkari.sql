@@ -1,0 +1,1 @@
+ALTER TABLE "dok2_summaries" ADD COLUMN "display_title" text;

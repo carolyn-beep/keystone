@@ -1,0 +1,132 @@
+import { describe, expect, it } from 'vitest';
+import {
+  resolveSectionNavActive,
+  getSectionNavItems,
+  type SectionNavSection,
+} from '../section-nav-helpers';
+
+describe('resolveSectionNavActive', () => {
+  it('maps "/" to "chat"', () => {
+    expect(resolveSectionNavActive('/')).toBe<SectionNavSection>('chat');
+  });
+
+  it('maps "/library" to "library"', () => {
+    expect(resolveSectionNavActive('/library')).toBe<SectionNavSection>('library');
+  });
+
+  it('maps "/library/" (trailing slash) to "library"', () => {
+    expect(resolveSectionNavActive('/library/')).toBe<SectionNavSection>('library');
+  });
+
+  it('maps "/grading/<slug>" to "library"', () => {
+    expect(resolveSectionNavActive('/grading/some-slug')).toBe<SectionNavSection>('library');
+    expect(resolveSectionNavActive('/grading/another/with/segments')).toBe<SectionNavSection>('library');
+  });
+
+  it('no longer matches "/brainlifts/<slug>" (canonical path is /grading/<slug>)', () => {
+    expect(resolveSectionNavActive('/brainlifts/some-slug')).toBeNull();
+  });
+
+  it('maps "/analytics" to "analytics"', () => {
+    expect(resolveSectionNavActive('/analytics')).toBe<SectionNavSection>('analytics');
+  });
+
+  it('maps "/skills" to "skills"', () => {
+    expect(resolveSectionNavActive('/skills')).toBe<SectionNavSection>('skills');
+    expect(resolveSectionNavActive('/skills/')).toBe<SectionNavSection>('skills');
+  });
+
+  it('maps "/admin/providers" to "providers"', () => {
+    expect(resolveSectionNavActive('/admin/providers')).toBe<SectionNavSection>('providers');
+  });
+
+  it('returns null for empty string', () => {
+    expect(resolveSectionNavActive('')).toBeNull();
+  });
+
+  it('returns null for shell-bypass routes', () => {
+    expect(resolveSectionNavActive('/login')).toBeNull();
+    expect(resolveSectionNavActive('/view/some-slug')).toBeNull();
+  });
+
+  it('returns null for unrecognized paths', () => {
+    expect(resolveSectionNavActive('/nope')).toBeNull();
+    expect(resolveSectionNavActive('/foo/bar')).toBeNull();
+  });
+});
+
+describe('getSectionNavItems', () => {
+  it('returns [Library, Skills, Chat] for non-admin, non-allowlisted', () => {
+    const items = getSectionNavItems({ isAdmin: false, email: 'someone@example.com' });
+    expect(items.map((i) => i.section)).toEqual(['library', 'skills', 'chat']);
+  });
+
+  it('returns [Library, Skills, Chat] when email is null', () => {
+    const items = getSectionNavItems({ isAdmin: false, email: null });
+    expect(items.map((i) => i.section)).toEqual(['library', 'skills', 'chat']);
+  });
+
+  it('returns [Library, Skills, Chat] when email is undefined', () => {
+    const items = getSectionNavItems({ isAdmin: false });
+    expect(items.map((i) => i.section)).toEqual(['library', 'skills', 'chat']);
+  });
+
+  it('inserts Analytics between Library and Chat when isAdmin is true', () => {
+    const items = getSectionNavItems({ isAdmin: true, email: 'someone@example.com' });
+    expect(items.map((i) => i.section)).toEqual(['library', 'skills', 'analytics', 'chat']);
+  });
+
+  it('inserts Providers between Library and Chat when allowlisted (non-admin)', () => {
+    const items = getSectionNavItems({ isAdmin: false, email: 'provider-admin@example.com', providersAllowlist: 'provider-admin@example.com' });
+    expect(items.map((i) => i.section)).toEqual(['library', 'skills', 'providers', 'chat']);
+  });
+
+  it('inserts Analytics then Providers between Library and Chat when admin AND allowlisted', () => {
+    const items = getSectionNavItems({ isAdmin: true, email: 'provider-admin@example.com', providersAllowlist: 'provider-admin@example.com' });
+    expect(items.map((i) => i.section)).toEqual(['library', 'skills', 'analytics', 'providers', 'chat']);
+  });
+
+  it('matches email case-insensitively', () => {
+    const items = getSectionNavItems({ isAdmin: false, email: 'PROVIDER-ADMIN@EXAMPLE.COM', providersAllowlist: 'provider-admin@example.com' });
+    expect(items.map((i) => i.section)).toContain('providers');
+  });
+
+  it('each item has section, label, href, icon', () => {
+    const items = getSectionNavItems({ isAdmin: true, email: 'provider-admin@example.com', providersAllowlist: 'provider-admin@example.com' });
+    for (const item of items) {
+      expect(item).toHaveProperty('section');
+      expect(item).toHaveProperty('label');
+      expect(item).toHaveProperty('href');
+      expect(item).toHaveProperty('icon');
+      expect(typeof item.label).toBe('string');
+      expect(typeof item.href).toBe('string');
+    }
+  });
+
+  it('Chat href is "/", Library href is "/library", and Skills href is "/skills"', () => {
+    const items = getSectionNavItems({ isAdmin: false });
+    const chat = items.find((i) => i.section === 'chat');
+    const library = items.find((i) => i.section === 'library');
+    const skills = items.find((i) => i.section === 'skills');
+    expect(chat?.href).toBe('/');
+    expect(library?.href).toBe('/library');
+    expect(skills?.href).toBe('/skills');
+  });
+
+  it('Library is the first item (Chat is no longer first)', () => {
+    const items = getSectionNavItems({ isAdmin: false });
+    expect(items[0].section).toBe('library');
+  });
+
+  it('Chat is always the last item', () => {
+    expect(getSectionNavItems({ isAdmin: false }).at(-1)?.section).toBe('chat');
+    expect(getSectionNavItems({ isAdmin: true }).at(-1)?.section).toBe('chat');
+    expect(getSectionNavItems({ isAdmin: true, email: 'provider-admin@example.com', providersAllowlist: 'provider-admin@example.com' }).at(-1)?.section).toBe('chat');
+  });
+
+  it('Library label is "Projects"', () => {
+    const items = getSectionNavItems({ isAdmin: false });
+    const library = items.find((i) => i.section === 'library');
+    expect(library?.label).toBe('Projects');
+  });
+});

@@ -1,0 +1,1 @@
+CREATE INDEX "idx_learning_stream_status" ON "learning_stream_items" USING btree ("brainlift_id","status");

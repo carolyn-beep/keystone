@@ -1,0 +1,265 @@
+// Import progress event types for SSE streaming
+
+export type ImportStage =
+  | 'formatting'
+  | 'validating'
+  | 'extracting'
+  | 'grading'
+  | 'grading_dok2'
+  | 'grading_dok3'
+  | 'contradictions'
+  | 'dok3_linking'
+  | 'dok4_extraction'
+  | 'dok4_linking'
+  | 'grading_dok4'
+  | 'experts'
+  | 'redundancy'
+  | 'complete'
+  | 'error';
+
+export interface BaseProgressEvent {
+  stage: ImportStage;
+  message: string;
+}
+
+export interface FormattingProgress extends BaseProgressEvent {
+  stage: 'formatting';
+  completed: number;
+  total: number;
+}
+
+export interface ValidatingProgress extends BaseProgressEvent {
+  stage: 'validating';
+}
+
+export interface ExtractingProgress extends BaseProgressEvent {
+  stage: 'extracting';
+}
+
+export interface GradingProgress extends BaseProgressEvent {
+  stage: 'grading';
+  completed: number;
+  total: number;
+}
+
+export interface GradingDOK2Progress extends BaseProgressEvent {
+  stage: 'grading_dok2';
+  completed: number;
+  total: number;
+}
+
+export interface GradingDOK3Progress extends BaseProgressEvent {
+  stage: 'grading_dok3';
+  completed: number;
+  total: number;
+}
+
+export interface ContradictionsProgress extends BaseProgressEvent {
+  stage: 'contradictions';
+}
+
+// Auto mode: counter-based progress (no manual UI triggers)
+export interface DOK3LinkingAutoProgress extends BaseProgressEvent {
+  stage: 'dok3_linking';
+  completed: number;
+  total: number;
+}
+
+// Manual mode: triggers DOK3LinkingUI (no counters)
+export interface DOK3LinkingManualProgress extends BaseProgressEvent {
+  stage: 'dok3_linking';
+  dok3Count: number;
+  slug: string;
+}
+
+export type DOK3LinkingProgressEvent = DOK3LinkingAutoProgress | DOK3LinkingManualProgress;
+
+export interface DOK4ExtractionProgress extends BaseProgressEvent {
+  stage: 'dok4_extraction';
+  dok4Count?: number;
+}
+
+// Auto mode: counter-based progress
+export interface DOK4LinkingAutoProgress extends BaseProgressEvent {
+  stage: 'dok4_linking';
+  completed: number;
+  total: number;
+}
+
+// Manual mode: informational (no counters)
+export interface DOK4LinkingManualProgress extends BaseProgressEvent {
+  stage: 'dok4_linking';
+  dok4Count: number;
+}
+
+export type DOK4LinkingProgress = DOK4LinkingAutoProgress | DOK4LinkingManualProgress;
+
+export interface GradingDOK4Progress extends BaseProgressEvent {
+  stage: 'grading_dok4';
+  completed: number;
+  total: number;
+}
+
+export interface ExpertsProgress extends BaseProgressEvent {
+  stage: 'experts';
+}
+
+export interface RedundancyProgress extends BaseProgressEvent {
+  stage: 'redundancy';
+}
+
+export interface CompleteProgress extends BaseProgressEvent {
+  stage: 'complete';
+  slug: string;
+}
+
+export interface ErrorProgress extends BaseProgressEvent {
+  stage: 'error';
+  error: string;
+}
+
+export type ImportProgress =
+  | FormattingProgress
+  | ValidatingProgress
+  | ExtractingProgress
+  | GradingProgress
+  | GradingDOK2Progress
+  | GradingDOK3Progress
+  | ContradictionsProgress
+  | DOK3LinkingProgressEvent
+  | DOK4ExtractionProgress
+  | DOK4LinkingProgress
+  | GradingDOK4Progress
+  | ExpertsProgress
+  | RedundancyProgress
+  | CompleteProgress
+  | ErrorProgress;
+
+// Stage metadata for UI rendering
+export const STAGE_LABELS: Record<ImportStage, string> = {
+  formatting: 'Formatting document structure...',
+  validating: 'Validating formatting integrity...',
+  extracting: 'Extracting content from document...',
+  grading: 'Grading DOK1 facts...',
+  grading_dok2: 'Grading DOK2 summaries...',
+  grading_dok3: 'Grading DOK3 insights...',
+  contradictions: 'Detecting contradictions...',
+  dok3_linking: 'Auto-linking DOK3 insights...',
+  dok4_extraction: 'Extracting DOK4 Convictions...',
+  dok4_linking: 'Auto-linking DOK4 Convictions...',
+  grading_dok4: 'Grading DOK4 Convictions...',
+  experts: 'Extracting experts...',
+  redundancy: 'Analyzing redundancies...',
+  complete: 'Import complete!',
+  error: 'Import failed',
+};
+
+// ─── DOK3 Grading Progress (separate from import pipeline) ─────────────────
+
+export type DOK3GradingStage =
+  | 'dok3:start'
+  | 'dok3:foundation'
+  | 'dok3:traceability'
+  | 'dok3:evaluation'
+  | 'dok3:complete'
+  | 'dok3:error'
+  | 'dok3:done';
+
+export interface DOK3GradingProgress {
+  stage: DOK3GradingStage;
+  message: string;
+  insightIndex?: number;
+  insightTotal?: number;
+  insightId?: number;
+  score?: number;
+  error?: string;
+}
+
+// ─── DOK4 Grading Progress (separate from import pipeline) ─────────────────
+
+export type DOK4GradingStage =
+  | 'dok4:start'
+  | 'dok4:validation'
+  | 'dok4:foundation'
+  | 'dok4:traceability'
+  | 'dok4:divergence'
+  | 'dok4:evaluation'
+  | 'dok4:antimemetic'
+  | 'dok4:complete'
+  | 'dok4:rejected'
+  | 'dok4:error'
+  | 'dok4:done';
+
+export interface DOK4GradingProgress {
+  stage: DOK4GradingStage;
+  message: string;
+  spovId?: number;
+  brainliftId?: number;
+  score?: number;
+  error?: string;
+}
+
+// Weights for progress bar calculation (must sum to 100)
+// Order matches actual execution: format → validate → extract → DOK1 + contradictions → DOK2 → DOK3 linking → DOK4 → experts + redundancy
+// When preformat is not used, formatting/validating stages are never emitted and their weights are skipped.
+export const STAGE_WEIGHTS: Record<Exclude<ImportStage, 'complete' | 'error'>, number> = {
+  formatting: 8,         // Preformat pipeline (parallel LLM calls)
+  validating: 2,         // Integrity validation
+  extracting: 3,
+  grading: 27,           // DOK1 grading takes the longest
+  contradictions: 3,
+  grading_dok2: 9,       // DOK2 grading (fewer items, runs in parallel)
+  dok3_linking: 5,       // DOK3 auto-linking (auto mode: with completed/total)
+  grading_dok3: 16,      // DOK3 grading (auto mode: parallel, pLimit 5)
+  dok4_extraction: 1,    // Informational — DOK4 SPOVs found during extraction
+  dok4_linking: 3,       // DOK4 auto-linking (LLM semantic matching)
+  grading_dok4: 13,      // DOK4 grading (auto mode: parallel, pLimit 5)
+  experts: 7,
+  redundancy: 3,
+};
+
+// Calculate cumulative progress for a given stage
+export function calculateProgress(event: ImportProgress): number {
+  if (event.stage === 'complete') return 100;
+  if (event.stage === 'error') return 0;
+
+  // Order matches actual execution in the auto-mode pipeline
+  const stages: Exclude<ImportStage, 'complete' | 'error'>[] = [
+    'formatting',
+    'validating',
+    'extracting',
+    'grading',
+    'contradictions',
+    'grading_dok2',
+    'dok3_linking',
+    'grading_dok3',
+    'dok4_extraction',
+    'dok4_linking',
+    'grading_dok4',
+    'experts',
+    'redundancy',
+  ];
+
+  const currentIndex = stages.indexOf(event.stage as any);
+  if (currentIndex === -1) return 0;
+
+  // Sum weights of completed stages
+  let progress = 0;
+  for (let i = 0; i < currentIndex; i++) {
+    progress += STAGE_WEIGHTS[stages[i]];
+  }
+
+  // Add partial progress for current stage if it has completed/total counters
+  const currentWeight = STAGE_WEIGHTS[event.stage as keyof typeof STAGE_WEIGHTS];
+  if ('completed' in event && 'total' in event) {
+    const total = (event as any).total;
+    const completed = (event as any).completed;
+    const stageProgress = total > 0 ? completed / total : 0;
+    progress += currentWeight * stageProgress;
+  } else {
+    // For stages without counters, assume 50% through when we receive the event
+    progress += currentWeight * 0.5;
+  }
+
+  return Math.min(progress, 99); // Never show 100% until complete
+}

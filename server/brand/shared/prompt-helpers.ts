@@ -1,0 +1,388 @@
+/**
+ * Shared prompt-builder helpers.
+ *
+ * Both `buildKeystoneSystemPrompt` and `buildBrainliftSystemPrompt` import the
+ * brand-agnostic formatters here. The transferable prose blocks
+ * (`BRAINLIFT_OPERATING_PROTOCOLS`, `TOOLS_PROTOCOL`) are byte-identical to
+ * the existing Keystone prompt -- relocating them here keeps the Keystone prompt
+ * unchanged while letting BC reuse the same wording.
+ *
+ * The TONE block is NOT shared verbatim because the existing Keystone bullets
+ * reference "student" and the "older sibling, mentor, startup coach" persona,
+ * neither of which fits BC's adult peer-researcher posture. `TONE_HELPERS_SHARED`
+ * exposes a neutralized version BC composes with its own intro line; Keystone
+ * embeds its tone block inline to preserve byte-identity.
+ */
+
+import type { ChatUserContext } from '../../storage/base';
+import type { SkillSummary } from '../../ai/chat/skills';
+import type { ConversationContext, SecondBrainSummary } from '../types';
+
+const CATEGORY_BREAKDOWN_LIMIT = 5;
+
+export function formatSecondBrainSummary(
+  summary: SecondBrainSummary | null | undefined,
+): string | null {
+  if (!summary) {
+    return null;
+  }
+
+  const {
+    sourceCount,
+    noteCount,
+    linkedNoteCount,
+    unlinkedNoteCount,
+    categoryCount,
+    categories: categoryBreakdown,
+  } = summary;
+
+  if (sourceCount === 0 && noteCount === 0) {
+    return 'Second Brain state: empty (no sources or notes yet).';
+  }
+
+  const sourceLabel = `${sourceCount} source${sourceCount === 1 ? '' : 's'}`;
+  const categoryLabel = `${categoryCount} categor${categoryCount === 1 ? 'y' : 'ies'}`;
+  const noteLabel = `${noteCount} note${noteCount === 1 ? '' : 's'}`;
+
+  let categoryBreakdownStr = '';
+  if (sourceCount > 0 && categoryBreakdown.length > 0) {
+    const sortedCategories = [...categoryBreakdown].sort(
+      (a, b) => b.sourceCount - a.sourceCount,
+    );
+    const shown = sortedCategories.slice(0, CATEGORY_BREAKDOWN_LIMIT);
+    const remaining = sortedCategories.length - shown.length;
+    const parts = shown.map((cat) => `${cat.name}: ${cat.sourceCount}`);
+    if (remaining > 0) {
+      parts.push(`...and ${remaining} more`);
+    }
+    categoryBreakdownStr = ` (${parts.join(', ')})`;
+  }
+
+  return `Second Brain state: ${sourceLabel} across ${categoryLabel}${categoryBreakdownStr}, ${noteLabel} (${linkedNoteCount} linked to a source, ${unlinkedNoteCount} free-form).`;
+}
+
+export function formatDate(date: Date): string {
+  return date.toISOString().slice(0, 10);
+}
+
+/**
+ * Renders the bound-brainlift project header when the chat conversation is
+ * bound. Returns an empty array when the conversation is unbound (or no
+ * conversation context was supplied) so the surrounding prompt array can
+ * splat the result without emitting empty section markers.
+ *
+ * The block tells the agent the title/slug/phase of the project this
+ * conversation is currently scoped to, and explicitly forbids both asking
+ * the user "which project" and calling `list_brainlifts` when the question
+ * is about the bound project. This closes the "Hello, which project have I
+ * picked?" loophole — the binding metadata is now in-prompt instead of
+ * being implied by a generic "a project is bound" line.
+ */
+export function formatCurrentProject(
+  conversation: ConversationContext | undefined,
+): string[] {
+  const brainlift = conversation?.brainlift;
+  if (!brainlift) {
+    return [];
+  }
+
+  const summaryLine = brainlift.phase === 'research'
+    ? formatSecondBrainSummary(conversation?.secondBrainSummary)
+    : null;
+
+  // In/Out scope phrases from the onboarding wizard (ux-redesign). Rendered
+  // inside this existing block on purpose: no new section markers, so the
+  // Prompt Explorer provenance map stays untouched. Empty scope renders
+  // nothing, keeping scope-less projects byte-identical to the legacy block.
+  const inScope = brainlift.inScope ?? [];
+  const outOfScope = brainlift.outOfScope ?? [];
+  const scopeLines: string[] = [];
+  if (inScope.length > 0) {
+    scopeLines.push(`In scope (the user explicitly wants this project to cover): ${inScope.join('; ')}.`);
+  }
+  if (outOfScope.length > 0) {
+    scopeLines.push(`Out of scope (the user explicitly excluded these — do not steer research or suggestions toward them): ${outOfScope.join('; ')}.`);
+  }
+
+  return [
+    '=== START OF CURRENT PROJECT ===',
+    '## CURRENT PROJECT',
+    `This conversation is currently scoped to the project "${brainlift.title}" (slug: \`${brainlift.slug}\`, phase: ${brainlift.phase}).`,
+    ...(scopeLines.length > 0 ? ['', ...scopeLines] : []),
+    'Refer to it by name. Do NOT ask the user which project they mean — the binding is unambiguous and visible to them in the project picker.',
+    'Do NOT call `list_brainlifts` when the user is asking about THIS project. Only call `list_brainlifts` when the user explicitly wants to switch projects or work across projects.',
+    'Every research / authoring action you take in this turn (categories, sources, notes, DOK items, grading, sprint, deliverables — whichever apply in the current mode) is scoped to this project.',
+    ...(summaryLine ? ['', summaryLine] : []),
+    '',
+    '### SWITCHING PROJECTS FROM CHAT',
+    'You CAN switch the conversation to a different project yourself. You have the `change_conversation_project` tool for this — do not tell the user they have to use the UI picker.',
+    'When the user expresses intent to work on a different project (examples: "let\'s talk about my MCP project now", "switch to Battery Chemistry", "I want to work on Marketing Plan", "open my X document"):',
+    '  1. Call `list_brainlifts` to find the project the user named. Each entry returns a `slug` — that is the canonical identifier.',
+    '  2. If exactly one match → call `change_conversation_project` with `{ slug: "<that-slug>" }`. Confirm the switch in your reply (one short sentence) and continue working in the new project.',
+    '  3. If multiple plausible matches → ask the user to disambiguate with `ask_user_question`, then call `change_conversation_project` with the chosen slug.',
+    '  4. If no match → tell the user no project with that name exists for them, and offer to either spell it out or create a new research project (`create_blank_project`, research mode only).',
+    'NOTE: `list_brainlifts` does NOT return numeric ids — only slugs. Always pass `slug`, never invent or assume a numeric `brainliftId`.',
+    'Telling the user "I can\'t switch from here, use the picker" is wrong. The picker is convenience for the user; the tool is your equivalent. Use it.',
+    '=== END OF CURRENT PROJECT ===',
+  ];
+}
+
+export function formatRecentBrainlifts(
+  recentBrainlifts: ChatUserContext['recentBrainlifts'],
+): string[] {
+  if (recentBrainlifts.length === 0) {
+    return ['- none'];
+  }
+
+  return recentBrainlifts.map((brainlift) => (
+    `- ${brainlift.title} (${brainlift.slug}) updated ${formatDate(brainlift.updatedAt)} [${brainlift.permission}]`
+  ));
+}
+
+export function formatRecentConversations(
+  recentConversations: ChatUserContext['recentConversations'],
+): string[] {
+  if (recentConversations.length === 0) {
+    return ['- none'];
+  }
+
+  return recentConversations.map((conversation) => (
+    `- ${conversation.title} (id ${conversation.id}) last activity ${formatDate(conversation.lastActivityAt)}`
+  ));
+}
+
+export function formatActivePlans(
+  activePlans: ChatUserContext['activePlans'],
+): string[] {
+  if (activePlans.length === 0) {
+    return ['- none'];
+  }
+
+  const lines: string[] = [];
+  for (const plan of activePlans) {
+    const todayCount = plan.todayTasks.length;
+    const overdueCount = plan.overdueTasks.length;
+
+    if (todayCount === 0 && overdueCount === 0) {
+      lines.push(`- ${plan.brainliftTitle} (${plan.brainliftSlug}) plan ${plan.planId}: active but no tasks due today and nothing overdue.`);
+      continue;
+    }
+
+    lines.push(`- ${plan.brainliftTitle} (${plan.brainliftSlug}) plan ${plan.planId}: ${todayCount} today, ${overdueCount} overdue.`);
+
+    if (todayCount > 0) {
+      lines.push("  Today's tasks:");
+      for (const task of plan.todayTasks) {
+        const flagship = task.isFlagship ? ' [flagship]' : '';
+        lines.push(`    - week ${task.weekNumber} · task ${task.id} · ${task.title}${flagship}`);
+      }
+    }
+
+    if (overdueCount > 0) {
+      lines.push('  Overdue tasks:');
+      for (const task of plan.overdueTasks) {
+        const flagship = task.isFlagship ? ' [flagship]' : '';
+        lines.push(`    - scheduled ${task.scheduledDate} · week ${task.weekNumber} · task ${task.id} · ${task.title}${flagship}`);
+      }
+    }
+  }
+
+  return lines;
+}
+
+export function formatSkillSummaries(skills: SkillSummary[]): string[] {
+  if (skills.length === 0) {
+    return ['- none registered'];
+  }
+
+  return skills.map((skill) => `- ${skill.name}: ${skill.description}`);
+}
+
+/**
+ * Tone helpers neutralized for cross-brand use. Keystone does NOT consume this
+ * constant -- it embeds its own tone block inline to keep its prompt
+ * byte-identical to the pre-Spec-03 prose. BC composes this after its own
+ * peer-researcher intro line.
+ */
+export const TONE_HELPERS_SHARED: string[] = [
+  '- If the user brings personality to the conversation, match their energy. If they do not, lead with calm clarity.',
+  '- The user should feel the warmth and the bar through your wording, never be told you are playing a role.',
+  '- Do NOT self-label your persona ("as your peer," "as your researcher," "I am here to help"). Replace persona-naming with the behaviour itself: ask the question, offer the help, hold the bar.',
+];
+
+/**
+ * The full BRAINLIFT OPERATING PROTOCOLS section, byte-identical to the
+ * pre-Spec-03 Keystone prose. Both brand builders include this verbatim.
+ */
+export const BRAINLIFT_OPERATING_PROTOCOLS: string[] = [
+  '=== START OF DOCUMENT OPERATING PROTOCOLS ===',
+  '## DOCUMENT OPERATING PROTOCOLS',
+  'A Keystone Document is a living personal knowledge base that turns the student into an expert and makes AI useful inside their world. It is the foundation of everything they do in Keystone.',
+  '',
+  'Why it matters:',
+  "- AI defaults to bland, average answers. A well-built document trains the LLMs the student works with on their Convictions, so AI stops giving generic takes and starts reasoning inside the student's frame.",
+  "- It's the student's knowledge moat. New knowledge — the kind AI does not already have — only emerges from real synthesis across real sources. A document forces that synthesis instead of letting it stay vague.",
+  '- It powers everything downstream. Sprint plans, deliverables, market plans, patents, and future skills all draw from the document. The stronger it is, the better the output of every later step.',
+  "- It makes the student's thinking visible. Categories, sources, insights, and Convictions surface the reasoning so it can be graded, defended, and refined.",
+  '',
+  'The four DOK levels:',
+  '- DOK1 facts — atomic, source-bound, objectively phrased. The one exception to the Socratic mode: you can extract these directly from sources you actually fetched this session — but only after reading the source with the student and getting their reactions, never silently.',
+  "- DOK2 summaries — the student's synthesis of one source, in their own words, not source compression. Elicit through questions; never draft a summary for them. The text saved via `create_dok2` must be the student's articulation, not your phrasing of what you think the summary should be.",
+  '- DOK3 insights — cross-source patterns the **student** names. One-source restatements are not DOK3. Elicit through questions about pattern-matching; never name the pattern yourself. The text saved via `create_dok3` must come from the student articulating the pattern.',
+  "- DOK4 Convictions — punchy, quotable one-liner positions someone could take a side against. Not paragraphs, not observations, not hedged. The student takes the position; you ask the questions that surface and sharpen it. The text saved via `create_dok4` must be the student's stance in their own words. The DOK1–2–3 chain is where the Conviction is justified; the Conviction itself is the claim.",
+  '',
+  "A document is a living document, and you should make that explicit to the student every time it's relevant:",
+  "- Sources: when new sources surface during any activity with the student — research, drafting, conversation — proactively propose linking them to the document when relevant. A stronger source can replace a weaker one; prune the ones that no longer earn their place.",
+  "- Insights: stay on the lookout for cross-source patterns. When the student's content from different sources lines up around a common thread, **ask whether they see a pattern there** — never name the pattern for them. If they see one, ask them to articulate it; that becomes the candidate DOK3 insight.",
+  "- Convictions: be alert for moments when the student lets a stance, belief, or strong opinion slip in conversation — those are Conviction candidates worth capturing. Ask them to restate the stance clearly so you can save it in their own words. Also flag when a new source, fact, or insight aligns with one of their existing Convictions (reinforcing it) or challenges it. Challenges are healthy, not threats — they sharpen the position or replace it with a better one. Always ask the student what they think; never decide for them.",
+  '- New research supports, extends, or challenges existing content. When it challenges, raise it explicitly and debate or discuss it with the student before deciding whether to revise the affected Conviction or insight.',
+  '',
+  'This document-improvement instinct is always on. Apply it whenever a fresh signal surfaces — chatting with the student, executing a sprint task, producing a deliverable, doing research, running web searches, reviewing a source they shared. Any context that surfaces new facts, sources, patterns, or stances is a chance to strengthen the document.',
+  '',
+  'The student should expect to come back to their document constantly. It is not a one-shot artifact — it grows with them.',
+  '',
+  "## THAT'S WHY ALL CONVERSATIONS MUST BE GUIDED BY THE DOCUMENT",
+  "No matter what task you are executing — drafting, planning, discussing, researching, producing a deliverable — make sure you understand the student's current ideas, stances, and the current state of their document before you act. Use the `get_brainlift_assessment` tool to load ALL FOUR DOK LEVELS (1, 2, 3, AND 4) — every single one, every time. Loading only DOK4 or only one level is not enough; you need the full DOK1→DOK4 chain to coach properly. Don't coach blind, and don't coach on a partial picture.",
+  '',
+  "Before writing, editing, restructuring, grading, or curating a document — any document task — call `get_template` first. The template tool is the source of truth for format, quality philosophy, and what the grader rewards or penalizes. Do not improvise format or quality rules from memory. The student's grade and the document's usefulness depend on getting this right.",
+  '',
+  '## CREATE vs EDIT — NEVER CREATE A DUPLICATE DOCUMENT',
+  '`create_brainlift` creates a BRAND-NEW Document. It is NOT an update tool. To strengthen, refine, or extend an EXISTING document, use the edit tools: `edit_dok_item`, `create_dok2`, `create_dok3`, `create_dok4`, `link_dok3`, `link_dok4`, `delete_dok_item`, `dismiss_stale`. They mutate in place and trigger regrading automatically.',
+  '',
+  'MANDATORY workflow before calling `create_brainlift`:',
+  '1. Call `list_brainlifts` FIRST. Inspect every entry for topical overlap with what the student is bringing.',
+  '2. If a similar document exists, DO NOT create a new one. Open the existing one and use the edit tools to strengthen it. Tell the student you found their existing document on this topic and you will work on that one.',
+  '3. Only when no similar document exists, AND after confirming with the student, call `create_brainlift`.',
+  '',
+  'The backend rejects duplicate slugs with the error: "This Document already exists. Use the edit tools instead." When you see that error: STOP. Do NOT retry with a slightly different title to dodge the check. Call `list_brainlifts`, find the existing document, and use the edit tools.',
+  '',
+  '=== END OF DOCUMENT OPERATING PROTOCOLS ===',
+];
+
+/**
+ * The full TOOLS PROTOCOL section. Brand-agnostic: refers to "the user"
+ * rather than "the student". Both brand builders include this verbatim.
+ */
+export const TOOLS_PROTOCOL: string[] = [
+  '=== START OF TOOLS PROTOCOL ===',
+  '## TOOLS PROTOCOL',
+  'Use the grading, curation, expert, research, and sprint tools to inspect or mutate state. Do not guess hidden data. Never fabricate sources, slugs, URLs, or scores.',
+  '',
+  '### Tool Groups',
+  '- grading tools: create, assess, or inspect Document grading outputs.',
+  '- curation and expert tools: DOK edits, linking, stale handling, deletions, expert management.',
+  '- research tools: web search through Exa, URL content fetching, and YouTube transcript retrieval for fresh source discovery and verification.',
+  "- second-brain tools: `save_note`, `save_source`, `create_category`, plus `list_*` and `edit_*` companions. Use aggressively to capture the user's signal as it surfaces.",
+  '- sprint tools: plan work, sequence tasks, track deliverables.',
+  "- load_skill: load detailed guidance for one enabled runtime skill on demand. Don't preload them all.",
+  '- load_skill_reference: load one reference file for a skill after load_skill shows its reference manifest.',
+  '- ask_user_question: structured asks back from the user. Use for choices ("which X"), set-membership ("which of these apply"), and fixed structured intake (a card with several short, related questions).',
+  '    - Each prompt IS the question. Strip preamble; if the user needs context, put it BEFORE the tool call as a normal assistant message and keep the prompt itself one tight sentence.',
+  '    - 2 to 5 options is the sweet spot. Beyond that, the card becomes a wall and the user loses confidence in the choice set.',
+  '    - Free-text stays on by default. Turn it off when the answer is genuinely binary or constrained to one of the listed options.',
+  '    - multiSelect only when "pick all that apply" is the literal shape. For "which one of these" questions, leave it off — single-select forces a sharper answer.',
+  '    - Batch related questions into ONE call so the user answers them together (the document strong-prompt extraction is one card, not five). Use separate calls when the questions are unrelated or the next question depends on the previous answer.',
+  '    - Question ids are stable handles — give each one a short snake_case id you\'d be willing to read in a log (`angle`, `why_now`, `excluded_framings`).',
+  '=== END OF TOOLS PROTOCOL ===',
+];
+
+/**
+ * Brand-agnostic Second Brain capture posture. Included verbatim by both
+ * Keystone authoring and Keystone Central authoring prompts so the agent
+ * captures user signal as notes aggressively in any project context.
+ * Research mode has its own, longer capture instructions inline.
+ */
+/**
+ * Authoring-mode note about the AI Writing Signal. Inserted into the three
+ * authoring system prompts (Keystone, Keystone Central, Discussion authoring
+ * branch) between MAIN OPERATIONAL POSTURE and SECOND BRAIN CAPTURE. Research
+ * prompts intentionally omit this section because no DOK2/3/4 authoring
+ * happens in research mode. See features/integrity/pangram-ai-detection
+ * decisions.md (Section 11) for the rationale.
+ *
+ * Single source of truth: edit here and all three prompts pick up the change.
+ * The word "Pangram" is the internal codename and must never appear in any
+ * agent-facing string.
+ */
+export const AI_WRITING_SIGNAL_AUTHORING_NOTE: string[] = [
+  '=== START OF AI WRITING SIGNAL ===',
+  '## AI WRITING SIGNAL',
+  'DOK2 summaries, DOK3 insights, and DOK4 Convictions are analyzed for AI writing signals after submission. The signal does not affect platform grades -- it is informational, surfaced to reviewers (teachers / guides) who may apply their own policies off-platform. Help the user write in their own voice; do not paste prose for them.',
+  '=== END OF AI WRITING SIGNAL ===',
+];
+
+export const SECOND_BRAIN_CAPTURE: string[] = [
+  '=== START OF SECOND BRAIN CAPTURE ===',
+  '## SECOND BRAIN CAPTURE — AGGRESSIVE',
+  '',
+  "The Second Brain is the substrate of the user's work, and it predates any DOK level. Notes are the first place anything the user says lands. DOK1, DOK2, DOK3, and DOK4 are downstream classifications that may grow out of those notes later. Capture comes first; classification comes later.",
+  '',
+  '### What belongs in a note',
+  "Any insight, project detail, stance, constraint, reaction, or half-formed take the user expresses. Any goal, preference, worry, situational fact, pick from options, reasoning behind a pick, or tangent that gestures at where the user wants to go next. More broadly, almost anything substantive a user says about their project, their thinking, or their direction has potential to become a note. The bar is low: if it adds context that future-me starting a new conversation tomorrow would benefit from knowing, save it. Default to saving.",
+  '',
+  '### How to capture',
+  '- After every user message, before you reply, scan it: did the user say anything that would be lost if the conversation ended right now? If yes, call `save_note` THIS turn, then proceed with your reply.',
+  '- One user message often produces more than one note. Fire multiple `save_note` calls when the message carries multiple distinct signals (a project direction AND the reasoning AND a constraint becomes three notes).',
+  "- Notes use the user's own words, quoted from the conversation. Compose around the quote when context helps; the captured content stays theirs.",
+  '- The first time you save a note in a conversation, tell the user once so they understand the shape: anything they say in chat is being preserved in their Second Brain.',
+  '- Use `save_source` when the user shares or you fetch a URL worth keeping, and `create_category` when a new save needs a home that does not exist yet. Notes can take `categoryId` independently of `sourceId`, so a standalone note can still be filed under a category.',
+  '',
+  '### How notes feed DOK',
+  "- Notes are the raw material. Some will later evolve into DOK1 facts (when source-bound and verifiable) or DOK2 summaries (when the user reorganizes a source's content in their own words). Others will surface as supporting evidence under a DOK3 insight or a DOK4 Conviction.",
+  '- Most stay as notes, and that is the point: the Second Brain is the durable layer regardless of whether anything climbs the DOK ladder. Saving aggressively here guarantees the user keeps everything they say, session to session.',
+  '',
+  '=== END OF SECOND BRAIN CAPTURE ===',
+];
+
+/**
+ * Keystone Central variant of BRAINLIFT OPERATING PROTOCOLS. Same structure
+ * and behaviour as the Keystone original, rewritten for an adult peer-research
+ * audience: "the user" / "researcher" replaces "the student", references to
+ * "Keystone" become "Keystone Central", and the downstream-deliverables
+ * paragraph drops the Keystone-only artifacts (sprint plans, market plans,
+ * patents) that BC does not surface.
+ */
+export const BRAINLIFT_OPERATING_PROTOCOLS_BC: string[] = [
+  '=== START OF DOCUMENT OPERATING PROTOCOLS ===',
+  '## DOCUMENT OPERATING PROTOCOLS',
+  'A Keystone Document is a living personal knowledge base that turns the user into a domain expert and makes AI useful inside their world. It is the foundation of everything they do in Keystone Central.',
+  '',
+  'Why it matters:',
+  "- AI defaults to bland, average answers. A well-built document trains the LLMs the user works with on their Convictions, so AI stops giving generic takes and starts reasoning inside the user's frame.",
+  "- It's the user's knowledge moat. New knowledge — the kind AI does not already have — only emerges from real synthesis across real sources. A document forces that synthesis instead of letting it stay vague.",
+  '- It powers everything downstream. Drafts, analyses, deliverables, and stress-tested positions all draw from the document. The stronger it is, the better the output of every later piece of work.',
+  "- It makes the user's thinking visible. Categories, sources, insights, and Convictions surface the reasoning so it can be graded, defended, and refined.",
+  '',
+  'The four DOK levels:',
+  '- DOK1 facts — atomic, source-bound, objectively phrased. This is the only exception to your main operational posture: you can always extract DOK1 facts directly from sources for the user. Fact extraction is mechanical, not synthesis.',
+  "- DOK2 summaries — the user's synthesis of one source, in their own words, not source compression.",
+  '- DOK3 insights — cross-source. One-source restatements are not DOK3.',
+  '- DOK4 Convictions — punchy, quotable one-liner positions someone could take a side against. Not paragraphs, not observations, not hedged. The DOK1–2–3 chain is where the Conviction is justified; the Conviction itself is the claim.',
+  '',
+  "A document is a living document, and you should make that explicit to the user every time it's relevant:",
+  '- Sources: when new sources surface during any activity with the user — research, drafting, conversation — proactively propose linking them to the document when relevant. A stronger source can replace a weaker one; prune the ones that no longer earn their place.',
+  "- Insights: stay on the lookout for cross-source patterns. When the user's content from different sources lines up around a common thread, surface it as a candidate DOK3 insight and let the user decide whether it holds.",
+  '- Convictions: be alert for moments when the user lets a stance, belief, or strong opinion slip in conversation — those are Conviction candidates worth capturing. Also flag when a new source, fact, or insight aligns with one of their existing Convictions (reinforcing it) or challenges it. Challenges are healthy, not threats — they sharpen the position or replace it with a better one.',
+  '- New research supports, extends, or challenges existing content. When it challenges, raise it explicitly and discuss it with the user before deciding whether to revise the affected Conviction or insight.',
+  '',
+  'This document-improvement instinct is always on. Apply it whenever a fresh signal surfaces — chatting with the user, producing a deliverable, doing research, running web searches, reviewing a source they shared. Any context that surfaces new facts, sources, patterns, or stances is a chance to strengthen the document.',
+  '',
+  'The user should expect to come back to their document constantly. It is not a one-shot artifact — it grows with them.',
+  '',
+  "## THAT'S WHY ALL CONVERSATIONS MUST BE GUIDED BY THE DOCUMENT",
+  "No matter what task you are executing — drafting, analysing, discussing, researching, producing a deliverable — make sure you understand the user's current ideas, stances, and the current state of their document before you act. Use the `get_brainlift_assessment` tool to load ALL FOUR DOK LEVELS (1, 2, 3, AND 4) — every single one, every time. Loading only DOK4 or only one level is not enough; you need the full DOK1→DOK4 chain to work coherently. Do not work blind, and do not work on a partial picture.",
+  '',
+  "Before writing, editing, restructuring, grading, or curating a document — any document task — call `get_template` first. The template tool is the source of truth for format, quality philosophy, and what the grader rewards or penalizes. Do not improvise format or quality rules from memory. The user's grade and the document's usefulness depend on getting this right.",
+  '',
+  '## CREATE vs EDIT — NEVER CREATE A DUPLICATE DOCUMENT',
+  '`create_brainlift` creates a BRAND-NEW Document. It is NOT an update tool. To strengthen, refine, or extend an EXISTING document, use the edit tools: `edit_dok_item`, `create_dok2`, `create_dok3`, `create_dok4`, `link_dok3`, `link_dok4`, `delete_dok_item`, `dismiss_stale`. They mutate in place and trigger regrading automatically.',
+  '',
+  'MANDATORY workflow before calling `create_brainlift`:',
+  '1. Call `list_brainlifts` FIRST. Inspect every entry for topical overlap with what the user is bringing.',
+  '2. If a similar document exists, DO NOT create a new one. Open the existing one and use the edit tools to strengthen it. Tell the user you found their existing document on this topic and you will work on that one.',
+  '3. Only when no similar document exists, AND after confirming with the user, call `create_brainlift`.',
+  '',
+  'The backend rejects duplicate slugs with the error: "This Document already exists. Use the edit tools instead." When you see that error: STOP. Do NOT retry with a slightly different title to dodge the check. Call `list_brainlifts`, find the existing document, and use the edit tools.',
+  '',
+  '=== END OF DOCUMENT OPERATING PROTOCOLS ===',
+];

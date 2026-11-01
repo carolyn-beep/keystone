@@ -1,0 +1,345 @@
+import {
+  db, eq, and, sql,
+  facts, factVerifications, factModelScores, llmFeedback, modelAccuracyStats,
+  type Fact, type FactVerification, type InsertFactVerification, type FactModelScore, type InsertFactModelScore,
+  type FactWithVerification, type LlmFeedback, type ModelAccuracyStats
+} from './base';
+import { NotFoundError } from '../middleware/error-handler';
+import type {
+  FactVerificationModelResultInput,
+  PersistFactVerificationInput,
+} from '@shared/analytics-types';
+import type { VerificationStatus } from '@shared/schema';
+
+export async function getFactsForBrainlift(brainliftId: number): Promise<Fact[]> {
+  return await db.select().from(facts).where(eq(facts.brainliftId, brainliftId));
+}
+
+async function getFactVerification(factId: number): Promise<(FactVerification & { modelScores: FactModelScore[] }) | null> {
+  const [verification] = await db.select().from(factVerifications).where(eq(factVerifications.factId, factId));
+  if (!verification) return null;
+
+  const scores = await db.select().from(factModelScores).where(eq(factModelScores.verificationId, verification.id));
+  return { ...verification, modelScores: scores };
+}
+
+function deriveVerificationStatus(modelResults: FactVerificationModelResultInput[]): VerificationStatus {
+  if (modelResults.some((result) => result.status === 'completed')) {
+    return 'completed';
+  }
+  if (modelResults.some((result) => result.status === 'in_progress')) {
+    return 'in_progress';
+  }
+  return 'failed';
+}
+
+function buildFactModelScoreRows(
+  verificationId: number,
+  modelResults: FactVerificationModelResultInput[],
+): InsertFactModelScore[] {
+  const completedAt = new Date();
+
+  return modelResults.map((result) => ({
+    verificationId,
+    model: result.model,
+    score: result.score === null ? null : Math.round(result.score),
+    rationale: result.rationale,
+    status: result.status,
+    error: result.error,
+    completedAt,
+  }));
+}
+
+export function deriveVerificationStatusForTest(
+  modelResults: FactVerificationModelResultInput[],
+): VerificationStatus {
+  return deriveVerificationStatus(modelResults);
+}
+
+export function buildFactModelScoreRowsForTest(
+  verificationId: number,
+  modelResults: FactVerificationModelResultInput[],
+): InsertFactModelScore[] {
+  return buildFactModelScoreRows(verificationId, modelResults);
+}
+
+export async function getFactsWithVerifications(brainliftId: number): Promise<FactWithVerification[]> {
+  // Fetch all facts for this brainlift
+  const brainliftFacts = await db.select().from(facts).where(eq(facts.brainliftId, brainliftId));
+
+  if (brainliftFacts.length === 0) {
+    return [];
+  }
+
+  // Get all fact IDs
+  const factIds = brainliftFacts.map(f => f.id);
+
+  // Fetch all verifications for these facts in a single query
+  const verifications = await db.select().from(factVerifications)
+    .where(sql`${factVerifications.factId} IN (${sql.join(factIds.map(id => sql`${id}`), sql`, `)})`);
+
+  // Get all verification IDs
+  const verificationIds = verifications.map(v => v.id);
+
+  // Fetch all model scores for these verifications in a single query
+  let scores: FactModelScore[] = [];
+  if (verificationIds.length > 0) {
+    scores = await db.select().from(factModelScores)
+      .where(sql`${factModelScores.verificationId} IN (${sql.join(verificationIds.map(id => sql`${id}`), sql`, `)})`);
+  }
+
+  // Build a map of verificationId -> scores
+  const scoresByVerificationId = new Map<number, FactModelScore[]>();
+  for (const score of scores) {
+    const existing = scoresByVerificationId.get(score.verificationId) || [];
+    existing.push(score);
+    scoresByVerificationId.set(score.verificationId, existing);
+  }
+
+  // Build a map of factId -> verification with scores
+  const verificationByFactId = new Map<number, FactVerification & { modelScores: FactModelScore[] }>();
+  for (const v of verifications) {
+    verificationByFactId.set(v.factId, {
+      ...v,
+      modelScores: scoresByVerificationId.get(v.id) || [],
+    });
+  }
+
+  // Combine facts with their verifications
+  return brainliftFacts.map(fact => ({
+    ...fact,
+    verification: verificationByFactId.get(fact.id) || undefined,
+  }));
+}
+
+export async function createFactVerification(factId: number): Promise<FactVerification> {
+  const existing = await db.select().from(factVerifications).where(eq(factVerifications.factId, factId));
+  if (existing.length > 0) {
+    return existing[0];
+  }
+
+  const [verification] = await db.insert(factVerifications).values({
+    factId,
+    status: 'pending',
+  }).returning();
+  return verification;
+}
+
+export async function saveFactVerificationResult(
+  input: PersistFactVerificationInput,
+): Promise<FactVerification & { modelScores: FactModelScore[] }> {
+  return db.transaction(async (tx) => {
+    const [existingVerification] = await tx.select().from(factVerifications)
+      .where(eq(factVerifications.factId, input.factId));
+
+    const status = deriveVerificationStatus(input.verification.modelResults);
+    const verificationValues = {
+      factId: input.factId,
+      status,
+      evidenceUrl: input.evidence.url,
+      evidenceContent: input.evidence.content,
+      evidenceFetchedAt: input.evidence.fetchedAt,
+      evidenceError: input.evidence.error,
+      consensusScore: input.verification.consensus.consensusScore,
+      confidenceLevel: input.verification.consensus.confidenceLevel,
+      needsReview: input.verification.consensus.needsReview,
+      verificationNotes: input.verification.consensus.verificationNotes,
+      updatedAt: new Date(),
+    };
+
+    const verification = existingVerification
+      ? (await tx.update(factVerifications)
+          .set(verificationValues)
+          .where(eq(factVerifications.id, existingVerification.id))
+          .returning())[0]
+      : (await tx.insert(factVerifications).values({
+          ...verificationValues,
+          createdAt: new Date(),
+        }).returning())[0];
+
+    if (!verification) {
+      throw new Error('Failed to save fact verification');
+    }
+
+    await tx.delete(factModelScores).where(eq(factModelScores.verificationId, verification.id));
+
+    const modelScores = buildFactModelScoreRows(verification.id, input.verification.modelResults);
+    if (modelScores.length > 0) {
+      await tx.insert(factModelScores).values(modelScores as any);
+    }
+
+    const [savedVerification] = await tx.select().from(factVerifications).where(eq(factVerifications.id, verification.id));
+    const savedScores = await tx.select().from(factModelScores).where(eq(factModelScores.verificationId, verification.id));
+
+    return {
+      ...(savedVerification || verification),
+      modelScores: savedScores,
+    };
+  });
+}
+
+async function updateModelAccuracyStatsInternal(model: string, scoreDifference: number): Promise<void> {
+  const [existing] = await db.select().from(modelAccuracyStats)
+    .where(eq(modelAccuracyStats.model, model));
+
+  if (existing) {
+    const newTotalSamples = existing.totalSamples + 1;
+    const newTotalError = existing.totalAbsoluteError + scoreDifference;
+    const newMAE = newTotalSamples > 0 ? (newTotalError / newTotalSamples) : 0;
+    const newWeight = Math.min(2.0, Math.max(0.5, 1 / (newMAE + 0.5)));
+
+    await db.update(modelAccuracyStats)
+      .set({
+        totalSamples: newTotalSamples,
+        totalAbsoluteError: newTotalError,
+        meanAbsoluteError: newMAE.toFixed(3),
+        weight: newWeight.toFixed(3),
+        lastUpdated: new Date(),
+      })
+      .where(eq(modelAccuracyStats.id, existing.id));
+  } else {
+    const mae = scoreDifference;
+    const weight = Math.min(2.0, Math.max(0.5, 1 / (mae + 0.5)));
+
+    await db.insert(modelAccuracyStats).values({
+      model,
+      totalSamples: 1,
+      totalAbsoluteError: scoreDifference,
+      meanAbsoluteError: mae.toFixed(3),
+      weight: weight.toFixed(3),
+    });
+  }
+}
+
+export async function setHumanOverride(verificationId: number, score: number, notes: string): Promise<FactVerification> {
+  const [verification] = await db.select().from(factVerifications)
+    .where(eq(factVerifications.id, verificationId));
+
+  if (!verification) {
+    throw new Error('Verification not found');
+  }
+
+  const scores = await db.select().from(factModelScores)
+    .where(eq(factModelScores.verificationId, verificationId));
+
+  // Log feedback for each model that provided a score
+  for (const modelScore of scores) {
+    if (modelScore.score !== null && modelScore.status === 'completed') {
+      const scoreDiff = Math.abs(modelScore.score - score);
+
+      await db.insert(llmFeedback).values({
+        verificationId,
+        factId: verification.factId,
+        llmModel: modelScore.model,
+        llmScore: modelScore.score,
+        humanScore: score,
+        scoreDifference: scoreDiff,
+      });
+
+      await updateModelAccuracyStatsInternal(modelScore.model, scoreDiff);
+    }
+  }
+
+  const [updated] = await db.update(factVerifications)
+    .set({
+      humanOverrideScore: score,
+      humanOverrideNotes: notes,
+      humanOverrideAt: new Date(),
+      consensusScore: score,
+      needsReview: false,
+      confidenceLevel: 'high',
+      verificationNotes: `Human override: ${score}/5. ${notes || 'No additional notes.'}`,
+      updatedAt: new Date(),
+    })
+    .where(eq(factVerifications.id, verificationId))
+    .returning();
+  return updated;
+}
+
+/**
+ * Get fact by ID with brainlift ownership verification.
+ * Returns null if fact doesn't exist or doesn't belong to the brainlift.
+ */
+export async function getFactByIdForBrainlift(
+  factId: number,
+  brainliftId: number
+): Promise<Fact | null> {
+  const [fact] = await db.select().from(facts)
+    .where(and(eq(facts.id, factId), eq(facts.brainliftId, brainliftId)));
+  return fact || null;
+}
+
+/**
+ * Get fact verification with brainlift ownership verification.
+ * Returns null if fact doesn't exist or doesn't belong to the brainlift.
+ */
+export async function getFactVerificationForBrainlift(
+  factId: number,
+  brainliftId: number
+): Promise<(FactVerification & { modelScores: FactModelScore[] }) | null> {
+  const fact = await getFactByIdForBrainlift(factId, brainliftId);
+  if (!fact) return null;
+  return getFactVerification(factId);
+}
+
+/**
+ * Set human override with brainlift ownership verification.
+ * Throws NotFoundError if verification doesn't exist or its fact doesn't belong to the brainlift.
+ */
+export async function setHumanOverrideForBrainlift(
+  verificationId: number,
+  brainliftId: number,
+  score: number,
+  notes: string
+): Promise<FactVerification> {
+  // Join verification -> fact to verify brainlift ownership
+  const [verification] = await db
+    .select({ id: factVerifications.id })
+    .from(factVerifications)
+    .innerJoin(facts, eq(factVerifications.factId, facts.id))
+    .where(and(
+      eq(factVerifications.id, verificationId),
+      eq(facts.brainliftId, brainliftId)
+    ));
+
+  if (!verification) {
+    throw new NotFoundError('Verification not found');
+  }
+
+  return setHumanOverride(verificationId, score, notes);
+}
+
+/**
+ * Update a fact's grading fields in place.
+ * Uses brainliftId in WHERE clause for IDOR safety.
+ */
+export async function updateFactGrading(
+  factId: number,
+  brainliftId: number,
+  data: { score: number; note: string; noteRaw?: string; isGradeable: boolean; summary: string }
+): Promise<void> {
+  await db.update(facts).set({
+    score: data.score,
+    note: data.note,            // rewritten/user-facing
+    noteRaw: data.noteRaw ?? data.note, // grader original (defaults to note when not rewritten)
+    isGradeable: data.isGradeable,
+    summary: data.summary,
+  }).where(and(eq(facts.id, factId), eq(facts.brainliftId, brainliftId)));
+}
+
+/**
+ * Get the mean DOK1 score for a brainlift (only gradeable facts with score > 0).
+ * Returns null if no gradeable facts exist.
+ */
+export async function getDOK1MeanScore(brainliftId: number): Promise<number | null> {
+  const [result] = await db.select({
+    mean: sql<string | null>`AVG(${facts.score})`,
+  }).from(facts)
+    .where(and(
+      eq(facts.brainliftId, brainliftId),
+      eq(facts.isGradeable, true),
+      sql`${facts.score} > 0`
+    ));
+
+  return result?.mean ? parseFloat(result.mean) : null;
+}

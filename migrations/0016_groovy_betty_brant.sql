@@ -1,0 +1,1 @@
+ALTER TABLE "dok4_spovs" ADD COLUMN "insight_rankings" jsonb;

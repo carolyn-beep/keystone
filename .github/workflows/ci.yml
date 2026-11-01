@@ -1,0 +1,72 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+jobs:
+  # Builds the client for both brands. The `build` script runs
+  # `script/check-brand-bundle.ts` after Vite emits, which fails if the
+  # inactive brand's identifying strings (e.g. "Keystone", "Brainlift Central",
+  # branded CSS class prefixes) leak into the active bundle.
+  #
+  # This is the gate that should have caught the leaks fixed alongside this
+  # workflow. Render is no longer the only place this assertion runs.
+  brand-build:
+    name: build (${{ matrix.brand }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        brand: [Keystone, brainlift]
+    env:
+      VITE_BRAND: ${{ matrix.brand }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+
+  # Runs the full Vitest suite against a real Postgres with ALL migrations
+  # applied. `db:push` is deliberately NOT used: it skips the raw-SQL
+  # constraints/indexes in the migration files, and the suite fails without
+  # them. scripts/apply-migrations.mjs replays every migration instead
+  # (tolerating the harmless duplicate-object errors those files produce).
+  test:
+    name: test
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: keystone_ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/keystone_ci
+      BRAND: keystone
+      VITE_BRAND: keystone
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - name: Apply migrations
+        run: node scripts/apply-migrations.mjs
+      - name: Typecheck
+        run: npx tsc --noEmit
+      - name: Test
+        run: npm test

@@ -1,0 +1,53 @@
+node_modules
+dist
+.DS_Store
+server/public
+vite.config.ts.*
+*.tar.gz
+
+# Environment variables (local secrets - never commit!)
+*.env
+.env
+.env.local
+.env.*.local
+!.env.example
+
+# Swarm logs
+logs/
+
+client/src/assets/inspo/
+
+# Generated images
+generated-images/
+
+# Local-only dev tools (not part of the shipped app)
+tools/prompt-explorer/
+.venv/
+
+# One-off experiment and simulation scripts (never part of the app)
+scripts/brevity-*.mjs
+scripts/readability-*.mjs
+scripts/readability-*.py
+scripts/fk-*.mjs
+scripts/fk-*.mts
+scripts/mistral-examples.mjs
+scripts/title-gen-sim.ts
+scripts/topic-suggestions-sim*.ts
+scripts/create-test-account.ts
+scripts/verify-model-prices.ts
+scripts/ux-mockups/
+scripts/optimal-prompt/
+
+# Root-level ad-hoc probe/test scripts
+test-*.ts
+
+# Temp script files
+script/_tmp_*.ts
+
+# Notes / raw feedback / planning docs (local reference only)
+*-feedback-*.md
+roadmap-*.md
+*-notes.md
+*-raw.md
+backups/
+.codex
