@@ -30,6 +30,12 @@ import {
 import { SkillsLibraryView } from '@/components/skills/SkillsLibraryView';
 import { SkillsTrashView } from '@/components/skills/SkillsTrashView';
 import { SkillEditor, type SkillEditorHandle } from '@/components/skills/SkillEditor';
+import {
+  SKILL_DRAFT_HANDOFF_PARAM,
+  SKILL_DRAFT_HANDOFF_VALUE,
+  buildSkillDraftChatUrl,
+  consumeSkillDraftHandoff,
+} from '@/components/skills/skill-draft-handoff';
 
 type SkillsView = 'library' | 'create' | 'trash';
 const VALID_VIEWS: SkillsView[] = ['library', 'create', 'trash'];
@@ -68,6 +74,27 @@ export default function Skills() {
   const isEditing = rawView === 'edit' && Boolean(editingNameParam) && isAdmin;
 
   const [deleteTarget, setDeleteTarget] = useState<{ name: string } | null>(null);
+
+  // A draft handed over from the chat card. `view` only resolves to 'create'
+  // once the session says admin, so consume in an effect rather than a state
+  // initializer; the stash survives until then. The editor opens prefilled
+  // and dirty, so the nav guard protects it.
+  const [chatDraft, setChatDraft] = useState<SaveSkillRequest | null>(null);
+  const wantsChatDraft =
+    view === 'create' && params.get(SKILL_DRAFT_HANDOFF_PARAM) === SKILL_DRAFT_HANDOFF_VALUE;
+  useEffect(() => {
+    if (!wantsChatDraft || chatDraft) return;
+    const draft = consumeSkillDraftHandoff();
+    if (!draft) return;
+    setChatDraft({
+      name: draft.name,
+      description: draft.description,
+      body: draft.body,
+      visibility: draft.visibility,
+      references: draft.references.map((reference) => ({ path: reference.path, content: reference.content })),
+      shareIdentifiers: [],
+    });
+  }, [wantsChatDraft, chatDraft]);
 
   const [isDirty, setIsDirty] = useState(false);
   const [pendingNav, setPendingNav] = useState<string | null>(null);
@@ -145,6 +172,10 @@ export default function Skills() {
         variant: 'destructive',
       });
     }
+  };
+
+  const handleDraftWithChat = () => {
+    setLocation(buildSkillDraftChatUrl());
   };
 
   const handleSave = async (
@@ -327,6 +358,7 @@ export default function Skills() {
             onEdit={handleStartEdit}
             onDelete={(s) => setDeleteTarget({ name: s.name })}
             onCreateSkill={() => updateUrl({ view: 'create' })}
+            onDraftWithChat={handleDraftWithChat}
           />
         ) : view === 'create' ? (
           <SkillEditor
@@ -334,6 +366,7 @@ export default function Skills() {
             mode="create"
             detail={null}
             isLoadingDetail={false}
+            initialDraft={chatDraft}
             onSave={handleSave}
             onSaveSuccess={handleSaveSuccess}
             isSaving={createSkill.isPending}

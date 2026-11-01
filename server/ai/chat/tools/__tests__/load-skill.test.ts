@@ -96,6 +96,65 @@ describe('buildChatSkillTools', () => {
   });
 });
 
+describe('buildAdminSkillManagementTools: draft_skill', () => {
+  const draftInput = {
+    name: 'research-coach',
+    description: 'Use when the student says "find sources", "back this up" or "cite this". Drives web_search_exa and create_dok1. Use whenever a claim lacks a citation.',
+    body: '# Research Coach\n\nCoach the student to sources.\n\n## Procedure\n\n### Step 1: Search\n\nCall `web_search_exa`.\n',
+    visibility: 'private' as const,
+    references: [],
+  };
+
+  it('rejects non-admin execution', async () => {
+    const storage = {
+      createSkill: vi.fn(),
+      updateSkill: vi.fn(),
+      getSkillForUserByName: vi.fn(),
+      softDeleteSkill: vi.fn(),
+    };
+    const tools = buildAdminSkillManagementTools({ authContext, skillStorage: storage });
+    await expect(tools.draft_skill.execute(draftInput, createToolContext())).rejects.toThrow('Admin access required');
+  });
+
+  it('returns the validated draft with lint warnings and never writes', async () => {
+    const storage = {
+      createSkill: vi.fn(),
+      updateSkill: vi.fn(),
+      getSkillForUserByName: vi.fn().mockRejectedValue(new Error('Skill not found')),
+      softDeleteSkill: vi.fn(),
+    };
+    const tools = buildAdminSkillManagementTools({ authContext: adminContext, skillStorage: storage });
+
+    const result = await tools.draft_skill.execute(draftInput, createToolContext());
+
+    expect(result.kind).toBe('draft');
+    expect(result.draft).toMatchObject({ name: 'research-coach', visibility: 'private', references: [] });
+    expect(result.warnings).toEqual([]);
+    expect(storage.createSkill).not.toHaveBeenCalled();
+    expect(storage.updateSkill).not.toHaveBeenCalled();
+    expect(storage.getSkillForUserByName).toHaveBeenCalledWith(adminContext, 'research-coach', { includeDisabled: true });
+  });
+
+  it('warns when the name is already taken and surfaces format problems', async () => {
+    const storage = {
+      createSkill: vi.fn(),
+      updateSkill: vi.fn(),
+      getSkillForUserByName: vi.fn().mockResolvedValue({ name: 'research-coach' }),
+      softDeleteSkill: vi.fn(),
+    };
+    const tools = buildAdminSkillManagementTools({ authContext: adminContext, skillStorage: storage });
+
+    const result = await tools.draft_skill.execute(
+      { ...draftInput, description: 'A skill for finding sources.' },
+      createToolContext(),
+    );
+
+    const codes = result.warnings.map((warning) => warning.code);
+    expect(codes[0]).toBe('name-taken');
+    expect(codes).toContain('description-trigger');
+  });
+});
+
 describe('buildAdminSkillManagementTools', () => {
   it('rejects direct non-admin execution', async () => {
     const storage = {

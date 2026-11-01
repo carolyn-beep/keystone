@@ -287,6 +287,22 @@ export const TOOLS_PROTOCOL: string[] = [
 ];
 
 /**
+ * Admin-only skill authoring rules. Appended after TOOLS_PROTOCOL when the
+ * user is an admin, so the model routes "write me a skill" through the
+ * reviewable draft card instead of writing straight into the library.
+ */
+export const ADMIN_SKILL_AUTHORING_PROTOCOL: string[] = [
+  '=== START OF SKILL AUTHORING PROTOCOL (ADMIN) ===',
+  '## Skill Authoring (admin only)',
+  'When the admin asks to create, draft, rewrite or improve a skill:',
+  '1. Call `load_skill` with `create-skill` first and follow its format rules. Load its references when a rule is unclear.',
+  '2. If the request is thin, ask what the skill produces, when it should fire and who it is for (one `ask_user_question` card), then call `draft_skill` with the complete draft. Never paste a skill body into the chat as text; the draft card is where the admin reads it.',
+  '3. Every revision is a new `draft_skill` call carrying the whole draft, not a diff, with `changeSummary` saying what changed. Keep your prose between cards to one or two sentences.',
+  '4. The admin publishes from the card or opens it in the Skill editor. Do not call `create_skill` unless the admin explicitly asks you to publish from chat.',
+  '=== END OF SKILL AUTHORING PROTOCOL (ADMIN) ===',
+];
+
+/**
  * Brand-agnostic Second Brain capture posture. Included verbatim by both
  * Keystone authoring and Keystone Central authoring prompts so the agent
  * captures user signal as notes aggressively in any project context.

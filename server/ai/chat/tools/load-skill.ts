@@ -1,6 +1,12 @@
 import { tool } from 'ai';
 import { z } from 'zod';
 import type { AuthContext, SkillVisibility } from '@shared/schema';
+import {
+  lintSkillDraft,
+  skillDraftSchema,
+  type DraftSkillToolExecuteResult,
+  type SkillDraftWarning,
+} from '@shared/chat-skill-draft';
 import { storage as defaultStorage } from '../../../storage';
 import {
   UNKNOWN_SKILL_ERROR_MESSAGE,
@@ -129,8 +135,35 @@ export function buildAdminSkillManagementTools(args: BuildAdminSkillManagementTo
   const skillStorage = args.skillStorage ?? defaultStorage;
 
   return {
+    draft_skill: tool({
+      description: [
+        'Admin only. Draft a runtime skill for the admin to review on a card in the chat. Saves nothing.',
+        'Before the first draft in a conversation, call load_skill with "create-skill" and follow its format rules; load its references when a rule is unclear.',
+        'Send the complete draft every time: the first version and every revision the admin asks for, with changeSummary saying what changed. Never paste a skill body into the chat as text.',
+        'visibility is required; ask the admin if they have not said.',
+        'The admin publishes from the card or opens the draft in the Skill editor. Do not call create_skill unless the admin explicitly asks you to publish from chat.',
+      ].join(' '),
+      inputSchema: skillDraftSchema,
+      execute: async (input): Promise<DraftSkillToolExecuteResult> => {
+        assertAdmin(args.authContext);
+        const draft = skillDraftSchema.parse(input);
+        const warnings: SkillDraftWarning[] = [];
+        const existing = await skillStorage
+          .getSkillForUserByName(args.authContext, draft.name, { includeDisabled: true })
+          .catch(() => null);
+        if (existing) {
+          warnings.push({
+            code: 'name-taken',
+            message: `A skill named "${draft.name}" already exists. Publishing under this name will fail; pick another name or revise that skill with update_skill instead.`,
+          });
+        }
+        warnings.push(...lintSkillDraft(draft));
+        return { kind: 'draft', draft, warnings };
+      },
+    }),
+
     create_skill: tool({
-      description: 'Admin only. Create a runtime skill. Visibility must be set explicitly; there is no default. Edits affect new conversations reliably; start a new conversation if old skill text was already loaded.',
+      description: 'Admin only. Create a runtime skill directly, without a draft card. Prefer draft_skill; call this only when the admin explicitly asks to publish from chat. Visibility must be set explicitly; there is no default. Edits affect new conversations reliably; start a new conversation if old skill text was already loaded.',
       inputSchema: z.object({
         name: z.string().trim().min(1).describe('Lowercase kebab-case skill name'),
         description: z.string().trim().min(1).max(500),

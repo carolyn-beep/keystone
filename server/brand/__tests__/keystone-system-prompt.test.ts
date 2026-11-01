@@ -116,6 +116,22 @@ describe('buildKeystoneSystemPrompt', () => {
     expect(prompt).toContain('sprint-execution: Keep sprint work concrete and deliverable-driven.');
   });
 
+  it('adds the skill authoring protocol for admins only', () => {
+    const adminPrompt = buildKeystoneSystemPrompt({ userContext: multiBrainliftContext, skills: [] });
+    expect(adminPrompt).toContain('## Skill Authoring (admin only)');
+    expect(adminPrompt).toContain('`draft_skill`');
+    expect(adminPrompt.indexOf('=== END OF TOOLS PROTOCOL ===')).toBeLessThan(
+      adminPrompt.indexOf('=== START OF SKILL AUTHORING PROTOCOL (ADMIN) ==='),
+    );
+
+    const studentPrompt = buildKeystoneSystemPrompt({
+      userContext: { ...multiBrainliftContext, isAdmin: false },
+      skills: [],
+    });
+    expect(studentPrompt).not.toContain('Skill Authoring');
+    expect(studentPrompt).not.toContain('draft_skill');
+  });
+
   it('renders recent conversations under user context with last-activity dates', () => {
     const prompt = buildKeystoneSystemPrompt({
       userContext: multiBrainliftContext,

@@ -117,6 +117,11 @@ interface SkillEditorProps {
   mode: 'create' | 'edit';
   detail: SkillDetail | null;
   isLoadingDetail: boolean;
+  /**
+   * Create mode only: a draft handed over from chat. The form opens filled
+   * in and already dirty, so the unsaved-changes guard protects it.
+   */
+  initialDraft?: SaveSkillRequest | null;
   onSave: (
     input: SaveSkillRequest,
     mode: 'create' | 'edit',
@@ -282,6 +287,7 @@ export const SkillEditor = forwardRef<SkillEditorHandle, SkillEditorProps>(funct
   mode,
   detail,
   isLoadingDetail,
+  initialDraft = null,
   onSave,
   onSaveSuccess,
   onDelete,
@@ -300,7 +306,7 @@ export const SkillEditor = forwardRef<SkillEditorHandle, SkillEditorProps>(funct
   useEffect(() => {
     if (mode === 'create') {
       const empty = { ...EMPTY_DRAFT, references: [] };
-      setDraft(empty);
+      setDraft(initialDraft ? { ...initialDraft, references: [...initialDraft.references] } : empty);
       setBaseline(empty);
       return;
     }
@@ -315,7 +321,7 @@ export const SkillEditor = forwardRef<SkillEditorHandle, SkillEditorProps>(funct
     };
     setDraft(next);
     setBaseline(next);
-  }, [mode, detail]);
+  }, [mode, detail, initialDraft]);
 
   const isDirty = !isSameDraft(draft, baseline);
   useEffect(() => {
@@ -369,9 +375,11 @@ export const SkillEditor = forwardRef<SkillEditorHandle, SkillEditorProps>(funct
   const hero = useMemo(() => {
     if (mode === 'create') {
       return {
-        eyebrow: 'Creating new skill',
-        title: 'New Skill',
-        lede: 'Skills are reusable prompts available to chat conversations. Once published, anyone with access (everyone for public skills, or only the people you share with for private skills) can summon this skill from a new chat. Edits affect new conversations only.',
+        eyebrow: initialDraft ? 'Drafted in chat' : 'Creating new skill',
+        title: initialDraft?.name || 'New Skill',
+        lede: initialDraft
+          ? 'This draft came from your chat. Nothing is saved yet: proof it here, adjust what you like, then publish.'
+          : 'Skills are reusable prompts available to chat conversations. Once published, anyone with access (everyone for public skills, or only the people you share with for private skills) can summon this skill from a new chat. Edits affect new conversations only.',
       };
     }
     return {
@@ -379,7 +387,7 @@ export const SkillEditor = forwardRef<SkillEditorHandle, SkillEditorProps>(funct
       title: detail?.name ?? '...',
       lede: 'Edits affect new conversations. Existing chats keep the version of the skill that was loaded when they started; users will need to start a new conversation to pick up your changes.',
     };
-  }, [mode, detail]);
+  }, [mode, detail, initialDraft]);
 
   if (mode === 'edit' && isLoadingDetail && !detail) {
     return (

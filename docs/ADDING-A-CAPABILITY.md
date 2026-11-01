@@ -16,7 +16,7 @@ Skills are the fast path for domain teams (no platform expertise required). Tool
 
 ## Path A — a Skill (from chat, no code)
 
-An admin describes the skill in conversation; the seeded `create-skill` skill drives a **draft → review → save** loop. The write goes through the authoring tools (`create_skill`, `update_skill`, `add_skill_reference`, …), which are gated by `AuthContext.isAdmin` in [`server/ai/chat/tools/index.ts`](../server/ai/chat/tools/index.ts) and validated by the atomic save path in [`server/storage/skills.ts`](../server/storage/skills.ts).
+An admin describes the skill in conversation. The model loads the seeded `create-skill` guide, then calls `draft_skill` ([`shared/chat-skill-draft.ts`](../shared/chat-skill-draft.ts)), which validates the hard rules, runs the soft-format lint and returns the draft to a reviewable card in the thread ([`client/src/components/chat/SkillDraftCard.tsx`](../client/src/components/chat/SkillDraftCard.tsx)). The admin iterates by replying (each revision is a new card; earlier cards freeze) and publishes from the card through `POST /api/skills`, or opens the draft in the Skill editor for hand edits. Direct writes from chat (`create_skill`, `update_skill`, `add_skill_reference`, …) remain for explicit requests; all of it is gated by `AuthContext.isAdmin` in [`server/ai/chat/tools/index.ts`](../server/ai/chat/tools/index.ts) and validated by the atomic save path in [`server/storage/skills.ts`](../server/storage/skills.ts).
 
 **What the platform enforces on every write** (see `server/storage/skills.ts`):
 

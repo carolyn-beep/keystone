@@ -54,6 +54,8 @@ import { useCategories } from '@/hooks/useCategories';
 import { AskUserQuestionCard } from './AskUserQuestionCard';
 import { ChatComposer } from './ChatComposer';
 import { ProposeResearchRunCard } from './ProposeResearchRunCard';
+import { SkillDraftCard } from './SkillDraftCard';
+import type { DraftSkillToolInput, DraftSkillToolResult } from '@shared/chat-skill-draft';
 
 const MarkdownText = makeMarkdownText({ remarkPlugins: [remarkGfm] });
 
@@ -1367,6 +1369,13 @@ const ProposeResearchRunToolUI = makeAssistantToolUI<
   render: ProposeResearchRunCard,
 });
 
+// ---------- Skill draft (admin only; server execute + reviewable card) ----------
+
+const SkillDraftToolUI = makeAssistantToolUI<DraftSkillToolInput, DraftSkillToolResult>({
+  toolName: 'draft_skill',
+  render: SkillDraftCard,
+});
+
 /**
  * UserMessage variant that hides the chat opener-prompt user message from
  * the visible thread. The message stays in the runtime state and the DB —
@@ -1442,6 +1451,8 @@ export const nativeChatToolUIs = [
   AskUserQuestionToolUI,
   // Research stream proposal
   ProposeResearchRunToolUI,
+  // Skill draft (admin)
+  SkillDraftToolUI,
 ];
 
 export function buildNativeChatThreadConfig() {

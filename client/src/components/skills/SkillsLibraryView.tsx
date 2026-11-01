@@ -18,6 +18,8 @@ interface SkillsLibraryViewProps {
   onEdit: (skill: SkillListItem) => void;
   onDelete: (skill: SkillListItem) => void;
   onCreateSkill: () => void;
+  /** Admin only: open a chat that drafts a skill with the model. */
+  onDraftWithChat: () => void;
 }
 
 type SortMode = 'recent' | 'name' | 'references';
@@ -49,6 +51,7 @@ export function SkillsLibraryView({
   onEdit,
   onDelete,
   onCreateSkill,
+  onDraftWithChat,
 }: SkillsLibraryViewProps) {
   const [query, setQuery] = useState('');
   const [filter, setFilter] = useState<FilterId>('all');
@@ -122,10 +125,10 @@ export function SkillsLibraryView({
                 Skill Creator
               </h2>
               <p className="mt-2 max-w-2xl font-serif text-[14px] italic leading-relaxed text-muted-foreground">
-                Design and publish custom skills in minutes. Combine prompts, knowledge, and references to fit your team's unique workflows.
+                Design and publish custom skills in minutes. Write one yourself, or draft it with the model in chat and proof it before it goes live.
               </p>
               <div className="mt-3 flex flex-wrap gap-1.5">
-                {['Creation', 'No code', 'Team enablement'].map((tag) => (
+                {['Creation', 'Draft with chat', 'Team enablement'].map((tag) => (
                   <span
                     key={tag}
                     className="rounded-md bg-muted/70 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.18em] text-muted-foreground"
@@ -134,7 +137,7 @@ export function SkillsLibraryView({
                   </span>
                 ))}
               </div>
-              <div className="mt-4">
+              <div className="mt-4 flex flex-wrap gap-2">
                 <TactileButton
                   type="button"
                   variant="raised"
@@ -142,6 +145,14 @@ export function SkillsLibraryView({
                   onClick={onCreateSkill}
                 >
                   Open creator →
+                </TactileButton>
+                <TactileButton
+                  type="button"
+                  variant="inset"
+                  className="text-[12px]"
+                  onClick={onDraftWithChat}
+                >
+                  Draft with Chat
                 </TactileButton>
               </div>
             </div>
