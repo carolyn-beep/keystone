@@ -13,7 +13,9 @@ export const SWARM_AGENT_RECOVERY_MAX_STEPS = 25;
 /** Per-slot step cap for quick (starter-pack) runs — cheaper, faster. */
 export const SWARM_AGENT_QUICK_MAX_STEPS = 20;
 /** Forced slot model for quick runs (overrides any orchestrator-assigned model). */
-const SWARM_QUICK_MODEL = 'anthropic/claude-haiku-4.5';
+/** Default model for fanned research agents and for quick (starter-pack) runs. */
+export const SWARM_DEFAULT_SLOT_MODEL = 'anthropic/claude-haiku-5.5';
+const SWARM_QUICK_MODEL = SWARM_DEFAULT_SLOT_MODEL;
 
 export interface SlotUsage {
   slotIdx: number;
@@ -115,7 +117,7 @@ async function runSlot(
   const startedAt = Date.now();
   // Quick (starter-pack) runs force the fast model regardless of the
   // orchestrator-assigned slot model; normal runs honor the slot model.
-  const model = quick ? SWARM_QUICK_MODEL : (slot.model ?? 'anthropic/claude-haiku-4.5');
+  const model = quick ? SWARM_QUICK_MODEL : (slot.model ?? SWARM_DEFAULT_SLOT_MODEL);
   const maxSteps = quick ? SWARM_AGENT_QUICK_MAX_STEPS : SWARM_AGENT_MAX_STEPS;
   const id = registerSlot(brainliftId, runId, slot, idx);
   let saved = 0;
@@ -356,7 +358,7 @@ export async function runResearchSwarm(
       usage: {
         slotIdx: idx,
         type: slot.type,
-        model: slot.model ?? 'anthropic/claude-haiku-4.5',
+        model: slot.model ?? SWARM_DEFAULT_SLOT_MODEL,
         inputTokens: 0,
         outputTokens: 0,
         durationMs: 0,

@@ -762,7 +762,7 @@ export async function findContradictions(facts: any[]): Promise<any[]> {
   try {
     const contradictionStart = performance.now();
     const callResult = await callModel({
-      model: 'anthropic/claude-sonnet-4',
+      model: 'anthropic/claude-sonnet-5.5',
       system: `You detect FACTUAL / LOGICAL contradictions (aka "competing claims") between facts.
 
 IMPORTANT: A single fact entry may contain MULTIPLE claims. When referencing specific claims, use sub-IDs:

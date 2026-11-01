@@ -23,17 +23,17 @@ describe('chat schema contract', () => {
 describe('CHAT_MODELS', () => {
   it('keeps the curated native chat model set in one shared place', () => {
     expect(CHAT_MODELS.map((model) => model.id)).toEqual([
-      'anthropic/claude-opus-4.8',
-      'anthropic/claude-sonnet-4.6',
+      'anthropic/claude-opus-5.5',
+      'anthropic/claude-sonnet-5.5',
       'openai/gpt-5.5',
       'google/gemini-3-flash-preview',
       'qwen/qwen-plus',
-      'anthropic/claude-haiku-4.5',
+      'anthropic/claude-haiku-5.5',
     ]);
   });
 
   it('exposes a default model that is part of the curated list', () => {
-    expect(DEFAULT_CHAT_MODEL_ID).toBe('anthropic/claude-sonnet-4.6');
+    expect(DEFAULT_CHAT_MODEL_ID).toBe('anthropic/claude-sonnet-5.5');
     expect(CHAT_MODELS.some((model) => model.id === DEFAULT_CHAT_MODEL_ID)).toBe(true);
   });
 

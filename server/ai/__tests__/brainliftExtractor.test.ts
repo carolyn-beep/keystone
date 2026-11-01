@@ -162,7 +162,7 @@ describe('brainliftExtractor - findContradictions', () => {
   it('calls callModel with correct model and caller', async () => {
     mockCallModel.mockResolvedValue({
       content: JSON.stringify({ result: 'NONE' }),
-      model: 'anthropic/claude-sonnet-4',
+      model: 'anthropic/claude-sonnet-5.5',
       durationMs: 200,
       attempts: 1,
     });
@@ -176,7 +176,7 @@ describe('brainliftExtractor - findContradictions', () => {
 
     expect(mockCallModel).toHaveBeenCalledWith(
       expect.objectContaining({
-        model: 'anthropic/claude-sonnet-4',
+        model: 'anthropic/claude-sonnet-5.5',
         timeout: 60_000,
         caller: 'brainliftExtractor.contradictions',
       }),
@@ -195,7 +195,7 @@ describe('brainliftExtractor - findContradictions', () => {
         title: 'Access vs Equity',
         tension: 'Wide access benefits (Fact 1.1) vs equity concerns (Fact 2.1)',
       }),
-      model: 'anthropic/claude-sonnet-4',
+      model: 'anthropic/claude-sonnet-5.5',
       durationMs: 200,
       attempts: 1,
     });

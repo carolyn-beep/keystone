@@ -98,11 +98,11 @@ describe('callModelWithFallback — happy path', () => {
     const { callModelWithFallback } = await import('../index');
 
     globalThis.fetch = mockFetchForModel({
-      'anthropic/claude-sonnet-4': { ok: true, status: 200, content: 'sonnet response' },
+      'anthropic/claude-sonnet-4.6': { ok: true, status: 200, content: 'sonnet response' },
     });
 
     const result = await callModelWithFallback({
-      models: ['anthropic/claude-sonnet-4', 'anthropic/claude-haiku-4.5'],
+      models: ['anthropic/claude-sonnet-4.6', 'anthropic/claude-haiku-4.5'],
       messages: [{ role: 'user', content: 'test' }],
       caller: 'test',
       timeout: 30_000,
@@ -110,19 +110,19 @@ describe('callModelWithFallback — happy path', () => {
     });
 
     expect(result.content).toBe('sonnet response');
-    expect(result.model).toBe('anthropic/claude-sonnet-4');
+    expect(result.model).toBe('anthropic/claude-sonnet-4.6');
   });
 
   it('result.model reflects which model actually responded', async () => {
     const { callModelWithFallback } = await import('../index');
 
     globalThis.fetch = mockFetchForModel({
-      'anthropic/claude-sonnet-4': { ok: false, status: 400 },
+      'anthropic/claude-sonnet-4.6': { ok: false, status: 400 },
       'anthropic/claude-haiku-4.5': { ok: true, status: 200, content: 'haiku saved the day' },
     });
 
     const result = await callModelWithFallback({
-      models: ['anthropic/claude-sonnet-4', 'anthropic/claude-haiku-4.5'],
+      models: ['anthropic/claude-sonnet-4.6', 'anthropic/claude-haiku-4.5'],
       messages: [{ role: 'user', content: 'test' }],
       caller: 'test',
       timeout: 30_000,
@@ -143,12 +143,12 @@ describe('callModelWithFallback — fallback', () => {
     const { callModelWithFallback } = await import('../index');
 
     globalThis.fetch = mockFetchForModel({
-      'anthropic/claude-sonnet-4': { ok: false, status: 500 },
+      'anthropic/claude-sonnet-4.6': { ok: false, status: 500 },
       'anthropic/claude-haiku-4.5': { ok: true, status: 200, content: 'fallback result' },
     });
 
     const result = await callModelWithFallback({
-      models: ['anthropic/claude-sonnet-4', 'anthropic/claude-haiku-4.5'],
+      models: ['anthropic/claude-sonnet-4.6', 'anthropic/claude-haiku-4.5'],
       messages: [{ role: 'user', content: 'test' }],
       caller: 'test',
       timeout: 30_000,
@@ -165,14 +165,14 @@ describe('callModelWithFallback — fallback', () => {
 
     globalThis.fetch = mockFetchForModel({
       'anthropic/claude-opus-4.6': { ok: false, status: 500 },
-      'anthropic/claude-sonnet-4': { ok: false, status: 502 },
+      'anthropic/claude-sonnet-4.6': { ok: false, status: 502 },
       'google/gemini-2.5-flash-lite': { ok: true, status: 200, content: 'gemini saves' },
     });
 
     const result = await callModelWithFallback({
       models: [
         'anthropic/claude-opus-4.6',
-        'anthropic/claude-sonnet-4',
+        'anthropic/claude-sonnet-4.6',
         'google/gemini-2.5-flash-lite',
       ],
       messages: [{ role: 'user', content: 'test' }],
@@ -253,7 +253,7 @@ describe('callModelWithFallback — fallback', () => {
     const { callModelWithFallback } = await import('../index');
 
     globalThis.fetch = mockFetchForModel({
-      'anthropic/claude-sonnet-4': {
+      'anthropic/claude-sonnet-4.6': {
         ok: false,
         status: 429,
         headers: { 'Retry-After': '11' },
@@ -262,7 +262,7 @@ describe('callModelWithFallback — fallback', () => {
     });
 
     const result = await callModelWithFallback({
-      models: ['anthropic/claude-sonnet-4', 'anthropic/claude-haiku-4.5'],
+      models: ['anthropic/claude-sonnet-4.6', 'anthropic/claude-haiku-4.5'],
       messages: [{ role: 'user', content: 'test' }],
       caller: 'test',
       timeout: 30_000,
@@ -279,13 +279,13 @@ describe('callModelWithFallback — fallback', () => {
     const { AllModelsFailed } = await import('../errors');
 
     globalThis.fetch = mockFetchForModel({
-      'anthropic/claude-sonnet-4': { ok: false, status: 500 },
+      'anthropic/claude-sonnet-4.6': { ok: false, status: 500 },
       'anthropic/claude-haiku-4.5': { ok: false, status: 400 },
     });
 
     await expect(
       callModelWithFallback({
-        models: ['anthropic/claude-sonnet-4', 'anthropic/claude-haiku-4.5'],
+        models: ['anthropic/claude-sonnet-4.6', 'anthropic/claude-haiku-4.5'],
         messages: [{ role: 'user', content: 'test' }],
         caller: 'test',
         timeout: 30_000,
@@ -336,12 +336,12 @@ describe('callModelWithFallback — CallRecord emission', () => {
     setCallRecorder((record) => records.push(record));
 
     globalThis.fetch = mockFetchForModel({
-      'anthropic/claude-sonnet-4': { ok: false, status: 500 },
+      'anthropic/claude-sonnet-4.6': { ok: false, status: 500 },
       'anthropic/claude-haiku-4.5': { ok: true, status: 200, content: 'ok' },
     });
 
     await callModelWithFallback({
-      models: ['anthropic/claude-sonnet-4', 'anthropic/claude-haiku-4.5'],
+      models: ['anthropic/claude-sonnet-4.6', 'anthropic/claude-haiku-4.5'],
       messages: [{ role: 'user', content: 'test' }],
       caller: 'test-fallback',
       timeout: 30_000,
@@ -351,7 +351,7 @@ describe('callModelWithFallback — CallRecord emission', () => {
     // Should have 2 records: one for the failed model, one for the successful model
     expect(records).toHaveLength(2);
     expect(records[0].status).toBe('error');
-    expect(records[0].requestedModel).toBe('anthropic/claude-sonnet-4');
+    expect(records[0].requestedModel).toBe('anthropic/claude-sonnet-4.6');
     expect(records[1].status).toBe('success');
     expect(records[1].requestedModel).toBe('anthropic/claude-haiku-4.5');
   });

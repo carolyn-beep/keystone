@@ -6,13 +6,13 @@ export interface ChatModelOption {
 
 export const CHAT_MODELS = [
   {
-    id: 'anthropic/claude-opus-4.8',
-    label: 'Claude Opus 4.8',
+    id: 'anthropic/claude-opus-5.5',
+    label: 'Claude Opus 5.5',
     description: 'Latest top-tier reasoning for the hardest chat turns.',
   },
   {
-    id: 'anthropic/claude-sonnet-4.6',
-    label: 'Claude Sonnet 4.6',
+    id: 'anthropic/claude-sonnet-5.5',
+    label: 'Claude Sonnet 5.5',
     description: 'Best default for deep chat turns and multi-step reasoning.',
   },
   {
@@ -31,15 +31,15 @@ export const CHAT_MODELS = [
     description: 'Fast general-purpose model for everyday chat turns.',
   },
   {
-    id: 'anthropic/claude-haiku-4.5',
-    label: 'Claude Haiku 4.5',
+    id: 'anthropic/claude-haiku-5.5',
+    label: 'Claude Haiku 5.5',
     description: 'Lower-latency option for lightweight chat work.',
   },
 ] as const satisfies readonly ChatModelOption[];
 
 export type ChatModelId = (typeof CHAT_MODELS)[number]['id'];
 
-export const DEFAULT_CHAT_MODEL_ID: ChatModelId = 'anthropic/claude-sonnet-4.6';
+export const DEFAULT_CHAT_MODEL_ID: ChatModelId = 'anthropic/claude-sonnet-5.5';
 
 const CHAT_MODEL_ID_SET = new Set<string>(CHAT_MODELS.map((model) => model.id));
 

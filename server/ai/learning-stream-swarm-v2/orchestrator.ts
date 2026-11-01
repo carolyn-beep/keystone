@@ -15,8 +15,8 @@ import { storage } from '../../storage';
 const RECENT_RUNS_LOOKBACK = 3;
 
 const ORCHESTRATOR_MODELS = [
-  'anthropic/claude-opus-4.7',
-  'anthropic/claude-sonnet-4.6',
+  'anthropic/claude-opus-5.5',
+  'anthropic/claude-sonnet-5.5',
   'qwen/qwen-plus',
 ] as const;
 

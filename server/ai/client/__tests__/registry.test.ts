@@ -22,12 +22,14 @@ import type { ModelDef } from '../types';
 
 describe('MODEL_REGISTRY', () => {
   const OPENROUTER_MODELS = [
+    'anthropic/claude-opus-5.5',
     'anthropic/claude-opus-4.8',
     'anthropic/claude-opus-4.7',
     'anthropic/claude-opus-4.6',
+    'anthropic/claude-sonnet-5.5',
     'anthropic/claude-sonnet-4.6',
     'anthropic/claude-sonnet-4.5',
-    'anthropic/claude-sonnet-4',
+    'anthropic/claude-haiku-5.5',
     'anthropic/claude-haiku-4.5',
     'google/gemini-2.5-flash-lite',
     'qwen/qwen-plus',
@@ -71,11 +73,14 @@ describe('MODEL_REGISTRY', () => {
   });
 
   it('assigns correct tiers', () => {
+    expect(MODEL_REGISTRY['anthropic/claude-opus-5.5'].tier).toBe('premium');
     expect(MODEL_REGISTRY['anthropic/claude-opus-4.7'].tier).toBe('premium');
     expect(MODEL_REGISTRY['anthropic/claude-opus-4.6'].tier).toBe('premium');
+    expect(MODEL_REGISTRY['anthropic/claude-sonnet-5.5'].tier).toBe('standard');
     expect(MODEL_REGISTRY['anthropic/claude-sonnet-4.6'].tier).toBe('standard');
     expect(MODEL_REGISTRY['anthropic/claude-sonnet-4.5'].tier).toBe('standard');
-    expect(MODEL_REGISTRY['anthropic/claude-sonnet-4'].tier).toBe('standard');
+    expect(MODEL_REGISTRY['anthropic/claude-sonnet-4']).toBeUndefined();
+    expect(MODEL_REGISTRY['anthropic/claude-haiku-5.5'].tier).toBe('fast');
     expect(MODEL_REGISTRY['anthropic/claude-haiku-4.5'].tier).toBe('fast');
     expect(MODEL_REGISTRY['google/gemini-2.5-flash-lite'].tier).toBe('fast');
     expect(MODEL_REGISTRY['qwen/qwen-plus'].tier).toBe('fast');
@@ -159,7 +164,6 @@ describe('getFireworksFallback', () => {
   it.each([
     'anthropic/claude-sonnet-4.6',
     'anthropic/claude-sonnet-4.5',
-    'anthropic/claude-sonnet-4',
   ])('maps standard model "%s" to standard Fireworks model', (modelId) => {
     const fallback = getFireworksFallback(modelId);
     expect(fallback).toBe(FIREWORKS_TIER_MODELS.standard);

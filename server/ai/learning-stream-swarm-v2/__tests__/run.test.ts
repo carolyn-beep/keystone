@@ -130,7 +130,7 @@ describe('runResearchSwarm', () => {
     }, 100);
 
     expect(mocks.getChatModel).toHaveBeenCalledWith('anthropic/claude-sonnet-4.6');
-    expect(mocks.getChatModel).toHaveBeenCalledWith('anthropic/claude-haiku-4.5');
+    expect(mocks.getChatModel).toHaveBeenCalledWith('anthropic/claude-haiku-5.5');
   });
 
   it('passes orchestrator notes into each fanned agent prompt', async () => {
@@ -336,7 +336,7 @@ describe('runResearchSwarm', () => {
         quick: true,
       }, 202);
 
-      expect(mocks.getChatModel).toHaveBeenCalledWith('anthropic/claude-haiku-4.5');
+      expect(mocks.getChatModel).toHaveBeenCalledWith('anthropic/claude-haiku-5.5');
       expect(mocks.getChatModel).not.toHaveBeenCalledWith('anthropic/claude-sonnet-4.6');
     });
 
@@ -381,7 +381,7 @@ describe('runResearchSwarm', () => {
       expect(mocks.streamText).toHaveBeenCalledTimes(2);
       expect(mocks.stepCountIs).toHaveBeenCalledWith(SWARM_AGENT_MAX_STEPS);
       expect(mocks.stepCountIs).toHaveBeenCalledWith(SWARM_AGENT_RECOVERY_MAX_STEPS);
-      expect(mocks.getChatModel).toHaveBeenCalledWith('anthropic/claude-haiku-4.5');
+      expect(mocks.getChatModel).toHaveBeenCalledWith('anthropic/claude-haiku-5.5');
     });
   });
 });

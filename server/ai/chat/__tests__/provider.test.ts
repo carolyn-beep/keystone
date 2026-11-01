@@ -114,7 +114,7 @@ describe('getChatModel', () => {
       status: 200,
       headers: new Headers({ 'content-type': 'text/event-stream' }),
       body: makeSseStream([
-        'data: {"id":"resp-1","model":"anthropic/claude-haiku-4.5","choices":[{"delta":{"content":"Hel"}}]}\n\n',
+        'data: {"id":"resp-1","model":"anthropic/claude-haiku-5.5","choices":[{"delta":{"content":"Hel"}}]}\n\n',
         'data: {"choices":[{"delta":{"content":"lo"}}]}\n\n',
         'data: {"choices":[{"finish_reason":"stop"}],"usage":{"prompt_tokens":5,"completion_tokens":2,"total_tokens":7}}\n\n',
         'data: [DONE]\n\n',
@@ -122,7 +122,7 @@ describe('getChatModel', () => {
     });
     globalThis.fetch = fetchMock as typeof globalThis.fetch;
 
-    const model = getChatModel('anthropic/claude-haiku-4.5');
+    const model = getChatModel('anthropic/claude-haiku-5.5');
     const { stream } = await model.doStream({
       prompt: [
         {
@@ -138,7 +138,7 @@ describe('getChatModel', () => {
       {
         type: 'response-metadata',
         id: 'resp-1',
-        modelId: 'anthropic/claude-haiku-4.5',
+        modelId: 'anthropic/claude-haiku-5.5',
         timestamp: expect.any(Date),
       },
       { type: 'text-start', id: 'text-1' },
@@ -163,7 +163,7 @@ describe('getChatModel', () => {
       status: 200,
       headers: new Headers({ 'content-type': 'text/event-stream' }),
       body: makeSseStream([
-        'data: {"id":"resp-usage","model":"anthropic/claude-haiku-4.5","choices":[{"delta":{"content":"Done"}}]}\n\n',
+        'data: {"id":"resp-usage","model":"anthropic/claude-haiku-5.5","choices":[{"delta":{"content":"Done"}}]}\n\n',
         'data: {"choices":[{"finish_reason":"stop"}]}\n\n',
         'data: {"choices":[],"usage":{"prompt_tokens":13,"completion_tokens":4,"total_tokens":17}}\n\n',
         'data: [DONE]\n\n',
@@ -171,7 +171,7 @@ describe('getChatModel', () => {
     });
     globalThis.fetch = fetchMock as typeof globalThis.fetch;
 
-    const model = getChatModel('anthropic/claude-haiku-4.5');
+    const model = getChatModel('anthropic/claude-haiku-5.5');
     const { stream } = await model.doStream({
       prompt: [
         {

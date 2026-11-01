@@ -60,10 +60,10 @@ describe('orchestrate', () => {
     mocks.buildSwarmContext.mockResolvedValue(contextFixture);
   });
 
-  it('uses Opus 4.7 once on the happy path', async () => {
+  it('uses Opus 5.5 once on the happy path', async () => {
     mocks.callModelWithFallback.mockResolvedValue({
       content: JSON.stringify(validRunSpec),
-      model: 'anthropic/claude-opus-4.7',
+      model: 'anthropic/claude-opus-5.5',
       usage: { promptTokens: 10, completionTokens: 20, totalTokens: 30 },
       durationMs: 123,
       attempts: 1,
@@ -74,13 +74,13 @@ describe('orchestrate', () => {
 
     expect(mocks.callModelWithFallback).toHaveBeenCalledOnce();
     expect(mocks.callModelWithFallback).toHaveBeenCalledWith(expect.objectContaining({
-      models: ['anthropic/claude-opus-4.7', 'anthropic/claude-sonnet-4.6', 'qwen/qwen-plus'],
+      models: ['anthropic/claude-opus-5.5', 'anthropic/claude-sonnet-5.5', 'qwen/qwen-plus'],
       caller: 'researchStreamV2.orchestrator',
       retries: 0,
     }));
     expect(result).toMatchObject({
       runSpec: validRunSpec,
-      modelUsed: 'anthropic/claude-opus-4.7',
+      modelUsed: 'anthropic/claude-opus-5.5',
       usedDefault: false,
       usage: { inputTokens: 10, outputTokens: 20 },
     });
@@ -89,7 +89,7 @@ describe('orchestrate', () => {
   it('includes run request constraints in the system prompt', async () => {
     mocks.callModelWithFallback.mockResolvedValue({
       content: JSON.stringify(validRunSpec),
-      model: 'anthropic/claude-opus-4.7',
+      model: 'anthropic/claude-opus-5.5',
       usage: { promptTokens: 1, completionTokens: 1, totalTokens: 2 },
       durationMs: 123,
       attempts: 1,
@@ -145,7 +145,7 @@ describe('orchestrate', () => {
   it('passes schema validation into the unified client', async () => {
     mocks.callModelWithFallback.mockResolvedValue({
       content: JSON.stringify(validRunSpec),
-      model: 'anthropic/claude-sonnet-4.6',
+      model: 'anthropic/claude-sonnet-5.5',
       usage: { promptTokens: 2, completionTokens: 3, totalTokens: 5 },
       durationMs: 123,
       attempts: 2,
@@ -155,7 +155,7 @@ describe('orchestrate', () => {
     const result = await orchestrate(1, {});
     const validate = mocks.callModelWithFallback.mock.calls[0][0].validate;
 
-    expect(result.modelUsed).toBe('anthropic/claude-sonnet-4.6');
+    expect(result.modelUsed).toBe('anthropic/claude-sonnet-5.5');
     expect(() => validate(JSON.stringify({ agents: validRunSpec.agents.slice(0, 4) }))).toThrow();
     expect(() => validate(JSON.stringify(validRunSpec))).not.toThrow();
   });

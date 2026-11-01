@@ -24,6 +24,12 @@ export const FIREWORKS_TIER_MODELS: Record<ModelTier, string> = {
 
 export const MODEL_REGISTRY: Record<string, ModelDef> = {
   // Premium tier
+  'anthropic/claude-opus-5.5': {
+    id: 'anthropic/claude-opus-5.5',
+    provider: 'openrouter',
+    tier: 'premium',
+    displayName: 'Claude Opus 5.5',
+  },
   'anthropic/claude-opus-4.8': {
     id: 'anthropic/claude-opus-4.8',
     provider: 'openrouter',
@@ -44,6 +50,12 @@ export const MODEL_REGISTRY: Record<string, ModelDef> = {
   },
 
   // Standard tier
+  'anthropic/claude-sonnet-5.5': {
+    id: 'anthropic/claude-sonnet-5.5',
+    provider: 'openrouter',
+    tier: 'standard',
+    displayName: 'Claude Sonnet 5.5',
+  },
   'anthropic/claude-sonnet-4.6': {
     id: 'anthropic/claude-sonnet-4.6',
     provider: 'openrouter',
@@ -56,12 +68,8 @@ export const MODEL_REGISTRY: Record<string, ModelDef> = {
     tier: 'standard',
     displayName: 'Claude Sonnet 4.5',
   },
-  'anthropic/claude-sonnet-4': {
-    id: 'anthropic/claude-sonnet-4',
-    provider: 'openrouter',
-    tier: 'standard',
-    displayName: 'Claude Sonnet 4',
-  },
+  // anthropic/claude-sonnet-4 was delisted from OpenRouter (verified 2026-11-01);
+  // its only call site (brainliftExtractor.findContradictions) moved to sonnet-5.5.
   // Downstream readability rewriter (primary). Out-cuts haiku and reads lower at
   // equal length; uniform across DOK1-4. See features/pedagogy/readable-grading-feedback.
   'qwen/qwen3-30b-a3b-instruct-2507': {
@@ -72,6 +80,12 @@ export const MODEL_REGISTRY: Record<string, ModelDef> = {
   },
 
   // Fast tier
+  'anthropic/claude-haiku-5.5': {
+    id: 'anthropic/claude-haiku-5.5',
+    provider: 'openrouter',
+    tier: 'fast',
+    displayName: 'Claude Haiku 5.5',
+  },
   'anthropic/claude-haiku-4.5': {
     id: 'anthropic/claude-haiku-4.5',
     provider: 'openrouter',
