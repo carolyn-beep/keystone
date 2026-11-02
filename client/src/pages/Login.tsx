@@ -88,27 +88,31 @@ export default function Login() {
         <div className="login-hero-rule login-hero-rule-bottom" />
 
         <div className="login-hero-content">
-          <div className="login-hero-eyebrow">
-            <span className="login-hero-eyebrow-rule" />
-            <span>{brand.config.loginEyebrow}</span>
-            <span className="login-hero-eyebrow-rule" />
-          </div>
+          {brand.config.loginEyebrow ? (
+            <div className="login-hero-eyebrow">
+              <span className="login-hero-eyebrow-rule" />
+              <span>{brand.config.loginEyebrow}</span>
+              <span className="login-hero-eyebrow-rule" />
+            </div>
+          ) : null}
 
           <LoginIllustration />
 
           <Wordmark variant="hero" />
 
-          <p className="login-hero-tagline">
-            {brand.config.tagline}
-            {brand.config.taglineEmphasis ? (
-              <>
-                <br />
-                <span className="login-hero-tagline-emphasis">
-                  {brand.config.taglineEmphasis}
-                </span>
-              </>
-            ) : null}
-          </p>
+          {brand.config.tagline ? (
+            <p className="login-hero-tagline">
+              {brand.config.tagline}
+              {brand.config.taglineEmphasis ? (
+                <>
+                  <br />
+                  <span className="login-hero-tagline-emphasis">
+                    {brand.config.taglineEmphasis}
+                  </span>
+                </>
+              ) : null}
+            </p>
+          ) : null}
         </div>
       </aside>
 
@@ -122,13 +126,23 @@ export default function Login() {
           {/* Mobile-only wordmark (hero column hidden under lg) */}
           <Wordmark variant="mobile" />
 
-          <div className="login-card-heading">
-            <p className="login-card-eyebrow">{brand.config.loginHeading}</p>
-            <h2 className="login-card-title">{brand.config.loginTitle}</h2>
-            <p className="login-card-subtitle">
-              {brand.config.loginSubheading}
-            </p>
-          </div>
+          {brand.config.loginHeading ||
+          brand.config.loginTitle ||
+          brand.config.loginSubheading ? (
+            <div className="login-card-heading">
+              {brand.config.loginHeading ? (
+                <p className="login-card-eyebrow">{brand.config.loginHeading}</p>
+              ) : null}
+              {brand.config.loginTitle ? (
+                <h2 className="login-card-title">{brand.config.loginTitle}</h2>
+              ) : null}
+              {brand.config.loginSubheading ? (
+                <p className="login-card-subtitle">
+                  {brand.config.loginSubheading}
+                </p>
+              ) : null}
+            </div>
+          ) : null}
 
           <div className="login-card-actions">
             <Button

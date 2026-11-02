@@ -10,16 +10,17 @@ import type { BrandConfig } from '../types';
 export const config: BrandConfig = {
   id: 'keystone',
   productName: 'Keystone',
-  tagline: 'Bring the idea. Ship the business.',
-  loginEyebrow: 'Your Keystone in-app coach',
-  loginHeading: 'Welcome back',
-  loginTitle: "Let’s get back to building",
-  loginSubheading:
-    "Sign in to keep building the body of work you’re graduating with.",
+  // Login copy intentionally empty: the login page renders the wordmark and
+  // illustration alone. Login.tsx skips each of these when blank.
+  tagline: '',
+  loginEyebrow: '',
+  loginHeading: '',
+  loginTitle: '',
+  loginSubheading: '',
   chatPlaceholder:
     'Ask about grading, curation, sprint execution, or the documents in your workspace.',
   metaDescription:
-    'Keystone: your in-app coach for building deep, defensible knowledge — document building, sprint execution, and grading guidance.',
+    'Keystone: an AI learning platform that turns learners into experts by making them do the thinking.',
   // No login plate caption; null omits it, matching Keystone Central.
   loginPlateCaption: null,
   chatOpenerInstruction:
