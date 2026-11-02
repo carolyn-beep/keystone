@@ -4,11 +4,6 @@ import type { ChatModelId } from '@shared/chat-models';
 import type { ChatConversation } from '@shared/schema';
 import { ConfirmationModal } from '@/components/ui/confirmation-modal';
 import { useToast } from '@/hooks/use-toast';
-import { useUserBrainlifts } from '@/hooks/useUserBrainlifts';
-import {
-  NEW_PROJECT_ROUTE,
-  shouldAutoOpenWizard,
-} from '@/components/onboarding-wizard/entry-points';
 import { queryClient } from '@/lib/queryClient';
 import {
   CHAT_CONVERSATIONS_QUERY_KEY,
@@ -97,22 +92,10 @@ export default function ChatHome() {
   const search = useSearch();
   const { toast } = useToast();
 
-  // Zero-project auto-open: a user with no brainlifts who lands on `/` is
-  // sent straight into the onboarding wizard. Fires only on a confirmed zero
-  // count (query resolved successfully); never while loading/erroring, and
-  // never for users who already have projects. Replace-redirect so the back
-  // button doesn't loop back here. (features/ux-redesign/onboarding-wizard FR5)
-  const userBrainliftsQuery = useUserBrainlifts();
-  useEffect(() => {
-    if (
-      shouldAutoOpenWizard({
-        status: userBrainliftsQuery.status,
-        count: userBrainliftsQuery.data?.length ?? 0,
-      })
-    ) {
-      setLocation(NEW_PROJECT_ROUTE, { replace: true });
-    }
-  }, [userBrainliftsQuery.status, userBrainliftsQuery.data, setLocation]);
+  // A user with zero projects lands here, in chat, like everyone else. The
+  // chat opener offers to start their first document and the guided setup
+  // stays one click away (Projects → New Document, or the New Document link
+  // in the section nav). The wizard is never forced.
 
   const [selectedModelId, setSelectedModelId] = useState<ChatModelId>(
     getDefaultChatHomeModelId(),

@@ -23,14 +23,7 @@ export function buildCardHref(args: {
   return `/grading/${args.slug}${args.adminView ? '?admin=true' : ''}`;
 }
 
-/**
- * Whether the post-login landing should auto-open the wizard. Fires only on a
- * confirmed zero count (query resolved successfully with no projects); never
- * while loading or erroring, and never for users who already have projects.
- */
-export function shouldAutoOpenWizard(args: {
-  status: 'pending' | 'error' | 'success';
-  count: number;
-}): boolean {
-  return args.status === 'success' && args.count === 0;
-}
+// The wizard is never auto-opened. A zero-project user lands in chat, where the
+// opener offers to start a first document; the guided setup is reached from
+// Projects → New Document or the New Document link in the section nav, and it
+// can be left at any step with "Skip for now".

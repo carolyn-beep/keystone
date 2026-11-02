@@ -13,6 +13,12 @@ interface WizardShellProps {
   rail?: ReactNode;
   /** Back control. Hidden on the first step. */
   onBack?: () => void;
+  /**
+   * "Skip for now" control. The wizard is never mandatory: a user can leave
+   * at any step and come back through Projects → New Document. A project
+   * created on step 1 is kept and resumes from the library card.
+   */
+  onSkip?: () => void;
   children: ReactNode;
 }
 
@@ -50,7 +56,7 @@ const railVariants: Variants = {
  * the right rail runs the full viewport height on the page surface behind it.
  * No 1px chrome borders. Step changes slide/fade via framer-motion.
  */
-export function WizardShell({ step, title, subtitle, rail, onBack, children }: WizardShellProps) {
+export function WizardShell({ step, title, subtitle, rail, onBack, onSkip, children }: WizardShellProps) {
   const showBack = step > FIRST_STEP && typeof onBack === 'function';
 
   // Travel direction for the slide (1 = forward, -1 = back), computed against
@@ -116,9 +122,21 @@ export function WizardShell({ step, title, subtitle, rail, onBack, children }: W
                 </motion.div>
               </AnimatePresence>
             </div>
-            <span className="text-[10px] uppercase tracking-[0.35em] font-semibold text-muted-foreground shrink-0">
-              Step {step} / {LAST_STEP}
-            </span>
+            <div className="flex items-center gap-5 shrink-0">
+              <span className="text-[10px] uppercase tracking-[0.35em] font-semibold text-muted-foreground">
+                Step {step} / {LAST_STEP}
+              </span>
+              {onSkip ? (
+                <button
+                  type="button"
+                  onClick={onSkip}
+                  data-testid="wizard-skip"
+                  className="text-[13px] text-muted-foreground underline-offset-4 hover:underline hover:text-foreground transition-colors"
+                >
+                  Skip for now
+                </button>
+              ) : null}
+            </div>
           </header>
 
           {/* Step body — sized to the viewport; steps pin their CTA with

@@ -3,18 +3,15 @@
  *
  *  - Home "New Project" CTA (production-visible) → /new-project
  *  - Library card resume routing: onboardingStep != null → /new-project/:slug
- *  - Zero-project auto-open: useUserBrainlifts success + count 0 → /new-project
+ *  - The wizard is never forced: ChatHome does not redirect zero-project
+ *    users into it, the section nav links to it, and it can be skipped.
  *
  * Pure routing/decision helpers are tested directly; component wiring is
  * verified with source-pattern checks (node test env, established convention).
  */
 import fs from 'node:fs';
 import { describe, expect, it } from 'vitest';
-import {
-  buildCardHref,
-  shouldAutoOpenWizard,
-  NEW_PROJECT_ROUTE,
-} from '../entry-points';
+import { buildCardHref, NEW_PROJECT_ROUTE } from '../entry-points';
 
 function read(rel: string): string {
   return fs.readFileSync(new URL(rel, import.meta.url), 'utf8');
@@ -46,24 +43,7 @@ describe('FR5: buildCardHref (badge + resume routing)', () => {
   });
 });
 
-describe('FR5: shouldAutoOpenWizard (zero-project auto-open)', () => {
-  it('fires only on confirmed zero count (query success, 0 projects)', () => {
-    expect(shouldAutoOpenWizard({ status: 'success', count: 0 })).toBe(true);
-  });
-
-  it('does not fire while the query is loading', () => {
-    expect(shouldAutoOpenWizard({ status: 'pending', count: 0 })).toBe(false);
-  });
-
-  it('does not fire while the query is erroring', () => {
-    expect(shouldAutoOpenWizard({ status: 'error', count: 0 })).toBe(false);
-  });
-
-  it('does not fire when the user already has projects', () => {
-    expect(shouldAutoOpenWizard({ status: 'success', count: 1 })).toBe(false);
-    expect(shouldAutoOpenWizard({ status: 'success', count: 5 })).toBe(false);
-  });
-
+describe('wizard route constant', () => {
   it('targets /new-project', () => {
     expect(NEW_PROJECT_ROUTE).toBe('/new-project');
   });
@@ -107,17 +87,23 @@ describe('FR5: BrainliftCard badges + resumes mid-onboarding projects', () => {
   });
 });
 
-describe('FR5: ChatHome auto-opens the wizard for zero-project users', () => {
+describe('The wizard is never forced', () => {
   const chatHomeSource = read('../../../pages/ChatHome.tsx');
+  const shellSource = read('../WizardShell.tsx');
+  const wizardPageSource = read('../../../pages/OnboardingWizard.tsx');
 
-  it('reads the user brainlift count via useUserBrainlifts', () => {
-    expect(chatHomeSource).toMatch(/useUserBrainlifts/);
+  it('ChatHome does not redirect zero-project users into the wizard', () => {
+    expect(chatHomeSource).not.toMatch(/shouldAutoOpenWizard/);
+    expect(chatHomeSource).not.toMatch(/setLocation\(\s*NEW_PROJECT_ROUTE/);
   });
 
-  it('decides via shouldAutoOpenWizard and replace-redirects to NEW_PROJECT_ROUTE', () => {
-    expect(chatHomeSource).toMatch(/shouldAutoOpenWizard/);
-    expect(chatHomeSource).toMatch(/setLocation\(\s*NEW_PROJECT_ROUTE\s*,/);
-    // Replace navigation (not push) so back button doesn't loop into the wizard.
-    expect(chatHomeSource).toMatch(/replace:\s*true/);
+  it('WizardShell renders a "Skip for now" control when onSkip is provided', () => {
+    expect(shellSource).toMatch(/onSkip\?:\s*\(\)\s*=>\s*void/);
+    expect(shellSource).toContain('data-testid="wizard-skip"');
+    expect(shellSource).toContain('Skip for now');
+  });
+
+  it('OnboardingWizard wires onSkip back to the chat home', () => {
+    expect(wizardPageSource).toMatch(/onSkip=\{\(\)\s*=>\s*setLocation\(CHAT_HOME_ROUTE_PATH\)\}/);
   });
 });

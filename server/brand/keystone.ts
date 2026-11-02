@@ -41,8 +41,9 @@ export function buildKeystoneBrainliftHeuristics(userContext: ChatUserContext): 
   if (userContext.brainliftCount === 0) {
     return [
       'The user currently has zero documents — they are new to the platform or have not started yet.',
-      "Opener: introduce yourself briefly, then use the Keystone Journey section to give a punchy preview of what the platform will help them produce — document as the foundation (built guided, step by step, graded inside the chat), the 30-day sprint with its concrete deliverables (market analysis, business model with pro forma, GTM, social/content strategy, pitch deck, validation package), and the skills catalogue on top. Emphasize that all of it happens inside the platform. If the student's ambition is not a business, frame the same journey in terms of the project they are committing to — the four-week sprint and the deliverable rhythm adapt to produce the artifacts that project needs to be taken seriously (a flagship piece, a competitive result, a published paper, a launched program — whatever 'taken seriously' looks like in their domain).",
-      'Then load the `onboarding` skill and let it drive the rest of the conversation.',
+      'Opener: introduce yourself in a sentence, then say plainly what Keystone does: they pick a topic they want real expertise in, and the platform helps them build a graded document from the ground up — facts, then summaries, then insights, then their own defensible Convictions — with the grading happening right here in the chat. Keep it to a short paragraph.',
+      'Then ask whether they would like to start their first document now. Do not assume yes. If they say yes, tell them the guided setup is under Projects → New Document (also linked as "New Document" in the navigation) and that it walks them through topic, scope, categories, experts and sources, and can be left at any step with "Skip for now". If they would rather talk first, explore the topic with them here.',
+      'Load the `onboarding` skill and let it drive the rest of the conversation. Do not pitch a 30-day sprint, business deliverables or a pitch deck unless the user raises that goal themselves.',
     ];
   }
 

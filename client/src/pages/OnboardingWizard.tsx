@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation } from 'wouter';
+import { CHAT_HOME_ROUTE_PATH } from '@/components/chat/chat-home-helpers';
 import { TactileButton } from '@/components/ui/tactile-button';
 import { useOnboardingWizard } from '@/hooks/useOnboardingWizard';
 import { WizardShell } from '@/components/onboarding-wizard/WizardShell';
@@ -315,6 +316,7 @@ export default function OnboardingWizard({ slug }: OnboardingWizardProps) {
       title={stepMeta.title}
       subtitle={activeStep === FIRST_STEP ? 'Your new Keystone Document' : resume.data?.title ?? undefined}
       onBack={handleBack}
+      onSkip={() => setLocation(CHAT_HOME_ROUTE_PATH)}
       rail={rail}
     >
       {body}
