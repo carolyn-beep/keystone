@@ -4,7 +4,6 @@ import {
   type ChatModelId,
   type ChatModelOption,
 } from '@shared/chat-models';
-import { NEW_PROJECT_ROUTE } from '@/components/onboarding-wizard/entry-points';
 
 export const CHAT_HOME_ROUTE_PATH = '/';
 export const LIBRARY_ROUTE_PATH = '/library';
@@ -52,7 +51,6 @@ export function getChatHomeNavLinks(options: {
 }): ChatHomeNavLink[] {
   const links: ChatHomeNavLink[] = [
     { href: LIBRARY_ROUTE_PATH, label: 'Projects' },
-    { href: NEW_PROJECT_ROUTE, label: 'New Document' },
   ];
 
   if (options.isAdmin) {

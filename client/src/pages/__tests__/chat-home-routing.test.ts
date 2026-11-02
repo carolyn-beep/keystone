@@ -28,10 +28,9 @@ describe('chat home routing contracts', () => {
     );
   });
 
-  it('exposes only the library and New Document links to non-admins', () => {
+  it('exposes only the library link to non-admins', () => {
     expect(getChatHomeNavLinks({ isAdmin: false })).toEqual([
       { href: '/library', label: 'Projects' },
-      { href: '/new-project', label: 'New Document' },
     ]);
   });
 
@@ -40,27 +39,23 @@ describe('chat home routing contracts', () => {
 
     expect(getChatHomeNavLinks({ isAdmin: true })).toEqual([
       { href: '/library', label: 'Projects' },
-      { href: '/new-project', label: 'New Document' },
       { href: '/analytics', label: 'Analytics' },
     ]);
 
     // Allow-listed email but no allow-list configured -> no Providers link.
     expect(getChatHomeNavLinks({ isAdmin: true, email: 'provider-admin@example.com' })).toEqual([
       { href: '/library', label: 'Projects' },
-      { href: '/new-project', label: 'New Document' },
       { href: '/analytics', label: 'Analytics' },
     ]);
 
     expect(getChatHomeNavLinks({ isAdmin: true, email: 'provider-admin@example.com', providersAllowlist })).toEqual([
       { href: '/library', label: 'Projects' },
-      { href: '/new-project', label: 'New Document' },
       { href: '/analytics', label: 'Analytics' },
       { href: '/admin/providers', label: 'Providers' },
     ]);
 
     expect(getChatHomeNavLinks({ isAdmin: false, email: 'provider-admin@example.com', providersAllowlist })).toEqual([
       { href: '/library', label: 'Projects' },
-      { href: '/new-project', label: 'New Document' },
       { href: '/admin/providers', label: 'Providers' },
     ]);
   });

@@ -1,6 +1,7 @@
 import { ComponentType } from 'react';
-import { MessageSquare, FolderOpen, BarChart3, Shield, NotebookPen, Trash2 } from 'lucide-react';
+import { MessageSquare, FolderOpen, FilePlus2, BarChart3, Shield, NotebookPen, Trash2 } from 'lucide-react';
 import { SkillsIcon } from '@/assets/icons/SkillsIcon';
+import { NEW_PROJECT_ROUTE } from '@/components/onboarding-wizard/entry-points';
 
 // Lucide icons are typed as `ForwardRefExoticComponent`, which TypeScript
 // considers structurally incompatible with `ComponentType<{...}>`. The same
@@ -96,6 +97,14 @@ export function getSectionNavItems(opts: {
       label: 'Projects',
       href: LIBRARY_ROUTE_PATH,
       icon: FolderOpen as IconComponent,
+      children: [
+        {
+          id: 'new-document',
+          label: 'New Document',
+          href: NEW_PROJECT_ROUTE,
+          icon: FilePlus2 as IconComponent,
+        },
+      ],
     },
     {
       section: 'skills',
