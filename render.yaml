@@ -53,13 +53,15 @@ services:
         sync: false
       - key: AUTH_SIGNUP_ALLOWLIST
         sync: false # comma-separated emails allowed to create accounts
+      - key: FIREWORKS_API_KEY
+        sync: false # failover LLM provider; the app runs without it but a live deploy should have it
 
       # --- Cost controls ---
       - key: DAILY_SWARM_LIMIT
         value: 3
 
       # --- Optional (leave unset to disable the feature) ---
-      # FIREWORKS_API_KEY, OPENAI_API_KEY,
+      # OPENAI_API_KEY,
       # LANGFUSE_PUBLIC_KEY, LANGFUSE_SECRET_KEY, LANGFUSE_BASE_URL (LLM tracing),
       # AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, AWS_REGION, S3_BUCKET,
       # GOOGLE_SERVICE_ACCOUNT_JSON_BASE64, GOOGLE_DRIVE_SHARED_DRIVE_ID,
